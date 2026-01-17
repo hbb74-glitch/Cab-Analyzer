@@ -30,7 +30,7 @@ export default function Analyzer() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      distance: "1 inch"
+      distance: "1"
     }
   });
 
@@ -185,12 +185,24 @@ export default function Analyzer() {
                 <div className="space-y-2">
                   <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Distance</label>
                   <div className="relative">
-                    <input
+                    <select
                       {...register("distance")}
-                      type="text"
-                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/50"
-                      placeholder="e.g. 1 inch"
-                    />
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 pl-10 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                    >
+                      <option value="0">0"</option>
+                      <option value="0.5">0.5"</option>
+                      <option value="1">1"</option>
+                      <option value="1.5">1.5"</option>
+                      <option value="2">2"</option>
+                      <option value="2.5">2.5"</option>
+                      <option value="3">3"</option>
+                      <option value="3.5">3.5"</option>
+                      <option value="4">4"</option>
+                      <option value="4.5">4.5"</option>
+                      <option value="5">5"</option>
+                      <option value="5.5">5.5"</option>
+                      <option value="6">6"</option>
+                    </select>
                     <Mic2 className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
                   </div>
                   {errors.distance && (
