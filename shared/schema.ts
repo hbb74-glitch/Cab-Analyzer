@@ -11,7 +11,7 @@ export const analyses = pgTable("analyses", {
   distance: text("distance").notNull(), // close, 1 inch, 6 inches, etc
   
   // Technical metrics
-  durationMs: integer("duration_ms").notNull(),
+  durationSamples: integer("duration_samples").notNull(),
   peakAmplitudeDb: real("peak_amplitude_db").notNull(),
   spectralCentroid: real("spectral_centroid").notNull(), // brightness
   

@@ -45,7 +45,7 @@ export async function registerRoutes(
         Distance: ${input.distance}
         
         Metrics:
-        - Duration: ${input.durationMs}ms
+        - Duration: ${input.durationSamples} samples
         - Peak Amplitude: ${input.peakAmplitudeDb}dB
         - Spectral Centroid: ${input.spectralCentroid}Hz
       `;
