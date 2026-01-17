@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.enum(["dynamic", "ribbon", "condenser"]),
-  micPosition: z.enum(["center", "edge", "off-axis"]),
+  micPosition: z.enum(["cap", "cap-edge", "cap-edge-favor-cap", "cap-edge-favor-cone", "cone", "cap-off-center"]),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
 });
 
@@ -172,9 +172,12 @@ export default function Analyzer() {
                       {...register("micPosition")}
                       className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                     >
-                      <option value="center">Cap Center</option>
-                      <option value="edge">Cap Edge</option>
-                      <option value="off-axis">Off-Axis 45°</option>
+                      <option value="cap">Cap</option>
+                      <option value="cap-edge">Cap Edge</option>
+                      <option value="cap-edge-favor-cap">Cap Edge (Favor Cap)</option>
+                      <option value="cap-edge-favor-cone">Cap Edge (Favor Cone)</option>
+                      <option value="cone">Cone</option>
+                      <option value="cap-off-center">Cap Off Center</option>
                     </select>
                   </div>
                 </div>
