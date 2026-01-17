@@ -3,7 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2 } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
