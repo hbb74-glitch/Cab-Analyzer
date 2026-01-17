@@ -37,6 +37,18 @@ export async function registerRoutes(
       - SM7B: Smooth, thick dynamic.
       - Roswell Cab Mic: Condenser designed specifically for loud cabs.
       
+      Knowledge Base (Speakers):
+      - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
+      - V30 (China): Aggressive upper-mids, common in modern rock.
+      - V30 (Black Cat): Smoother, more refined than standard V30.
+      - G12K-100: Big low end, clear highs, very neutral.
+      - G12T-75: "Scooped" mids, sizzly highs, classic for metal.
+      - G12-65: Warm, punchy, "large" sound.
+      - G12H30 Anniversary: Tight bass, bright highs, very detailed.
+      - Celestion Cream: Alnico smoothness with high power handling.
+      - GA12-SC64: Vintage American tone, tight and punchy.
+      - G10-SC64: 10" version of the SC64, more focused.
+      
       Criteria for "Perfect" IR:
       - Duration: 20ms - 50ms (too short = missing bass, too long = room noise)
       - Peak: -6dB to -0.1dB ( > -0.1dB is clipping/bad)
@@ -55,6 +67,7 @@ export async function registerRoutes(
       const userMessage = `
         Mic Type: ${input.micType}
         Position: ${input.micPosition}
+        Speaker: ${input.speakerModel}
         Distance: ${input.distance}
         
         Metrics:

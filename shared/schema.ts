@@ -8,6 +8,7 @@ export const analyses = pgTable("analyses", {
   filename: text("filename").notNull(),
   micType: text("mic_type").notNull(), // dynamic, ribbon, condenser
   micPosition: text("mic_position").notNull(), // center, edge, off-axis
+  speakerModel: text("speaker_model").notNull(),
   distance: text("distance").notNull(), // close, 1 inch, 6 inches, etc
   
   // Technical metrics
