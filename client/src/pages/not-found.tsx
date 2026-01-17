@@ -1,21 +1,25 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { Link } from "wouter";
+import { AlertTriangle } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
-          </div>
+    <div className="min-h-screen w-full flex items-center justify-center bg-background">
+      <div className="glass-panel p-12 rounded-2xl text-center space-y-6 max-w-md mx-4">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4 border border-destructive/20">
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+        </div>
+        
+        <h1 className="text-4xl font-bold tracking-tight">404</h1>
+        <p className="text-muted-foreground">
+          The signal you are looking for has been lost in the mix.
+        </p>
 
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
-        </CardContent>
-      </Card>
+        <Link href="/">
+          <button className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors">
+            Return to Signal Chain
+          </button>
+        </Link>
+      </div>
     </div>
   );
 }
