@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, buildUrl, type InsertAnalysis } from "@shared/routes";
+import { api } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import type { InsertAnalysis } from "@shared/schema";
 
 // ============================================
 // Types
