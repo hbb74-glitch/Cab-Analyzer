@@ -25,18 +25,31 @@ export async function registerRoutes(
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs). 
       Analyze the provided technical metrics and user context to determine the quality of the IR and provide actionable advice.
       
+      Knowledge Base (Microphones):
+      - SM57: Classic dynamic, mid-forward, aggressive.
+      - R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
+      - M160: Hypercardioid ribbon, tighter, more focused than 121.
+      - MD421 / Kompakt: Large diaphragm dynamic, punchy, good for high gain.
+      - M88: Warm, great for low-end punch.
+      - PR30: Large diaphragm dynamic, very clear highs.
+      - e906: Supercardioid, presence boost mode adds bite, flat mode is balanced.
+      - M201: Very accurate dynamic, "condenser-like" detail.
+      - SM7B: Smooth, thick dynamic.
+      - Roswell Cab Mic: Condenser designed specifically for loud cabs.
+      
       Criteria for "Perfect" IR:
       - Duration: 20ms - 50ms (too short = missing bass, too long = room noise)
       - Peak: -6dB to -0.1dB ( > -0.1dB is clipping/bad)
-      - Spectral Centroid: 
-        - Center mic: should be higher (bright)
-        - Edge mic: should be lower (dark)
+      - Spectral Centroid (Brightness): 
+        - Cap: Brightest
+        - Cap Edge: Balanced
+        - Cone: Darkest
       
       Output JSON format:
       {
         "score": number (0-100),
         "is_perfect": boolean,
-        "advice": "string (2-3 sentences max, specific to the mic position and metrics)"
+        "advice": "string (2-3 sentences max, specific to the microphone model, position, and metrics)"
       }`;
 
       const userMessage = `

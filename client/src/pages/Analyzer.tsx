@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // Validation schema for the form
 const formSchema = z.object({
-  micType: z.enum(["dynamic", "ribbon", "condenser"]),
+  micType: z.string().min(1, "Microphone is required"),
   micPosition: z.enum(["cap", "cap-edge", "cap-edge-favor-cap", "cap-edge-favor-cone", "cone", "cap-off-center"]),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
 });
@@ -155,14 +155,24 @@ export default function Analyzer() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Mic Type</label>
+                    <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Microphone</label>
                     <select
                       {...register("micType")}
                       className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                     >
-                      <option value="dynamic">Dynamic</option>
-                      <option value="ribbon">Ribbon</option>
-                      <option value="condenser">Condenser</option>
+                      <option value="57">SM57</option>
+                      <option value="121">R-121</option>
+                      <option value="160">M160</option>
+                      <option value="421">MD421</option>
+                      <option value="421-kompakt">MD421 Kompakt</option>
+                      <option value="r10">R10</option>
+                      <option value="m88">M88</option>
+                      <option value="pr30">PR30</option>
+                      <option value="e906-boost">e906 (Presence Boost)</option>
+                      <option value="e906-flat">e906 (Flat)</option>
+                      <option value="m201">M201</option>
+                      <option value="sm7b">SM7B</option>
+                      <option value="roswell-cab">Roswell Cab Mic</option>
                     </select>
                   </div>
                   
