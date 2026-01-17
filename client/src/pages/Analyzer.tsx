@@ -80,7 +80,7 @@ export default function Analyzer() {
         micType: data.micType,
         micPosition: data.micPosition,
         distance: data.distance,
-        durationMs: metrics.durationMs,
+        durationSamples: metrics.durationSamples,
         peakAmplitudeDb: metrics.peakAmplitudeDb,
         spectralCentroid: metrics.spectralCentroid,
       });
@@ -230,7 +230,7 @@ export default function Analyzer() {
                 </h3>
                 {metrics && (
                   <span className="text-xs font-mono text-muted-foreground">
-                    {metrics.durationMs}ms / {metrics.peakAmplitudeDb}dB
+                    {metrics.durationSamples} samples / {metrics.peakAmplitudeDb}dB
                   </span>
                 )}
               </div>

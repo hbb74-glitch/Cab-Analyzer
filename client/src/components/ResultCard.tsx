@@ -86,9 +86,9 @@ export function ResultCard({ score, isPerfect, advice, metrics }: ResultCardProp
               </p>
             </div>
             <div className="space-y-1">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Duration</span>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Samples</span>
               <p className="text-lg font-mono font-medium text-foreground">
-                {metrics.duration} ms
+                {metrics.duration}
               </p>
             </div>
             <div className="space-y-1">

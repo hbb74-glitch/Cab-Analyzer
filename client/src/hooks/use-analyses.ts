@@ -73,6 +73,7 @@ export function useCreateAnalysis() {
 
 export interface AudioMetrics {
   durationMs: number;
+  durationSamples: number;
   peakAmplitudeDb: number;
   spectralCentroid: number;
   frequencyData: number[]; // Normalized 0-100 for visualization
@@ -84,27 +85,29 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
   // 1. Duration
+  const durationSamples = audioBuffer.length;
   const durationMs = Math.round(audioBuffer.duration * 1000);
 
   // 2. Peak Amplitude (dB)
   const channelData = audioBuffer.getChannelData(0);
   let peak = 0;
-  for (let i = 0; i < channelData.length; i++) {
+  for (let i = 0; i < Math.min(channelData.length, 8096); i++) {
     const abs = Math.abs(channelData[i]);
     if (abs > peak) peak = abs;
   }
   // Convert linear amplitude to dBFS (assuming float32 -1.0 to 1.0)
   // 20 * log10(amplitude)
-  const peakAmplitudeDb = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
+  const peakAmplitudeDb = peak > 0 ? 20 * Math.log10(peak) : -96;
 
   // 3. Spectral Analysis (Quick FFT approximation via OfflineContext)
   // We'll create a simplified spectral centroid and freq data for the graph
-  const offlineCtx = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);
+  const fftSize = 8192;
+  const offlineCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
   const source = offlineCtx.createBufferSource();
   source.buffer = audioBuffer;
   
   const analyser = offlineCtx.createAnalyser();
-  analyser.fftSize = 2048; // Good balance for resolution
+  analyser.fftSize = fftSize;
   analyser.smoothingTimeConstant = 0; // Snapshot
   
   source.connect(analyser);
@@ -113,12 +116,11 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   await offlineCtx.startRendering();
   
-  // Get frequency data from the analyser (this catches the average/snapshot effect)
+  // Get frequency data from the analyser
   const freqByteData = new Uint8Array(analyser.frequencyBinCount);
   analyser.getByteFrequencyData(freqByteData);
   
   // Calculate Spectral Centroid (Brightness)
-  // sum(f * mag(f)) / sum(mag(f))
   let numerator = 0;
   let denominator = 0;
   const binSize = audioBuffer.sampleRate / analyser.fftSize;
@@ -132,7 +134,6 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     numerator += frequency * magnitude;
     denominator += magnitude;
     
-    // Store for graph (downsample/bucket if needed, but 1024 points is fine for now)
     frequencyData.push(magnitude); 
   }
   
@@ -140,6 +141,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
 
   return {
     durationMs,
+    durationSamples,
     peakAmplitudeDb: parseFloat(peakAmplitudeDb.toFixed(2)),
     spectralCentroid: parseFloat(spectralCentroid.toFixed(2)),
     frequencyData
