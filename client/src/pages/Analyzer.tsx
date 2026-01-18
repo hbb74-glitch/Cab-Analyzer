@@ -22,13 +22,99 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 
+// Filename parsing to auto-populate fields
+// Supports formats like: SM57_cap-edge_v30-china_1in.wav, 57_cap_greenback_0.5.wav, etc.
+const MIC_PATTERNS: Record<string, string> = {
+  "sm57": "57", "57": "57",
+  "r121": "121", "r-121": "121", "121": "121",
+  "m160": "160", "160": "160",
+  "md421": "421", "421": "421",
+  "421kompakt": "421-kompakt", "421-kompakt": "421-kompakt", "kompakt": "421-kompakt",
+  "r10": "r10",
+  "m88": "m88", "88": "m88",
+  "pr30": "pr30", "30": "pr30",
+  "e906boost": "e906-boost", "e906-boost": "e906-boost", "906boost": "e906-boost",
+  "e906flat": "e906-flat", "e906-flat": "e906-flat", "906flat": "e906-flat", "e906": "e906-flat",
+  "m201": "m201", "201": "m201",
+  "sm7b": "sm7b", "sm7": "sm7b", "7b": "sm7b",
+  "roswellcab": "roswell-cab", "roswell-cab": "roswell-cab", "roswell": "roswell-cab",
+};
+
+const POSITION_PATTERNS: Record<string, string> = {
+  "cap-edge-favor-cap": "cap-edge-favor-cap", "capedgefavorcap": "cap-edge-favor-cap",
+  "cap-edge-favor-cone": "cap-edge-favor-cone", "capedgefavorcone": "cap-edge-favor-cone",
+  "cap-edge": "cap-edge", "capedge": "cap-edge", "edge": "cap-edge",
+  "cap-off-center": "cap-off-center", "capoffcenter": "cap-off-center", "offcenter": "cap-off-center",
+  "cap": "cap", "center": "cap",
+  "cone": "cone",
+};
+
+const SPEAKER_PATTERNS: Record<string, string> = {
+  "g12m25": "g12m25", "greenback": "g12m25", "gb": "g12m25", "g12m": "g12m25",
+  "v30china": "v30-china", "v30-china": "v30-china", "v30c": "v30-china",
+  "v30blackcat": "v30-blackcat", "v30-blackcat": "v30-blackcat", "blackcat": "v30-blackcat", "v30bc": "v30-blackcat",
+  "v30": "v30-china",
+  "k100": "k100", "g12k100": "k100", "g12k-100": "k100",
+  "g12t75": "g12t75", "t75": "g12t75", "g12t-75": "g12t75",
+  "g12-65": "g12-65", "g1265": "g12-65", "65": "g12-65",
+  "g12h30": "g12h30-anniversary", "g12h30-anniversary": "g12h30-anniversary", "anniversary": "g12h30-anniversary", "h30": "g12h30-anniversary",
+  "cream": "celestion-cream", "celestion-cream": "celestion-cream", "celestioncream": "celestion-cream",
+  "ga12sc64": "ga12-sc64", "ga12-sc64": "ga12-sc64", "sc64": "ga12-sc64",
+  "g10sc64": "g10-sc64", "g10-sc64": "g10-sc64", "g10": "g10-sc64",
+};
+
+function parseFilename(filename: string): Partial<FormData> {
+  const result: Partial<FormData> = {};
+  const name = filename.toLowerCase().replace('.wav', '');
+  const parts = name.split(/[_\-\s]+/);
+  const fullName = parts.join('');
+  
+  // Try to find mic type
+  for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
+    if (parts.includes(pattern) || fullName.includes(pattern)) {
+      result.micType = value;
+      break;
+    }
+  }
+  
+  // Try to find position (check longer patterns first)
+  const sortedPositions = Object.entries(POSITION_PATTERNS).sort((a, b) => b[0].length - a[0].length);
+  for (const [pattern, value] of sortedPositions) {
+    if (parts.includes(pattern) || fullName.includes(pattern)) {
+      result.micPosition = value as FormData["micPosition"];
+      break;
+    }
+  }
+  
+  // Try to find speaker
+  const sortedSpeakers = Object.entries(SPEAKER_PATTERNS).sort((a, b) => b[0].length - a[0].length);
+  for (const [pattern, value] of sortedSpeakers) {
+    if (parts.includes(pattern) || fullName.includes(pattern)) {
+      result.speakerModel = value;
+      break;
+    }
+  }
+  
+  // Try to find distance (look for numbers, optionally followed by "in" or "inch")
+  const distanceMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")?/);
+  if (distanceMatch) {
+    const distVal = distanceMatch[1];
+    const validDistances = ["0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6"];
+    if (validDistances.includes(distVal)) {
+      result.distance = distVal;
+    }
+  }
+  
+  return result;
+}
+
 export default function Analyzer() {
   const [file, setFile] = useState<File | null>(null);
   const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       distance: "1",
@@ -53,6 +139,33 @@ export default function Analyzer() {
     setAnalyzing(true);
     setResult(null); // Clear previous result
     
+    // Parse filename and auto-populate fields
+    const parsed = parseFilename(selected.name);
+    let fieldsPopulated = 0;
+    if (parsed.micType) {
+      setValue("micType", parsed.micType);
+      fieldsPopulated++;
+    }
+    if (parsed.micPosition) {
+      setValue("micPosition", parsed.micPosition);
+      fieldsPopulated++;
+    }
+    if (parsed.speakerModel) {
+      setValue("speakerModel", parsed.speakerModel);
+      fieldsPopulated++;
+    }
+    if (parsed.distance) {
+      setValue("distance", parsed.distance);
+      fieldsPopulated++;
+    }
+    
+    if (fieldsPopulated > 0) {
+      toast({ 
+        title: "Fields auto-populated", 
+        description: `Detected ${fieldsPopulated} field(s) from filename` 
+      });
+    }
+    
     try {
       const audioMetrics = await analyzeAudioFile(selected);
       setMetrics(audioMetrics);
@@ -62,7 +175,7 @@ export default function Analyzer() {
     } finally {
       setAnalyzing(false);
     }
-  }, [toast]);
+  }, [toast, setValue]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
