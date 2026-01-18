@@ -19,6 +19,16 @@ const SPEAKERS = [
   { value: "g10-sc64", label: "G10-SC64" },
 ];
 
+const GENRES = [
+  { value: "classic-rock", label: "Classic Rock" },
+  { value: "hard-rock", label: "Hard Rock" },
+  { value: "alternative-rock", label: "Alternative Rock" },
+  { value: "punk", label: "Punk" },
+  { value: "grunge", label: "Grunge" },
+  { value: "classic-metal", label: "Classic Heavy Metal" },
+  { value: "indie-rock", label: "Indie Rock" },
+];
+
 const MIC_LABELS: Record<string, string> = {
   "57": "SM57",
   "121": "R-121",
@@ -46,12 +56,13 @@ const POSITION_LABELS: Record<string, string> = {
 
 export default function Recommendations() {
   const [speaker, setSpeaker] = useState<string>("");
+  const [genre, setGenre] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const { toast } = useToast();
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async (speakerModel: string) => {
-      const validated = api.recommendations.get.input.parse({ speakerModel });
+    mutationFn: async ({ speakerModel, genre }: { speakerModel: string; genre: string }) => {
+      const validated = api.recommendations.get.input.parse({ speakerModel, genre });
       const res = await fetch(api.recommendations.get.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -74,7 +85,11 @@ export default function Recommendations() {
       toast({ title: "Select a speaker", description: "Please choose a speaker model first", variant: "destructive" });
       return;
     }
-    getRecommendations(speaker);
+    if (!genre) {
+      toast({ title: "Select a genre", description: "Please choose a target genre", variant: "destructive" });
+      return;
+    }
+    getRecommendations({ speakerModel: speaker, genre });
   };
 
   return (
@@ -107,12 +122,27 @@ export default function Recommendations() {
             </select>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target Genre</label>
+            <select
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-genre"
+            >
+              <option value="">Select a genre...</option>
+              {GENRES.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
+
           <button
             type="submit"
-            disabled={!speaker || isPending}
+            disabled={!speaker || !genre || isPending}
             className={cn(
               "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !speaker || isPending
+              !speaker || !genre || isPending
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
             )}

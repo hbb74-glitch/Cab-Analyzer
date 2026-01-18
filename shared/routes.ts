@@ -18,6 +18,7 @@ export const errorSchemas = {
 // Recommendations schemas
 export const recommendationInputSchema = z.object({
   speakerModel: z.string().min(1, "Speaker model is required"),
+  genre: z.string().min(1, "Genre is required"),
 });
 
 export const recommendationSchema = z.object({
