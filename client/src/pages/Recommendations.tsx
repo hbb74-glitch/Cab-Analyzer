@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +61,43 @@ export default function Recommendations() {
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
   const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+
+  const copyToClipboard = () => {
+    let text = "";
+    if (mode === 'by-speaker' && result) {
+      text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
+      text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
+      result.recommendations.forEach((rec, i) => {
+        text += `${i + 1}. Position: ${POSITION_LABELS[rec.position] || rec.position} | Distance: ${rec.distance}"\n`;
+        text += `   Rationale: ${rec.rationale}\n\n`;
+      });
+    } else if (mode === 'by-speaker' && speakerResult) {
+      text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
+      speakerResult.micRecommendations.forEach((rec, i) => {
+        text += `${i + 1}. ${rec.micLabel} @ ${POSITION_LABELS[rec.position] || rec.position} (${rec.distance}")\n`;
+        text += `   Tone: ${rec.expectedTone}\n\n`;
+      });
+    } else if (mode === 'by-amp' && ampResult) {
+      text = `Speaker Recommendations for: ${ampResult.ampSummary}\n\n`;
+      ampResult.speakerSuggestions.forEach((s, i) => {
+        text += `${i + 1}. ${s.speakerLabel}\n`;
+        text += `   Best for: ${s.bestFor}\n`;
+        text += `   Tone: ${s.expectedTone}\n\n`;
+      });
+    }
+
+    if (text) {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast({
+        title: "Copied to clipboard",
+        description: "Suggestions copied as shorthand list.",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Mode: if mic is selected, use mic+speaker endpoint; otherwise use speaker-only endpoint
   const isSpeakerOnlyMode = !micType && speaker;
@@ -369,11 +405,21 @@ export default function Recommendations() {
               className="space-y-6"
             >
               <div className="glass-panel p-6 rounded-2xl space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
                     <Mic2 className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">{getMicLabel(result.mic)}</span>
                   </div>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                    data-testid="button-copy-suggestions"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "Copied!" : "Copy Shorthand"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
                   <span className="text-muted-foreground">+</span>
                   <div className="flex items-center gap-2 bg-secondary/20 px-4 py-2 rounded-full border border-secondary/20">
                     <Speaker className="w-4 h-4 text-secondary" />
@@ -465,11 +511,21 @@ export default function Recommendations() {
               className="space-y-6"
             >
               <div className="glass-panel p-6 rounded-2xl space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2 bg-secondary/20 px-4 py-2 rounded-full border border-secondary/20">
                     <Speaker className="w-4 h-4 text-secondary" />
                     <span className="text-sm font-medium text-secondary">{getSpeakerLabel(speakerResult.speaker)}</span>
                   </div>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                    data-testid="button-copy-speaker-suggestions"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "Copied!" : "Copy Shorthand"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
                   {speakerResult.genre && (
                     <>
                       <span className="text-muted-foreground">for</span>
@@ -539,11 +595,19 @@ export default function Recommendations() {
               className="space-y-6"
             >
               <div className="glass-panel p-6 rounded-2xl space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
                     <Zap className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">Amp Analysis</span>
                   </div>
+                  <button
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                    data-testid="button-copy-amp-suggestions"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "Copied!" : "Copy Shorthand"}
+                  </button>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   <span className="text-foreground font-medium">Your Amp:</span> {ampResult.ampSummary}
