@@ -50,8 +50,9 @@ export async function registerRoutes(
       - G10-SC64: 10" version of the SC64, more focused.
       
       Criteria for "Perfect" IR:
+      - Normalization: The system now normalizes every IR to 0dB peak before analysis.
       - Duration: 20ms - 50ms (too short = missing bass, too long = room noise)
-      - Peak: -6dB to -0.1dB ( > -0.1dB is clipping/bad)
+      - Peak: Should be around 0dB (since it's normalized). If the original was very quiet, mention that.
       - Spectral Centroid (Brightness): 
         - Cap: Brightest
         - Cap Edge: Balanced

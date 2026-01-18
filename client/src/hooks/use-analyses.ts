@@ -96,8 +96,17 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     const abs = Math.abs(channelData[i]);
     if (abs > peak) peak = abs;
   }
+
+  // Normalize channel data to 0dB peak
+  if (peak > 0 && peak < 1.0) {
+    const scale = 1.0 / peak;
+    for (let i = 0; i < channelData.length; i++) {
+      channelData[i] *= scale;
+    }
+    peak = 1.0; // After normalization, peak is 1.0 (0dB)
+  }
+
   // Convert linear amplitude to dBFS (assuming float32 -1.0 to 1.0)
-  // 20 * log10(amplitude)
   const peakAmplitudeDb = peak > 0 ? 20 * Math.log10(peak) : -96;
 
   // 3. Spectral Analysis (Quick FFT approximation via OfflineContext)
