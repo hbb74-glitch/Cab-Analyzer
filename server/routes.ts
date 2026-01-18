@@ -787,31 +787,72 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const input = api.batchAnalysis.analyze.input.parse(req.body);
       const { irs } = input;
 
+      // Use IDENTICAL knowledge base and scoring criteria as single file analysis
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
-      Your task is to analyze multiple IRs and provide quality assessments for each one based on their audio metrics and filename.
+      Analyze the provided technical metrics to determine the TECHNICAL QUALITY of each IR.
+      Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
       
-      Parse information from filenames when possible. Common patterns:
+      Knowledge Base (Microphones):
+      - SM57: Classic dynamic, mid-forward, aggressive.
+      - R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
+      - M160: Hypercardioid ribbon, tighter, more focused.
+      - MD421 / Kompakt: Large diaphragm dynamic, punchy.
+      - M88: Warm, great low-end punch.
+      - PR30: Large diaphragm dynamic, very clear highs.
+      - e906: Supercardioid, presence boost or flat modes.
+      - M201: Very accurate dynamic.
+      - SM7B: Smooth, thick dynamic.
+      - Roswell Cab Mic: Specialized condenser designed for loud cabs. Manufacturer recommends starting at 6" distance, centered directly on dust cap.
+      
+      Knowledge Base (Speakers):
+      - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
+      - V30: Aggressive upper-mids, modern rock. The standard unlabeled Vintage 30.
+      - V30 (Black Cat): Smoother, more refined than standard V30.
+      - G12K-100: Big low end, clear highs, neutral.
+      - G12T-75: Scooped mids, sizzly highs.
+      - G12-65: Warm, punchy, large sound.
+      - G12H30 Anniversary: Tight bass, bright highs, detailed.
+      - Celestion Cream: Alnico smoothness with high power.
+      - GA12-SC64: Vintage American, tight and punchy.
+      - G10-SC64: 10" version, more focused.
+      
+      Microphone Position Tonal Characteristics:
+      - Cap: Dead center of speaker dust cap. Brightest, most aggressive tone with maximum high-end detail.
+      - Cap Edge: Transition zone between cap and cone. Balanced tone, often the "sweet spot."
+      - Cap Edge (Favor Cap): On the cap edge but angled/focused more towards the cap. Brighter than standard cap-edge.
+      - Cap Edge (Favor Cone): On the cap edge but angled/focused more towards the cone. Darker and warmer than standard cap-edge.
+      - Cone: Focused directly on the paper cone area (not the cap). Darkest, warmest tone with the most body and least high-end.
+      - Cap Off Center: Still on the cap but not dead center - slightly off to one side. Retains brightness but with less harsh direct attack.
+      
+      Parse information from filenames when possible:
       - Mic types: SM57, R121, R10, M160, MD421, M88, e906, M201, C414, Roswell, etc.
       - Positions: Cap, CapEdge, Cone, CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
       - Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
       - Distances: Numbers followed by "in" or just numbers (e.g., 1in, 2, 1.5in)
       
-      Technical Scoring Criteria:
+      Technical Scoring Criteria (APPLY CONSISTENTLY):
       - 90-100: Exceptional. Professional studio quality, no technical issues.
       - 85-89: Very Good. High quality capture, minor improvements possible.
       - 80-84: Good. Usable quality, some technical aspects could be improved.
       - 70-79: Acceptable. Noticeable issues but still usable.
       - Below 70: Needs work. Significant technical problems.
       
-      Technical Quality Indicators:
-      - Duration: 20ms - 50ms ideal (too short = missing bass response, too long = room noise)
-      - Peak Level: Should be normalized near 0dB
-      - Spectral Centroid: Higher = brighter, lower = warmer. Context-dependent.
-      - Energy Distribution: Look at low/mid/high balance for the mic/position combo
+      Criteria for "Perfect" IR (technical quality):
+      - Normalization: The system normalizes every IR to 0dB peak before analysis.
+      - Duration: 20ms - 50ms ideal (too short = missing bass response, too long = room noise/reflections)
+      - Peak: Should be around 0dB (since it's normalized).
+      - Spectral balance: Appropriate frequency content for the mic/speaker/position combination.
+      - No clipping, phase issues, or excessive noise.
+      
+      Advice Guidelines:
+      - Focus on TECHNICAL quality only - not genre or style preferences.
+      - Comment on whether the mic/position/distance choice captures the speaker well.
+      - Identify any technical issues (duration, frequency response, noise).
+      - Suggest technical improvements if needed (different position, distance adjustments).
       
       For each IR, provide:
       - Parsed info from filename (if detectable)
-      - A quality score (0-100)
+      - A quality score (0-100) using the SAME criteria as single-file analysis
       - Whether it's "perfect" (score >= 85)
       - Brief advice (1-2 sentences)
       - 1-3 highlights (what's good)
