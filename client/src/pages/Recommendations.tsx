@@ -84,11 +84,26 @@ export default function Recommendations() {
       return { baseMic: baseMic.toLowerCase().replace(/\s+/g, ''), suffix };
     };
     
-    // Helper to format position as CamelCase
+    // Helper to format position as CamelCase with underscore for sub-positions
     const formatPosition = (pos: string) => {
-      return pos.split(/[-\s]+/).map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      ).join('');
+      // Handle positions like "cap-edge-favor-cap" -> "CapEdge_FavorCap"
+      const parts = pos.toLowerCase().split('-');
+      
+      if (parts.length <= 2) {
+        // Simple positions: "cap", "cone", "cap-edge" -> "Cap", "Cone", "CapEdge"
+        return parts.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
+      } else {
+        // Complex positions with "favor" or "off": "cap-edge-favor-cap" -> "CapEdge_FavorCap"
+        // Find where to split (at "favor" or "off")
+        const splitIndex = parts.findIndex(p => p === 'favor' || p === 'off');
+        if (splitIndex > 0) {
+          const firstPart = parts.slice(0, splitIndex).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+          const secondPart = parts.slice(splitIndex).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+          return `${firstPart}_${secondPart}`;
+        }
+        // Fallback: just CamelCase everything
+        return parts.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
+      }
     };
 
     if (mode === 'by-speaker' && result) {
