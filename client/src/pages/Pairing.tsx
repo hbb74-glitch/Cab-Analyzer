@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4 } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,32 @@ interface UploadedIR {
 export default function Pairing() {
   const [uploadedIRs, setUploadedIRs] = useState<UploadedIR[]>([]);
   const [result, setResult] = useState<PairingResponse | null>(null);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+
+  const copyPairings = () => {
+    if (!result) return;
+    
+    let text = "IR Pairing Recommendations\n";
+    text += "=" .repeat(40) + "\n\n";
+    
+    result.pairings.forEach((pairing, i) => {
+      text += `${i + 1}. ${pairing.ir1} + ${pairing.ir2}\n`;
+      text += `   Mix Ratio: ${pairing.mixRatio}\n`;
+      text += `   Score: ${pairing.score}/100\n`;
+      text += `   Expected Tone: ${pairing.expectedTone}\n`;
+      text += `   Best For: ${pairing.bestFor}\n`;
+      text += `   Why: ${pairing.rationale}\n\n`;
+    });
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({
+      title: "Copied to clipboard",
+      description: "Pairing recommendations copied with descriptions.",
+    });
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const { mutate: analyzePairings, isPending } = useMutation({
     mutationFn: async (irs: IRMetrics[]) => {
@@ -268,10 +293,20 @@ export default function Pairing() {
               className="space-y-6"
             >
               <div className="glass-panel p-6 rounded-2xl">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Zap className="w-6 h-6 text-primary" />
-                  Best Pairings
-                </h2>
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Zap className="w-6 h-6 text-primary" />
+                    Best Pairings
+                  </h2>
+                  <button
+                    onClick={copyPairings}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                    data-testid="button-copy-pairings"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "Copied!" : "Copy All"}
+                  </button>
+                </div>
                 <p className="text-muted-foreground mb-6">{result.summary}</p>
 
                 <div className="space-y-4">
