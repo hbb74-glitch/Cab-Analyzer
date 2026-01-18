@@ -48,6 +48,41 @@ export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
 export type DistanceRecommendation = z.infer<typeof distanceRecommendationSchema>;
 export type RecommendationsResponse = z.infer<typeof recommendationsResponseSchema>;
 
+// IR Pairing schemas
+export const irMetricsSchema = z.object({
+  filename: z.string(),
+  duration: z.number(),
+  peakLevel: z.number(),
+  spectralCentroid: z.number(),
+  lowEnergy: z.number(),
+  midEnergy: z.number(),
+  highEnergy: z.number(),
+});
+
+export const pairingInputSchema = z.object({
+  irs: z.array(irMetricsSchema).min(2, "Need at least 2 IRs to analyze pairings"),
+});
+
+export const pairingResultSchema = z.object({
+  ir1: z.string(),
+  ir2: z.string(),
+  mixRatio: z.string(),
+  score: z.number(),
+  rationale: z.string(),
+  expectedTone: z.string(),
+  bestFor: z.string(),
+});
+
+export const pairingResponseSchema = z.object({
+  pairings: z.array(pairingResultSchema),
+  summary: z.string(),
+});
+
+export type IRMetrics = z.infer<typeof irMetricsSchema>;
+export type PairingInput = z.infer<typeof pairingInputSchema>;
+export type PairingResult = z.infer<typeof pairingResultSchema>;
+export type PairingResponse = z.infer<typeof pairingResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -75,6 +110,18 @@ export const api = {
       input: recommendationInputSchema,
       responses: {
         200: recommendationsResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+  },
+  pairing: {
+    analyze: {
+      method: 'POST' as const,
+      path: '/api/pairing',
+      input: pairingInputSchema,
+      responses: {
+        200: pairingResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },

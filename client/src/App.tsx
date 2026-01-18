@@ -8,12 +8,14 @@ import { Navigation } from "@/components/Navigation";
 import Analyzer from "@/pages/Analyzer";
 import History from "@/pages/History";
 import Recommendations from "@/pages/Recommendations";
+import Pairing from "@/pages/Pairing";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Analyzer} />
+      <Route path="/pairing" component={Pairing} />
       <Route path="/history" component={History} />
       <Route path="/recommendations" component={Recommendations} />
       <Route component={NotFound} />

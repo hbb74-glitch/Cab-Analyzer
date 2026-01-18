@@ -248,5 +248,92 @@ export async function registerRoutes(
     }
   });
 
+  // IR Pairing endpoint - analyze multiple IRs for best pairings with mix ratios
+  app.post(api.pairing.analyze.path, async (req, res) => {
+    try {
+      const input = api.pairing.analyze.input.parse(req.body);
+      const { irs } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+      Your task is to analyze a set of IRs and determine which ones pair well together when mixed.
+      
+      Understanding IR Mixing:
+      - Mixing two IRs blends their frequency characteristics
+      - Complementary IRs cover different frequency ranges (e.g., bright + warm)
+      - Similar IRs reinforce each other but may cause phase issues
+      - The mix ratio determines how much of each IR contributes to the final sound
+      
+      Mix Ratio Guidelines:
+      - 50:50: Equal blend, best when both IRs are equally important
+      - 60:40: Slight emphasis on the first IR while retaining character of second
+      - 65:35: First IR dominates but second adds color/depth
+      - 70:30: First IR is primary, second adds subtle enhancement
+      - 75:25: First IR is main character, second adds just a hint of color
+      
+      Pairing Criteria (what makes a good pair):
+      - Complementary frequency balance (one brighter, one warmer)
+      - Different spectral centroids (indicates different tonal focus)
+      - Combined coverage across low/mid/high energy ranges
+      - Avoid pairing two very similar IRs (redundant, potential phase issues)
+      
+      Analysis approach:
+      - Look at spectral centroid: higher = brighter, lower = warmer
+      - Look at energy distribution: lowEnergy, midEnergy, highEnergy
+      - Consider how each IR's characteristics complement or conflict
+      
+      Output the TOP 3-5 best pairings from the provided IRs.
+      Score each pairing from 0-100 based on how well they complement each other.
+      
+      Output JSON format:
+      {
+        "pairings": [
+          {
+            "ir1": "filename of first IR",
+            "ir2": "filename of second IR",
+            "mixRatio": "e.g. '60:40' (first:second)",
+            "score": number (0-100, how well they pair),
+            "rationale": "Why these two work well together",
+            "expectedTone": "Description of the blended sound",
+            "bestFor": "What styles/sounds this blend is ideal for"
+          }
+        ],
+        "summary": "Brief overall summary of the IR set and pairing recommendations"
+      }`;
+
+      const irDescriptions = irs.map((ir, i) => 
+        `IR ${i + 1}: "${ir.filename}"
+         - Duration: ${ir.duration.toFixed(1)}ms
+         - Peak Level: ${ir.peakLevel.toFixed(1)}dB
+         - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+         - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+         - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+         - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
+      ).join('\n\n');
+
+      const userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Pairing analysis error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to analyze IR pairings" });
+    }
+  });
+
   return httpServer;
 }

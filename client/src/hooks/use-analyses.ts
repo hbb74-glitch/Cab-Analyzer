@@ -78,6 +78,9 @@ export interface AudioMetrics {
   peakAmplitudeDb: number;
   spectralCentroid: number;
   frequencyData: number[]; // Normalized 0-100 for visualization
+  lowEnergy: number;   // 0-1, energy in low frequency range (20-250Hz)
+  midEnergy: number;   // 0-1, energy in mid frequency range (250-4000Hz)
+  highEnergy: number;  // 0-1, energy in high frequency range (4000-20000Hz)
 }
 
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
@@ -137,6 +140,12 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   const frequencyData: number[] = [];
 
+  // Energy band accumulators
+  let lowEnergySum = 0;
+  let midEnergySum = 0;
+  let highEnergySum = 0;
+  let totalEnergy = 0;
+
   for (let i = 0; i < freqByteData.length; i++) {
     const magnitude = freqByteData[i];
     const frequency = i * binSize;
@@ -144,16 +153,36 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     numerator += frequency * magnitude;
     denominator += magnitude;
     
-    frequencyData.push(magnitude); 
+    frequencyData.push(magnitude);
+    
+    // Accumulate energy by frequency band
+    const energy = magnitude * magnitude;
+    totalEnergy += energy;
+    
+    if (frequency >= 20 && frequency < 250) {
+      lowEnergySum += energy;
+    } else if (frequency >= 250 && frequency < 4000) {
+      midEnergySum += energy;
+    } else if (frequency >= 4000 && frequency <= 20000) {
+      highEnergySum += energy;
+    }
   }
   
   const spectralCentroid = denominator > 0 ? numerator / denominator : 0;
+  
+  // Normalize energy bands (0-1)
+  const lowEnergy = totalEnergy > 0 ? lowEnergySum / totalEnergy : 0;
+  const midEnergy = totalEnergy > 0 ? midEnergySum / totalEnergy : 0;
+  const highEnergy = totalEnergy > 0 ? highEnergySum / totalEnergy : 0;
 
   return {
     durationMs,
     durationSamples,
     peakAmplitudeDb: parseFloat(peakAmplitudeDb.toFixed(2)),
     spectralCentroid: parseFloat(spectralCentroid.toFixed(2)),
-    frequencyData
+    frequencyData,
+    lowEnergy: parseFloat(lowEnergy.toFixed(4)),
+    midEnergy: parseFloat(midEnergy.toFixed(4)),
+    highEnergy: parseFloat(highEnergy.toFixed(4)),
   };
 }

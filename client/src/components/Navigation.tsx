@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic2, Activity, BarChart3, Radio, Lightbulb } from "lucide-react";
+import { Mic2, Activity, BarChart3, Radio, Lightbulb, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navigation() {
@@ -7,6 +7,7 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", label: "Analyzer", icon: Activity },
+    { href: "/pairing", label: "Pairing", icon: Layers },
     { href: "/recommendations", label: "Suggestions", icon: Lightbulb },
     { href: "/history", label: "History", icon: BarChart3 },
   ];
