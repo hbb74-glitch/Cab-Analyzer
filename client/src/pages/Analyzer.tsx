@@ -871,6 +871,7 @@ export default function Analyzer() {
                     duration: metrics.durationMs,
                     centroid: metrics.spectralCentroid
                   }}
+                  renameSuggestion={result.renameSuggestion}
                 />
               )}
             </AnimatePresence>

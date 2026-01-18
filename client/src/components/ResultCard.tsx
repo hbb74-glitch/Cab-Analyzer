@@ -1,9 +1,14 @@
-import { CheckCircle2, XCircle, Activity, Info, Target } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
 interface BestPosition {
   position: string;
+  reason: string;
+}
+
+interface RenameSuggestion {
+  suggestedPosition: string;
   reason: string;
 }
 
@@ -17,6 +22,7 @@ interface ResultCardProps {
     centroid: number;
   };
   bestPositions?: BestPosition[];
+  renameSuggestion?: RenameSuggestion | null;
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -28,7 +34,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap Off Center",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, bestPositions }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, bestPositions, renameSuggestion }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -131,6 +137,27 @@ export function ResultCard({ score, isPerfect, advice, metrics, bestPositions }:
                 <p className="text-sm text-muted-foreground">{pos.reason}</p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {renameSuggestion && (
+        <div className="space-y-3 pt-4 border-t border-white/10">
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <div className="flex items-start gap-3">
+              <Pencil className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-amber-400 mb-1">
+                  Position Mismatch Detected
+                </h4>
+                <p className="text-sm text-foreground/80 mb-2">
+                  Based on the spectral characteristics, this IR sounds more like a <span className="font-medium text-amber-300">{POSITION_LABELS[renameSuggestion.suggestedPosition] || renameSuggestion.suggestedPosition}</span> position.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {renameSuggestion.reason}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}

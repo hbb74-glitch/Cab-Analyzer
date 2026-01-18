@@ -79,11 +79,23 @@ export async function registerRoutes(
       - Identify any technical issues (duration, frequency response, noise).
       - Suggest technical improvements if needed (different position, distance adjustments).
       
+      RENAME SUGGESTION (optional):
+      If the spectral characteristics don't match the position specified by the user, suggest a more accurate position name.
+      Only suggest when you're confident there's a mismatch:
+      - Cap position should have HIGH spectral centroid (typically 2500Hz+) and high-energy emphasis
+      - Cone position should have LOW spectral centroid (typically under 1800Hz) and low-energy emphasis  
+      - Cap Edge is balanced between the two (typically 1800-2500Hz range)
+      - Be conservative - only suggest when there's a clear mismatch between position and spectral centroid
+      
       Output JSON format:
       {
         "score": number (0-100),
         "is_perfect": boolean (true if score >= 85),
-        "advice": "string (2-3 sentences max, focus on technical quality)"
+        "advice": "string (2-3 sentences max, focus on technical quality)",
+        "rename_suggestion": {
+          "suggested_position": "position that better matches the audio",
+          "reason": "Brief explanation of why this sounds more like the suggested position"
+        } or null (only include if confident mismatch detected)
       }`;
 
       const userMessage = `
@@ -118,7 +130,16 @@ export async function registerRoutes(
         isPerfect: aiResult.is_perfect || false
       });
 
-      res.status(201).json(saved);
+      // Include rename suggestion in response (not stored in DB)
+      const responseWithSuggestion = {
+        ...saved,
+        renameSuggestion: aiResult.rename_suggestion ? {
+          suggestedPosition: aiResult.rename_suggestion.suggested_position,
+          reason: aiResult.rename_suggestion.reason
+        } : null
+      };
+
+      res.status(201).json(responseWithSuggestion);
     } catch (err) {
       console.error('Analysis error:', err);
       if (err instanceof z.ZodError) {
