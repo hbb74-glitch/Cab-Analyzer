@@ -260,7 +260,8 @@ export async function registerRoutes(
       Understanding IR Mixing:
       - Mixing two IRs blends their frequency characteristics
       - Complementary IRs cover different frequency ranges (e.g., bright + warm)
-      - Similar IRs reinforce each other but may cause phase issues
+      - All IRs being analyzed are minimum phase transformed (MPT) - phase cancellation is NOT a concern
+      - Similar IRs reinforce each other and can add subtle thickness
       - The mix ratio determines how much of each IR contributes to the final sound
       
       Mix Ratio Guidelines:
@@ -274,7 +275,7 @@ export async function registerRoutes(
       - Complementary frequency balance (one brighter, one warmer)
       - Different spectral centroids (indicates different tonal focus)
       - Combined coverage across low/mid/high energy ranges
-      - Avoid pairing two very similar IRs (redundant, potential phase issues)
+      - Similar IRs can work well together for subtle reinforcement (no phase issues with MPT)
       
       Analysis approach:
       - Look at spectral centroid: higher = brighter, lower = warmer

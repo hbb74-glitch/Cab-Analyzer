@@ -63,7 +63,7 @@ shared/           # Shared between client/server
 ### Feature Separation
 - **IR Analysis (Analyzer page)**: Purely technical quality assessment based on audio metrics. No genre consideration - evaluates signal quality, duration, frequency response objectively.
 - **Recommendations (Recommendations page)**: Distance recommendations for mic+speaker combos. Users select microphone and speaker (required), optionally a genre for refined suggestions. AI provides ideal distances across the 0-6" range with rationale for each.
-- **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings.
+- **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
 
 ### Microphone & Speaker Knowledge Base
 - **13 microphones**: SM57, R-121, M160, MD421, e906, i5, U87, E609, Fathead II, KSM32, TM700, Heil PR40, PR30
