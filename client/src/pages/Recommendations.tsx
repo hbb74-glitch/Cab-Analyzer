@@ -68,30 +68,53 @@ export default function Recommendations() {
 
   const copyToClipboard = () => {
     let text = "";
+    // Helper to format mic name and extract variant suffix
+    const formatMicForShorthand = (micLabel: string) => {
+      let baseMic = micLabel;
+      let suffix = '';
+      
+      if (micLabel.includes('Presence Boost')) {
+        baseMic = micLabel.replace(/\s*\(Presence Boost\)/, '');
+        suffix = '_Presence';
+      } else if (micLabel.includes('Flat')) {
+        baseMic = micLabel.replace(/\s*\(Flat\)/, '');
+        suffix = '_Flat';
+      }
+      
+      return { baseMic: baseMic.toLowerCase().replace(/\s+/g, ''), suffix };
+    };
+    
+    // Helper to format position as CamelCase
+    const formatPosition = (pos: string) => {
+      return pos.split(/[-\s]+/).map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join('');
+    };
+
     if (mode === 'by-speaker' && result) {
       text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
       text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       result.recommendations.forEach((rec, i) => {
-        // Schema: Speaker_Mic_Position_Distance_Options
-        const speakerPart = getSpeakerLabel(result.speaker).replace(/\s+/g, '-');
-        const micPart = getMicLabel(result.mic).replace(/\s+/g, '-');
-        const posPart = rec.bestFor.replace(/\s+/g, '-');
+        // Schema: speaker_mic_Position_distance_variant
+        const speakerPart = getSpeakerLabel(result.speaker).toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
+        const { baseMic, suffix } = formatMicForShorthand(getMicLabel(result.mic));
+        const posPart = formatPosition(rec.bestFor);
         const distPart = `${rec.distance}in`;
         
-        const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
+        const shorthand = `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Rationale: ${rec.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
       speakerResult.micRecommendations.forEach((rec, i) => {
-        // Schema: Speaker_Mic_Position_Distance_Options
-        const speakerPart = getSpeakerLabel(speakerResult.speaker).replace(/\s+/g, '-');
-        const micPart = rec.micLabel.replace(/\s+/g, '-');
-        const posPart = rec.bestFor.replace(/\s+/g, '-');
+        // Schema: speaker_mic_Position_distance_variant
+        const speakerPart = getSpeakerLabel(speakerResult.speaker).toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
+        const { baseMic, suffix } = formatMicForShorthand(rec.micLabel);
+        const posPart = formatPosition(rec.position);
         const distPart = `${rec.distance}in`;
         
-        const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
+        const shorthand = `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Tone: ${rec.expectedTone}\n\n`;
       });
