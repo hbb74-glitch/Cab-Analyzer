@@ -128,5 +128,97 @@ export async function registerRoutes(
     res.json(history);
   });
 
+  // Recommendations endpoint
+  app.post(api.recommendations.get.path, async (req, res) => {
+    try {
+      const input = api.recommendations.get.input.parse(req.body);
+      const { speakerModel } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+      Your task is to recommend the best microphone, position, and distance combinations for capturing a specific speaker.
+      
+      Available Microphones:
+      - 57 (SM57): Classic dynamic, mid-forward, aggressive.
+      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8.
+      - 160 (M160): Hypercardioid ribbon, tighter, more focused.
+      - 421 (MD421): Large diaphragm dynamic, punchy.
+      - 421-kompakt (MD421 Kompakt): Compact version.
+      - r10 (R10): Ribbon, smooth.
+      - m88 (M88): Warm, great low-end punch.
+      - pr30 (PR30): Large diaphragm dynamic, very clear highs.
+      - e906-boost (e906 Presence Boost): Supercardioid with bite.
+      - e906-flat (e906 Flat): Supercardioid, balanced.
+      - m201 (M201): Very accurate dynamic.
+      - sm7b (SM7B): Smooth, thick.
+      - roswell-cab (Roswell Cab Mic): Condenser for loud cabs.
+      
+      Available Positions:
+      - cap: Center of speaker, brightest.
+      - cap-edge: Transition zone, balanced.
+      - cap-edge-favor-cap: Slightly brighter than cap-edge.
+      - cap-edge-favor-cone: Slightly warmer than cap-edge.
+      - cone: Outer area, warmest/darkest.
+      - cap-off-center: Off-axis, reduced harshness.
+      
+      Available Distances (in inches):
+      0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
+      
+      Speakers Knowledge:
+      - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
+      - v30-china (V30 China): Aggressive upper-mids, modern rock.
+      - v30-blackcat (V30 Black Cat): Smoother, refined V30.
+      - k100 (G12K-100): Big low end, clear highs, neutral.
+      - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.
+      - g12-65 (G12-65): Warm, punchy, large sound.
+      - g12h30-anniversary (G12H30 Anniversary): Tight bass, bright highs.
+      - celestion-cream (Celestion Cream): Alnico smooth, high power.
+      - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
+      - g10-sc64 (G10-SC64): 10" version, more focused.
+      
+      Provide 3-5 recommended combinations that would capture this speaker well for commercial-quality IR creation.
+      Consider how the mic character combines with the speaker character.
+      
+      Output JSON format:
+      {
+        "speaker": "speaker_value",
+        "speakerDescription": "Brief description of the speaker's tonal characteristics",
+        "recommendations": [
+          {
+            "mic": "mic_value (use the value, not the label)",
+            "micLabel": "Human readable mic name",
+            "position": "position_value",
+            "positionLabel": "Human readable position",
+            "distance": "distance in inches as string (e.g. '1' or '2.5')",
+            "rationale": "Why this combination works well for this speaker",
+            "expectedTone": "Description of the expected tonal result"
+          }
+        ]
+      }`;
+
+      const userMessage = `Please provide microphone, position, and distance recommendations for the ${speakerModel} speaker.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Recommendations error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to generate recommendations" });
+    }
+  });
+
   return httpServer;
 }

@@ -15,6 +15,31 @@ export const errorSchemas = {
   }),
 };
 
+// Recommendations schemas
+export const recommendationInputSchema = z.object({
+  speakerModel: z.string().min(1, "Speaker model is required"),
+});
+
+export const recommendationSchema = z.object({
+  mic: z.string(),
+  micLabel: z.string(),
+  position: z.string(),
+  positionLabel: z.string(),
+  distance: z.string(),
+  rationale: z.string(),
+  expectedTone: z.string(),
+});
+
+export const recommendationsResponseSchema = z.object({
+  speaker: z.string(),
+  speakerDescription: z.string(),
+  recommendations: z.array(recommendationSchema),
+});
+
+export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
+export type Recommendation = z.infer<typeof recommendationSchema>;
+export type RecommendationsResponse = z.infer<typeof recommendationsResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -32,6 +57,18 @@ export const api = {
       path: '/api/history',
       responses: {
         200: z.array(z.custom<typeof analyses.$inferSelect>()),
+      },
+    },
+  },
+  recommendations: {
+    get: {
+      method: 'POST' as const,
+      path: '/api/recommendations',
+      input: recommendationInputSchema,
+      responses: {
+        200: recommendationsResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
       },
     },
   },

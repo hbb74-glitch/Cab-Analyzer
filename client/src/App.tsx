@@ -7,6 +7,7 @@ import { Navigation } from "@/components/Navigation";
 
 import Analyzer from "@/pages/Analyzer";
 import History from "@/pages/History";
+import Recommendations from "@/pages/Recommendations";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Analyzer} />
       <Route path="/history" component={History} />
+      <Route path="/recommendations" component={Recommendations} />
       <Route component={NotFound} />
     </Switch>
   );
