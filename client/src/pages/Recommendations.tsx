@@ -75,7 +75,7 @@ export default function Recommendations() {
     "g12h30-anniversary": "G12HAnni",
     "g12-65": "G12-65Heri",
     "ga12-sc64": "GA12-SC64",
-    "g10-sc64": "GA10-SC64",
+    "g10-sc64": "GA10-SC64",  // G10-SC64 speaker -> GA10-SC64 shorthand
     "k100": "K100",
     "g12t75": "G12T75",
   };
