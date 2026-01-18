@@ -40,7 +40,7 @@ export async function registerRoutes(
       
       Knowledge Base (Speakers):
       - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
-      - V30 (China): Aggressive upper-mids, modern rock.
+      - V30: Aggressive upper-mids, modern rock. The standard unlabeled Vintage 30.
       - V30 (Black Cat): Smoother, more refined than standard V30.
       - G12K-100: Big low end, clear highs, neutral.
       - G12T-75: Scooped mids, sizzly highs.
@@ -173,7 +173,7 @@ export async function registerRoutes(
       
       Speakers Knowledge:
       - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
-      - v30-china (V30 China): Aggressive upper-mids, modern rock.
+      - v30-china (V30): Aggressive upper-mids, modern rock. The standard unlabeled V30.
       - v30-blackcat (V30 Black Cat): Smoother, refined V30.
       - k100 (G12K-100): Big low end, clear highs, neutral.
       - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.

@@ -66,7 +66,7 @@ shared/           # Shared between client/server
 
 ### Microphone & Speaker Knowledge Base
 - **13 microphones**: SM57, R-121, M160, MD421, e906, i5, U87, E609, Fathead II, KSM32, TM700, Heil PR40, PR30
-- **10 speakers**: V30 (China/Germany), Greenback, G12T-75, Creamback H/M, G12-65/EVH, GA12-SC64, G10-SC64
+- **10 speakers**: V30, V30 (Black Cat), Greenback, G12T-75, G12-65, G12H30 Anniversary, Celestion Cream, GA12-SC64, G10-SC64
 - **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
 - **Distances**: 0" to 6" in 0.5" increments
 

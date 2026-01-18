@@ -8,7 +8,7 @@ import { api, type RecommendationsResponse } from "@shared/routes";
 
 const SPEAKERS = [
   { value: "g12m25", label: "G12M-25 (Greenback)" },
-  { value: "v30-china", label: "V30 (China)" },
+  { value: "v30-china", label: "V30" },
   { value: "v30-blackcat", label: "V30 (Black Cat)" },
   { value: "k100", label: "G12K-100" },
   { value: "g12t75", label: "G12T-75" },

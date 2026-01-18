@@ -316,7 +316,7 @@ export default function Analyzer() {
                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   >
                     <option value="g12m25">G12M-25 (Greenback)</option>
-                    <option value="v30-china">V30 (China)</option>
+                    <option value="v30-china">V30</option>
                     <option value="v30-blackcat">V30 (Black Cat)</option>
                     <option value="k100">G12K-100</option>
                     <option value="g12t75">G12T-75</option>
