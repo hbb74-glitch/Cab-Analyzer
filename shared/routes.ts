@@ -112,6 +112,7 @@ export const pairingInputSchema = z.object({
 });
 
 export const pairingResultSchema = z.object({
+  title: z.string(),
   ir1: z.string(),
   ir2: z.string(),
   mixRatio: z.string(),

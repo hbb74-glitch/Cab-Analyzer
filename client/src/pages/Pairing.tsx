@@ -32,7 +32,8 @@ export default function Pairing() {
     text += "=".repeat(40) + "\n\n";
     
     result.pairings.forEach((pairing, i) => {
-      text += `${i + 1}. ${pairing.ir1} + ${pairing.ir2}\n`;
+      text += `${i + 1}. ${pairing.title}\n`;
+      text += `   ${pairing.ir1} + ${pairing.ir2}\n`;
       text += `   Mix Ratio: ${pairing.mixRatio}\n`;
       text += `   Score: ${pairing.score}/100\n`;
       text += `   Expected Tone: ${pairing.expectedTone}\n`;
@@ -500,6 +501,9 @@ export default function Pairing() {
                       className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3"
                       data-testid={`pairing-result-${index}`}
                     >
+                      {/* Pairing Title */}
+                      <h3 className="text-lg font-bold text-foreground">{pairing.title}</h3>
+                      
                       <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">

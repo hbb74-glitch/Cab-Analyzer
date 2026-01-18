@@ -502,6 +502,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       {
         "pairings": [
           {
+            "title": "Short catchy name for this pairing (e.g. 'The Clarity Punch', 'Warm Modern Crunch', 'Vintage Thickness')",
             "ir1": "filename from Speaker Set 1",
             "ir2": "filename from Speaker Set 2",
             "mixRatio": "e.g. '60:40' (set1:set2)",
@@ -557,6 +558,7 @@ Find the best pairings that combine one IR from Set 1 with one IR from Set 2.`;
       {
         "pairings": [
           {
+            "title": "Short catchy name for this pairing (e.g. 'The Clarity Punch', 'Warm Modern Crunch', 'Vintage Thickness')",
             "ir1": "filename of first IR",
             "ir2": "filename of second IR",
             "mixRatio": "e.g. '60:40' (first:second)",
