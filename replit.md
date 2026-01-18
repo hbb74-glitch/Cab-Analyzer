@@ -41,8 +41,8 @@ Preferred communication style: Simple, everyday language.
 ```
 client/           # React frontend
   src/
-    components/   # UI components including FrequencyGraph, ResultCard
-    pages/        # Analyzer (upload + analyze) and History (past results)
+    components/   # UI components including FrequencyGraph, ResultCard, Navigation
+    pages/        # Analyzer (upload + analyze), History (past results), Recommendations (AI mic suggestions)
     hooks/        # Custom hooks for API calls
 server/           # Express backend
   routes.ts       # API endpoint handlers
@@ -50,13 +50,20 @@ server/           # Express backend
   db.ts           # Drizzle connection setup
 shared/           # Shared between client/server
   schema.ts       # Drizzle table definitions + Zod schemas
-  routes.ts       # API contract definitions
+  routes.ts       # API contract definitions + recommendation schemas
 ```
 
 ### Key Design Decisions
 1. **Client-side audio analysis**: Reduces server load and latency by computing metrics in the browser before API calls
 2. **Shared type definitions**: Using drizzle-zod ensures frontend and backend share identical validation schemas
 3. **AI-assisted quality scoring**: Provides actionable, context-aware feedback rather than just raw metrics
+4. **Recommendations feature**: AI generates optimal mic/position/distance combinations based on speaker characteristics
+
+### Microphone & Speaker Knowledge Base
+- **13 microphones**: SM57, R-121, M160, MD421, e906, i5, U87, E609, Fathead II, KSM32, TM700, Heil PR40, PR30
+- **10 speakers**: V30 (China/Germany), Greenback, G12T-75, Creamback H/M, G12-65/EVH, GA12-SC64, G10-SC64
+- **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
+- **Distances**: 0" to 6" in 0.5" increments
 
 ## External Dependencies
 
