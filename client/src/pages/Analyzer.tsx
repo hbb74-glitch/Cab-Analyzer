@@ -290,8 +290,8 @@ export default function Analyzer() {
                       className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                     >
                       <option value="57">SM57</option>
-                      <option value="121">R-121</option>
-                      <option value="r92">AEA R92</option>
+                      <option value="121">R121</option>
+                      <option value="r92">R92</option>
                       <option value="160">M160</option>
                       <option value="421">MD421</option>
                       <option value="421-kompakt">MD421 Kompakt</option>
@@ -304,7 +304,7 @@ export default function Analyzer() {
                       <option value="e906-flat">e906 (Flat)</option>
                       <option value="m201">M201</option>
                       <option value="sm7b">SM7B</option>
-                      <option value="c414">AKG C414</option>
+                      <option value="c414">C414</option>
                       <option value="roswell-cab">Roswell Cab Mic</option>
                     </select>
                   </div>
@@ -332,16 +332,16 @@ export default function Analyzer() {
                     data-testid="select-speaker"
                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   >
-                    <option value="g12m25">G12M-25 (Greenback)</option>
+                    <option value="g12m25">G12M (Greenback)</option>
                     <option value="v30-china">V30</option>
-                    <option value="v30-blackcat">V30 (Black Cat)</option>
-                    <option value="k100">G12K-100</option>
-                    <option value="g12t75">G12T-75</option>
-                    <option value="g12-65">G12-65</option>
-                    <option value="g12h30-anniversary">G12H30 Anniversary</option>
-                    <option value="celestion-cream">Celestion Cream</option>
+                    <option value="v30-blackcat">V30BC (Black Cat)</option>
+                    <option value="k100">K100</option>
+                    <option value="g12t75">G12T75</option>
+                    <option value="g12-65">G12-65 Heritage</option>
+                    <option value="g12h30-anniversary">G12H Anniversary</option>
+                    <option value="celestion-cream">Cream</option>
                     <option value="ga12-sc64">GA12-SC64</option>
-                    <option value="g10-sc64">G10-SC64</option>
+                    <option value="g10-sc64">GA10-SC64</option>
                   </select>
                 </div>
 

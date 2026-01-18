@@ -8,8 +8,8 @@ import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse,
 
 const MICS = [
   { value: "57", label: "SM57" },
-  { value: "121", label: "R-121" },
-  { value: "r92", label: "AEA R92" },
+  { value: "121", label: "R121" },
+  { value: "r92", label: "R92" },
   { value: "160", label: "M160" },
   { value: "421", label: "MD421" },
   { value: "421-kompakt", label: "MD421 Kompakt" },
@@ -22,21 +22,21 @@ const MICS = [
   { value: "e906-flat", label: "e906 (Flat)" },
   { value: "m201", label: "M201" },
   { value: "sm7b", label: "SM7B" },
-  { value: "c414", label: "AKG C414" },
+  { value: "c414", label: "C414" },
   { value: "roswell-cab", label: "Roswell Cab Mic" },
 ];
 
 const SPEAKERS = [
-  { value: "g12m25", label: "G12M-25 (Greenback)" },
+  { value: "g12m25", label: "G12M (Greenback)" },
   { value: "v30-china", label: "V30" },
-  { value: "v30-blackcat", label: "V30 (Black Cat)" },
-  { value: "k100", label: "G12K-100" },
-  { value: "g12t75", label: "G12T-75" },
-  { value: "g12-65", label: "G12-65" },
-  { value: "g12h30-anniversary", label: "G12H30 Anniversary" },
-  { value: "celestion-cream", label: "Celestion Cream" },
+  { value: "v30-blackcat", label: "V30BC (Black Cat)" },
+  { value: "k100", label: "K100" },
+  { value: "g12t75", label: "G12T75" },
+  { value: "g12-65", label: "G12-65 Heritage" },
+  { value: "g12h30-anniversary", label: "G12H Anniversary" },
+  { value: "celestion-cream", label: "Cream" },
   { value: "ga12-sc64", label: "GA12-SC64" },
-  { value: "g10-sc64", label: "G10-SC64" },
+  { value: "g10-sc64", label: "GA10-SC64" },
 ];
 
 const GENRES = [
