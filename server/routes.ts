@@ -120,7 +120,9 @@ export async function registerRoutes(
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
       });
 
       const aiResult = JSON.parse(response.choices[0].message.content || "{}");
@@ -255,7 +257,9 @@ export async function registerRoutes(
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -363,7 +367,9 @@ Use these curated recipes as the foundation of your recommendations. You may add
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -447,7 +453,9 @@ Use these curated recipes as the foundation of your recommendations. You may add
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
@@ -759,7 +767,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
       });
 
       const rawResult = JSON.parse(response.choices[0].message.content || "{}");
