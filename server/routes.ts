@@ -79,13 +79,15 @@ export async function registerRoutes(
       - Identify any technical issues (duration, frequency response, noise).
       - Suggest technical improvements if needed (different position, distance adjustments).
       
-      RENAME SUGGESTION (optional):
-      If the spectral characteristics don't match the position specified by the user, suggest a more accurate position name.
-      Only suggest when you're confident there's a mismatch:
-      - Cap position should have HIGH spectral centroid (typically 2500Hz+) and high-energy emphasis
-      - Cone position should have LOW spectral centroid (typically under 1800Hz) and low-energy emphasis  
-      - Cap Edge is balanced between the two (typically 1800-2500Hz range)
-      - Be conservative - only suggest when there's a clear mismatch between position and spectral centroid
+      TONAL MODIFIER SUGGESTION (optional):
+      If the spectral characteristics don't match what's typical for the position specified by the user, suggest adding a tonal modifier to help identify this IR's character. The user captured it at the position they specified, so DON'T change the position - just add a descriptor.
+      Only suggest when you're confident there's a noticeable mismatch:
+      - Cap position typically has HIGH spectral centroid (2500Hz+) and high-energy emphasis
+      - Cone position typically has LOW spectral centroid (under 1800Hz) and low-energy emphasis  
+      - Cap Edge is balanced between the two (1800-2500Hz range)
+      - If it sounds darker than expected, suggest "_Dark" or "_Warm"
+      - If it sounds brighter than expected, suggest "_Bright" or "_Crisp"
+      - Be conservative - only suggest when there's a noticeable tonal difference
       
       Output JSON format:
       {
@@ -93,9 +95,9 @@ export async function registerRoutes(
         "is_perfect": boolean (true if score >= 85),
         "advice": "string (2-3 sentences max, focus on technical quality)",
         "rename_suggestion": {
-          "suggested_position": "position that better matches the audio",
-          "reason": "Brief explanation of why this sounds more like the suggested position"
-        } or null (only include if confident mismatch detected)
+          "suggested_modifier": "tonal modifier like Dark, Bright, Warm, Crisp",
+          "reason": "Brief explanation of the tonal character"
+        } or null (only include if noticeable tonal mismatch detected)
       }`;
 
       const userMessage = `
@@ -130,11 +132,11 @@ export async function registerRoutes(
         isPerfect: aiResult.is_perfect || false
       });
 
-      // Include rename suggestion in response (not stored in DB)
+      // Include tonal modifier suggestion in response (not stored in DB)
       const responseWithSuggestion = {
         ...saved,
         renameSuggestion: aiResult.rename_suggestion ? {
-          suggestedPosition: aiResult.rename_suggestion.suggested_position,
+          suggestedModifier: aiResult.rename_suggestion.suggested_modifier,
           reason: aiResult.rename_suggestion.reason
         } : null
       };
@@ -878,12 +880,13 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       - Brief advice (1-2 sentences)
       - 1-3 highlights (what's good)
       - 1-3 issues (what could be improved, if any)
-      - RENAME SUGGESTION (optional): If the IR is a good capture but the spectral characteristics don't match the position in the filename, suggest a more accurate name. Only suggest when confident:
-        - Cap position should have HIGH spectral centroid and high-energy emphasis
-        - Cone position should have LOW spectral centroid and low-energy emphasis
-        - Cap Edge is balanced between the two
-        - If the metrics clearly suggest a different position than the filename indicates, include a renameSuggestion
-        - Be conservative - only suggest when there's a clear mismatch
+      - TONAL MODIFIER SUGGESTION (optional): If the spectral characteristics don't match what's typical for the position in the filename, suggest adding a tonal modifier to the filename. The user captured the IR at the position they specified, so DON'T change the position - just add a descriptor. Only suggest when confident:
+        - Cap position typically has HIGH spectral centroid (2500Hz+) and high-energy emphasis
+        - Cone position typically has LOW spectral centroid (under 1800Hz) and low-energy emphasis
+        - Cap Edge is balanced between the two (1800-2500Hz)
+        - If an IR sounds darker than expected for its position, suggest adding "_Dark" or "_Warm"
+        - If an IR sounds brighter than expected for its position, suggest adding "_Bright" or "_Crisp"
+        - Be conservative - only suggest when there's a noticeable tonal mismatch
       
       Output JSON format:
       {
@@ -902,10 +905,10 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             "highlights": ["good thing 1", "good thing 2"],
             "issues": ["issue 1"] or [],
             "renameSuggestion": {
-              "suggestedPosition": "position that better matches the audio",
-              "suggestedFilename": "full suggested filename with corrected position",
-              "reason": "Brief explanation of why this sounds more like the suggested position"
-            } or null (only include if confident mismatch detected)
+              "suggestedModifier": "tonal modifier like Dark, Bright, Warm, Crisp",
+              "suggestedFilename": "original filename with modifier added before extension",
+              "reason": "Brief explanation of the tonal character"
+            } or null (only include if noticeable tonal mismatch detected)
           }
         ],
         "summary": "Overall assessment of the IR batch",

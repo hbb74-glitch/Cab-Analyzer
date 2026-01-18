@@ -197,7 +197,7 @@ export const batchIRResultSchema = z.object({
   highlights: z.array(z.string()).optional().nullable(),
   issues: z.array(z.string()).optional().nullable(),
   renameSuggestion: z.object({
-    suggestedPosition: z.string(),
+    suggestedModifier: z.string(),
     suggestedFilename: z.string(),
     reason: z.string(),
   }).optional().nullable(),

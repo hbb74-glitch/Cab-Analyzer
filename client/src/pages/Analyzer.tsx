@@ -261,7 +261,8 @@ export default function Analyzer() {
       if (r.highlights?.length) text += `   Highlights: ${r.highlights.join(", ")}\n`;
       if (r.issues?.length) text += `   Issues: ${r.issues.join(", ")}\n`;
       if (r.renameSuggestion) {
-        text += `   Rename Suggestion: ${r.renameSuggestion.suggestedFilename}\n`;
+        text += `   Tonal Character: ${r.renameSuggestion.suggestedModifier}\n`;
+        text += `   Suggested Name: ${r.renameSuggestion.suggestedFilename}\n`;
         text += `   Reason: ${r.renameSuggestion.reason}\n`;
       }
       text += "\n";
@@ -635,16 +636,16 @@ export default function Analyzer() {
                           </div>
                         )}
 
-                        {/* Rename Suggestion */}
+                        {/* Tonal Modifier Suggestion */}
                         {r.renameSuggestion && (
                           <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                             <div className="flex items-start gap-2">
                               <Pencil className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs font-medium text-amber-400">Sounds more like: {r.renameSuggestion.suggestedPosition}</p>
+                                <p className="text-xs font-medium text-amber-400">Tonal character: {r.renameSuggestion.suggestedModifier}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">{r.renameSuggestion.reason}</p>
                                 <p className="text-xs font-mono text-amber-300/80 mt-1 truncate">
-                                  Suggested: {r.renameSuggestion.suggestedFilename}
+                                  Suggested name: {r.renameSuggestion.suggestedFilename}
                                 </p>
                               </div>
                             </div>

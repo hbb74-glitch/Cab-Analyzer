@@ -8,7 +8,7 @@ interface BestPosition {
 }
 
 interface RenameSuggestion {
-  suggestedPosition: string;
+  suggestedModifier: string;
   reason: string;
 }
 
@@ -148,10 +148,10 @@ export function ResultCard({ score, isPerfect, advice, metrics, bestPositions, r
               <Pencil className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <h4 className="text-sm font-semibold text-amber-400 mb-1">
-                  Position Mismatch Detected
+                  Tonal Character Note
                 </h4>
                 <p className="text-sm text-foreground/80 mb-2">
-                  Based on the spectral characteristics, this IR sounds more like a <span className="font-medium text-amber-300">{POSITION_LABELS[renameSuggestion.suggestedPosition] || renameSuggestion.suggestedPosition}</span> position.
+                  This IR has a <span className="font-medium text-amber-300">{renameSuggestion.suggestedModifier}</span> character compared to typical captures at this position.
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {renameSuggestion.reason}
