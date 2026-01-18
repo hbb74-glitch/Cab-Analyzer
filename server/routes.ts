@@ -1,6 +1,7 @@
 
 import type { Express } from "express";
 import type { Server } from "http";
+import { createHash } from "crypto";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -12,6 +13,62 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
 });
+
+// Caches for consistent AI results
+// Key: hash of normalized input, Value: cached AI response
+const batchAnalysisCache = new Map<string, object>();
+const singleAnalysisCache = new Map<string, object>();
+
+// Generate a stable hash for batch analysis input
+function generateBatchCacheKey(irs: Array<{
+  filename: string;
+  duration: number;
+  peakLevel: number;
+  spectralCentroid: number;
+  lowEnergy: number;
+  midEnergy: number;
+  highEnergy: number;
+}>): string {
+  // Sort by filename for consistent ordering
+  const sorted = [...irs].sort((a, b) => a.filename.localeCompare(b.filename));
+  // Normalize numbers to fixed precision to avoid floating point issues
+  const normalized = sorted.map(ir => ({
+    filename: ir.filename,
+    duration: Math.round(ir.duration * 10) / 10,
+    peakLevel: Math.round(ir.peakLevel * 10) / 10,
+    spectralCentroid: Math.round(ir.spectralCentroid),
+    lowEnergy: Math.round(ir.lowEnergy * 1000) / 1000,
+    midEnergy: Math.round(ir.midEnergy * 1000) / 1000,
+    highEnergy: Math.round(ir.highEnergy * 1000) / 1000,
+  }));
+  const hash = createHash('sha256');
+  hash.update(JSON.stringify(normalized));
+  return hash.digest('hex');
+}
+
+// Generate a stable hash for single analysis input
+function generateSingleCacheKey(input: {
+  micType: string;
+  micPosition: string;
+  speakerModel: string;
+  distance: string;
+  durationSamples: number;
+  peakAmplitudeDb: number;
+  spectralCentroid: number;
+}): string {
+  const normalized = {
+    micType: input.micType.toLowerCase(),
+    micPosition: input.micPosition.toLowerCase(),
+    speakerModel: input.speakerModel.toLowerCase(),
+    distance: input.distance,
+    durationSamples: input.durationSamples,
+    peakAmplitudeDb: Math.round(input.peakAmplitudeDb * 10) / 10,
+    spectralCentroid: Math.round(input.spectralCentroid),
+  };
+  const hash = createHash('sha256');
+  hash.update(JSON.stringify(normalized));
+  return hash.digest('hex');
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -114,18 +171,38 @@ export async function registerRoutes(
         Please analyze the technical quality of this IR capture.
       `;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0,
-        seed: 42,
-      });
+      // Check cache first for consistent results
+      const cacheKey = generateSingleCacheKey(input);
+      type AiResultType = {
+        score?: number;
+        is_perfect?: boolean;
+        advice?: string;
+        rename_suggestion?: { suggested_modifier: string; reason: string } | null;
+      };
+      
+      let aiResult: AiResultType;
+      const cachedResult = singleAnalysisCache.get(cacheKey) as AiResultType | undefined;
+      
+      if (cachedResult) {
+        console.log(`[Single Analysis] Cache HIT`);
+        aiResult = cachedResult;
+      } else {
+        console.log(`[Single Analysis] Cache MISS, calling AI...`);
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0,
+          seed: 42,
+        });
 
-      const aiResult = JSON.parse(response.choices[0].message.content || "{}");
+        aiResult = JSON.parse(response.choices[0].message.content || "{}");
+        singleAnalysisCache.set(cacheKey, aiResult);
+        console.log(`[Single Analysis] Cached result (cache size: ${singleAnalysisCache.size})`);
+      }
       
       const saved = await storage.createAnalysis({
         ...input,
@@ -963,6 +1040,15 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       const userMessage = `Analyze these ${irs.length} IRs for technical quality. Parse what you can from filenames and assess each one:\n\n${irDescriptions}`;
 
+      // Check cache first for consistent results
+      const cacheKey = generateBatchCacheKey(irs);
+      const cachedResult = batchAnalysisCache.get(cacheKey);
+      if (cachedResult) {
+        console.log(`[Batch Analysis] Cache HIT for ${irs.length} IRs`);
+        return res.json(cachedResult);
+      }
+      console.log(`[Batch Analysis] Cache MISS for ${irs.length} IRs, calling AI...`);
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -975,6 +1061,11 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Store in cache for future identical requests
+      batchAnalysisCache.set(cacheKey, result);
+      console.log(`[Batch Analysis] Cached result for ${irs.length} IRs (cache size: ${batchAnalysisCache.size})`);
+      
       res.json(result);
     } catch (err) {
       console.error('Batch analysis error:', err);
