@@ -14,10 +14,34 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
 });
 
-// Caches for consistent AI results
-// Key: hash of normalized input, Value: cached AI response
-const batchAnalysisCache = new Map<string, object>();
-const singleAnalysisCache = new Map<string, object>();
+// Caches for consistent AI results with 7-day expiration
+// Key: hash of normalized input, Value: { data, timestamp }
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
+interface CacheEntry {
+  data: object;
+  timestamp: number;
+}
+
+const batchAnalysisCache = new Map<string, CacheEntry>();
+const singleAnalysisCache = new Map<string, CacheEntry>();
+
+// Clean expired entries from a cache
+function cleanExpiredEntries(cache: Map<string, CacheEntry>): void {
+  const now = Date.now();
+  const entries = Array.from(cache.entries());
+  for (const [key, entry] of entries) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      cache.delete(key);
+    }
+  }
+}
+
+// Periodically clean caches (every hour)
+setInterval(() => {
+  cleanExpiredEntries(batchAnalysisCache);
+  cleanExpiredEntries(singleAnalysisCache);
+}, 60 * 60 * 1000);
 
 // Generate a stable hash for batch analysis input
 function generateBatchCacheKey(irs: Array<{
@@ -181,11 +205,11 @@ export async function registerRoutes(
       };
       
       let aiResult: AiResultType;
-      const cachedResult = singleAnalysisCache.get(cacheKey) as AiResultType | undefined;
+      const cachedEntry = singleAnalysisCache.get(cacheKey);
       
-      if (cachedResult) {
+      if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
         console.log(`[Single Analysis] Cache HIT`);
-        aiResult = cachedResult;
+        aiResult = cachedEntry.data as AiResultType;
       } else {
         console.log(`[Single Analysis] Cache MISS, calling AI...`);
         const response = await openai.chat.completions.create({
@@ -200,7 +224,7 @@ export async function registerRoutes(
         });
 
         aiResult = JSON.parse(response.choices[0].message.content || "{}");
-        singleAnalysisCache.set(cacheKey, aiResult);
+        singleAnalysisCache.set(cacheKey, { data: aiResult, timestamp: Date.now() });
         console.log(`[Single Analysis] Cached result (cache size: ${singleAnalysisCache.size})`);
       }
       
@@ -1042,10 +1066,10 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       // Check cache first for consistent results
       const cacheKey = generateBatchCacheKey(irs);
-      const cachedResult = batchAnalysisCache.get(cacheKey);
-      if (cachedResult) {
+      const cachedEntry = batchAnalysisCache.get(cacheKey);
+      if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
         console.log(`[Batch Analysis] Cache HIT for ${irs.length} IRs`);
-        return res.json(cachedResult);
+        return res.json(cachedEntry.data);
       }
       console.log(`[Batch Analysis] Cache MISS for ${irs.length} IRs, calling AI...`);
 
@@ -1063,7 +1087,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const result = JSON.parse(response.choices[0].message.content || "{}");
       
       // Store in cache for future identical requests
-      batchAnalysisCache.set(cacheKey, result);
+      batchAnalysisCache.set(cacheKey, { data: result, timestamp: Date.now() });
       console.log(`[Batch Analysis] Cached result for ${irs.length} IRs (cache size: ${batchAnalysisCache.size})`);
       
       res.json(result);
