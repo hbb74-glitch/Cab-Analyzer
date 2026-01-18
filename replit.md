@@ -57,8 +57,12 @@ shared/           # Shared between client/server
 1. **Client-side audio analysis**: Reduces server load and latency by computing metrics in the browser before API calls
 2. **Shared type definitions**: Using drizzle-zod ensures frontend and backend share identical validation schemas
 3. **AI-assisted quality scoring**: Provides actionable, context-aware feedback rather than just raw metrics
-4. **Recommendations feature**: AI generates optimal mic/position/distance combinations based on speaker characteristics
-5. **Genre-aware analysis**: AI references classic studio techniques from legendary recordings for genre-specific advice
+4. **Recommendations feature**: AI generates optimal mic/position/distance combinations based on speaker AND genre
+5. **Separation of concerns**: IR analysis is purely technical/objective; genre-specific advice is in Recommendations only
+
+### Feature Separation
+- **IR Analysis (Analyzer page)**: Purely technical quality assessment based on audio metrics. No genre consideration - evaluates signal quality, duration, frequency response objectively.
+- **Recommendations (Recommendations page)**: Genre-aware mic setup suggestions. Users select speaker + genre, AI provides recommendations based on classic studio techniques from legendary recordings.
 
 ### Microphone & Speaker Knowledge Base
 - **13 microphones**: SM57, R-121, M160, MD421, e906, i5, U87, E609, Fathead II, KSM32, TM700, Heil PR40, PR30
@@ -66,8 +70,8 @@ shared/           # Shared between client/server
 - **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
 - **Distances**: 0" to 6" in 0.5" increments
 
-### Genre-Specific Studio Techniques
-The AI is trained on classic recording techniques for each genre:
+### Genre-Specific Studio Techniques (Recommendations only)
+The Recommendations AI is trained on classic recording techniques for each genre:
 - **Classic Rock** (1970s): Led Zeppelin, AC/DC - SM57 at 1-2" from grille, dual-mic with ribbon at distance
 - **Hard Rock** (1980s): Van Halen, Def Leppard - Tighter placement for definition, double-tracking
 - **Alternative Rock**: R.E.M., Radiohead - Experimental placements, room mics, dynamic response
