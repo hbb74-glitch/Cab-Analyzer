@@ -68,7 +68,7 @@ shared/           # Shared between client/server
 - **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
 
 ### Microphone & Speaker Knowledge Base
-- **13 microphones**: SM57, R-121, M160, MD421, e906, i5, U87, E609, Fathead II, KSM32, TM700, Heil PR40, PR30
+- **15 microphones**: SM57, R-121, AEA R92, M160, MD421, MD421 Kompakt, R10, M88, PR30, e906 (Presence Boost/Flat), M201, SM7B, AKG C414, Roswell Cab Mic
 - **10 speakers**: V30, V30 (Black Cat), Greenback, G12T-75, G12-65, G12H30 Anniversary, Celestion Cream, GA12-SC64, G10-SC64
 - **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
 - **Distances**: 0" to 6" in 0.5" increments

@@ -9,6 +9,7 @@ import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse,
 const MICS = [
   { value: "57", label: "SM57" },
   { value: "121", label: "R-121" },
+  { value: "r92", label: "AEA R92" },
   { value: "160", label: "M160" },
   { value: "421", label: "MD421" },
   { value: "421-kompakt", label: "MD421 Kompakt" },
@@ -19,6 +20,7 @@ const MICS = [
   { value: "e906-flat", label: "e906 (Flat)" },
   { value: "m201", label: "M201" },
   { value: "sm7b", label: "SM7B" },
+  { value: "c414", label: "AKG C414" },
   { value: "roswell-cab", label: "Roswell Cab Mic" },
 ];
 

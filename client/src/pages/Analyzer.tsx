@@ -27,6 +27,7 @@ type FormData = z.infer<typeof formSchema>;
 const MIC_PATTERNS: Record<string, string> = {
   "sm57": "57", "57": "57",
   "r121": "121", "r-121": "121", "121": "121",
+  "r92": "r92", "aear92": "r92", "aea-r92": "r92",
   "m160": "160", "160": "160",
   "md421": "421", "421": "421",
   "421kompakt": "421-kompakt", "421-kompakt": "421-kompakt", "kompakt": "421-kompakt",
@@ -38,6 +39,7 @@ const MIC_PATTERNS: Record<string, string> = {
   "e906flat": "e906-flat", "e906-flat": "e906-flat", "906flat": "e906-flat", "flat": "e906-flat", "e906": "e906-flat",
   "m201": "m201", "201": "m201",
   "sm7b": "sm7b", "sm7": "sm7b", "7b": "sm7b",
+  "c414": "c414", "akgc414": "c414", "akg-c414": "c414", "414": "c414",
   "roswellcab": "roswell-cab", "roswell-cab": "roswell-cab", "roswell": "roswell-cab",
 };
 
@@ -287,6 +289,7 @@ export default function Analyzer() {
                     >
                       <option value="57">SM57</option>
                       <option value="121">R-121</option>
+                      <option value="r92">AEA R92</option>
                       <option value="160">M160</option>
                       <option value="421">MD421</option>
                       <option value="421-kompakt">MD421 Kompakt</option>
@@ -297,6 +300,7 @@ export default function Analyzer() {
                       <option value="e906-flat">e906 (Flat)</option>
                       <option value="m201">M201</option>
                       <option value="sm7b">SM7B</option>
+                      <option value="c414">AKG C414</option>
                       <option value="roswell-cab">Roswell Cab Mic</option>
                     </select>
                   </div>
