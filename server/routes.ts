@@ -68,15 +68,15 @@ export async function registerRoutes(
       
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
-      - Duration: 20ms - 50ms ideal (too short = missing bass response, too long = room noise/reflections)
       - Peak: Should be around 0dB (since it's normalized).
       - Spectral balance: Appropriate frequency content for the mic/speaker/position combination.
       - No clipping, phase issues, or excessive noise.
+      - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
       - Comment on whether the mic/position/distance choice captures the speaker well.
-      - Identify any technical issues (duration, frequency response, noise).
+      - Identify any technical issues (frequency response, noise) - do NOT mention duration.
       - Suggest technical improvements if needed (different position, distance adjustments).
       
       TONAL MODIFIER SUGGESTION (optional):
@@ -872,15 +872,15 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
-      - Duration: 20ms - 50ms ideal (too short = missing bass response, too long = room noise/reflections)
       - Peak: Should be around 0dB (since it's normalized).
       - Spectral balance: Appropriate frequency content for the mic/speaker/position combination.
       - No clipping, phase issues, or excessive noise.
+      - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
       - Comment on whether the mic/position/distance choice captures the speaker well.
-      - Identify any technical issues (duration, frequency response, noise).
+      - Identify any technical issues (frequency response, noise) - do NOT mention duration.
       - Suggest technical improvements if needed (different position, distance adjustments).
       
       For each IR, provide:
