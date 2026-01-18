@@ -562,6 +562,10 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - Simple: Cap, Cone, CapEdge
       - Complex: CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
       
+      Position Translation (users may use alternate names):
+      - "CapEdge_Outer" or "cap edge outer" → CapEdge_FavorCone
+      - "CapEdge_Inner" or "cap edge inner" → CapEdge_FavorCap
+      
       Examples:
       - V30_SM57_CapEdge_2in
       - Cream_e906_Cap_1in_Presence
@@ -650,7 +654,35 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         response_format: { type: "json_object" }
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const rawResult = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Normalize the response - AI sometimes returns arrays where we expect strings
+      const normalizeToString = (value: unknown): string => {
+        if (Array.isArray(value)) return value.join(', ');
+        if (value === null || value === undefined) return '';
+        return String(value);
+      };
+      
+      const result = {
+        parsedPositions: (rawResult.parsedPositions || []).map((p: Record<string, unknown>) => ({
+          original: normalizeToString(p.original),
+          speaker: p.speaker ? normalizeToString(p.speaker) : undefined,
+          mic: p.mic ? normalizeToString(p.mic) : undefined,
+          position: p.position ? normalizeToString(p.position) : undefined,
+          distance: p.distance ? normalizeToString(p.distance) : undefined,
+          variant: p.variant ? normalizeToString(p.variant) : undefined,
+          parsed: Boolean(p.parsed),
+        })),
+        refinements: (rawResult.refinements || []).map((r: Record<string, unknown>) => ({
+          type: normalizeToString(r.type),
+          original: r.original ? normalizeToString(r.original) : undefined,
+          suggestion: normalizeToString(r.suggestion),
+          shorthand: normalizeToString(r.shorthand),
+          rationale: normalizeToString(r.rationale),
+        })),
+        summary: normalizeToString(rawResult.summary),
+      };
+      
       res.json(result);
     } catch (err) {
       console.error('Position import error:', err);
