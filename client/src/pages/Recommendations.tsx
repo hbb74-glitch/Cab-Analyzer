@@ -48,6 +48,7 @@ const GENRES = [
   { value: "grunge", label: "Grunge" },
   { value: "classic-metal", label: "Classic Heavy Metal" },
   { value: "indie-rock", label: "Indie Rock" },
+  { value: "custom", label: "Custom (type your own)" },
 ];
 
 type Mode = 'by-speaker' | 'by-amp';
@@ -57,6 +58,7 @@ export default function Recommendations() {
   const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
+  const [customGenre, setCustomGenre] = useState<string>("");
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
@@ -70,7 +72,7 @@ export default function Recommendations() {
       text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
       text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       result.recommendations.forEach((rec, i) => {
-        text += `${i + 1}. Position: ${POSITION_LABELS[rec.position] || rec.position} | Distance: ${rec.distance}"\n`;
+        text += `${i + 1}. Distance: ${rec.distance}" | ${rec.bestFor}\n`;
         text += `   Rationale: ${rec.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
@@ -173,8 +175,9 @@ export default function Recommendations() {
       toast({ title: "Select a speaker", description: "Please choose a speaker model", variant: "destructive" });
       return;
     }
+    const effectiveGenre = genre === 'custom' ? customGenre : genre;
     setAmpResult(null);
-    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: genre || undefined });
+    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: effectiveGenre || undefined });
   };
 
   const handleAmpSubmit = (e: React.FormEvent) => {
@@ -183,14 +186,19 @@ export default function Recommendations() {
       toast({ title: "Describe your amp", description: "Please enter an amp description", variant: "destructive" });
       return;
     }
+    const effectiveGenre = genre === 'custom' ? customGenre : genre;
     setResult(null);
     setSpeakerResult(null);
-    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: genre || undefined });
+    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre || undefined });
   };
 
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
   const getSpeakerLabel = (value: string) => SPEAKERS.find(s => s.value === value)?.label || value;
-  const getGenreLabel = (value: string) => GENRES.find(g => g.value === value)?.label || value;
+  const getGenreLabel = (value: string) => {
+    const found = GENRES.find(g => g.value === value);
+    if (found) return found.label;
+    return value; // Return custom genre as-is
+  };
   
   const POSITION_LABELS: Record<string, string> = {
     "cap": "Cap",
@@ -307,12 +315,22 @@ export default function Recommendations() {
                 <option key={g.value} value={g.value}>{g.label}</option>
               ))}
             </select>
+            {genre === 'custom' && (
+              <input
+                type="text"
+                value={customGenre}
+                onChange={(e) => setCustomGenre(e.target.value)}
+                placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze', 'post-punk')"
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                data-testid="input-custom-genre"
+              />
+            )}
             <p className="text-xs text-muted-foreground">Leave as "Any / General" for position-agnostic distance recommendations</p>
           </div>
 
           <button
             type="submit"
-            disabled={!speaker || isPending}
+            disabled={!speaker || isPending || (genre === 'custom' && !customGenre.trim())}
             className={cn(
               "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
               !speaker || isPending
@@ -370,11 +388,21 @@ export default function Recommendations() {
                 <option key={g.value} value={g.value}>{g.label}</option>
               ))}
             </select>
+            {genre === 'custom' && (
+              <input
+                type="text"
+                value={customGenre}
+                onChange={(e) => setCustomGenre(e.target.value)}
+                placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze', 'post-punk')"
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                data-testid="input-custom-genre-amp"
+              />
+            )}
           </div>
 
           <button
             type="submit"
-            disabled={!ampDescription.trim() || isAmpPending}
+            disabled={!ampDescription.trim() || isAmpPending || (genre === 'custom' && !customGenre.trim())}
             className={cn(
               "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
               !ampDescription.trim() || isAmpPending
