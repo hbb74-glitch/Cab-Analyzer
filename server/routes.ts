@@ -49,6 +49,12 @@ export async function registerRoutes(
       - GA12-SC64: Vintage American tone, tight and punchy.
       - G10-SC64: 10" version of the SC64, more focused.
       
+      Scoring Criteria:
+      - 90-100: Exceptional. Professional studio quality, ready for a commercial release.
+      - 85-89: Very Good. Acceptable as-is, minor character differences but technically sound.
+      - 80-84: Good. Decent but has noticeable flaws that might need EQ or slight mic adjustment.
+      - Below 80: Needs significant work. Noticeable technical or tonal issues.
+      
       Criteria for "Perfect" IR:
       - Normalization: The system now normalizes every IR to 0dB peak before analysis.
       - Duration: 20ms - 50ms (too short = missing bass, too long = room noise)
@@ -65,13 +71,13 @@ export async function registerRoutes(
       Advice Guidelines:
       - If a "Cap" position is too dark, suggest moving closer to the center or checking the mic angle.
       - If a "Cone" position is too bright, suggest moving further from the cap or checking for unwanted reflections.
-      - Always consider the Microphone model (e.g., SM57 brightness vs. R121 warmth) when giving advice.
+      - Always consider the Microphone model (e.g., SM57 brightness vs. R121 warmth) and Speaker model when giving advice.
       
       Output JSON format:
       {
         "score": number (0-100),
-        "is_perfect": boolean,
-        "advice": "string (2-3 sentences max, specific to the microphone model, position, and metrics)"
+        "is_perfect": boolean (true if score >= 85),
+        "advice": "string (2-3 sentences max, specific to the microphone model, position, speaker, and metrics)"
       }`;
 
       const userMessage = `
