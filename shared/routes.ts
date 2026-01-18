@@ -196,6 +196,11 @@ export const batchIRResultSchema = z.object({
   advice: z.string(),
   highlights: z.array(z.string()).optional(),
   issues: z.array(z.string()).optional(),
+  renameSuggestion: z.object({
+    suggestedPosition: z.string(),
+    suggestedFilename: z.string(),
+    reason: z.string(),
+  }).optional(),
 });
 
 export const batchAnalysisResponseSchema = z.object({

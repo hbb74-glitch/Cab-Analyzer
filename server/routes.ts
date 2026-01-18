@@ -857,6 +857,12 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       - Brief advice (1-2 sentences)
       - 1-3 highlights (what's good)
       - 1-3 issues (what could be improved, if any)
+      - RENAME SUGGESTION (optional): If the IR is a good capture but the spectral characteristics don't match the position in the filename, suggest a more accurate name. Only suggest when confident:
+        - Cap position should have HIGH spectral centroid and high-energy emphasis
+        - Cone position should have LOW spectral centroid and low-energy emphasis
+        - Cap Edge is balanced between the two
+        - If the metrics clearly suggest a different position than the filename indicates, include a renameSuggestion
+        - Be conservative - only suggest when there's a clear mismatch
       
       Output JSON format:
       {
@@ -873,7 +879,12 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             "isPerfect": boolean,
             "advice": "Brief technical advice",
             "highlights": ["good thing 1", "good thing 2"],
-            "issues": ["issue 1"] or []
+            "issues": ["issue 1"] or [],
+            "renameSuggestion": {
+              "suggestedPosition": "position that better matches the audio",
+              "suggestedFilename": "full suggested filename with corrected position",
+              "reason": "Brief explanation of why this sounds more like the suggested position"
+            } or null (only include if confident mismatch detected)
           }
         ],
         "summary": "Overall assessment of the IR batch",
