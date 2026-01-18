@@ -167,6 +167,47 @@ export type ParsedPosition = z.infer<typeof parsedPositionSchema>;
 export type RefinementSuggestion = z.infer<typeof refinementSuggestionSchema>;
 export type PositionImportResponse = z.infer<typeof positionImportResponseSchema>;
 
+// Batch IR Analysis schemas - automatic analysis without manual input
+export const batchIRInputSchema = z.object({
+  filename: z.string(),
+  duration: z.number(),
+  peakLevel: z.number(),
+  spectralCentroid: z.number(),
+  lowEnergy: z.number(),
+  midEnergy: z.number(),
+  highEnergy: z.number(),
+});
+
+export const batchAnalysisInputSchema = z.object({
+  irs: z.array(batchIRInputSchema).min(1, "At least one IR is required"),
+});
+
+export const batchIRResultSchema = z.object({
+  filename: z.string(),
+  parsedInfo: z.object({
+    mic: z.string().optional(),
+    position: z.string().optional(),
+    speaker: z.string().optional(),
+    distance: z.string().optional(),
+  }).optional(),
+  score: z.number(),
+  isPerfect: z.boolean(),
+  advice: z.string(),
+  highlights: z.array(z.string()).optional(),
+  issues: z.array(z.string()).optional(),
+});
+
+export const batchAnalysisResponseSchema = z.object({
+  results: z.array(batchIRResultSchema),
+  summary: z.string(),
+  averageScore: z.number(),
+});
+
+export type BatchIRInput = z.infer<typeof batchIRInputSchema>;
+export type BatchAnalysisInput = z.infer<typeof batchAnalysisInputSchema>;
+export type BatchIRResult = z.infer<typeof batchIRResultSchema>;
+export type BatchAnalysisResponse = z.infer<typeof batchAnalysisResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -241,6 +282,18 @@ export const api = {
       input: positionImportInputSchema,
       responses: {
         200: positionImportResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+  },
+  batchAnalysis: {
+    analyze: {
+      method: 'POST' as const,
+      path: '/api/analyze/batch',
+      input: batchAnalysisInputSchema,
+      responses: {
+        200: batchAnalysisResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },

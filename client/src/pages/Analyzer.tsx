@@ -3,7 +3,8 @@ import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -11,6 +12,7 @@ import { FrequencyGraph } from "@/components/FrequencyGraph";
 import { ResultCard } from "@/components/ResultCard";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -121,11 +123,26 @@ function parseFilename(filename: string): Partial<FormData> {
   return result;
 }
 
+interface BatchIR {
+  file: File;
+  metrics: AudioMetrics | null;
+  analyzing: boolean;
+  error: string | null;
+}
+
 export default function Analyzer() {
+  const [mode, setMode] = useState<'single' | 'batch'>('single');
+  
+  // Single mode state
   const [file, setFile] = useState<File | null>(null);
   const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
+
+  // Batch mode state
+  const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
+  const [batchResult, setBatchResult] = useState<BatchAnalysisResponse | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -137,6 +154,129 @@ export default function Analyzer() {
 
   const { mutateAsync: createAnalysis, isPending: isSubmitting } = useCreateAnalysis();
   const { toast } = useToast();
+
+  // Batch analysis mutation
+  const { mutate: analyzeBatch, isPending: isBatchAnalyzing } = useMutation({
+    mutationFn: async (irs: BatchIRInput[]) => {
+      const validated = api.batchAnalysis.analyze.input.parse({ irs });
+      const res = await fetch(api.batchAnalysis.analyze.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+      });
+      if (!res.ok) throw new Error("Failed to analyze batch");
+      return api.batchAnalysis.analyze.responses[200].parse(await res.json());
+    },
+    onSuccess: (data) => {
+      setBatchResult(data);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to analyze IR batch", variant: "destructive" });
+    },
+  });
+
+  // Batch file drop handler
+  const onBatchDrop = useCallback(async (acceptedFiles: File[]) => {
+    const wavFiles = acceptedFiles.filter(f => f.name.toLowerCase().endsWith('.wav'));
+    
+    if (wavFiles.length === 0) {
+      toast({ title: "Invalid files", description: "Please upload .wav files only", variant: "destructive" });
+      return;
+    }
+
+    const newIRs: BatchIR[] = wavFiles.map(file => ({
+      file,
+      metrics: null,
+      analyzing: true,
+      error: null,
+    }));
+
+    setBatchIRs(newIRs);
+    setBatchResult(null);
+
+    for (let i = 0; i < wavFiles.length; i++) {
+      const file = wavFiles[i];
+      try {
+        const audioMetrics = await analyzeAudioFile(file);
+        setBatchIRs(prev => prev.map(ir => 
+          ir.file.name === file.name && ir.file.size === file.size
+            ? { ...ir, metrics: audioMetrics, analyzing: false }
+            : ir
+        ));
+      } catch (err) {
+        setBatchIRs(prev => prev.map(ir => 
+          ir.file.name === file.name && ir.file.size === file.size
+            ? { ...ir, analyzing: false, error: "Failed to analyze" }
+            : ir
+        ));
+      }
+    }
+  }, [toast]);
+
+  const handleBatchAnalyze = () => {
+    const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
+    if (validIRs.length === 0) {
+      toast({ title: "No valid IRs", description: "Upload at least 1 valid IR file", variant: "destructive" });
+      return;
+    }
+
+    const irInputs: BatchIRInput[] = validIRs.map(ir => ({
+      filename: ir.file.name,
+      duration: ir.metrics!.durationMs,
+      peakLevel: ir.metrics!.peakAmplitudeDb,
+      spectralCentroid: ir.metrics!.spectralCentroid,
+      lowEnergy: ir.metrics!.lowEnergy,
+      midEnergy: ir.metrics!.midEnergy,
+      highEnergy: ir.metrics!.highEnergy,
+    }));
+
+    analyzeBatch(irInputs);
+  };
+
+  const clearBatch = () => {
+    setBatchIRs([]);
+    setBatchResult(null);
+  };
+
+  const copyBatchResults = () => {
+    if (!batchResult) return;
+    
+    let text = "IR Batch Analysis Results\n";
+    text += "=".repeat(40) + "\n\n";
+    text += `Average Score: ${batchResult.averageScore}/100\n`;
+    text += `Summary: ${batchResult.summary}\n\n`;
+    
+    batchResult.results.forEach((r, i) => {
+      text += `${i + 1}. ${r.filename}\n`;
+      text += `   Score: ${r.score}/100 ${r.isPerfect ? "(Perfect)" : ""}\n`;
+      if (r.parsedInfo) {
+        const info = [];
+        if (r.parsedInfo.mic) info.push(`Mic: ${r.parsedInfo.mic}`);
+        if (r.parsedInfo.position) info.push(`Pos: ${r.parsedInfo.position}`);
+        if (r.parsedInfo.speaker) info.push(`Spk: ${r.parsedInfo.speaker}`);
+        if (r.parsedInfo.distance) info.push(`Dist: ${r.parsedInfo.distance}`);
+        if (info.length) text += `   Detected: ${info.join(", ")}\n`;
+      }
+      text += `   Advice: ${r.advice}\n`;
+      if (r.highlights?.length) text += `   Highlights: ${r.highlights.join(", ")}\n`;
+      if (r.issues?.length) text += `   Issues: ${r.issues.join(", ")}\n`;
+      text += "\n";
+    });
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard", description: "Batch analysis results copied." });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const batchDropzone = useDropzone({
+    onDrop: onBatchDrop,
+    accept: { "audio/wav": [".wav"] },
+    multiple: true,
+  });
+
+  const validBatchCount = batchIRs.filter(ir => ir.metrics && !ir.error).length;
+  const analyzingBatchCount = batchIRs.filter(ir => ir.analyzing).length;
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const selected = acceptedFiles[0];
@@ -232,8 +372,275 @@ export default function Analyzer() {
             Upload your guitar cabinet impulse response to get instant feedback on mic placement, 
             phase issues, and frequency balance.
           </p>
+          
+          {/* Mode Toggle */}
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <button
+              onClick={() => setMode('single')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                mode === 'single' 
+                  ? "bg-primary text-primary-foreground" 
+                  : "bg-white/5 text-muted-foreground hover:bg-white/10"
+              )}
+              data-testid="button-mode-single"
+            >
+              <Music4 className="w-4 h-4 inline-block mr-2" />
+              Single IR
+            </button>
+            <button
+              onClick={() => setMode('batch')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                mode === 'batch' 
+                  ? "bg-primary text-primary-foreground" 
+                  : "bg-white/5 text-muted-foreground hover:bg-white/10"
+              )}
+              data-testid="button-mode-batch"
+            >
+              <Layers className="w-4 h-4 inline-block mr-2" />
+              Batch Analysis
+            </button>
+          </div>
         </div>
 
+        {/* Batch Analysis Mode */}
+        {mode === 'batch' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Batch Dropzone */}
+            <div
+              {...batchDropzone.getRootProps()}
+              className={cn(
+                "glass-panel p-8 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
+                batchDropzone.isDragActive
+                  ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_rgba(34,197,94,0.4)]"
+                  : "border-white/10 hover:border-primary/50"
+              )}
+              data-testid="dropzone-batch"
+            >
+              <input {...batchDropzone.getInputProps()} data-testid="input-files-batch" />
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Layers className="w-8 h-8 text-primary" />
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-medium">
+                    {batchDropzone.isDragActive ? "Drop your IR files here" : "Drop multiple IR files for batch analysis"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    The system will automatically read and analyze each IR
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Batch IR List */}
+            {batchIRs.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Music4 className="w-5 h-5 text-primary" />
+                    IRs to Analyze ({validBatchCount} ready)
+                  </h2>
+                  <button
+                    onClick={clearBatch}
+                    className="text-sm text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+                    data-testid="button-clear-batch"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Clear all
+                  </button>
+                </div>
+
+                <div className="grid gap-2 max-h-64 overflow-y-auto">
+                  <AnimatePresence>
+                    {batchIRs.map((ir, index) => (
+                      <motion.div
+                        key={`${ir.file.name}-${index}`}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className={cn(
+                          "glass-panel p-3 rounded-lg flex items-center justify-between",
+                          ir.error && "border-destructive/50"
+                        )}
+                        data-testid={`batch-ir-item-${index}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={cn(
+                            "w-8 h-8 rounded flex items-center justify-center flex-shrink-0",
+                            ir.analyzing ? "bg-yellow-500/20" :
+                            ir.error ? "bg-destructive/20" :
+                            "bg-primary/20"
+                          )}>
+                            {ir.analyzing ? (
+                              <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />
+                            ) : ir.error ? (
+                              <XCircle className="w-4 h-4 text-destructive" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 text-primary" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{ir.file.name}</p>
+                            {ir.metrics && (
+                              <p className="text-xs text-muted-foreground">
+                                {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz
+                              </p>
+                            )}
+                            {ir.error && (
+                              <p className="text-xs text-destructive">{ir.error}</p>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                <button
+                  onClick={handleBatchAnalyze}
+                  disabled={validBatchCount === 0 || analyzingBatchCount > 0 || isBatchAnalyzing}
+                  className={cn(
+                    "w-full py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
+                    validBatchCount > 0 && analyzingBatchCount === 0 && !isBatchAnalyzing
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
+                      : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                  )}
+                  data-testid="button-analyze-batch"
+                >
+                  {isBatchAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Analyzing {validBatchCount} IRs...
+                    </>
+                  ) : analyzingBatchCount > 0 ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing {analyzingBatchCount} file(s)...
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="w-5 h-5" />
+                      Analyze All ({validBatchCount} IRs)
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Batch Results */}
+            <AnimatePresence>
+              {batchResult && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-6"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <Activity className="w-6 h-6 text-primary" />
+                        Batch Analysis Results
+                      </h2>
+                      <p className="text-muted-foreground mt-1">
+                        Average Score: <span className="text-primary font-bold">{batchResult.averageScore}/100</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={copyBatchResults}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-batch-results"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
+
+                  <p className="text-muted-foreground">{batchResult.summary}</p>
+
+                  <div className="space-y-3">
+                    {batchResult.results.map((r, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2"
+                        data-testid={`batch-result-${index}`}
+                      >
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-mono text-sm font-medium truncate">{r.filename}</p>
+                            {r.parsedInfo && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {r.parsedInfo.mic && (
+                                  <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded">
+                                    {r.parsedInfo.mic}
+                                  </span>
+                                )}
+                                {r.parsedInfo.position && (
+                                  <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
+                                    {r.parsedInfo.position}
+                                  </span>
+                                )}
+                                {r.parsedInfo.speaker && (
+                                  <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded">
+                                    {r.parsedInfo.speaker}
+                                  </span>
+                                )}
+                                {r.parsedInfo.distance && (
+                                  <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
+                                    {r.parsedInfo.distance}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          <div className={cn(
+                            "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg flex-shrink-0",
+                            r.score >= 85 ? "bg-primary/20 text-primary" :
+                            r.score >= 70 ? "bg-yellow-500/20 text-yellow-500" :
+                            "bg-orange-500/20 text-orange-500"
+                          )}>
+                            {r.score}
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-foreground/80">{r.advice}</p>
+
+                        {(r.highlights?.length || r.issues?.length) && (
+                          <div className="flex flex-wrap gap-4 text-xs pt-1">
+                            {r.highlights?.length ? (
+                              <div className="flex items-start gap-1">
+                                <CheckCircle className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                                <span className="text-muted-foreground">{r.highlights.join(", ")}</span>
+                              </div>
+                            ) : null}
+                            {r.issues?.length ? (
+                              <div className="flex items-start gap-1">
+                                <AlertCircle className="w-3 h-3 text-yellow-500 mt-0.5 flex-shrink-0" />
+                                <span className="text-muted-foreground">{r.issues.join(", ")}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* Single IR Mode */}
+        {mode === 'single' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Left Column: Input & Controls */}
@@ -449,6 +856,7 @@ export default function Analyzer() {
             </AnimatePresence>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

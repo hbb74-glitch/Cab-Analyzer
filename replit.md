@@ -61,12 +61,19 @@ shared/           # Shared between client/server
 5. **Separation of concerns**: IR analysis is purely technical/objective; genre-specific advice is in Recommendations only
 
 ### Feature Separation
-- **IR Analysis (Analyzer page)**: Purely technical quality assessment based on audio metrics. No genre consideration - evaluates signal quality, duration, frequency response objectively.
+- **IR Analysis (Analyzer page)**: Has two modes accessible via toggle:
+  - **Single IR mode**: Manual entry of mic, position, speaker, distance. Detailed analysis with frequency graph visualization.
+  - **Batch Analysis mode**: Drop multiple IR files for automatic quality assessment. System parses filenames to detect mic/position/speaker/distance and provides scores, highlights, and issues for each IR. Results are copyable.
 - **Recommendations (Recommendations page)**: Has three modes accessible via toggle:
   - **By Speaker mode**: Mic/position/distance recommendations. Select just a speaker to get mic combos, or select both mic and speaker for distance-focused advice. Based on curated IR production knowledge.
   - **By Amp mode**: Speaker recommendations based on amp description. Enter free text describing your amp (model, type, characteristics) and get speaker suggestions based on classic amp/speaker pairings from legendary recordings.
   - **Import List mode**: Paste your tested IR positions (shorthand or written out format) and get AI-powered refinement suggestions. The AI keeps most of your tested positions (you liked them!) and suggests complementary additions to fill gaps. Removal is extremely rare - only for technically dangerous or broken combinations. **Speaker Clarification**: If ambiguous speaker names are detected (e.g., "SC64" without specifying GA12 or GA10), a clarification prompt appears before processing.
-- **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
+- **IR Pairing (Pairing page)**: Has two modes:
+  - **Single Speaker mode**: Upload IRs from one speaker to find best pairings within that set.
+  - **Mixed Speaker mode**: Upload IRs to two separate drop zones (Speaker 1 and Speaker 2) to find optimal cross-speaker pairings. Creates unique hybrid tones by blending IRs from different cabinets.
+  - **Tone Preferences**: Optional free-text input for desired sound (edgy, bright, thick, dark, aggressive, chunky, rhythm, leads). AI prioritizes pairings that achieve these goals.
+  - **Deterministic Results**: Uses fixed temperature and seed for consistent recommendations.
+  - All results are copyable with full descriptions. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
 
 ### Microphone & Speaker Knowledge Base
 - **17 microphones**: SM57, R-121, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence Boost/Flat), R10, M88, PR30, e906 (Presence Boost/Flat), M201, SM7B, AKG C414, Roswell Cab Mic

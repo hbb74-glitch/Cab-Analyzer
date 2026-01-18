@@ -779,5 +779,100 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
     }
   });
 
+  // Batch IR Analysis endpoint - automatic quality analysis of multiple IRs
+  app.post(api.batchAnalysis.analyze.path, async (req, res) => {
+    try {
+      const input = api.batchAnalysis.analyze.input.parse(req.body);
+      const { irs } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+      Your task is to analyze multiple IRs and provide quality assessments for each one based on their audio metrics and filename.
+      
+      Parse information from filenames when possible. Common patterns:
+      - Mic types: SM57, R121, R10, M160, MD421, M88, e906, M201, C414, Roswell, etc.
+      - Positions: Cap, CapEdge, Cone, CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
+      - Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
+      - Distances: Numbers followed by "in" or just numbers (e.g., 1in, 2, 1.5in)
+      
+      Technical Scoring Criteria:
+      - 90-100: Exceptional. Professional studio quality, no technical issues.
+      - 85-89: Very Good. High quality capture, minor improvements possible.
+      - 80-84: Good. Usable quality, some technical aspects could be improved.
+      - 70-79: Acceptable. Noticeable issues but still usable.
+      - Below 70: Needs work. Significant technical problems.
+      
+      Technical Quality Indicators:
+      - Duration: 20ms - 50ms ideal (too short = missing bass response, too long = room noise)
+      - Peak Level: Should be normalized near 0dB
+      - Spectral Centroid: Higher = brighter, lower = warmer. Context-dependent.
+      - Energy Distribution: Look at low/mid/high balance for the mic/position combo
+      
+      For each IR, provide:
+      - Parsed info from filename (if detectable)
+      - A quality score (0-100)
+      - Whether it's "perfect" (score >= 85)
+      - Brief advice (1-2 sentences)
+      - 1-3 highlights (what's good)
+      - 1-3 issues (what could be improved, if any)
+      
+      Output JSON format:
+      {
+        "results": [
+          {
+            "filename": "exact filename",
+            "parsedInfo": {
+              "mic": "detected mic or null",
+              "position": "detected position or null",
+              "speaker": "detected speaker or null",
+              "distance": "detected distance or null"
+            },
+            "score": number (0-100),
+            "isPerfect": boolean,
+            "advice": "Brief technical advice",
+            "highlights": ["good thing 1", "good thing 2"],
+            "issues": ["issue 1"] or []
+          }
+        ],
+        "summary": "Overall assessment of the IR batch",
+        "averageScore": number
+      }`;
+
+      const irDescriptions = irs.map((ir, i) => 
+        `IR ${i + 1}: "${ir.filename}"
+         - Duration: ${ir.duration.toFixed(1)}ms
+         - Peak Level: ${ir.peakLevel.toFixed(1)}dB
+         - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+         - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+         - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+         - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
+      ).join('\n\n');
+
+      const userMessage = `Analyze these ${irs.length} IRs for technical quality. Parse what you can from filenames and assess each one:\n\n${irDescriptions}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0,
+        seed: 42,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Batch analysis error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to analyze IRs" });
+    }
+  });
+
   return httpServer;
 }
