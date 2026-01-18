@@ -10,6 +10,7 @@ export const analyses = pgTable("analyses", {
   micPosition: text("mic_position").notNull(), // center, edge, off-axis
   speakerModel: text("speaker_model").notNull(),
   distance: text("distance").notNull(), // close, 1 inch, 6 inches, etc
+  genre: text("genre").notNull().default("classic-rock"), // target genre for context-aware advice
   
   // Technical metrics
   durationSamples: integer("duration_samples").notNull(),

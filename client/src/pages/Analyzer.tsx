@@ -12,12 +12,24 @@ import { ResultCard } from "@/components/ResultCard";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
+// Available genres for context-aware analysis
+const GENRES = [
+  { value: "classic-rock", label: "Classic Rock" },
+  { value: "hard-rock", label: "Hard Rock" },
+  { value: "alternative-rock", label: "Alternative Rock" },
+  { value: "punk", label: "Punk" },
+  { value: "grunge", label: "Grunge" },
+  { value: "classic-metal", label: "Classic Heavy Metal" },
+  { value: "indie-rock", label: "Indie Rock" },
+];
+
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.string().min(1, "Microphone is required"),
   micPosition: z.enum(["cap", "cap-edge", "cap-edge-favor-cap", "cap-edge-favor-cone", "cone", "cap-off-center"]),
   speakerModel: z.string().min(1, "Speaker model is required"),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
+  genre: z.string().min(1, "Genre is required"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -32,7 +44,8 @@ export default function Analyzer() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       distance: "1",
-      speakerModel: "v30-china"
+      speakerModel: "v30-china",
+      genre: "classic-rock"
     }
   });
 
@@ -83,6 +96,7 @@ export default function Analyzer() {
         micPosition: data.micPosition,
         speakerModel: data.speakerModel,
         distance: data.distance,
+        genre: data.genre,
         durationSamples: metrics.durationSamples,
         peakAmplitudeDb: metrics.peakAmplitudeDb,
         spectralCentroid: metrics.spectralCentroid,
@@ -199,6 +213,7 @@ export default function Analyzer() {
                   <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Speaker</label>
                   <select
                     {...register("speakerModel")}
+                    data-testid="select-speaker"
                     className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                   >
                     <option value="g12m25">G12M-25 (Greenback)</option>
@@ -211,6 +226,19 @@ export default function Analyzer() {
                     <option value="celestion-cream">Celestion Cream</option>
                     <option value="ga12-sc64">GA12-SC64</option>
                     <option value="g10-sc64">G10-SC64</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target Genre</label>
+                  <select
+                    {...register("genre")}
+                    data-testid="select-genre"
+                    className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  >
+                    {GENRES.map(g => (
+                      <option key={g.value} value={g.value}>{g.label}</option>
+                    ))}
                   </select>
                 </div>
 
