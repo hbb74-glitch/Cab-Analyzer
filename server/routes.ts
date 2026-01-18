@@ -51,12 +51,12 @@ export async function registerRoutes(
       - G10-SC64: 10" version, more focused.
       
       Microphone Position Tonal Characteristics:
-      - Cap: Center of speaker. Brightest, most aggressive tone with high-end detail.
-      - Cap Edge: Transition zone. Balanced tone, often the "sweet spot."
-      - Cap Edge (Favor Cap): Slightly brighter than cap-edge.
-      - Cap Edge (Favor Cone): Slightly warmer than cap-edge.
-      - Cone: Outer area. Darker, warmer tone with more body.
-      - Cap Off Center: Off-axis. Reduces harshness, different high-end character.
+      - Cap: Dead center of speaker dust cap. Brightest, most aggressive tone with maximum high-end detail.
+      - Cap Edge: Transition zone between cap and cone. Balanced tone, often the "sweet spot."
+      - Cap Edge (Favor Cap): Slightly brighter than cap-edge, closer to the cap center.
+      - Cap Edge (Favor Cone): Slightly warmer than cap-edge, closer to the cone.
+      - Cone: Outer paper cone area. Darker, warmer tone with more body and less high-end.
+      - Cap Off Center: Still on the cap but not dead center - slightly off to one side. Retains brightness but with less harsh direct attack than dead center. NOT the same as off-axis.
       
       Technical Scoring Criteria:
       - 90-100: Exceptional. Professional studio quality, no technical issues.
@@ -182,12 +182,12 @@ export async function registerRoutes(
       - 4.5-6": Minimal proximity, roomier sound, more natural but less direct
       
       Available Positions:
-      - cap: Center of speaker, brightest, most high-end detail
-      - cap-edge: Transition zone, balanced tone, often the "sweet spot"
-      - cap-edge-favor-cap: Slightly brighter than cap-edge
-      - cap-edge-favor-cone: Slightly warmer than cap-edge
-      - cone: Outer area, darker/warmer tone
-      - cap-off-center: Off-axis, reduces harshness${genre ? `
+      - cap: Dead center of speaker dust cap, brightest, most high-end detail
+      - cap-edge: Transition zone between cap and cone, balanced tone, often the "sweet spot"
+      - cap-edge-favor-cap: Slightly brighter than cap-edge, closer to cap center
+      - cap-edge-favor-cone: Slightly warmer than cap-edge, closer to cone
+      - cone: Outer paper cone area, darker/warmer tone with more body
+      - cap-off-center: Still on the cap but not dead center - retains brightness with less harsh direct attack (NOT the same as off-axis)${genre ? `
       
       Genre Context (${genre}):
       Use this to refine recommendations. Consider what distances and positions work best for achieving the signature sound of this genre.` : ''}
