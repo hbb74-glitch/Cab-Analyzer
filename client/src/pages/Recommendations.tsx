@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { api, type RecommendationsResponse } from "@shared/routes";
+import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse } from "@shared/routes";
 
 const MICS = [
   { value: "57", label: "SM57" },

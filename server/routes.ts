@@ -248,6 +248,107 @@ export async function registerRoutes(
     }
   });
 
+  // Speaker-only recommendations - recommend mics, positions, and distances for a speaker
+  app.post(api.recommendations.bySpeaker.path, async (req, res) => {
+    try {
+      const input = api.recommendations.bySpeaker.input.parse(req.body);
+      const { speakerModel, genre } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+      Your task is to recommend the BEST MICROPHONES, POSITIONS, and DISTANCES for a specific speaker.
+      Provide a comprehensive list of mic/position/distance combinations that work well with this speaker.
+      
+      Available Microphones:
+      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Great all-rounder.
+      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
+      - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
+      - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
+      - 421-kompakt (MD421 Kompakt): Compact version, similar character.
+      - r10 (R10): Ribbon, smooth and warm.
+      - m88 (M88): Warm, great low-end punch.
+      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
+      - e906-boost (e906 Presence Boost): Supercardioid with bite.
+      - e906-flat (e906 Flat): Supercardioid, balanced.
+      - m201 (M201): Very accurate dynamic.
+      - sm7b (SM7B): Smooth, thick, broadcast-quality.
+      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. Start at 6", centered on cap.
+      
+      Available Positions:
+      - cap: Dead center of dust cap, brightest, most high-end detail
+      - cap-edge: Transition zone, balanced tone, often the "sweet spot"
+      - cap-edge-favor-cap: On cap edge focused towards cap, brighter
+      - cap-edge-favor-cone: On cap edge focused towards cone, darker/warmer
+      - cone: Focused on paper cone, darkest/warmest with most body
+      - cap-off-center: On cap but not dead center, retains brightness with less harsh attack
+      
+      Speakers Knowledge:
+      - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
+      - v30-china (V30): Aggressive upper-mids, modern rock.
+      - v30-blackcat (V30 Black Cat): Smoother, refined V30.
+      - k100 (G12K-100): Big low end, clear highs, neutral.
+      - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.
+      - g12-65 (G12-65): Warm, punchy, large sound.
+      - g12h30-anniversary (G12H30 Anniversary): Tight bass, bright highs.
+      - celestion-cream (Celestion Cream): Alnico smooth, high power.
+      - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
+      - g10-sc64 (G10-SC64): 10" version, more focused.
+      
+      Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
+      
+      Genre Context (${genre}):
+      Optimize recommendations for this genre's signature sound and classic recording techniques.` : ''}
+      
+      Provide 6-10 specific mic/position/distance recommendations that work exceptionally well with this speaker.
+      Include a variety of mics and explain why each combination works.
+      
+      Output JSON format:
+      {
+        "speaker": "${speakerModel}",
+        "speakerDescription": "Brief description of the speaker's tonal characteristics",
+        ${genre ? `"genre": "${genre}",` : ''}
+        "micRecommendations": [
+          {
+            "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
+            "micLabel": "Display name (e.g. 'SM57', 'R-121', 'Roswell Cab Mic')",
+            "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
+            "distance": "distance in inches as string (e.g. '1' or '2.5')",
+            "rationale": "Why this specific combination works with this speaker",
+            "expectedTone": "Description of the expected tonal result",
+            "bestFor": "What styles/sounds this is ideal for"
+          }
+        ],
+        "summary": "Brief overall summary of the best approach for this speaker"
+      }`;
+
+      let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;
+      if (genre) {
+        userMessage += ` Optimize recommendations for the ${genre} genre, referencing classic studio techniques.`;
+      }
+      userMessage += ` Provide specific combinations that capture this speaker's best qualities.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Speaker recommendations error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to generate speaker recommendations" });
+    }
+  });
+
   // IR Pairing endpoint - analyze multiple IRs for best pairings with mix ratios
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {

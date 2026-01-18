@@ -17,7 +17,7 @@ export const errorSchemas = {
 
 // Recommendations schemas
 export const recommendationInputSchema = z.object({
-  micType: z.string().min(1, "Microphone type is required"),
+  micType: z.string().optional(), // Optional - if not provided, AI will recommend mics
   speakerModel: z.string().min(1, "Speaker model is required"),
   genre: z.string().optional(),
 });
@@ -44,9 +44,30 @@ export const recommendationsResponseSchema = z.object({
   bestPositions: z.array(positionRecommendationSchema).optional(),
 });
 
+// Speaker-only recommendations - recommends mics with positions and distances
+export const micRecommendationSchema = z.object({
+  mic: z.string(),
+  micLabel: z.string(),
+  position: z.string(),
+  distance: z.string(),
+  rationale: z.string(),
+  expectedTone: z.string(),
+  bestFor: z.string(),
+});
+
+export const speakerRecommendationsResponseSchema = z.object({
+  speaker: z.string(),
+  speakerDescription: z.string(),
+  genre: z.string().optional(),
+  micRecommendations: z.array(micRecommendationSchema),
+  summary: z.string(),
+});
+
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
 export type DistanceRecommendation = z.infer<typeof distanceRecommendationSchema>;
 export type RecommendationsResponse = z.infer<typeof recommendationsResponseSchema>;
+export type MicRecommendation = z.infer<typeof micRecommendationSchema>;
+export type SpeakerRecommendationsResponse = z.infer<typeof speakerRecommendationsResponseSchema>;
 
 // IR Pairing schemas
 export const irMetricsSchema = z.object({
@@ -110,6 +131,19 @@ export const api = {
       input: recommendationInputSchema,
       responses: {
         200: recommendationsResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    bySpeaker: {
+      method: 'POST' as const,
+      path: '/api/recommendations/by-speaker',
+      input: z.object({
+        speakerModel: z.string().min(1, "Speaker model is required"),
+        genre: z.string().optional(),
+      }),
+      responses: {
+        200: speakerRecommendationsResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
