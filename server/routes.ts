@@ -78,24 +78,11 @@ export async function registerRoutes(
       - Identify any technical issues (duration, frequency response, noise).
       - Suggest technical improvements if needed (different position, distance adjustments).
       
-      Best Position Guidelines:
-      For each mic+speaker combo, recommend the best positions based on their characteristics:
-      - Cap: Best for bright, aggressive tones. Good for mics that need high-end detail.
-      - Cap Edge: Most versatile, often the "sweet spot" for balanced capture.
-      - Cone: Best for darker, warmer tones. Good for taming bright mics/speakers.
-      - Cap Off Center: Good for reducing harshness while maintaining presence.
-      
       Output JSON format:
       {
         "score": number (0-100),
         "is_perfect": boolean (true if score >= 85),
-        "advice": "string (2-3 sentences max, focus on technical quality)",
-        "bestPositions": [
-          {
-            "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
-            "reason": "Brief reason why this position works well for this mic+speaker combo"
-          }
-        ]
+        "advice": "string (2-3 sentences max, focus on technical quality)"
       }`;
 
       const userMessage = `
