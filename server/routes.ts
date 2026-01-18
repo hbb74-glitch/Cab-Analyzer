@@ -36,7 +36,7 @@ export async function registerRoutes(
       - e906: Supercardioid, presence boost or flat modes.
       - M201: Very accurate dynamic.
       - SM7B: Smooth, thick dynamic.
-      - Roswell Cab Mic: Condenser designed for loud cabs.
+      - Roswell Cab Mic: Specialized condenser designed for loud cabs. Manufacturer recommends starting at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is designed to be aimed at dead center with no harshness. Closer = more bass, farther = tighter low end.
       
       Knowledge Base (Speakers):
       - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
@@ -159,7 +159,7 @@ export async function registerRoutes(
       - e906-flat (e906 Flat): Supercardioid, balanced.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick.
-      - roswell-cab (Roswell Cab Mic): Condenser for loud cabs.
+      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is DESIGNED to be aimed at dead center of cap - no harshness due to its voiced capsule. Closer = more bass (predictable linear proximity effect), farther = tighter low end. Moving around cone gives tonal variation. Handles extreme SPL, mix-ready tones with minimal EQ needed.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
