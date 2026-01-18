@@ -960,7 +960,24 @@ Or written out:
                     <FileText className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">Shot List Analysis</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <button
+                    onClick={() => {
+                      const shorthandList = importResult.refinements
+                        .filter(r => r.type !== 'remove' && r.shorthand)
+                        .map(r => r.shorthand)
+                        .join('\n');
+                      navigator.clipboard.writeText(shorthandList);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                    data-testid="button-copy-refined-list"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                    {copied ? "Copied!" : "Copy Shorthand"}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">
                       {importResult.refinements.filter(r => r.type === 'keep').length} Keep
                     </span>
@@ -977,7 +994,6 @@ Or written out:
                         {importResult.refinements.filter(r => r.type === 'remove').length} Remove
                       </span>
                     )}
-                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground italic">{importResult.summary}</p>
               </div>
