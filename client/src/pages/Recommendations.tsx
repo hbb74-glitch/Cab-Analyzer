@@ -1,10 +1,22 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
+
+// Ambiguous speaker patterns that need clarification
+const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: string }[]; question: string }> = {
+  "sc64": {
+    question: "Which SC64 speaker are you using?",
+    options: [
+      { value: "ga12-sc64", label: "GA12-SC64 (12 inch)" },
+      { value: "g10-sc64", label: "GA10-SC64 (10 inch)" },
+    ]
+  },
+};
 
 const MICS = [
   { value: "57", label: "SM57" },
@@ -67,7 +79,43 @@ export default function Recommendations() {
   const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
   const [importResult, setImportResult] = useState<PositionImportResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showClarification, setShowClarification] = useState(false);
+  const [pendingClarifications, setPendingClarifications] = useState<{ key: string; options: { value: string; label: string }[]; question: string }[]>([]);
+  const [speakerClarifications, setSpeakerClarifications] = useState<Record<string, string>>({});
   const { toast } = useToast();
+
+  // Detect ambiguous speakers in position list
+  const detectAmbiguousSpeakers = (text: string): string[] => {
+    const found: string[] = [];
+    const lowerText = text.toLowerCase();
+    
+    for (const key of Object.keys(AMBIGUOUS_SPEAKERS)) {
+      // Check if the ambiguous term appears but not as part of a full speaker name
+      const regex = new RegExp(`\\b${key}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        // Make sure it's not already a full name like GA12-SC64 or GA10-SC64
+        const fullNameRegex = /\b(ga12[-_]?sc64|ga10[-_]?sc64|g10[-_]?sc64)\b/i;
+        if (!fullNameRegex.test(lowerText)) {
+          found.push(key);
+        }
+      }
+    }
+    
+    return found;
+  };
+
+  // Apply clarifications to position list
+  const applyClairifications = (text: string, clarifications: Record<string, string>): string => {
+    let result = text;
+    for (const [ambiguous, resolved] of Object.entries(clarifications)) {
+      // Get the shorthand for the resolved speaker
+      const resolvedShorthand = SPEAKER_SHORTHAND[resolved] || resolved.toUpperCase();
+      // Replace ambiguous term with resolved shorthand
+      const regex = new RegExp(`\\b${ambiguous}\\b`, 'gi');
+      result = result.replace(regex, resolvedShorthand);
+    }
+    return result;
+  };
 
   // Shorthand mappings for speakers
   const SPEAKER_SHORTHAND: Record<string, string> = {
@@ -334,15 +382,50 @@ export default function Recommendations() {
       toast({ title: "Paste your positions", description: "Please paste your tested IR positions", variant: "destructive" });
       return;
     }
+    
+    // Check for ambiguous speakers that need clarification
+    const ambiguous = detectAmbiguousSpeakers(positionList);
+    if (ambiguous.length > 0) {
+      // Build list of pending clarifications
+      const pending = ambiguous.map(key => ({
+        key,
+        ...AMBIGUOUS_SPEAKERS[key]
+      }));
+      setPendingClarifications(pending);
+      setSpeakerClarifications({});
+      setShowClarification(true);
+      return;
+    }
+    
+    // No ambiguous speakers, proceed directly
+    processImport(positionList.trim());
+  };
+
+  const processImport = (positions: string) => {
     const effectiveGenre = genre === 'custom' ? customGenre : genre;
     setResult(null);
     setSpeakerResult(null);
     setAmpResult(null);
     refinePositions({ 
-      positionList: positionList.trim(), 
+      positionList: positions, 
       speaker: importSpeaker || undefined, 
       genre: effectiveGenre || undefined 
     });
+  };
+
+  const handleClarificationSubmit = () => {
+    // Check all clarifications are filled
+    const allFilled = pendingClarifications.every(p => speakerClarifications[p.key]);
+    if (!allFilled) {
+      toast({ title: "Please select all options", description: "Clarify all ambiguous speakers before proceeding", variant: "destructive" });
+      return;
+    }
+    
+    // Apply clarifications to position list and process
+    const clarifiedList = applyClairifications(positionList, speakerClarifications);
+    setShowClarification(false);
+    setPendingClarifications([]);
+    processImport(clarifiedList.trim());
   };
 
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
@@ -688,6 +771,75 @@ Or written out:
           </button>
         </form>
         )}
+
+        {/* Speaker Clarification Dialog */}
+        <AnimatePresence>
+          {showClarification && pendingClarifications.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="glass-panel p-6 rounded-2xl space-y-6 border-2 border-amber-500/30 bg-amber-500/5"
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-foreground">Clarification Needed</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Some speaker names in your list are ambiguous. Please specify which speaker you're using:
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {pendingClarifications.map((clarification) => (
+                  <div key={clarification.key} className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      {clarification.question}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {clarification.options.map((option) => (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant={speakerClarifications[clarification.key] === option.value ? "default" : "outline"}
+                          onClick={() => setSpeakerClarifications(prev => ({
+                            ...prev,
+                            [clarification.key]: option.value
+                          }))}
+                          data-testid={`button-clarify-${clarification.key}-${option.value}`}
+                        >
+                          <Speaker className="w-4 h-4 mr-2" />
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setShowClarification(false);
+                    setPendingClarifications([]);
+                  }}
+                  data-testid="button-cancel-clarification"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleClarificationSubmit}
+                  disabled={!pendingClarifications.every(p => speakerClarifications[p.key])}
+                  data-testid="button-confirm-clarification"
+                >
+                  Continue Analysis
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {result && (
