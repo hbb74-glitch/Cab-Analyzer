@@ -888,6 +888,20 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         - If an IR sounds brighter than expected for its position, suggest adding "_Bright" or "_Crisp"
         - Be conservative - only suggest when there's a noticeable tonal mismatch
       
+      GAPS ANALYSIS (required):
+      After analyzing all IRs, identify what tonal characteristics are MISSING from this set.
+      Since the user typically mixes two IRs together, a comprehensive set needs variety:
+      - Bright/aggressive tones (high spectral centroid, Cap positions)
+      - Dark/warm tones (low spectral centroid, Cone positions)  
+      - Balanced/neutral tones (mid spectral centroid, Cap Edge positions)
+      - Different mic characters (ribbon smoothness, dynamic punch, etc.)
+      
+      For each missing tone, suggest a specific capture to fill the gap:
+      - What tonal quality is missing
+      - Recommended mic (from the mics already used if possible, or suggest alternatives)
+      - Recommended position and distance
+      - Why this would complement the existing set
+      
       Output JSON format:
       {
         "results": [
@@ -912,7 +926,19 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
         ],
         "summary": "Overall assessment of the IR batch",
-        "averageScore": number
+        "averageScore": number,
+        "gapsSuggestions": [
+          {
+            "missingTone": "What tonal quality is missing (e.g., 'Dark/Warm', 'Bright/Aggressive', 'Smooth Ribbon Character')",
+            "recommendation": {
+              "mic": "Specific mic to use",
+              "position": "Specific position (Cap, Cone, CapEdge, etc.)",
+              "distance": "Recommended distance in inches",
+              "speaker": "Use same speaker as batch or specify"
+            },
+            "reason": "Why this would complement the set for IR mixing"
+          }
+        ] or [] (empty if set is already comprehensive)
       }`;
 
       const irDescriptions = irs.map((ir, i) => 

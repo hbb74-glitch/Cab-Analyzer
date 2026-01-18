@@ -203,11 +203,25 @@ export const batchIRResultSchema = z.object({
   }).optional().nullable(),
 });
 
+export const gapSuggestionSchema = z.object({
+  missingTone: z.string(),
+  recommendation: z.object({
+    mic: z.string(),
+    position: z.string(),
+    distance: z.string(),
+    speaker: z.string(),
+  }),
+  reason: z.string(),
+});
+
 export const batchAnalysisResponseSchema = z.object({
   results: z.array(batchIRResultSchema),
   summary: z.string(),
   averageScore: z.number(),
+  gapsSuggestions: z.array(gapSuggestionSchema).optional().nullable(),
 });
+
+export type GapSuggestion = z.infer<typeof gapSuggestionSchema>;
 
 export type BatchIRInput = z.infer<typeof batchIRInputSchema>;
 export type BatchAnalysisInput = z.infer<typeof batchAnalysisInputSchema>;

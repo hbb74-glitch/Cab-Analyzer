@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -241,10 +241,18 @@ export default function Analyzer() {
   const copyBatchResults = () => {
     if (!batchResult) return;
     
-    let text = "IR Batch Analysis Results\n";
-    text += "=".repeat(40) + "\n\n";
+    // Get speaker from first IR if available
+    const speaker = batchResult.results[0]?.parsedInfo?.speaker || "Unknown Speaker";
+    const date = new Date().toLocaleDateString();
+    
+    let text = `IR.Scope Batch Analysis: ${speaker}\n`;
+    text += `Date: ${date}\n`;
+    text += "=".repeat(50) + "\n\n";
     text += `Average Score: ${batchResult.averageScore}/100\n`;
     text += `Summary: ${batchResult.summary}\n\n`;
+    
+    text += "INDIVIDUAL RESULTS\n";
+    text += "-".repeat(30) + "\n\n";
     
     batchResult.results.forEach((r, i) => {
       text += `${i + 1}. ${r.filename}\n`;
@@ -267,6 +275,20 @@ export default function Analyzer() {
       }
       text += "\n";
     });
+    
+    // Add gaps suggestions if present
+    if (batchResult.gapsSuggestions && batchResult.gapsSuggestions.length > 0) {
+      text += "\nMISSING TONES - CAPTURE SUGGESTIONS\n";
+      text += "-".repeat(30) + "\n\n";
+      batchResult.gapsSuggestions.forEach((gap, i) => {
+        text += `${i + 1}. ${gap.missingTone}\n`;
+        text += `   Mic: ${gap.recommendation.mic}\n`;
+        text += `   Position: ${gap.recommendation.position}\n`;
+        text += `   Distance: ${gap.recommendation.distance}\n`;
+        text += `   Speaker: ${gap.recommendation.speaker}\n`;
+        text += `   Why: ${gap.reason}\n\n`;
+      });
+    }
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -654,6 +676,45 @@ export default function Analyzer() {
                       </motion.div>
                     ))}
                   </div>
+
+                  {/* Gaps Suggestions - Missing Tones */}
+                  {batchResult.gapsSuggestions && batchResult.gapsSuggestions.length > 0 && (
+                    <div className="mt-6 p-4 rounded-xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/20">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Lightbulb className="w-5 h-5 text-cyan-400" />
+                        <h4 className="font-semibold text-cyan-400">Missing Tones for Complete Set</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        For optimal IR mixing, consider capturing these additional tones:
+                      </p>
+                      <div className="space-y-3">
+                        {batchResult.gapsSuggestions.map((gap, i) => (
+                          <div key={i} className="p-3 rounded-lg bg-black/20 border border-white/5">
+                            <p className="font-medium text-sm text-cyan-300 mb-2">{gap.missingTone}</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-2">
+                              <div>
+                                <span className="text-muted-foreground">Mic:</span>
+                                <span className="ml-1 text-foreground">{gap.recommendation.mic}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Position:</span>
+                                <span className="ml-1 text-foreground">{gap.recommendation.position}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Distance:</span>
+                                <span className="ml-1 text-foreground">{gap.recommendation.distance}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Speaker:</span>
+                                <span className="ml-1 text-foreground">{gap.recommendation.speaker}</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{gap.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
