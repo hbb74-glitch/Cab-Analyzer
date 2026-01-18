@@ -95,13 +95,21 @@ function parseFilename(filename: string): Partial<FormData> {
     }
   }
   
-  // Try to find distance (look for numbers, optionally followed by "in" or "inch")
-  const distanceMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")?/);
-  if (distanceMatch) {
-    const distVal = distanceMatch[1];
-    const validDistances = ["0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6"];
-    if (validDistances.includes(distVal)) {
-      result.distance = distVal;
+  // Try to find distance - prioritize patterns with "in" or "inch" suffix
+  const validDistances = ["0", "0.5", "1", "1.5", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6"];
+  
+  // First, look for explicit "in" or "inch" patterns (e.g., "1in", "2.5inch", "0.5in")
+  const inchMatch = name.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/);
+  if (inchMatch && validDistances.includes(inchMatch[1])) {
+    result.distance = inchMatch[1];
+  } else {
+    // Fallback: look for standalone numbers that are valid distances
+    // Check each part separately to avoid matching numbers in speaker names like "v30"
+    for (const part of parts) {
+      if (validDistances.includes(part)) {
+        result.distance = part;
+        break;
+      }
     }
   }
   
