@@ -105,8 +105,10 @@ export const irMetricsSchema = z.object({
 });
 
 export const pairingInputSchema = z.object({
-  irs: z.array(irMetricsSchema).min(2, "Need at least 2 IRs to analyze pairings"),
+  irs: z.array(irMetricsSchema).min(1, "Need at least 1 IR"),
+  irs2: z.array(irMetricsSchema).optional(), // Second speaker set for mixed pairing
   tonePreferences: z.string().optional(), // Free-text tone goals: edgy, bright, thick, dark, aggressive, etc.
+  mixedMode: z.boolean().optional(), // True when pairing across two different speakers
 });
 
 export const pairingResultSchema = z.object({

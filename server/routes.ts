@@ -445,10 +445,12 @@ Use these curated recipes as the foundation of your recommendations. You may add
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {
       const input = api.pairing.analyze.input.parse(req.body);
-      const { irs, tonePreferences } = input;
+      const { irs, irs2, tonePreferences, mixedMode } = input;
 
-      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
-      Your task is to analyze a set of IRs and determine which ones pair well together when mixed.
+      // Determine if this is mixed speaker pairing (two separate speaker sets)
+      const isMixedPairing = mixedMode && irs2 && irs2.length > 0;
+
+      const basePrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       
       Understanding IR Mixing:
       - Mixing two IRs blends their frequency characteristics
@@ -473,7 +475,80 @@ Use these curated recipes as the foundation of your recommendations. You may add
       Analysis approach:
       - Look at spectral centroid: higher = brighter, lower = warmer
       - Look at energy distribution: lowEnergy, midEnergy, highEnergy
-      - Consider how each IR's characteristics complement or conflict
+      - Consider how each IR's characteristics complement or conflict`;
+
+      let systemPrompt: string;
+      let userMessage: string;
+
+      if (isMixedPairing) {
+        // Mixed speaker mode - pair IRs across two different speaker sets
+        systemPrompt = basePrompt + `
+      
+      MIXED SPEAKER PAIRING MODE:
+      You are analyzing IRs from TWO DIFFERENT speaker cabinets/speakers.
+      Your task is to find the best cross-speaker pairings - always pair one IR from Speaker Set 1 with one IR from Speaker Set 2.
+      This creates unique blended tones that combine the characteristics of both speakers.
+      
+      Benefits of mixed speaker pairing:
+      - Combines the attack/clarity of one speaker with the warmth/body of another
+      - Creates unique hybrid tones not achievable with a single speaker
+      - Allows fine-tuning the blend ratio to taste
+      
+      Output the TOP 3-5 best cross-speaker pairings.
+      Each pairing MUST include one IR from Set 1 and one IR from Set 2.
+      Score each pairing from 0-100 based on how well they complement each other.
+      
+      Output JSON format:
+      {
+        "pairings": [
+          {
+            "ir1": "filename from Speaker Set 1",
+            "ir2": "filename from Speaker Set 2",
+            "mixRatio": "e.g. '60:40' (set1:set2)",
+            "score": number (0-100, how well they pair),
+            "rationale": "Why these two speakers/positions work well together",
+            "expectedTone": "Description of the blended cross-speaker sound",
+            "bestFor": "What styles/sounds this blend is ideal for"
+          }
+        ],
+        "summary": "Brief overall summary of the cross-speaker pairing recommendations"
+      }`;
+
+        const set1Descriptions = irs.map((ir, i) => 
+          `  IR 1.${i + 1}: "${ir.filename}"
+           - Duration: ${ir.duration.toFixed(1)}ms
+           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
+           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
+        ).join('\n\n');
+
+        const set2Descriptions = irs2!.map((ir, i) => 
+          `  IR 2.${i + 1}: "${ir.filename}"
+           - Duration: ${ir.duration.toFixed(1)}ms
+           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
+           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
+        ).join('\n\n');
+
+        userMessage = `Analyze these IRs from TWO DIFFERENT SPEAKERS and recommend the best cross-speaker pairings:
+
+SPEAKER SET 1 (${irs.length} IRs):
+${set1Descriptions}
+
+SPEAKER SET 2 (${irs2!.length} IRs):
+${set2Descriptions}
+
+Find the best pairings that combine one IR from Set 1 with one IR from Set 2.`;
+
+      } else {
+        // Single speaker mode - original behavior
+        systemPrompt = basePrompt + `
+      
+      Your task is to analyze a set of IRs and determine which ones pair well together when mixed.
       
       Output the TOP 3-5 best pairings from the provided IRs.
       Score each pairing from 0-100 based on how well they complement each other.
@@ -494,17 +569,18 @@ Use these curated recipes as the foundation of your recommendations. You may add
         "summary": "Brief overall summary of the IR set and pairing recommendations"
       }`;
 
-      const irDescriptions = irs.map((ir, i) => 
-        `IR ${i + 1}: "${ir.filename}"
-         - Duration: ${ir.duration.toFixed(1)}ms
-         - Peak Level: ${ir.peakLevel.toFixed(1)}dB
-         - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
-         - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
-         - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-         - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
-      ).join('\n\n');
+        const irDescriptions = irs.map((ir, i) => 
+          `IR ${i + 1}: "${ir.filename}"
+           - Duration: ${ir.duration.toFixed(1)}ms
+           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
+           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
+        ).join('\n\n');
 
-      let userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+        userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+      }
       
       if (tonePreferences && tonePreferences.trim()) {
         userMessage += `\n\nIMPORTANT - User's desired tone characteristics: "${tonePreferences.trim()}"

@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -16,17 +16,20 @@ interface UploadedIR {
 }
 
 export default function Pairing() {
-  const [uploadedIRs, setUploadedIRs] = useState<UploadedIR[]>([]);
+  const [speaker1IRs, setSpeaker1IRs] = useState<UploadedIR[]>([]);
+  const [speaker2IRs, setSpeaker2IRs] = useState<UploadedIR[]>([]);
   const [result, setResult] = useState<PairingResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [tonePreferences, setTonePreferences] = useState("");
   const { toast } = useToast();
 
+  const isMixedMode = speaker1IRs.length > 0 && speaker2IRs.length > 0;
+
   const copyPairings = () => {
     if (!result) return;
     
-    let text = "IR Pairing Recommendations\n";
-    text += "=" .repeat(40) + "\n\n";
+    let text = isMixedMode ? "Mixed Speaker IR Pairing Recommendations\n" : "IR Pairing Recommendations\n";
+    text += "=".repeat(40) + "\n\n";
     
     result.pairings.forEach((pairing, i) => {
       text += `${i + 1}. ${pairing.ir1} + ${pairing.ir2}\n`;
@@ -47,8 +50,18 @@ export default function Pairing() {
   };
 
   const { mutate: analyzePairings, isPending } = useMutation({
-    mutationFn: async ({ irs, tonePrefs }: { irs: IRMetrics[], tonePrefs?: string }) => {
-      const validated = api.pairing.analyze.input.parse({ irs, tonePreferences: tonePrefs });
+    mutationFn: async ({ irs, irs2, tonePrefs, mixedMode }: { 
+      irs: IRMetrics[], 
+      irs2?: IRMetrics[], 
+      tonePrefs?: string,
+      mixedMode?: boolean 
+    }) => {
+      const validated = api.pairing.analyze.input.parse({ 
+        irs, 
+        irs2, 
+        tonePreferences: tonePrefs,
+        mixedMode 
+      });
       const res = await fetch(api.pairing.analyze.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -65,8 +78,11 @@ export default function Pairing() {
     },
   });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const wavFiles = acceptedFiles.filter(f => f.name.toLowerCase().endsWith('.wav'));
+  const processFiles = async (
+    files: File[], 
+    setIRs: React.Dispatch<React.SetStateAction<UploadedIR[]>>
+  ) => {
+    const wavFiles = files.filter(f => f.name.toLowerCase().endsWith('.wav'));
     
     if (wavFiles.length === 0) {
       toast({ title: "Invalid files", description: "Please upload .wav files only", variant: "destructive" });
@@ -80,180 +96,324 @@ export default function Pairing() {
       error: null,
     }));
 
-    setUploadedIRs(newIRs); // Replace existing IRs instead of appending
+    setIRs(newIRs);
     setResult(null);
 
     for (let i = 0; i < wavFiles.length; i++) {
       const file = wavFiles[i];
       try {
         const metrics = await analyzeAudioFile(file);
-        setUploadedIRs(prev => prev.map(ir => 
+        setIRs(prev => prev.map(ir => 
           ir.file.name === file.name && ir.file.size === file.size
             ? { ...ir, metrics, analyzing: false }
             : ir
         ));
       } catch (err) {
-        setUploadedIRs(prev => prev.map(ir => 
+        setIRs(prev => prev.map(ir => 
           ir.file.name === file.name && ir.file.size === file.size
             ? { ...ir, analyzing: false, error: "Failed to analyze" }
             : ir
         ));
       }
     }
+  };
+
+  const onDropSpeaker1 = useCallback(async (acceptedFiles: File[]) => {
+    await processFiles(acceptedFiles, setSpeaker1IRs);
   }, [toast]);
 
-  const removeIR = (index: number) => {
-    setUploadedIRs(prev => prev.filter((_, i) => i !== index));
+  const onDropSpeaker2 = useCallback(async (acceptedFiles: File[]) => {
+    await processFiles(acceptedFiles, setSpeaker2IRs);
+  }, [toast]);
+
+  const removeIR = (index: number, speaker: 1 | 2) => {
+    if (speaker === 1) {
+      setSpeaker1IRs(prev => prev.filter((_, i) => i !== index));
+    } else {
+      setSpeaker2IRs(prev => prev.filter((_, i) => i !== index));
+    }
     setResult(null);
   };
 
-  const clearAll = () => {
-    setUploadedIRs([]);
+  const clearSpeaker = (speaker: 1 | 2) => {
+    if (speaker === 1) {
+      setSpeaker1IRs([]);
+    } else {
+      setSpeaker2IRs([]);
+    }
     setResult(null);
   };
 
   const handleAnalyze = () => {
-    const validIRs = uploadedIRs.filter(ir => ir.metrics && !ir.error);
-    if (validIRs.length < 2) {
-      toast({ title: "Need more IRs", description: "Upload at least 2 valid IRs to analyze pairings", variant: "destructive" });
-      return;
+    const valid1 = speaker1IRs.filter(ir => ir.metrics && !ir.error);
+    const valid2 = speaker2IRs.filter(ir => ir.metrics && !ir.error);
+
+    // Mixed mode requires at least 1 IR in each set
+    if (isMixedMode) {
+      if (valid1.length === 0 || valid2.length === 0) {
+        toast({ 
+          title: "Need IRs in both sets", 
+          description: "For mixed speaker pairing, add at least 1 IR to each speaker set", 
+          variant: "destructive" 
+        });
+        return;
+      }
+    } else {
+      // Single speaker mode requires at least 2 IRs
+      if (valid1.length < 2) {
+        toast({ 
+          title: "Need more IRs", 
+          description: "Upload at least 2 valid IRs to analyze pairings", 
+          variant: "destructive" 
+        });
+        return;
+      }
     }
 
-    const irMetrics: IRMetrics[] = validIRs.map(ir => ({
-      filename: ir.file.name,
-      duration: ir.metrics!.durationMs,
-      peakLevel: ir.metrics!.peakAmplitudeDb,
-      spectralCentroid: ir.metrics!.spectralCentroid,
-      lowEnergy: ir.metrics!.lowEnergy,
-      midEnergy: ir.metrics!.midEnergy,
-      highEnergy: ir.metrics!.highEnergy,
-    }));
+    const toMetrics = (irs: UploadedIR[]): IRMetrics[] => 
+      irs.filter(ir => ir.metrics && !ir.error).map(ir => ({
+        filename: ir.file.name,
+        duration: ir.metrics!.durationMs,
+        peakLevel: ir.metrics!.peakAmplitudeDb,
+        spectralCentroid: ir.metrics!.spectralCentroid,
+        lowEnergy: ir.metrics!.lowEnergy,
+        midEnergy: ir.metrics!.midEnergy,
+        highEnergy: ir.metrics!.highEnergy,
+      }));
 
-    analyzePairings({ irs: irMetrics, tonePrefs: tonePreferences || undefined });
+    if (isMixedMode) {
+      analyzePairings({ 
+        irs: toMetrics(valid1), 
+        irs2: toMetrics(valid2), 
+        tonePrefs: tonePreferences || undefined,
+        mixedMode: true 
+      });
+    } else {
+      analyzePairings({ 
+        irs: toMetrics(valid1), 
+        tonePrefs: tonePreferences || undefined 
+      });
+    }
   };
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+  const dropzone1 = useDropzone({
+    onDrop: onDropSpeaker1,
     accept: { "audio/wav": [".wav"] },
     multiple: true,
   });
 
-  const validCount = uploadedIRs.filter(ir => ir.metrics && !ir.error).length;
-  const analyzingCount = uploadedIRs.filter(ir => ir.analyzing).length;
+  const dropzone2 = useDropzone({
+    onDrop: onDropSpeaker2,
+    accept: { "audio/wav": [".wav"] },
+    multiple: true,
+  });
+
+  const valid1Count = speaker1IRs.filter(ir => ir.metrics && !ir.error).length;
+  const valid2Count = speaker2IRs.filter(ir => ir.metrics && !ir.error).length;
+  const analyzing1Count = speaker1IRs.filter(ir => ir.analyzing).length;
+  const analyzing2Count = speaker2IRs.filter(ir => ir.analyzing).length;
+  const totalAnalyzing = analyzing1Count + analyzing2Count;
+
+  const canAnalyze = isMixedMode 
+    ? (valid1Count >= 1 && valid2Count >= 1 && totalAnalyzing === 0)
+    : (valid1Count >= 2 && totalAnalyzing === 0);
+
+  const IRList = ({ 
+    irs, 
+    speaker, 
+    onRemove, 
+    onClear 
+  }: { 
+    irs: UploadedIR[], 
+    speaker: 1 | 2, 
+    onRemove: (index: number) => void,
+    onClear: () => void 
+  }) => {
+    const validCount = irs.filter(ir => ir.metrics && !ir.error).length;
+    
+    if (irs.length === 0) return null;
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-muted-foreground">
+            {validCount} IR{validCount !== 1 ? 's' : ''} ready
+          </span>
+          <button
+            onClick={onClear}
+            className="text-xs text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+            data-testid={`button-clear-speaker-${speaker}`}
+          >
+            <Trash2 className="w-3 h-3" />
+            Clear
+          </button>
+        </div>
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          <AnimatePresence>
+            {irs.map((ir, index) => (
+              <motion.div
+                key={`${ir.file.name}-${index}`}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className={cn(
+                  "p-2 rounded-lg bg-white/5 flex items-center justify-between gap-2",
+                  ir.error && "border border-destructive/50"
+                )}
+                data-testid={`ir-item-speaker${speaker}-${index}`}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className={cn(
+                    "w-6 h-6 rounded flex items-center justify-center flex-shrink-0",
+                    ir.analyzing ? "bg-yellow-500/20" :
+                    ir.error ? "bg-destructive/20" :
+                    speaker === 1 ? "bg-primary/20" : "bg-secondary/20"
+                  )}>
+                    {ir.analyzing ? (
+                      <Loader2 className="w-3 h-3 text-yellow-500 animate-spin" />
+                    ) : ir.error ? (
+                      <Music4 className="w-3 h-3 text-destructive" />
+                    ) : (
+                      <Music4 className={cn("w-3 h-3", speaker === 1 ? "text-primary" : "text-secondary")} />
+                    )}
+                  </div>
+                  <p className="text-xs truncate flex-1">{ir.file.name}</p>
+                </div>
+                <button
+                  onClick={() => onRemove(index)}
+                  className="p-1 hover:bg-white/5 rounded transition-colors flex-shrink-0"
+                  data-testid={`button-remove-ir-speaker${speaker}-${index}`}
+                >
+                  <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-10">
+      <div className="max-w-5xl mx-auto space-y-10">
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
             IR Pairing
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Upload multiple IRs and discover which ones pair best together with optimal mix ratios.
+            Upload IRs to find optimal pairings. Use one speaker or mix two different speakers for hybrid tones.
           </p>
         </div>
 
-        <div
-          {...getRootProps()}
-          className={cn(
-            "glass-panel p-8 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
-            isDragActive
-              ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_rgba(34,197,94,0.4)]"
-              : "border-white/10 hover:border-primary/50"
-          )}
-          data-testid="dropzone-pairing"
-        >
-          <input {...getInputProps()} data-testid="input-files-pairing" />
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Layers className="w-8 h-8 text-primary" />
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Speaker 1 Dropzone */}
+          <div className="space-y-4">
+            <div
+              {...dropzone1.getRootProps()}
+              className={cn(
+                "glass-panel p-6 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
+                dropzone1.isDragActive
+                  ? "border-primary bg-primary/5 shadow-[0_0_30px_-10px_rgba(34,197,94,0.4)]"
+                  : "border-white/10 hover:border-primary/50"
+              )}
+              data-testid="dropzone-speaker1"
+            >
+              <input {...dropzone1.getInputProps()} data-testid="input-files-speaker1" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Layers className="w-6 h-6 text-primary" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-primary">
+                    Speaker 1 IRs
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dropzone1.isDragActive ? "Drop files here" : "Drop .wav files or click to browse"}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-lg font-medium">
-                {isDragActive ? "Drop your IR files here" : "Drop multiple IR files here"}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload 2 or more .wav files to analyze pairing compatibility
-              </p>
+            <IRList 
+              irs={speaker1IRs} 
+              speaker={1} 
+              onRemove={(i) => removeIR(i, 1)}
+              onClear={() => clearSpeaker(1)}
+            />
+          </div>
+
+          {/* Speaker 2 Dropzone */}
+          <div className="space-y-4">
+            <div
+              {...dropzone2.getRootProps()}
+              className={cn(
+                "glass-panel p-6 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer",
+                dropzone2.isDragActive
+                  ? "border-secondary bg-secondary/5 shadow-[0_0_30px_-10px_rgba(168,85,247,0.4)]"
+                  : "border-white/10 hover:border-secondary/50"
+              )}
+              data-testid="dropzone-speaker2"
+            >
+              <input {...dropzone2.getInputProps()} data-testid="input-files-speaker2" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+                  <Plus className="w-6 h-6 text-secondary" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-secondary">
+                    Speaker 2 IRs (optional)
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dropzone2.isDragActive ? "Drop files here" : "Add for cross-speaker mixing"}
+                  </p>
+                </div>
+              </div>
             </div>
+            <IRList 
+              irs={speaker2IRs} 
+              speaker={2} 
+              onRemove={(i) => removeIR(i, 2)}
+              onClear={() => clearSpeaker(2)}
+            />
           </div>
         </div>
 
-        {uploadedIRs.length > 0 && (
+        {/* Mode indicator */}
+        {(speaker1IRs.length > 0 || speaker2IRs.length > 0) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center"
+          >
+            <span className={cn(
+              "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium",
+              isMixedMode 
+                ? "bg-gradient-to-r from-primary/20 to-secondary/20 text-white" 
+                : "bg-primary/20 text-primary"
+            )}>
+              {isMixedMode ? (
+                <>
+                  <Layers className="w-4 h-4" />
+                  Mixed Speaker Mode - Cross-speaker pairings
+                </>
+              ) : (
+                <>
+                  <FileAudio className="w-4 h-4" />
+                  Single Speaker Mode - {valid1Count >= 2 ? "Ready to analyze" : "Add at least 2 IRs"}
+                </>
+              )}
+            </span>
+          </motion.div>
+        )}
+
+        {/* Tone preferences and analyze button */}
+        {(valid1Count >= 2 || isMixedMode) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-4"
+            className="space-y-4 max-w-2xl mx-auto"
           >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <FileAudio className="w-5 h-5 text-primary" />
-                Uploaded IRs ({validCount} ready)
-              </h2>
-              <button
-                onClick={clearAll}
-                className="text-sm text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
-                data-testid="button-clear-all"
-              >
-                <Trash2 className="w-4 h-4" />
-                Clear all
-              </button>
-            </div>
-
-            <div className="grid gap-2">
-              <AnimatePresence>
-                {uploadedIRs.map((ir, index) => (
-                  <motion.div
-                    key={`${ir.file.name}-${index}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    className={cn(
-                      "glass-panel p-3 rounded-lg flex items-center justify-between",
-                      ir.error && "border-destructive/50"
-                    )}
-                    data-testid={`ir-item-${index}`}
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className={cn(
-                        "w-8 h-8 rounded flex items-center justify-center flex-shrink-0",
-                        ir.analyzing ? "bg-yellow-500/20" :
-                        ir.error ? "bg-destructive/20" :
-                        "bg-primary/20"
-                      )}>
-                        {ir.analyzing ? (
-                          <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />
-                        ) : ir.error ? (
-                          <Music4 className="w-4 h-4 text-destructive" />
-                        ) : (
-                          <Music4 className="w-4 h-4 text-primary" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{ir.file.name}</p>
-                        {ir.metrics && (
-                          <p className="text-xs text-muted-foreground">
-                            {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz
-                          </p>
-                        )}
-                        {ir.error && (
-                          <p className="text-xs text-destructive">{ir.error}</p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeIR(index)}
-                      className="p-1 hover:bg-white/5 rounded transition-colors"
-                      data-testid={`button-remove-ir-${index}`}
-                    >
-                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
-                    </button>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">
                 Desired Tone (optional)
@@ -273,10 +433,10 @@ export default function Pairing() {
 
             <button
               onClick={handleAnalyze}
-              disabled={validCount < 2 || analyzingCount > 0 || isPending}
+              disabled={!canAnalyze || isPending}
               className={cn(
                 "w-full py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
-                validCount >= 2 && analyzingCount === 0 && !isPending
+                canAnalyze && !isPending
                   ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
                   : "bg-white/5 text-muted-foreground cursor-not-allowed"
               )}
@@ -285,17 +445,20 @@ export default function Pairing() {
               {isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Analyzing Pairings...
+                  Analyzing {isMixedMode ? "Cross-Speaker " : ""}Pairings...
                 </>
-              ) : analyzingCount > 0 ? (
+              ) : totalAnalyzing > 0 ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing {analyzingCount} file(s)...
+                  Processing {totalAnalyzing} file(s)...
                 </>
               ) : (
                 <>
                   <Zap className="w-5 h-5" />
-                  Find Best Pairings ({validCount} IRs)
+                  {isMixedMode 
+                    ? `Find Best Cross-Speaker Pairings (${valid1Count} + ${valid2Count} IRs)`
+                    : `Find Best Pairings (${valid1Count} IRs)`
+                  }
                 </>
               )}
             </button>
@@ -314,7 +477,7 @@ export default function Pairing() {
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Zap className="w-6 h-6 text-primary" />
-                    Best Pairings
+                    {isMixedMode ? "Best Cross-Speaker Pairings" : "Best Pairings"}
                   </h2>
                   <button
                     onClick={copyPairings}
