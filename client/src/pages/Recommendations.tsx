@@ -51,23 +51,48 @@ export default function Recommendations() {
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
+  const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
   const { toast } = useToast();
 
+  // Mode: if mic is selected, use mic+speaker endpoint; otherwise use speaker-only endpoint
+  const isSpeakerOnlyMode = !micType && speaker;
+
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre }: { micType: string; speakerModel: string; genre?: string }) => {
-      const payload: { micType: string; speakerModel: string; genre?: string } = { micType, speakerModel };
-      if (genre) payload.genre = genre;
-      const validated = api.recommendations.get.input.parse(payload);
-      const res = await fetch(api.recommendations.get.path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(validated),
-      });
-      if (!res.ok) throw new Error("Failed to get recommendations");
-      return api.recommendations.get.responses[200].parse(await res.json());
+    mutationFn: async ({ micType, speakerModel, genre }: { micType?: string; speakerModel: string; genre?: string }) => {
+      if (micType) {
+        // Mic + Speaker mode
+        const payload: { micType: string; speakerModel: string; genre?: string } = { micType, speakerModel };
+        if (genre) payload.genre = genre;
+        const validated = api.recommendations.get.input.parse(payload);
+        const res = await fetch(api.recommendations.get.path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validated),
+        });
+        if (!res.ok) throw new Error("Failed to get recommendations");
+        return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
+      } else {
+        // Speaker-only mode
+        const payload: { speakerModel: string; genre?: string } = { speakerModel };
+        if (genre) payload.genre = genre;
+        const validated = api.recommendations.bySpeaker.input.parse(payload);
+        const res = await fetch(api.recommendations.bySpeaker.path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(validated),
+        });
+        if (!res.ok) throw new Error("Failed to get speaker recommendations");
+        return { type: 'speakerOnly' as const, data: api.recommendations.bySpeaker.responses[200].parse(await res.json()) };
+      }
     },
-    onSuccess: (data) => {
-      setResult(data);
+    onSuccess: (response) => {
+      if (response.type === 'micSpeaker') {
+        setResult(response.data);
+        setSpeakerResult(null);
+      } else {
+        setSpeakerResult(response.data);
+        setResult(null);
+      }
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to generate recommendations", variant: "destructive" });
@@ -76,15 +101,11 @@ export default function Recommendations() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!micType) {
-      toast({ title: "Select a microphone", description: "Please choose a microphone type first", variant: "destructive" });
-      return;
-    }
     if (!speaker) {
       toast({ title: "Select a speaker", description: "Please choose a speaker model", variant: "destructive" });
       return;
     }
-    getRecommendations({ micType, speakerModel: speaker, genre: genre || undefined });
+    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: genre || undefined });
   };
 
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
@@ -106,11 +127,11 @@ export default function Recommendations() {
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            Distance Recommendations
+            Mic Recommendations
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Get expert recommendations for ideal microphone distances based on your mic and speaker combination.
-            Optionally specify a genre to refine suggestions for specific tonal goals.
+            Get expert recommendations based on curated IR production knowledge.
+            Select just a speaker to get mic/position/distance combos, or pick both mic and speaker for distance-focused advice.
           </p>
         </div>
 
@@ -118,7 +139,7 @@ export default function Recommendations() {
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Mic2 className="w-3 h-3" /> Microphone
+                <Mic2 className="w-3 h-3" /> Microphone (Optional)
               </label>
               <select
                 value={micType}
@@ -126,11 +147,12 @@ export default function Recommendations() {
                 className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 data-testid="select-mic"
               >
-                <option value="">Select a microphone...</option>
+                <option value="">Any - Suggest mics for me</option>
                 {MICS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
+              <p className="text-xs text-muted-foreground">Leave blank to get mic recommendations for the speaker</p>
             </div>
 
             <div className="space-y-2">
@@ -170,10 +192,10 @@ export default function Recommendations() {
 
           <button
             type="submit"
-            disabled={!micType || !speaker || isPending}
+            disabled={!speaker || isPending}
             className={cn(
               "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !micType || !speaker || isPending
+              !speaker || isPending
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
             )}
@@ -183,9 +205,13 @@ export default function Recommendations() {
               <>
                 <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
               </>
-            ) : (
+            ) : micType ? (
               <>
                 <Lightbulb className="w-4 h-4" /> Get Distance Recommendations
+              </>
+            ) : (
+              <>
+                <ListFilter className="w-4 h-4" /> Get Mic Recommendations
               </>
             )}
           </button>
@@ -285,6 +311,80 @@ export default function Recommendations() {
                   </div>
                 </>
               )}
+            </motion.div>
+          )}
+
+          {speakerResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="glass-panel p-6 rounded-2xl space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2 bg-secondary/20 px-4 py-2 rounded-full border border-secondary/20">
+                    <Speaker className="w-4 h-4 text-secondary" />
+                    <span className="text-sm font-medium text-secondary">{getSpeakerLabel(speakerResult.speaker)}</span>
+                  </div>
+                  {speakerResult.genre && (
+                    <>
+                      <span className="text-muted-foreground">for</span>
+                      <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full border border-white/10">
+                        <Music className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{getGenreLabel(speakerResult.genre)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-foreground font-medium">Speaker:</span> {speakerResult.speakerDescription}
+                </p>
+                <p className="text-sm text-muted-foreground italic">{speakerResult.summary}</p>
+              </div>
+
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <ListFilter className="w-5 h-5 text-primary" />
+                Recommended Mic/Position/Distance Combos
+              </h3>
+
+              <div className="grid gap-4">
+                {speakerResult.micRecommendations.map((rec, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="glass-panel p-5 rounded-xl space-y-3"
+                    data-testid={`card-mic-recommendation-${i}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
+                        <Mic2 className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-bold text-primary">{rec.micLabel}</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
+                        <Target className="w-4 h-4 text-secondary" />
+                        <span className="text-sm font-medium text-secondary">{POSITION_LABELS[rec.position] || rec.position}</span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
+                        <Ruler className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{rec.distance}"</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-medium ml-auto">{rec.bestFor}</span>
+                    </div>
+                    
+                    <div className="space-y-2 pl-1">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Why:</span> {rec.rationale}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Expected Tone:</span> {rec.expectedTone}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

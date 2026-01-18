@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
+import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 
 // Initialize OpenAI client
 const openai = new OpenAI({ 
@@ -254,9 +255,28 @@ export async function registerRoutes(
       const input = api.recommendations.bySpeaker.input.parse(req.body);
       const { speakerModel, genre } = input;
 
+      // Get curated recipes for this speaker from IR producer knowledge base
+      const curatedRecipes = getRecipesForSpeaker(speakerModel);
+      
+      // Format curated data for the prompt
+      const curatedSection = curatedRecipes.length > 0 
+        ? `\n\n=== CURATED IR PRODUCER RECIPES ===
+These are PROVEN combinations from real IR production. PRIORITIZE these over generic suggestions:
+
+${curatedRecipes.map((r, i) => `${i + 1}. ${r.micLabel} at ${r.position}, ${r.distance}"
+   Notes: ${r.notes}
+   Best for: ${r.bestFor}
+   Source: ${r.source}`).join('\n\n')}
+
+Use these curated recipes as the foundation of your recommendations. You may add 1-2 additional suggestions if the curated list doesn't cover all use cases.`
+        : '';
+
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to recommend the BEST MICROPHONES, POSITIONS, and DISTANCES for a specific speaker.
-      Provide a comprehensive list of mic/position/distance combinations that work well with this speaker.
+      
+      IMPORTANT: Your recommendations should be based on REAL IR production techniques and proven recipes.
+      When curated recipes are provided, PRIORITIZE them over generic suggestions.
+      ${curatedSection}
       
       Available Microphones:
       - 57 (SM57): Classic dynamic, mid-forward, aggressive. Great all-rounder.
@@ -271,7 +291,7 @@ export async function registerRoutes(
       - e906-flat (e906 Flat): Supercardioid, balanced.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
-      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. Start at 6", centered on cap.
+      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6", centered on cap. Unlike typical dynamics, designed for dead center with no harshness.
       
       Available Positions:
       - cap: Dead center of dust cap, brightest, most high-end detail
@@ -281,25 +301,13 @@ export async function registerRoutes(
       - cone: Focused on paper cone, darkest/warmest with most body
       - cap-off-center: On cap but not dead center, retains brightness with less harsh attack
       
-      Speakers Knowledge:
-      - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
-      - v30-china (V30): Aggressive upper-mids, modern rock.
-      - v30-blackcat (V30 Black Cat): Smoother, refined V30.
-      - k100 (G12K-100): Big low end, clear highs, neutral.
-      - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.
-      - g12-65 (G12-65): Warm, punchy, large sound.
-      - g12h30-anniversary (G12H30 Anniversary): Tight bass, bright highs.
-      - celestion-cream (Celestion Cream): Alnico smooth, high power.
-      - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
-      - g10-sc64 (G10-SC64): 10" version, more focused.
-      
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
       
       Genre Context (${genre}):
       Optimize recommendations for this genre's signature sound and classic recording techniques.` : ''}
       
-      Provide 6-10 specific mic/position/distance recommendations that work exceptionally well with this speaker.
-      Include a variety of mics and explain why each combination works.
+      Provide 6-10 specific mic/position/distance recommendations.
+      Include curated recipes first, then fill in gaps with additional proven techniques.
       
       Output JSON format:
       {
@@ -312,19 +320,19 @@ export async function registerRoutes(
             "micLabel": "Display name (e.g. 'SM57', 'R-121', 'Roswell Cab Mic')",
             "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "rationale": "Why this specific combination works with this speaker",
+            "rationale": "Why this specific combination works with this speaker - reference IR production experience",
             "expectedTone": "Description of the expected tonal result",
             "bestFor": "What styles/sounds this is ideal for"
           }
         ],
-        "summary": "Brief overall summary of the best approach for this speaker"
+        "summary": "Brief overall summary of the best approach for this speaker based on IR production experience"
       }`;
 
       let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;
       if (genre) {
         userMessage += ` Optimize recommendations for the ${genre} genre, referencing classic studio techniques.`;
       }
-      userMessage += ` Provide specific combinations that capture this speaker's best qualities.`;
+      userMessage += ` Base your recommendations on proven IR production techniques.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",

@@ -62,7 +62,7 @@ shared/           # Shared between client/server
 
 ### Feature Separation
 - **IR Analysis (Analyzer page)**: Purely technical quality assessment based on audio metrics. No genre consideration - evaluates signal quality, duration, frequency response objectively.
-- **Recommendations (Recommendations page)**: Distance recommendations for mic+speaker combos. Users select microphone and speaker (required), optionally a genre for refined suggestions. AI provides ideal distances across the 0-6" range with rationale for each.
+- **Recommendations (Recommendations page)**: Mic/position/distance recommendations. Users can select just a speaker to get a list of recommended mic/position/distance combos, or select both mic and speaker for distance-focused advice. Recommendations are based on a curated knowledge base of proven IR production techniques. Optionally specify a genre for refined suggestions.
 - **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
 
 ### Microphone & Speaker Knowledge Base
