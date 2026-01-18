@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse } from "@shared/routes";
+import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
 
 const MICS = [
   { value: "57", label: "SM57" },
@@ -51,7 +51,7 @@ const GENRES = [
   { value: "custom", label: "Custom (type your own)" },
 ];
 
-type Mode = 'by-speaker' | 'by-amp';
+type Mode = 'by-speaker' | 'by-amp' | 'import-positions';
 
 export default function Recommendations() {
   const [mode, setMode] = useState<Mode>('by-speaker');
@@ -60,9 +60,12 @@ export default function Recommendations() {
   const [genre, setGenre] = useState<string>("");
   const [customGenre, setCustomGenre] = useState<string>("");
   const [ampDescription, setAmpDescription] = useState<string>("");
+  const [positionList, setPositionList] = useState<string>("");
+  const [importSpeaker, setImportSpeaker] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
   const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
+  const [importResult, setImportResult] = useState<PositionImportResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -277,6 +280,31 @@ export default function Recommendations() {
     },
   });
 
+  const { mutate: refinePositions, isPending: isImportPending } = useMutation({
+    mutationFn: async ({ positionList, speaker, genre }: { positionList: string; speaker?: string; genre?: string }) => {
+      const payload: { positionList: string; speaker?: string; genre?: string } = { positionList };
+      if (speaker) payload.speaker = speaker;
+      if (genre) payload.genre = genre;
+      const validated = api.positionImport.refine.input.parse(payload);
+      const res = await fetch(api.positionImport.refine.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+      });
+      if (!res.ok) throw new Error("Failed to analyze positions");
+      return api.positionImport.refine.responses[200].parse(await res.json());
+    },
+    onSuccess: (data) => {
+      setImportResult(data);
+      setResult(null);
+      setSpeakerResult(null);
+      setAmpResult(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to analyze positions", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!speaker) {
@@ -298,6 +326,23 @@ export default function Recommendations() {
     setResult(null);
     setSpeakerResult(null);
     getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre || undefined });
+  };
+
+  const handleImportSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!positionList.trim()) {
+      toast({ title: "Paste your positions", description: "Please paste your tested IR positions", variant: "destructive" });
+      return;
+    }
+    const effectiveGenre = genre === 'custom' ? customGenre : genre;
+    setResult(null);
+    setSpeakerResult(null);
+    setAmpResult(null);
+    refinePositions({ 
+      positionList: positionList.trim(), 
+      speaker: importSpeaker || undefined, 
+      genre: effectiveGenre || undefined 
+    });
   };
 
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
@@ -322,6 +367,7 @@ export default function Recommendations() {
     setResult(null);
     setSpeakerResult(null);
     setAmpResult(null);
+    setImportResult(null);
   };
 
   return (
@@ -330,12 +376,14 @@ export default function Recommendations() {
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            {mode === 'by-speaker' ? 'Mic Recommendations' : 'Speaker Recommendations'}
+            {mode === 'by-speaker' ? 'Mic Recommendations' : mode === 'by-amp' ? 'Speaker Recommendations' : 'Refine Shot List'}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             {mode === 'by-speaker' 
               ? 'Get expert recommendations based on curated IR production knowledge. Select just a speaker to get mic/position/distance combos, or pick both mic and speaker for distance-focused advice.'
-              : 'Describe your amp and get speaker recommendations based on classic amp/speaker pairings from legendary recordings.'}
+              : mode === 'by-amp'
+              ? 'Describe your amp and get speaker recommendations based on classic amp/speaker pairings from legendary recordings.'
+              : 'Paste your tested IR positions and get AI-powered suggestions to refine and expand your shot list.'}
           </p>
         </div>
 
@@ -366,6 +414,19 @@ export default function Recommendations() {
               data-testid="button-mode-by-amp"
             >
               <Zap className="w-4 h-4" /> By Amp
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('import-positions')}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                mode === 'import-positions'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              data-testid="button-mode-import"
+            >
+              <FileText className="w-4 h-4" /> Import List
             </button>
           </div>
         </div>
@@ -526,6 +587,102 @@ export default function Recommendations() {
             ) : (
               <>
                 <Speaker className="w-4 h-4" /> Get Speaker Recommendations
+              </>
+            )}
+          </button>
+        </form>
+        )}
+
+        {mode === 'import-positions' && (
+        <form onSubmit={handleImportSubmit} className="glass-panel p-6 rounded-2xl space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <FileText className="w-3 h-3" /> Your Tested Positions
+            </label>
+            <textarea
+              value={positionList}
+              onChange={(e) => setPositionList(e.target.value)}
+              placeholder={`Paste your IR positions here (one per line).
+Accepts shorthand format:
+  V30_SM57_CapEdge_2in
+  Cream_e906_Cap_1in_Presence
+  G12M_R121_Cone_1.5in
+
+Or written out:
+  SM57 on V30, cap edge, 2 inches
+  Ribbon at 1" on cone`}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all min-h-[200px] font-mono"
+              data-testid="textarea-position-list"
+            />
+            <p className="text-xs text-muted-foreground">
+              Your tested positions are valuable starting points. We'll keep most of them and suggest complementary additions.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Speaker className="w-3 h-3" /> Speaker (Optional)
+              </label>
+              <select
+                value={importSpeaker}
+                onChange={(e) => setImportSpeaker(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-import-speaker"
+              >
+                <option value="">Auto-detect from list</option>
+                {SPEAKERS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">Optionally specify if all positions are for the same speaker</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Music className="w-3 h-3" /> Genre (Optional)
+              </label>
+              <select
+                value={genre}
+                onChange={(e) => setGenre(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-genre-import"
+              >
+                {GENRES.map((g) => (
+                  <option key={g.value} value={g.value}>{g.label}</option>
+                ))}
+              </select>
+              {genre === 'custom' && (
+                <input
+                  type="text"
+                  value={customGenre}
+                  onChange={(e) => setCustomGenre(e.target.value)}
+                  placeholder="Enter your genre"
+                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                  data-testid="input-custom-genre-import"
+                />
+              )}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!positionList.trim() || isImportPending}
+            className={cn(
+              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+              !positionList.trim() || isImportPending
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+            )}
+            data-testid="button-refine-positions"
+          >
+            {isImportPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" /> Refine Shot List
               </>
             )}
           </button>
@@ -784,6 +941,95 @@ export default function Recommendations() {
                         <span className="text-foreground font-medium">Expected Tone:</span> {suggestion.expectedTone}
                       </p>
                     </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {importResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="glass-panel p-6 rounded-2xl space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
+                    <FileText className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">Shot List Analysis</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                      {importResult.refinements.filter(r => r.type === 'keep').length} Keep
+                    </span>
+                    <span className="bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                      {importResult.refinements.filter(r => r.type === 'add').length} Add
+                    </span>
+                    {importResult.refinements.filter(r => r.type === 'modify').length > 0 && (
+                      <span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">
+                        {importResult.refinements.filter(r => r.type === 'modify').length} Modify
+                      </span>
+                    )}
+                    {importResult.refinements.filter(r => r.type === 'remove').length > 0 && (
+                      <span className="bg-red-500/20 text-red-400 px-2 py-1 rounded">
+                        {importResult.refinements.filter(r => r.type === 'remove').length} Remove
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground italic">{importResult.summary}</p>
+              </div>
+
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <ListFilter className="w-5 h-5 text-primary" />
+                Refined Shot List
+              </h3>
+
+              <div className="grid gap-3">
+                {importResult.refinements.map((ref, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className={cn(
+                      "glass-panel p-4 rounded-xl space-y-2",
+                      ref.type === 'keep' && "bg-green-500/5 border-green-500/30",
+                      ref.type === 'add' && "bg-blue-500/5 border-blue-500/30",
+                      ref.type === 'modify' && "bg-yellow-500/5 border-yellow-500/30",
+                      ref.type === 'remove' && "bg-red-500/5 border-red-500/30"
+                    )}
+                    data-testid={`card-refinement-${i}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className={cn(
+                        "flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase",
+                        ref.type === 'keep' && "bg-green-500/20 text-green-400",
+                        ref.type === 'add' && "bg-blue-500/20 text-blue-400",
+                        ref.type === 'modify' && "bg-yellow-500/20 text-yellow-400",
+                        ref.type === 'remove' && "bg-red-500/20 text-red-400"
+                      )}>
+                        {ref.type === 'keep' && <CheckCircle className="w-3 h-3" />}
+                        {ref.type === 'add' && <PlusCircle className="w-3 h-3" />}
+                        {ref.type === 'modify' && <RefreshCw className="w-3 h-3" />}
+                        {ref.type === 'remove' && <ArrowRight className="w-3 h-3 rotate-45" />}
+                        {ref.type}
+                      </div>
+                      {ref.shorthand && (
+                        <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
+                          {ref.shorthand}
+                        </code>
+                      )}
+                      {ref.original && ref.type !== 'keep' && (
+                        <span className="text-xs text-muted-foreground">
+                          from: <span className="font-mono">{ref.original}</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{ref.suggestion}</p>
+                    <p className="text-xs text-muted-foreground/70 italic">{ref.rationale}</p>
                   </motion.div>
                 ))}
               </div>

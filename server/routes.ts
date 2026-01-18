@@ -156,8 +156,8 @@ export async function registerRoutes(
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
-      - e906-boost (e906 Presence Boost): Supercardioid with bite.
-      - e906-flat (e906 Flat): Supercardioid, balanced.
+      - e906-boost: e906 with presence switch engaged, supercardioid, adds bite. Label as "e906 (Presence Boost)".
+      - e906-flat: e906 with flat EQ, supercardioid, balanced. Label as "e906 (Flat)".
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick.
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is DESIGNED to be aimed at dead center of cap - no harshness due to its voiced capsule. Closer = more bass (predictable linear proximity effect), farther = tighter low end. Moving around cone gives tonal variation. Handles extreme SPL, mix-ready tones with minimal EQ needed.
@@ -287,8 +287,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
-      - e906-boost (e906 Presence Boost): Supercardioid with bite.
-      - e906-flat (e906 Flat): Supercardioid, balanced.
+      - e906-boost: e906 with presence switch engaged, supercardioid, adds bite. Label as "e906 (Presence Boost)".
+      - e906-flat: e906 with flat EQ, supercardioid, balanced. Label as "e906 (Flat)".
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6", centered on cap. Unlike typical dynamics, designed for dead center with no harshness.
@@ -317,7 +317,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
         "micRecommendations": [
           {
             "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
-            "micLabel": "Display name (e.g. 'SM57', 'R-121', 'Roswell Cab Mic')",
+            "micLabel": "Display name exactly as listed above (e.g. 'SM57', 'R121', 'e906 (Presence Boost)', 'MD441 (Flat)', 'Roswell Cab Mic')",
             "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this specific combination works with this speaker - reference IR production experience",
@@ -526,6 +526,141 @@ Use these curated recipes as the foundation of your recommendations. You may add
         });
       }
       res.status(500).json({ message: "Failed to analyze IR pairings" });
+    }
+  });
+
+  // Position Import/Refinement endpoint - parse user's tested positions and suggest refinements
+  app.post(api.positionImport.refine.path, async (req, res) => {
+    try {
+      const input = api.positionImport.refine.input.parse(req.body);
+      const { positionList, speaker, genre } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+      You help IR producers refine and expand their shot lists based on positions they've already tested.
+      
+      IMPORTANT PRINCIPLES:
+      - The user's tested positions are EXTREMELY VALUABLE - they found these useful through real-world listening tests
+      - These are positions the user ALREADY LIKES and has validated by ear
+      - Your primary job is to KEEP their positions and suggest SUPPLEMENTARY additions to fill gaps
+      - Only suggest modifications if there's a clear, significant improvement opportunity
+      - Add positions that COMPLEMENT what they already have (fill gaps, add variety)
+      - REMOVING positions should be EXTREMELY RARE - only for technically broken combos or dangerous setups (e.g., 0" with ribbon mic risking damage). The user liked these positions!
+      
+      IR Shorthand Naming Convention:
+      Format: Speaker_Mic_Position_distance_variant
+      
+      Speaker Shorthand:
+      - Cream (Celestion Cream), V30 (Vintage 30), V30BC (V30 Black Cat)
+      - G12M (Greenback), G12HAnni (G12H30 Anniversary), G12-65Heri (G12-65 Heritage)
+      - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75)
+      
+      Mic Shorthand:
+      - SM57, R121, R10, MD421, MD421Kompakt, M201, M88, Roswell, M160, e906, C414, R92, PR30
+      - Variants: MD441 and e906 have _Presence or _Flat suffixes
+      
+      Position Format:
+      - Simple: Cap, Cone, CapEdge
+      - Complex: CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
+      
+      Examples:
+      - V30_SM57_CapEdge_2in
+      - Cream_e906_Cap_1in_Presence
+      - G12M_R121_Cone_1.5in
+      
+      Available Microphones:
+      - SM57: Classic dynamic, mid-forward
+      - R121: Ribbon, smooth highs, big low-mid
+      - R92: Ribbon, warm, figure-8
+      - M160: Hypercardioid ribbon, focused
+      - MD421: Large diaphragm dynamic, punchy
+      - MD421 Kompakt: Compact version
+      - MD441 (Presence/Flat): Dynamic with EQ switch
+      - R10: Ribbon, smooth
+      - M88: Warm, great low-end
+      - PR30: Clear highs, less proximity
+      - e906 (Presence/Flat): Supercardioid with EQ switch
+      - M201: Accurate dynamic
+      - SM7B: Smooth, thick
+      - C414: Condenser, detailed
+      - Roswell Cab Mic: Specialized condenser for loud cabs
+      
+      Available Positions:
+      - Cap: Dead center, brightest
+      - CapEdge: Transition zone, balanced
+      - CapEdge_FavorCap: Towards cap, brighter
+      - CapEdge_FavorCone: Towards cone, warmer
+      - Cone: Darkest, most body
+      - Cap_OffCenter: On cap but not center
+      
+      Distances: 0" to 6" in 0.5" increments
+      
+      When analyzing the user's list:
+      1. Parse each position (shorthand or written out)
+      2. Identify what they already cover well
+      3. Find gaps (missing positions, distances, or mics that would complement)
+      4. Mark MOST positions as "keep" - the user tested and LIKED these!
+      5. Suggest "add" positions that fill gaps or add complementary options
+      6. Only use "modify" if there's a significant improvement (rare)
+      7. Use "remove" ONLY in extreme cases - the user liked these positions! Only remove if:
+         - Technically dangerous (e.g., ribbon mic at 0" could damage mic)
+         - Completely redundant with a nearly identical position already in the list
+         - Known broken/problematic combination that never works
+         If in doubt, KEEP IT - the user's ears approved it${speaker ? `
+      
+      Speaker Context: ${speaker} - tailor suggestions for this speaker's characteristics.` : ''}${genre ? `
+      
+      Genre Context: ${genre} - optimize for this genre's signature sound.` : ''}
+      
+      Output JSON format:
+      {
+        "parsedPositions": [
+          {
+            "original": "exactly what user typed",
+            "speaker": "parsed speaker code or null",
+            "mic": "parsed mic code or null",
+            "position": "parsed position or null",
+            "distance": "parsed distance or null",
+            "variant": "Presence/Flat or null",
+            "parsed": true/false (whether successfully parsed)
+          }
+        ],
+        "refinements": [
+          {
+            "type": "keep|modify|add|remove",
+            "original": "original position if keep/modify/remove, null if add",
+            "suggestion": "Human-readable description of this position (for remove: explain what's being removed)",
+            "shorthand": "Full shorthand notation (Speaker_Mic_Position_Distance_Variant) - empty string for remove",
+            "rationale": "Why this position should be kept/modified/added/removed"
+          }
+        ],
+        "summary": "Brief summary of the analysis - what's covered well and what gaps were filled"
+      }`;
+
+      const userMessage = `Please analyze my tested IR positions and suggest refinements. Keep most of my positions (they work well!) and add complementary shots to fill gaps.
+
+My tested positions:
+${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}${genre ? `\nOptimizing for ${genre} genre.` : ''}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Position import error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to analyze positions" });
     }
   });
 

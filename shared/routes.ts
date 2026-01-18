@@ -128,6 +128,42 @@ export type PairingInput = z.infer<typeof pairingInputSchema>;
 export type PairingResult = z.infer<typeof pairingResultSchema>;
 export type PairingResponse = z.infer<typeof pairingResponseSchema>;
 
+// Position Import/Refinement schemas
+export const positionImportInputSchema = z.object({
+  positionList: z.string().min(1, "Please paste your IR position list"),
+  speaker: z.string().optional(),
+  genre: z.string().optional(),
+});
+
+export const parsedPositionSchema = z.object({
+  original: z.string(),
+  speaker: z.string().optional(),
+  mic: z.string().optional(),
+  position: z.string().optional(),
+  distance: z.string().optional(),
+  variant: z.string().optional(),
+  parsed: z.boolean(),
+});
+
+export const refinementSuggestionSchema = z.object({
+  type: z.enum(['keep', 'modify', 'add', 'remove']),
+  original: z.string().optional(),
+  suggestion: z.string(),
+  shorthand: z.string(),
+  rationale: z.string(),
+});
+
+export const positionImportResponseSchema = z.object({
+  parsedPositions: z.array(parsedPositionSchema),
+  refinements: z.array(refinementSuggestionSchema),
+  summary: z.string(),
+});
+
+export type PositionImportInput = z.infer<typeof positionImportInputSchema>;
+export type ParsedPosition = z.infer<typeof parsedPositionSchema>;
+export type RefinementSuggestion = z.infer<typeof refinementSuggestionSchema>;
+export type PositionImportResponse = z.infer<typeof positionImportResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -190,6 +226,18 @@ export const api = {
       input: pairingInputSchema,
       responses: {
         200: pairingResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+  },
+  positionImport: {
+    refine: {
+      method: 'POST' as const,
+      path: '/api/positions/refine',
+      input: positionImportInputSchema,
+      responses: {
+        200: positionImportResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
