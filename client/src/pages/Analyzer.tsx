@@ -436,6 +436,7 @@ export default function Analyzer() {
                     duration: metrics.durationMs,
                     centroid: metrics.spectralCentroid
                   }}
+                  bestPositions={result.bestPositions}
                 />
               )}
             </AnimatePresence>

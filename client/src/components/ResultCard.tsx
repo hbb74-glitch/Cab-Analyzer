@@ -1,6 +1,11 @@
-import { CheckCircle2, XCircle, Activity, Info } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+
+interface BestPosition {
+  position: string;
+  reason: string;
+}
 
 interface ResultCardProps {
   score: number;
@@ -11,9 +16,19 @@ interface ResultCardProps {
     duration: number;
     centroid: number;
   };
+  bestPositions?: BestPosition[];
 }
 
-export function ResultCard({ score, isPerfect, advice, metrics }: ResultCardProps) {
+const POSITION_LABELS: Record<string, string> = {
+  "cap": "Cap",
+  "cap-edge": "Cap Edge",
+  "cap-edge-favor-cap": "Cap Edge (Favor Cap)",
+  "cap-edge-favor-cone": "Cap Edge (Favor Cone)",
+  "cone": "Cone",
+  "cap-off-center": "Cap Off Center",
+};
+
+export function ResultCard({ score, isPerfect, advice, metrics, bestPositions }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -100,6 +115,25 @@ export function ResultCard({ score, isPerfect, advice, metrics }: ResultCardProp
           </div>
         </div>
       </div>
+
+      {bestPositions && bestPositions.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-white/10">
+          <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" />
+            Best Positions for This Mic + Speaker
+          </h4>
+          <div className="grid gap-3">
+            {bestPositions.map((pos, i) => (
+              <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-white/5 border border-white/5">
+                <span className="shrink-0 px-2 py-1 rounded bg-primary/20 text-primary text-xs font-medium border border-primary/20">
+                  {POSITION_LABELS[pos.position] || pos.position}
+                </span>
+                <p className="text-sm text-muted-foreground">{pos.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }
