@@ -1,10 +1,26 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Target, Ruler } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { api, type RecommendationsResponse } from "@shared/routes";
+
+const MICS = [
+  { value: "57", label: "SM57" },
+  { value: "121", label: "R-121" },
+  { value: "160", label: "M160" },
+  { value: "421", label: "MD421" },
+  { value: "421-kompakt", label: "MD421 Kompakt" },
+  { value: "r10", label: "R10" },
+  { value: "m88", label: "M88" },
+  { value: "pr30", label: "PR30" },
+  { value: "e906-boost", label: "e906 (Presence Boost)" },
+  { value: "e906-flat", label: "e906 (Flat)" },
+  { value: "m201", label: "M201" },
+  { value: "sm7b", label: "SM7B" },
+  { value: "roswell-cab", label: "Roswell Cab Mic" },
+];
 
 const SPEAKERS = [
   { value: "g12m25", label: "G12M-25 (Greenback)" },
@@ -20,6 +36,7 @@ const SPEAKERS = [
 ];
 
 const GENRES = [
+  { value: "", label: "Any / General" },
   { value: "classic-rock", label: "Classic Rock" },
   { value: "hard-rock", label: "Hard Rock" },
   { value: "alternative-rock", label: "Alternative Rock" },
@@ -29,40 +46,18 @@ const GENRES = [
   { value: "indie-rock", label: "Indie Rock" },
 ];
 
-const MIC_LABELS: Record<string, string> = {
-  "57": "SM57",
-  "121": "R-121",
-  "160": "M160",
-  "421": "MD421",
-  "421-kompakt": "MD421 Kompakt",
-  "r10": "R10",
-  "m88": "M88",
-  "pr30": "PR30",
-  "e906-boost": "e906 (Presence Boost)",
-  "e906-flat": "e906 (Flat)",
-  "m201": "M201",
-  "sm7b": "SM7B",
-  "roswell-cab": "Roswell Cab Mic",
-};
-
-const POSITION_LABELS: Record<string, string> = {
-  "cap": "Cap",
-  "cap-edge": "Cap Edge",
-  "cap-edge-favor-cap": "Cap Edge (Favor Cap)",
-  "cap-edge-favor-cone": "Cap Edge (Favor Cone)",
-  "cone": "Cone",
-  "cap-off-center": "Cap Off Center",
-};
-
 export default function Recommendations() {
+  const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const { toast } = useToast();
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ speakerModel, genre }: { speakerModel: string; genre: string }) => {
-      const validated = api.recommendations.get.input.parse({ speakerModel, genre });
+    mutationFn: async ({ micType, speakerModel, genre }: { micType: string; speakerModel: string; genre?: string }) => {
+      const payload: { micType: string; speakerModel: string; genre?: string } = { micType, speakerModel };
+      if (genre) payload.genre = genre;
+      const validated = api.recommendations.get.input.parse(payload);
       const res = await fetch(api.recommendations.get.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,16 +76,20 @@ export default function Recommendations() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!micType) {
+      toast({ title: "Select a microphone", description: "Please choose a microphone type first", variant: "destructive" });
+      return;
+    }
     if (!speaker) {
-      toast({ title: "Select a speaker", description: "Please choose a speaker model first", variant: "destructive" });
+      toast({ title: "Select a speaker", description: "Please choose a speaker model", variant: "destructive" });
       return;
     }
-    if (!genre) {
-      toast({ title: "Select a genre", description: "Please choose a target genre", variant: "destructive" });
-      return;
-    }
-    getRecommendations({ speakerModel: speaker, genre });
+    getRecommendations({ micType, speakerModel: speaker, genre: genre || undefined });
   };
+
+  const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
+  const getSpeakerLabel = (value: string) => SPEAKERS.find(s => s.value === value)?.label || value;
+  const getGenreLabel = (value: string) => GENRES.find(g => g.value === value)?.label || value;
 
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
@@ -98,51 +97,74 @@ export default function Recommendations() {
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            Mic Recommendations
+            Distance Recommendations
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Get expert suggestions for microphone, position, and distance based on your speaker model.
-            These recommendations are tailored for capturing high-quality impulse responses.
+            Get expert recommendations for ideal microphone distances based on your mic and speaker combination.
+            Optionally specify a genre to refine suggestions for specific tonal goals.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="glass-panel p-6 rounded-2xl space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Speaker Model</label>
-            <select
-              value={speaker}
-              onChange={(e) => setSpeaker(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              data-testid="select-speaker"
-            >
-              <option value="">Select a speaker...</option>
-              {SPEAKERS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Mic2 className="w-3 h-3" /> Microphone
+              </label>
+              <select
+                value={micType}
+                onChange={(e) => setMicType(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-mic"
+              >
+                <option value="">Select a microphone...</option>
+                {MICS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Speaker className="w-3 h-3" /> Speaker
+              </label>
+              <select
+                value={speaker}
+                onChange={(e) => setSpeaker(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-speaker"
+              >
+                <option value="">Select a speaker...</option>
+                {SPEAKERS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Target Genre</label>
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Music className="w-3 h-3" /> Genre (Optional)
+            </label>
             <select
               value={genre}
               onChange={(e) => setGenre(e.target.value)}
               className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
               data-testid="select-genre"
             >
-              <option value="">Select a genre...</option>
               {GENRES.map((g) => (
                 <option key={g.value} value={g.value}>{g.label}</option>
               ))}
             </select>
+            <p className="text-xs text-muted-foreground">Leave as "Any / General" for position-agnostic distance recommendations</p>
           </div>
 
           <button
             type="submit"
-            disabled={!speaker || !genre || isPending}
+            disabled={!micType || !speaker || isPending}
             className={cn(
               "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !speaker || !genre || isPending
+              !micType || !speaker || isPending
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
             )}
@@ -150,11 +172,11 @@ export default function Recommendations() {
           >
             {isPending ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
               </>
             ) : (
               <>
-                <Lightbulb className="w-4 h-4" /> Get Recommendations
+                <Lightbulb className="w-4 h-4" /> Get Distance Recommendations
               </>
             )}
           </button>
@@ -168,10 +190,34 @@ export default function Recommendations() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              <div className="glass-panel p-6 rounded-2xl">
-                <h2 className="text-xl font-bold text-white mb-2">{SPEAKERS.find(s => s.value === result.speaker)?.label}</h2>
-                <p className="text-muted-foreground">{result.speakerDescription}</p>
+              <div className="glass-panel p-6 rounded-2xl space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
+                    <Mic2 className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">{getMicLabel(result.mic)}</span>
+                  </div>
+                  <span className="text-muted-foreground">+</span>
+                  <div className="flex items-center gap-2 bg-secondary/20 px-4 py-2 rounded-full border border-secondary/20">
+                    <Speaker className="w-4 h-4 text-secondary" />
+                    <span className="text-sm font-medium text-secondary">{getSpeakerLabel(result.speaker)}</span>
+                  </div>
+                  {result.genre && (
+                    <>
+                      <span className="text-muted-foreground">for</span>
+                      <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full border border-white/10">
+                        <Music className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{getGenreLabel(result.genre)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="grid md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                  <p><span className="text-foreground font-medium">Mic:</span> {result.micDescription}</p>
+                  <p><span className="text-foreground font-medium">Speaker:</span> {result.speakerDescription}</p>
+                </div>
               </div>
+
+              <h3 className="text-lg font-semibold text-white">Recommended Distances</h3>
 
               <div className="grid gap-4">
                 {result.recommendations.map((rec, i) => (
@@ -180,27 +226,26 @@ export default function Recommendations() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className="glass-panel p-5 rounded-xl space-y-4"
+                    className="glass-panel p-5 rounded-xl space-y-3"
                     data-testid={`card-recommendation-${i}`}
                   >
-                    <div className="flex flex-wrap items-center gap-4">
-                      <div className="flex items-center gap-2 bg-primary/20 px-3 py-1.5 rounded-full border border-primary/20">
-                        <Mic2 className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium text-primary">{MIC_LABELS[rec.mic] || rec.mic}</span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-secondary/20 px-3 py-1.5 rounded-full border border-secondary/20">
-                        <Target className="w-4 h-4 text-secondary" />
-                        <span className="text-sm font-medium text-secondary">{POSITION_LABELS[rec.position] || rec.position}</span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
-                        <Ruler className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium text-foreground">{rec.distance}"</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-primary/30 px-4 py-2 rounded-full border border-primary/30">
+                          <Ruler className="w-4 h-4 text-primary" />
+                          <span className="text-lg font-bold text-primary">{rec.distance}"</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground font-medium">{rec.bestFor}</span>
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground"><span className="text-foreground font-medium">Why:</span> {rec.rationale}</p>
-                      <p className="text-sm text-muted-foreground"><span className="text-foreground font-medium">Expected Tone:</span> {rec.expectedTone}</p>
+                    <div className="space-y-2 pl-1">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Why:</span> {rec.rationale}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Expected Tone:</span> {rec.expectedTone}
+                      </p>
                     </div>
                   </motion.div>
                 ))}

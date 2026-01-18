@@ -17,28 +17,29 @@ export const errorSchemas = {
 
 // Recommendations schemas
 export const recommendationInputSchema = z.object({
+  micType: z.string().min(1, "Microphone type is required"),
   speakerModel: z.string().min(1, "Speaker model is required"),
-  genre: z.string().min(1, "Genre is required"),
+  genre: z.string().optional(),
 });
 
-export const recommendationSchema = z.object({
-  mic: z.string(),
-  micLabel: z.string(),
-  position: z.string(),
-  positionLabel: z.string(),
+export const distanceRecommendationSchema = z.object({
   distance: z.string(),
   rationale: z.string(),
   expectedTone: z.string(),
+  bestFor: z.string(),
 });
 
 export const recommendationsResponseSchema = z.object({
+  mic: z.string(),
+  micDescription: z.string(),
   speaker: z.string(),
   speakerDescription: z.string(),
-  recommendations: z.array(recommendationSchema),
+  genre: z.string().optional(),
+  recommendations: z.array(distanceRecommendationSchema),
 });
 
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
-export type Recommendation = z.infer<typeof recommendationSchema>;
+export type DistanceRecommendation = z.infer<typeof distanceRecommendationSchema>;
 export type RecommendationsResponse = z.infer<typeof recommendationsResponseSchema>;
 
 export const api = {

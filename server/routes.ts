@@ -135,45 +135,37 @@ export async function registerRoutes(
     res.json(history);
   });
 
-  // Recommendations endpoint
+  // Recommendations endpoint - ideal distances for mic+speaker combo
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { speakerModel, genre } = input;
+      const { micType, speakerModel, genre } = input;
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
-      Your task is to recommend the best microphone, position, and distance combinations for capturing a specific speaker FOR A SPECIFIC GENRE.
-      Your recommendations should be GENRE-SPECIFIC, drawing from classic studio techniques used in legendary recordings.
+      Your task is to recommend IDEAL DISTANCES for a specific microphone and speaker combination.
+      Distance is the primary variable - position on the speaker is less important for this analysis.
+      Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
-      Available Microphones:
-      - 57 (SM57): Classic dynamic, mid-forward, aggressive.
-      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8.
-      - 160 (M160): Hypercardioid ribbon, tighter, more focused.
-      - 421 (MD421): Large diaphragm dynamic, punchy.
-      - 421-kompakt (MD421 Kompakt): Compact version.
-      - r10 (R10): Ribbon, smooth.
+      Microphone Knowledge:
+      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Proximity effect adds bass up close.
+      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Strong proximity effect.
+      - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect than R-121.
+      - 421 (MD421): Large diaphragm dynamic, punchy. Moderate proximity effect.
+      - 421-kompakt (MD421 Kompakt): Compact version, similar character.
+      - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
-      - pr30 (PR30): Large diaphragm dynamic, very clear highs.
+      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
       - e906-boost (e906 Presence Boost): Supercardioid with bite.
       - e906-flat (e906 Flat): Supercardioid, balanced.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick.
       - roswell-cab (Roswell Cab Mic): Condenser for loud cabs.
       
-      Available Positions:
-      - cap: Center of speaker, brightest.
-      - cap-edge: Transition zone, balanced.
-      - cap-edge-favor-cap: Slightly brighter than cap-edge.
-      - cap-edge-favor-cone: Slightly warmer than cap-edge.
-      - cone: Outer area, warmest/darkest.
-      - cap-off-center: Off-axis, reduced harshness.
-      
-      Available Distances (in inches):
-      0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
+      Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
       Speakers Knowledge:
       - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
-      - v30-china (V30): Aggressive upper-mids, modern rock. The standard unlabeled V30.
+      - v30-china (V30): Aggressive upper-mids, modern rock.
       - v30-blackcat (V30 Black Cat): Smoother, refined V30.
       - k100 (G12K-100): Big low end, clear highs, neutral.
       - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.
@@ -183,72 +175,40 @@ export async function registerRoutes(
       - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
       - g10-sc64 (G10-SC64): 10" version, more focused.
       
-      === GENRE-SPECIFIC STUDIO TECHNIQUES ===
+      Distance Effects (general principles):
+      - 0-0.5": Maximum proximity effect (bass boost), very direct/aggressive, potential for bass buildup
+      - 1-2": Sweet spot for most dynamics, balanced proximity, punchy attack
+      - 2.5-4": Reduced proximity, more natural tonal balance, some room interaction
+      - 4.5-6": Minimal proximity, roomier sound, more natural but less direct${genre ? `
       
-      CLASSIC ROCK (classic-rock) - 1970s: Led Zeppelin, AC/DC, Rolling Stones:
-      - Mic approach: SM57 at 1-2" from grille, halfway between dust cap and edge. Often paired with ribbon at distance.
-      - Tone goal: Warm, punchy midrange with smooth highs. Not overly bright or fizzy.
-      - Classic approach: Dual-mic (SM57 close + ribbon 6-20" back). Minimal processing, "get it right at the source."
-      - Ideal: Rich harmonics, controlled low-end, vocal-like midrange presence.
+      Genre Context (${genre}):
+      Use this to refine recommendations. Consider what distances work best for achieving the signature sound of this genre.` : ''}
       
-      HARD ROCK (hard-rock) - 1980s: Van Halen, Def Leppard, Scorpions:
-      - Mic approach: Tighter mic placement for more definition. SM57 slightly off-center for bite.
-      - Tone goal: Aggressive upper-mids, punchy attack, sizzling harmonics.
-      - Classic approach: Double-tracking rhythms, layering for width. Marshall JCM800 tones.
-      - Ideal: Cutting through dense mixes, sustain with controlled feedback.
-      
-      ALTERNATIVE ROCK (alternative-rock) - R.E.M., The Smiths, Radiohead:
-      - Mic approach: More experimental placements. Room mics play a larger role.
-      - Tone goal: Textural, sometimes lo-fi character. Clean-to-edge-of-breakup tones.
-      - Classic approach: Vox AC30 for jangle, Fender for clean. Embrace some room ambience.
-      - Ideal: Chiming cleans, dynamic responsiveness, shimmering highs when needed.
-      
-      PUNK (punk) - Ramones, Sex Pistols, Green Day:
-      - Mic approach: Close mic (1-2") for raw, aggressive capture. SM57 on-axis at center for maximum bite.
-      - Tone goal: Raw, loose, loud. Imperfections are welcome.
-      - Classic approach: Fast playing, downpicking, power chords. Marshall crunch, minimal effects.
-      - Ideal: In-your-face presence, mid-range aggression, minimal polish.
-      
-      GRUNGE (grunge) - Nirvana, Soundgarden, Alice in Chains:
-      - Mic approach: SM57 slightly off-center. Embrace noise and feedback. Multi-tracking layers.
-      - Tone goal: Thick, dark, saturated with loose low-end. Down-tuned heaviness.
-      - Classic approach: Big Muff Pi fuzz + Fender Twin. Mesa with mids cranked.
-      - Ideal: Wall of sound from layered takes. Raw energy over perfection. Creamy fuzz sustain.
-      
-      CLASSIC HEAVY METAL (classic-metal) - Black Sabbath, Iron Maiden, Judas Priest:
-      - Mic approach: SM57 at cap-edge for definition. Fredman technique (two mics at 45°) for Swedish sound.
-      - Tone goal: Tight, defined low-end. Aggressive but not fizzy highs. Palm-mute clarity.
-      - Classic approach: Less gain than you'd think for tightness. Marshall or Mesa rigs.
-      - Ideal: Cutting attack, sustaining chords, clear note separation in fast riffs.
-      
-      INDIE ROCK (indie-rock) - The Strokes, Arctic Monkeys, Vampire Weekend:
-      - Mic approach: Clean tones with slight room. SM57 or ribbon for vintage character.
-      - Tone goal: Retro vibe, garage-like grit when needed, but polished production.
-      - Classic approach: Smaller amps (Fender Deluxe, Vox AC15) pushed to breakup. Minimal effects.
-      - Ideal: Dynamic playing response, vintage warmth, jangly treble when clean.
-      
-      Provide 3-5 recommended combinations that would capture this speaker well for the TARGET GENRE.
-      Your recommendations should reference classic studio techniques from legendary recordings of that genre.
-      Consider how the mic character combines with the speaker character to achieve the genre's signature sound.
+      Provide 4-6 distance recommendations covering the usable range for this mic+speaker combo.
+      Explain how each distance affects the tone and what it's best suited for.
       
       Output JSON format:
       {
-        "speaker": "speaker_value",
-        "speakerDescription": "Brief description of the speaker's tonal characteristics FOR THIS GENRE",
+        "mic": "${micType}",
+        "micDescription": "Brief description of the microphone's character",
+        "speaker": "${speakerModel}",
+        "speakerDescription": "Brief description of the speaker's tonal characteristics",
+        ${genre ? `"genre": "${genre}",` : ''}
         "recommendations": [
           {
-            "mic": "mic_value (use the value, not the label)",
-            "micLabel": "Human readable mic name",
-            "position": "position_value",
-            "positionLabel": "Human readable position",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "rationale": "Why this combination works for this speaker AND genre, reference classic recordings",
-            "expectedTone": "Description of the expected tonal result with genre-specific language"
+            "rationale": "Why this distance works for this mic+speaker combo and what tonal effect it produces",
+            "expectedTone": "Description of the expected tonal result",
+            "bestFor": "What styles/sounds this distance is ideal for (e.g., 'tight rhythm tracks', 'warm leads', 'room ambience')"
           }
         ]
       }`;
 
-      const userMessage = `Please provide microphone, position, and distance recommendations for the ${speakerModel} speaker, optimized for the ${genre} genre. Reference classic studio techniques from legendary ${genre} recordings.`;
+      let userMessage = `Please recommend ideal distances for the ${micType} microphone paired with the ${speakerModel} speaker.`;
+      if (genre) {
+        userMessage += ` Optimize recommendations for the ${genre} genre, referencing classic studio techniques.`;
+      }
+      userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
