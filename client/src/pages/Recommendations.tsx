@@ -66,10 +66,66 @@ export default function Recommendations() {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
+  // Shorthand mappings for speakers
+  const SPEAKER_SHORTHAND: Record<string, string> = {
+    "celestion-cream": "Cream",
+    "v30-china": "V30",
+    "v30-blackcat": "V30BC",
+    "g12m25": "G12M",
+    "g12h30-anniversary": "G12HAnni",
+    "g12-65": "G12-65Heri",
+    "ga12-sc64": "GA12-SC64",
+    "g10-sc64": "GA10-SC64",
+    "k100": "K100",
+    "g12t75": "G12T75",
+  };
+
+  // Shorthand mappings for mics
+  const MIC_SHORTHAND: Record<string, { base: string; suffix?: string }> = {
+    "57": { base: "SM57" },
+    "121": { base: "R121" },
+    "r92": { base: "R92" },
+    "160": { base: "M160" },
+    "421": { base: "MD421" },
+    "421-kompakt": { base: "MD421Kompakt" },
+    "441-boost": { base: "MD441", suffix: "_Presence" },
+    "441-flat": { base: "MD441", suffix: "_Flat" },
+    "r10": { base: "R10" },
+    "m88": { base: "M88" },
+    "pr30": { base: "PR30" },
+    "e906-boost": { base: "e906", suffix: "_Presence" },
+    "e906-flat": { base: "e906", suffix: "_Flat" },
+    "m201": { base: "M201" },
+    "sm7b": { base: "SM7B" },
+    "c414": { base: "C414" },
+    "roswell-cab": { base: "Roswell" },
+  };
+
   const copyToClipboard = () => {
     let text = "";
-    // Helper to format mic name and extract variant suffix
+    
+    // Helper to get speaker shorthand from value
+    const getSpeakerShorthand = (value: string) => {
+      return SPEAKER_SHORTHAND[value] || value;
+    };
+    
+    // Helper to get mic shorthand from value
+    const getMicShorthand = (value: string) => {
+      return MIC_SHORTHAND[value] || { base: value };
+    };
+    
+    // Helper to format mic name and extract variant suffix from label
     const formatMicForShorthand = (micLabel: string) => {
+      // Find matching mic by label
+      const mic = MICS.find(m => m.label === micLabel);
+      if (mic) {
+        const shorthand = MIC_SHORTHAND[mic.value];
+        if (shorthand) {
+          return { baseMic: shorthand.base, suffix: shorthand.suffix || '' };
+        }
+      }
+      
+      // Fallback parsing
       let baseMic = micLabel;
       let suffix = '';
       
@@ -81,7 +137,7 @@ export default function Recommendations() {
         suffix = '_Flat';
       }
       
-      return { baseMic: baseMic.toLowerCase().replace(/\s+/g, ''), suffix };
+      return { baseMic: baseMic.replace(/\s+/g, ''), suffix };
     };
     
     // Helper to format position as CamelCase with underscore for sub-positions
@@ -110,21 +166,21 @@ export default function Recommendations() {
       text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
       text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       result.recommendations.forEach((rec, i) => {
-        // Schema: speaker_mic_Position_distance_variant
-        const speakerPart = getSpeakerLabel(result.speaker).toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
-        const { baseMic, suffix } = formatMicForShorthand(getMicLabel(result.mic));
+        // Schema: Speaker_Mic_Position_distance_variant
+        const speakerPart = getSpeakerShorthand(result.speaker);
+        const micInfo = getMicShorthand(result.mic);
         const posPart = formatPosition(rec.bestFor);
         const distPart = `${rec.distance}in`;
         
-        const shorthand = `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
+        const shorthand = `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Rationale: ${rec.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
       speakerResult.micRecommendations.forEach((rec, i) => {
-        // Schema: speaker_mic_Position_distance_variant
-        const speakerPart = getSpeakerLabel(speakerResult.speaker).toLowerCase().replace(/\s+/g, '').replace(/[()]/g, '');
+        // Schema: Speaker_Mic_Position_distance_variant
+        const speakerPart = getSpeakerShorthand(speakerResult.speaker);
         const { baseMic, suffix } = formatMicForShorthand(rec.micLabel);
         const posPart = formatPosition(rec.position);
         const distPart = `${rec.distance}in`;

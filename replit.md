@@ -73,6 +73,25 @@ shared/           # Shared between client/server
 - **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
 - **Distances**: 0" to 6" in 0.5" increments
 
+### IR Shorthand Naming Convention
+Format: `Speaker_Mic_Position_distance_variant`
+
+**Speaker Shorthand:**
+- Cream, V30, V30BC, G12M, G12HAnni, G12-65Heri, GA12-SC64, GA10-SC64, K100, G12T75
+
+**Mic Shorthand:**
+- SM57, R121, R10, MD421, MD421Kompakt, M201, M88, Roswell, M160, e906, C414, R92, PR30
+- Variants: MD441 and e906 have `_Presence` or `_Flat` suffixes
+
+**Position Format:**
+- Simple: `Cap`, `Cone`, `CapEdge`
+- Complex with underscore: `CapEdge_FavorCap`, `CapEdge_FavorCone`, `Cap_OffCenter`
+
+**Examples:**
+- `V30_SM57_CapEdge_FavorCap_2in`
+- `Cream_e906_Cap_1in_Presence`
+- `G12M_R121_Cone_1.5in`
+
 ### Genre-Specific Studio Techniques (Recommendations only)
 The Recommendations AI is trained on classic recording techniques for each genre:
 - **Classic Rock** (1970s): Led Zeppelin, AC/DC - SM57 at 1-2" from grille, dual-mic with ribbon at distance
