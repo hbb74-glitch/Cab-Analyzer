@@ -90,14 +90,13 @@ export default function Recommendations() {
     const lowerText = text.toLowerCase();
     
     for (const key of Object.keys(AMBIGUOUS_SPEAKERS)) {
-      // Check if the ambiguous term appears but not as part of a full speaker name
-      const regex = new RegExp(`\\b${key}\\b`, 'i');
-      if (regex.test(lowerText)) {
-        // Make sure it's not already a full name like GA12-SC64 or GA10-SC64
-        const fullNameRegex = /\b(ga12[-_]?sc64|ga10[-_]?sc64|g10[-_]?sc64)\b/i;
-        if (!fullNameRegex.test(lowerText)) {
-          found.push(key);
-        }
+      // Check if the ambiguous term appears (at start of line/string, or after underscore/space/hyphen)
+      // but NOT as part of a full speaker name like GA12-SC64 or GA10-SC64
+      const ambiguousRegex = new RegExp(`(^|[\\s_-])${key}([\\s_-]|$)`, 'im');
+      const fullNameRegex = /(ga12[-_]?sc64|ga10[-_]?sc64|g10[-_]?sc64)/i;
+      
+      if (ambiguousRegex.test(lowerText) && !fullNameRegex.test(lowerText)) {
+        found.push(key);
       }
     }
     
