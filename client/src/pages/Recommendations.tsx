@@ -72,13 +72,17 @@ export default function Recommendations() {
       text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
       text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       result.recommendations.forEach((rec, i) => {
-        text += `${i + 1}. Distance: ${rec.distance}" | ${rec.bestFor}\n`;
+        // Schema: Mic_Position_Speaker_Distance
+        const shorthand = `${getMicLabel(result.mic)}_${rec.bestFor.replace(/\s+/g, '-')}_${getSpeakerLabel(result.speaker).replace(/\s+/g, '-')}_${rec.distance}in`;
+        text += `${i + 1}. ${shorthand}\n`;
         text += `   Rationale: ${rec.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
       speakerResult.micRecommendations.forEach((rec, i) => {
-        text += `${i + 1}. ${rec.micLabel} @ ${POSITION_LABELS[rec.position] || rec.position} (${rec.distance}")\n`;
+        // Schema: Mic_Position_Speaker_Distance
+        const shorthand = `${rec.micLabel}_${rec.bestFor.replace(/\s+/g, '-')}_${getSpeakerLabel(speakerResult.speaker).replace(/\s+/g, '-')}_${rec.distance}in`;
+        text += `${i + 1}. ${shorthand}\n`;
         text += `   Tone: ${rec.expectedTone}\n\n`;
       });
     } else if (mode === 'by-amp' && ampResult) {
