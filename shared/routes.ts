@@ -106,6 +106,7 @@ export const irMetricsSchema = z.object({
 
 export const pairingInputSchema = z.object({
   irs: z.array(irMetricsSchema).min(2, "Need at least 2 IRs to analyze pairings"),
+  tonePreferences: z.string().optional(), // Free-text tone goals: edgy, bright, thick, dark, aggressive, etc.
 });
 
 export const pairingResultSchema = z.object({

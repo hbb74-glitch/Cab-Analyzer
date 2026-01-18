@@ -19,6 +19,7 @@ export default function Pairing() {
   const [uploadedIRs, setUploadedIRs] = useState<UploadedIR[]>([]);
   const [result, setResult] = useState<PairingResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tonePreferences, setTonePreferences] = useState("");
   const { toast } = useToast();
 
   const copyPairings = () => {
@@ -46,8 +47,8 @@ export default function Pairing() {
   };
 
   const { mutate: analyzePairings, isPending } = useMutation({
-    mutationFn: async (irs: IRMetrics[]) => {
-      const validated = api.pairing.analyze.input.parse({ irs });
+    mutationFn: async ({ irs, tonePrefs }: { irs: IRMetrics[], tonePrefs?: string }) => {
+      const validated = api.pairing.analyze.input.parse({ irs, tonePreferences: tonePrefs });
       const res = await fetch(api.pairing.analyze.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,7 +80,7 @@ export default function Pairing() {
       error: null,
     }));
 
-    setUploadedIRs(prev => [...prev, ...newIRs]);
+    setUploadedIRs(newIRs); // Replace existing IRs instead of appending
     setResult(null);
 
     for (let i = 0; i < wavFiles.length; i++) {
@@ -128,7 +129,7 @@ export default function Pairing() {
       highEnergy: ir.metrics!.highEnergy,
     }));
 
-    analyzePairings(irMetrics);
+    analyzePairings({ irs: irMetrics, tonePrefs: tonePreferences || undefined });
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -251,6 +252,23 @@ export default function Pairing() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Desired Tone (optional)
+              </label>
+              <textarea
+                value={tonePreferences}
+                onChange={(e) => setTonePreferences(e.target.value)}
+                placeholder="Describe your desired sound: edgy, bright, thick, dark, aggressive, chunky, rhythm tones, leads, smooth highs, tight bass..."
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+                rows={2}
+                data-testid="input-tone-preferences"
+              />
+              <p className="text-xs text-muted-foreground">
+                The AI will prioritize pairings that achieve your tonal goals
+              </p>
             </div>
 
             <button

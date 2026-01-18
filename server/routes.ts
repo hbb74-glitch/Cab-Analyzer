@@ -445,7 +445,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {
       const input = api.pairing.analyze.input.parse(req.body);
-      const { irs } = input;
+      const { irs, tonePreferences } = input;
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to analyze a set of IRs and determine which ones pair well together when mixed.
@@ -504,7 +504,12 @@ Use these curated recipes as the foundation of your recommendations. You may add
          - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
       ).join('\n\n');
 
-      const userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+      let userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+      
+      if (tonePreferences && tonePreferences.trim()) {
+        userMessage += `\n\nIMPORTANT - User's desired tone characteristics: "${tonePreferences.trim()}"
+Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recommendations to best deliver this sound.`;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -512,7 +517,9 @@ Use these curated recipes as the foundation of your recommendations. You may add
           { role: "system", content: systemPrompt },
           { role: "user", content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
+        temperature: 0, // Deterministic results for consistent recommendations
+        seed: 42, // Fixed seed for reproducibility
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
