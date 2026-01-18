@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse } from "@shared/routes";
+import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse } from "@shared/routes";
 
 const MICS = [
   { value: "57", label: "SM57" },
@@ -46,12 +46,17 @@ const GENRES = [
   { value: "indie-rock", label: "Indie Rock" },
 ];
 
+type Mode = 'by-speaker' | 'by-amp';
+
 export default function Recommendations() {
+  const [mode, setMode] = useState<Mode>('by-speaker');
   const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
+  const [ampDescription, setAmpDescription] = useState<string>("");
   const [result, setResult] = useState<RecommendationsResponse | null>(null);
   const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
+  const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
   const { toast } = useToast();
 
   // Mode: if mic is selected, use mic+speaker endpoint; otherwise use speaker-only endpoint
@@ -99,13 +104,48 @@ export default function Recommendations() {
     },
   });
 
+  const { mutate: getAmpRecommendations, isPending: isAmpPending } = useMutation({
+    mutationFn: async ({ ampDescription, genre }: { ampDescription: string; genre?: string }) => {
+      const payload: { ampDescription: string; genre?: string } = { ampDescription };
+      if (genre) payload.genre = genre;
+      const validated = api.recommendations.byAmp.input.parse(payload);
+      const res = await fetch(api.recommendations.byAmp.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validated),
+      });
+      if (!res.ok) throw new Error("Failed to get amp recommendations");
+      return api.recommendations.byAmp.responses[200].parse(await res.json());
+    },
+    onSuccess: (data) => {
+      setAmpResult(data);
+      setResult(null);
+      setSpeakerResult(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to generate amp-based recommendations", variant: "destructive" });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!speaker) {
       toast({ title: "Select a speaker", description: "Please choose a speaker model", variant: "destructive" });
       return;
     }
+    setAmpResult(null);
     getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: genre || undefined });
+  };
+
+  const handleAmpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ampDescription.trim()) {
+      toast({ title: "Describe your amp", description: "Please enter an amp description", variant: "destructive" });
+      return;
+    }
+    setResult(null);
+    setSpeakerResult(null);
+    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: genre || undefined });
   };
 
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
@@ -121,20 +161,60 @@ export default function Recommendations() {
     "cap-off-center": "Cap Off Center",
   };
 
+  const handleModeChange = (newMode: Mode) => {
+    setMode(newMode);
+    setResult(null);
+    setSpeakerResult(null);
+    setAmpResult(null);
+  };
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-10">
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            Mic Recommendations
+            {mode === 'by-speaker' ? 'Mic Recommendations' : 'Speaker Recommendations'}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Get expert recommendations based on curated IR production knowledge.
-            Select just a speaker to get mic/position/distance combos, or pick both mic and speaker for distance-focused advice.
+            {mode === 'by-speaker' 
+              ? 'Get expert recommendations based on curated IR production knowledge. Select just a speaker to get mic/position/distance combos, or pick both mic and speaker for distance-focused advice.'
+              : 'Describe your amp and get speaker recommendations based on classic amp/speaker pairings from legendary recordings.'}
           </p>
         </div>
 
+        <div className="flex justify-center">
+          <div className="inline-flex bg-black/30 border border-white/10 rounded-full p-1">
+            <button
+              type="button"
+              onClick={() => handleModeChange('by-speaker')}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                mode === 'by-speaker'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              data-testid="button-mode-by-speaker"
+            >
+              <Speaker className="w-4 h-4" /> By Speaker
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('by-amp')}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                mode === 'by-amp'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              data-testid="button-mode-by-amp"
+            >
+              <Zap className="w-4 h-4" /> By Amp
+            </button>
+          </div>
+        </div>
+
+        {mode === 'by-speaker' && (
         <form onSubmit={handleSubmit} className="glass-panel p-6 rounded-2xl space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -216,6 +296,65 @@ export default function Recommendations() {
             )}
           </button>
         </form>
+        )}
+
+        {mode === 'by-amp' && (
+        <form onSubmit={handleAmpSubmit} className="glass-panel p-6 rounded-2xl space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Zap className="w-3 h-3" /> Amp Description
+            </label>
+            <textarea
+              value={ampDescription}
+              onChange={(e) => setAmpDescription(e.target.value)}
+              placeholder="Describe your amp... (e.g., 'Marshall JCM800 for classic rock', 'Mesa Dual Rectifier for modern metal', 'Fender Deluxe Reverb for cleans and edge of breakup')"
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none min-h-[100px]"
+              data-testid="input-amp-description"
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter your amp model, type, or describe its characteristics. Include genre or style for refined suggestions.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Music className="w-3 h-3" /> Genre (Optional)
+            </label>
+            <select
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-genre-amp"
+            >
+              {GENRES.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!ampDescription.trim() || isAmpPending}
+            className={cn(
+              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+              !ampDescription.trim() || isAmpPending
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+            )}
+            data-testid="button-get-amp-recommendations"
+          >
+            {isAmpPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+              </>
+            ) : (
+              <>
+                <Speaker className="w-4 h-4" /> Get Speaker Recommendations
+              </>
+            )}
+          </button>
+        </form>
+        )}
 
         <AnimatePresence>
           {result && (
@@ -380,6 +519,65 @@ export default function Recommendations() {
                       </p>
                       <p className="text-sm text-muted-foreground">
                         <span className="text-foreground font-medium">Expected Tone:</span> {rec.expectedTone}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {ampResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div className="glass-panel p-6 rounded-2xl space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-primary">Amp Analysis</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-foreground font-medium">Your Amp:</span> {ampResult.ampSummary}
+                </p>
+                <p className="text-sm text-muted-foreground italic">{ampResult.summary}</p>
+              </div>
+
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Speaker className="w-5 h-5 text-secondary" />
+                Recommended Speakers
+              </h3>
+
+              <div className="grid gap-4">
+                {ampResult.speakerSuggestions.map((suggestion, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="glass-panel p-5 rounded-xl space-y-3"
+                    data-testid={`card-speaker-suggestion-${i}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 bg-secondary/30 px-4 py-2 rounded-full border border-secondary/30">
+                          <Speaker className="w-4 h-4 text-secondary" />
+                          <span className="text-lg font-bold text-secondary">{suggestion.speakerLabel}</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground font-medium">{suggestion.bestFor}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 pl-1">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Why:</span> {suggestion.rationale}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <span className="text-foreground font-medium">Expected Tone:</span> {suggestion.expectedTone}
                       </p>
                     </div>
                   </motion.div>

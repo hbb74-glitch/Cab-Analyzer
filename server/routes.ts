@@ -357,6 +357,90 @@ Use these curated recipes as the foundation of your recommendations. You may add
     }
   });
 
+  // Amp-based speaker recommendations - suggest speakers based on amp description
+  app.post(api.recommendations.byAmp.path, async (req, res) => {
+    try {
+      const input = api.recommendations.byAmp.input.parse(req.body);
+      const { ampDescription, genre } = input;
+
+      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs) and amp/speaker matching.
+      Your task is to recommend the BEST SPEAKERS for a given amplifier based on its characteristics.
+      
+      You have deep knowledge of classic amp/speaker pairings from legendary recordings and studio practice.
+      
+      Available Speakers (use these exact codes in your response):
+      - v30-china (Celestion V30): Aggressive upper-mids, modern rock/metal. The standard Vintage 30 - punchy, tight bass, prominent presence peak around 2kHz.
+      - v30-blackcat (V30 Black Cat): Smoother, refined V30 variant. Less harsh, more controlled highs.
+      - g12m25 (Celestion G12M-25 Greenback): Classic woody, mid-forward, compression at high volume. THE vintage British sound - Led Zeppelin, AC/DC.
+      - g12t75 (Celestion G12T-75): Scooped mids, sizzly highs, tight bass. Mesa Boogie staple - Metallica, Pantera.
+      - g12-65 (Celestion G12-65): Warm, punchy, large sound with excellent bass. Heritage/reissue of the classic 60s speaker.
+      - g12h30-anniversary (Celestion G12H30 Anniversary): Tight bass, bright detailed highs, complex upper harmonics. Classic 70s rock tone.
+      - celestion-cream (Celestion Cream): Alnico smoothness with high power handling. Creamy breakup, touch-sensitive, boutique.
+      - ga12-sc64 (Weber GA12-SC64): Vintage American, tight and punchy. Fender Deluxe/Princeton vibe.
+      - g10-sc64 (Weber G10-SC64): 10" version, more focused and punchy. Great for smaller combos.
+      - k100 (Celestion G12K-100): Big low end, clear highs, neutral. High headroom, modern voicing.
+      
+      Classic Amp/Speaker Pairings Knowledge:
+      - Marshall Plexi/JCM800 → Greenbacks (G12M-25) for classic rock, V30 for heavier tones
+      - Fender Twin/Deluxe → American speakers (GA12-SC64), Celestion Cream for boutique
+      - Mesa Boogie Rectifier → G12T-75 for scooped metal, V30 for tighter response
+      - Vox AC30 → Greenbacks, G12H30 Anniversary for jangly cleans
+      - Orange → V30 for aggressive tones, Greenbacks for classic rock
+      - Friedman/BE-100 → V30 (modern rock), mix V30+Greenback for complexity
+      - Soldano/high-gain → V30 or G12K-100 for clarity under gain
+      - Dumble/boutique → Celestion Cream, G12-65 for touch-sensitive response
+      ${genre ? `
+      
+      Genre Context (${genre}):
+      Optimize recommendations for this genre's signature amp/speaker pairings and recording techniques.` : ''}
+      
+      Based on the user's amp description, recommend 3-5 speakers that would pair well.
+      Consider the amp's characteristics (clean, crunch, high-gain), era (vintage, modern), and typical use cases.
+      
+      Output JSON format:
+      {
+        "ampSummary": "Brief analysis of the described amp's characteristics and tonal profile",
+        "speakerSuggestions": [
+          {
+            "speaker": "speaker code (e.g. 'v30-china', 'g12m25')",
+            "speakerLabel": "Display name (e.g. 'Celestion V30', 'Greenback G12M-25')",
+            "rationale": "Why this speaker pairs well with this amp - reference classic recordings or studio knowledge",
+            "expectedTone": "Description of the expected combined amp+speaker tone",
+            "bestFor": "What styles/sounds this pairing is ideal for"
+          }
+        ],
+        "summary": "Brief overall recommendation and approach for this amp"
+      }`;
+
+      let userMessage = `Please recommend speakers for this amp: "${ampDescription}"`;
+      if (genre) {
+        userMessage += ` I'll primarily be playing ${genre}.`;
+      }
+      userMessage += ` Consider classic amp/speaker pairings and what would work best.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Amp recommendations error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      res.status(500).json({ message: "Failed to generate amp-based recommendations" });
+    }
+  });
+
   // IR Pairing endpoint - analyze multiple IRs for best pairings with mix ratios
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {

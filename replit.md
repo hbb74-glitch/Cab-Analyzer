@@ -62,7 +62,9 @@ shared/           # Shared between client/server
 
 ### Feature Separation
 - **IR Analysis (Analyzer page)**: Purely technical quality assessment based on audio metrics. No genre consideration - evaluates signal quality, duration, frequency response objectively.
-- **Recommendations (Recommendations page)**: Mic/position/distance recommendations. Users can select just a speaker to get a list of recommended mic/position/distance combos, or select both mic and speaker for distance-focused advice. Recommendations are based on a curated knowledge base of proven IR production techniques. Optionally specify a genre for refined suggestions.
+- **Recommendations (Recommendations page)**: Has two modes accessible via toggle:
+  - **By Speaker mode**: Mic/position/distance recommendations. Select just a speaker to get mic combos, or select both mic and speaker for distance-focused advice. Based on curated IR production knowledge.
+  - **By Amp mode**: Speaker recommendations based on amp description. Enter free text describing your amp (model, type, characteristics) and get speaker suggestions based on classic amp/speaker pairings from legendary recordings.
 - **IR Pairing (Pairing page)**: Upload multiple IRs to find the best complementary pairs with optimal mix ratios (50:50 to 75:25). AI analyzes spectral characteristics, energy distribution, and frequency balance to recommend pairings. **Important**: All IRs are assumed to be minimum phase transformed (MPT), so phase cancellation is never a concern when blending.
 
 ### Microphone & Speaker Knowledge Base

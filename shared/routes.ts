@@ -69,6 +69,30 @@ export type RecommendationsResponse = z.infer<typeof recommendationsResponseSche
 export type MicRecommendation = z.infer<typeof micRecommendationSchema>;
 export type SpeakerRecommendationsResponse = z.infer<typeof speakerRecommendationsResponseSchema>;
 
+// Amp-based speaker recommendations - free text amp description
+export const ampInputSchema = z.object({
+  ampDescription: z.string().min(1, "Please describe your amp"),
+  genre: z.string().optional(),
+});
+
+export const speakerSuggestionSchema = z.object({
+  speaker: z.string(),
+  speakerLabel: z.string(),
+  rationale: z.string(),
+  expectedTone: z.string(),
+  bestFor: z.string(),
+});
+
+export const ampRecommendationsResponseSchema = z.object({
+  ampSummary: z.string(),
+  speakerSuggestions: z.array(speakerSuggestionSchema),
+  summary: z.string(),
+});
+
+export type AmpInput = z.infer<typeof ampInputSchema>;
+export type SpeakerSuggestion = z.infer<typeof speakerSuggestionSchema>;
+export type AmpRecommendationsResponse = z.infer<typeof ampRecommendationsResponseSchema>;
+
 // IR Pairing schemas
 export const irMetricsSchema = z.object({
   filename: z.string(),
@@ -144,6 +168,16 @@ export const api = {
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    byAmp: {
+      method: 'POST' as const,
+      path: '/api/recommendations/by-amp',
+      input: ampInputSchema,
+      responses: {
+        200: ampRecommendationsResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },
