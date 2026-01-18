@@ -192,13 +192,22 @@ export async function registerRoutes(
       - 0-0.5": Maximum proximity effect (bass boost), very direct/aggressive, potential for bass buildup
       - 1-2": Sweet spot for most dynamics, balanced proximity, punchy attack
       - 2.5-4": Reduced proximity, more natural tonal balance, some room interaction
-      - 4.5-6": Minimal proximity, roomier sound, more natural but less direct${genre ? `
+      - 4.5-6": Minimal proximity, roomier sound, more natural but less direct
+      
+      Available Positions:
+      - cap: Center of speaker, brightest, most high-end detail
+      - cap-edge: Transition zone, balanced tone, often the "sweet spot"
+      - cap-edge-favor-cap: Slightly brighter than cap-edge
+      - cap-edge-favor-cone: Slightly warmer than cap-edge
+      - cone: Outer area, darker/warmer tone
+      - cap-off-center: Off-axis, reduces harshness${genre ? `
       
       Genre Context (${genre}):
-      Use this to refine recommendations. Consider what distances work best for achieving the signature sound of this genre.` : ''}
+      Use this to refine recommendations. Consider what distances and positions work best for achieving the signature sound of this genre.` : ''}
       
       Provide 4-6 distance recommendations covering the usable range for this mic+speaker combo.
-      Explain how each distance affects the tone and what it's best suited for.
+      Also provide 2-3 best position recommendations for this specific mic+speaker combination.
+      Explain how each distance/position affects the tone and what it's best suited for.
       
       Output JSON format:
       {
@@ -213,6 +222,12 @@ export async function registerRoutes(
             "rationale": "Why this distance works for this mic+speaker combo and what tonal effect it produces",
             "expectedTone": "Description of the expected tonal result",
             "bestFor": "What styles/sounds this distance is ideal for (e.g., 'tight rhythm tracks', 'warm leads', 'room ambience')"
+          }
+        ],
+        "bestPositions": [
+          {
+            "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
+            "reason": "Brief reason why this position works well for this mic+speaker combo"
           }
         ]
       }`;

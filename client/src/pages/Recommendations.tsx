@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -90,6 +90,15 @@ export default function Recommendations() {
   const getMicLabel = (value: string) => MICS.find(m => m.value === value)?.label || value;
   const getSpeakerLabel = (value: string) => SPEAKERS.find(s => s.value === value)?.label || value;
   const getGenreLabel = (value: string) => GENRES.find(g => g.value === value)?.label || value;
+  
+  const POSITION_LABELS: Record<string, string> = {
+    "cap": "Cap",
+    "cap-edge": "Cap Edge",
+    "cap-edge-favor-cap": "Cap Edge (Favor Cap)",
+    "cap-edge-favor-cone": "Cap Edge (Favor Cone)",
+    "cone": "Cone",
+    "cap-off-center": "Cap Off Center",
+  };
 
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4 sm:px-6 lg:px-8">
@@ -250,6 +259,32 @@ export default function Recommendations() {
                   </motion.div>
                 ))}
               </div>
+
+              {result.bestPositions && result.bestPositions.length > 0 && (
+                <>
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 pt-4">
+                    <Target className="w-5 h-5 text-secondary" />
+                    Best Positions for This Mic + Speaker
+                  </h3>
+                  <div className="grid gap-3">
+                    {result.bestPositions.map((pos, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className="flex items-start gap-3 glass-panel p-4 rounded-xl"
+                        data-testid={`card-position-${i}`}
+                      >
+                        <span className="shrink-0 px-3 py-1.5 rounded-full bg-secondary/20 text-secondary text-sm font-medium border border-secondary/20">
+                          {POSITION_LABELS[pos.position] || pos.position}
+                        </span>
+                        <p className="text-sm text-muted-foreground">{pos.reason}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

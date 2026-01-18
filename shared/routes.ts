@@ -29,6 +29,11 @@ export const distanceRecommendationSchema = z.object({
   bestFor: z.string(),
 });
 
+export const positionRecommendationSchema = z.object({
+  position: z.string(),
+  reason: z.string(),
+});
+
 export const recommendationsResponseSchema = z.object({
   mic: z.string(),
   micDescription: z.string(),
@@ -36,6 +41,7 @@ export const recommendationsResponseSchema = z.object({
   speakerDescription: z.string(),
   genre: z.string().optional(),
   recommendations: z.array(distanceRecommendationSchema),
+  bestPositions: z.array(positionRecommendationSchema).optional(),
 });
 
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
