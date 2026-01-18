@@ -52,11 +52,20 @@ export async function registerRoutes(
       Criteria for "Perfect" IR:
       - Normalization: The system now normalizes every IR to 0dB peak before analysis.
       - Duration: 20ms - 50ms (too short = missing bass, too long = room noise)
-      - Peak: Should be around 0dB (since it's normalized). If the original was very quiet, mention that.
-      - Spectral Centroid (Brightness): 
-        - Cap: Brightest
-        - Cap Edge: Balanced
-        - Cone: Darkest
+      - Peak: Should be around 0dB (since it's normalized).
+      
+      Microphone Position Tonal Purposes:
+      - Cap: The center of the speaker. Yields the brightest, most aggressive tone with the most high-end detail. Good for cutting through a dense mix.
+      - Cap Edge: The transition point between the cap and the cone. Provides a balanced tone—smooth highs with a solid midrange. Often considered the "sweet spot."
+      - Cap Edge (Favor Cap): Slightly more aggressive than Cap Edge, leaning towards the brightness of the cap.
+      - Cap Edge (Favor Cone): Slightly warmer than Cap Edge, leaning towards the smoothness of the cone.
+      - Cone: The outer part of the speaker. Produces a darker, warmer tone with more "body" and low-end emphasis. Ideal for smoothing out harsh high-gain sounds.
+      - Cap Off Center: Aimed away from the center. Reduces harshness and adds a different character to the high-end roll-off.
+      
+      Advice Guidelines:
+      - If a "Cap" position is too dark, suggest moving closer to the center or checking the mic angle.
+      - If a "Cone" position is too bright, suggest moving further from the cap or checking for unwanted reflections.
+      - Always consider the Microphone model (e.g., SM57 brightness vs. R121 warmth) when giving advice.
       
       Output JSON format:
       {
