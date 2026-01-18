@@ -186,21 +186,21 @@ export const batchAnalysisInputSchema = z.object({
 export const batchIRResultSchema = z.object({
   filename: z.string(),
   parsedInfo: z.object({
-    mic: z.string().optional(),
-    position: z.string().optional(),
-    speaker: z.string().optional(),
-    distance: z.string().optional(),
-  }).optional(),
+    mic: z.string().optional().nullable(),
+    position: z.string().optional().nullable(),
+    speaker: z.string().optional().nullable(),
+    distance: z.string().optional().nullable(),
+  }).optional().nullable(),
   score: z.number(),
   isPerfect: z.boolean(),
   advice: z.string(),
-  highlights: z.array(z.string()).optional(),
-  issues: z.array(z.string()).optional(),
+  highlights: z.array(z.string()).optional().nullable(),
+  issues: z.array(z.string()).optional().nullable(),
   renameSuggestion: z.object({
     suggestedPosition: z.string(),
     suggestedFilename: z.string(),
     reason: z.string(),
-  }).optional(),
+  }).optional().nullable(),
 });
 
 export const batchAnalysisResponseSchema = z.object({
