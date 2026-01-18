@@ -31,12 +31,14 @@ const MIC_PATTERNS: Record<string, string> = {
   "m160": "160", "160": "160",
   "md421": "421", "421": "421",
   "421kompakt": "421-kompakt", "421-kompakt": "421-kompakt", "kompakt": "421-kompakt",
+  "md441boost": "441-boost", "441-boost": "441-boost", "441boost": "441-boost", "md441-boost": "441-boost", "441presence": "441-boost",
+  "md441flat": "441-flat", "441-flat": "441-flat", "441flat": "441-flat", "md441-flat": "441-flat", "md441": "441-flat", "441": "441-flat",
   "r10": "r10",
   "m88": "m88", "88": "m88",
   "pr30": "pr30", "30": "pr30",
   "e906boost": "e906-boost", "e906-boost": "e906-boost", "906boost": "e906-boost",
-  "e906presence": "e906-boost", "e906-presence": "e906-boost", "906presence": "e906-boost", "presence": "e906-boost",
-  "e906flat": "e906-flat", "e906-flat": "e906-flat", "906flat": "e906-flat", "flat": "e906-flat", "e906": "e906-flat",
+  "e906presence": "e906-boost", "e906-presence": "e906-boost", "906presence": "e906-boost",
+  "e906flat": "e906-flat", "e906-flat": "e906-flat", "906flat": "e906-flat", "e906": "e906-flat",
   "m201": "m201", "201": "m201",
   "sm7b": "sm7b", "sm7": "sm7b", "7b": "sm7b",
   "c414": "c414", "akgc414": "c414", "akg-c414": "c414", "414": "c414",
@@ -293,6 +295,8 @@ export default function Analyzer() {
                       <option value="160">M160</option>
                       <option value="421">MD421</option>
                       <option value="421-kompakt">MD421 Kompakt</option>
+                      <option value="441-boost">MD441 (Presence Boost)</option>
+                      <option value="441-flat">MD441 (Flat)</option>
                       <option value="r10">R10</option>
                       <option value="m88">M88</option>
                       <option value="pr30">PR30</option>

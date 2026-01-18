@@ -13,6 +13,8 @@ const MICS = [
   { value: "160", label: "M160" },
   { value: "421", label: "MD421" },
   { value: "421-kompakt", label: "MD421 Kompakt" },
+  { value: "441-boost", label: "MD441 (Presence Boost)" },
+  { value: "441-flat", label: "MD441 (Flat)" },
   { value: "r10", label: "R10" },
   { value: "m88", label: "M88" },
   { value: "pr30", label: "PR30" },
