@@ -177,6 +177,9 @@ export const batchIRInputSchema = z.object({
   lowEnergy: z.number(),
   midEnergy: z.number(),
   highEnergy: z.number(),
+  hasClipping: z.boolean().optional(),
+  clippedSamples: z.number().optional(),
+  crestFactorDb: z.number().optional(),
 });
 
 export const batchAnalysisInputSchema = z.object({

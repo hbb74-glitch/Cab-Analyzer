@@ -242,6 +242,9 @@ export default function Analyzer() {
       lowEnergy: ir.metrics!.lowEnergy,
       midEnergy: ir.metrics!.midEnergy,
       highEnergy: ir.metrics!.highEnergy,
+      hasClipping: ir.metrics!.hasClipping,
+      clippedSamples: ir.metrics!.clippedSamples,
+      crestFactorDb: ir.metrics!.crestFactorDb,
     }));
 
     analyzeBatch(irInputs);
@@ -531,10 +534,18 @@ export default function Analyzer() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{ir.file.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{ir.file.name}</p>
+                              {ir.metrics?.hasClipping && (
+                                <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded flex-shrink-0">
+                                  CLIPPING
+                                </span>
+                              )}
+                            </div>
                             {ir.metrics && (
                               <p className="text-xs text-muted-foreground">
                                 {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz
+                                {ir.metrics.hasClipping && ` | Crest: ${ir.metrics.crestFactorDb.toFixed(1)}dB`}
                               </p>
                             )}
                             {ir.error && (

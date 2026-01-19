@@ -81,6 +81,9 @@ export interface AudioMetrics {
   lowEnergy: number;   // 0-1, energy in low frequency range (20-250Hz)
   midEnergy: number;   // 0-1, energy in mid frequency range (250-4000Hz)
   highEnergy: number;  // 0-1, energy in high frequency range (4000-20000Hz)
+  hasClipping: boolean;      // True if clipping detected
+  clippedSamples: number;    // Number of samples at max amplitude
+  crestFactorDb: number;     // Peak to RMS ratio in dB (lower = more clipping)
 }
 
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
@@ -92,13 +95,37 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const durationSamples = audioBuffer.length;
   const durationMs = Math.round(audioBuffer.duration * 1000);
 
-  // 2. Peak Amplitude (dB)
+  // 2. Peak Amplitude and Clipping Detection (before normalization)
   const channelData = audioBuffer.getChannelData(0);
   let peak = 0;
-  for (let i = 0; i < Math.min(channelData.length, 8096); i++) {
-    const abs = Math.abs(channelData[i]);
+  let rmsSum = 0;
+  let clippedSamples = 0;
+  const clippingThreshold = 0.99; // Samples above this are considered clipped
+  
+  // Analyze full waveform for clipping detection
+  for (let i = 0; i < channelData.length; i++) {
+    const sample = channelData[i];
+    const abs = Math.abs(sample);
+    
     if (abs > peak) peak = abs;
+    rmsSum += sample * sample;
+    
+    // Count samples at or near max amplitude (clipping indicator)
+    if (abs >= clippingThreshold) {
+      clippedSamples++;
+    }
   }
+  
+  // Calculate RMS and crest factor BEFORE normalization
+  const rms = Math.sqrt(rmsSum / channelData.length);
+  const crestFactorLinear = peak > 0 ? peak / rms : 1;
+  const crestFactorDb = 20 * Math.log10(crestFactorLinear);
+  
+  // Clipping detection: 
+  // - More than 0.1% of samples at max = likely clipping
+  // - Crest factor below 6dB is suspicious for IRs (typically 10-20dB)
+  const clippingRatio = clippedSamples / channelData.length;
+  const hasClipping = clippingRatio > 0.001 || crestFactorDb < 6;
 
   // Normalize channel data to 0dB peak
   if (peak > 0 && peak < 1.0) {
@@ -184,5 +211,8 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     lowEnergy: parseFloat(lowEnergy.toFixed(4)),
     midEnergy: parseFloat(midEnergy.toFixed(4)),
     highEnergy: parseFloat(highEnergy.toFixed(4)),
+    hasClipping,
+    clippedSamples,
+    crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),
   };
 }

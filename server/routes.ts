@@ -189,6 +189,9 @@ async function scoreSingleIR(ir: {
   lowEnergy: number;
   midEnergy: number;
   highEnergy: number;
+  hasClipping?: boolean;
+  clippedSamples?: number;
+  crestFactorDb?: number;
 }): Promise<{
   score: number;
   isPerfect: boolean;
@@ -248,7 +251,8 @@ Technical Scoring Criteria:
 - Below 70: Needs work. Significant technical problems.
 
 ADDITIONAL PENALTIES (beyond spectral centroid):
-- Clipping (peak > 0dB): -5 to -10 points
+- Clipping detected: ${ir.hasClipping ? `-10 points (clipping CONFIRMED with ${ir.clippedSamples || 0} clipped samples, crest factor ${ir.crestFactorDb?.toFixed(1) || 'unknown'}dB)` : 'No clipping detected'}
+- Peak level > 0dB: -5 to -10 points (current: ${ir.peakLevel.toFixed(1)}dB)
 - Very unbalanced energy distribution: -2 to -5 points
 - Duration is NOT a scoring factor.
 
@@ -286,6 +290,7 @@ Filename: "${ir.filename}"
 - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
 - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
 - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
+- Clipping Detected: ${ir.hasClipping ? `YES (${ir.clippedSamples} clipped samples, crest factor: ${ir.crestFactorDb?.toFixed(1)}dB)` : 'No'}
 
 Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
