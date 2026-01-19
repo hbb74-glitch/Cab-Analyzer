@@ -1,0 +1,43 @@
+Mixed Speaker IR Pairing Recommendations
+========================================
+
+1. Bright Aggressive Crunch
+   Cream_PR30_Cap_OffCenter_2.5in.wav + K100_MD421_Cap_1.5in.wav
+   Mix Ratio: 60:40
+   Score: 95/100
+   Expected Tone: A sharp, cutting tone with a strong high-end presence and enough midrange to retain body and punch.
+   Best For: Hard rock and aggressive rock tones with a focus on clarity and attack.
+   Why: The high spectral centroid of IR 1.3 (4025Hz) provides a bright, cutting tone, while IR 2.22 (3794Hz) reinforces the aggressive high-end with additional clarity and presence. Both IRs have strong high-energy content, making this pairing ideal for bright and aggressive tones.
+
+2. Modern Rock Edge
+   Cream_SM57_CapEdge_2in.wav + K100_PR30_CapEdge_FavorCap_2.5in.wav
+   Mix Ratio: 65:35
+   Score: 92/100
+   Expected Tone: A balanced, modern rock tone with a bright edge and tight midrange punch.
+   Best For: Modern rock and alternative rock tones with a focus on clarity and definition.
+   Why: IR 1.8 (3145Hz) delivers a midrange-forward tone with a bright edge, while IR 2.5 (3435Hz) adds a touch of high-end sparkle and aggression. The combination balances clarity and punch, with a slight emphasis on the first IR for a more modern rock tone.
+
+3. Hard Rock Punch
+   Cream_SM57_CapEdge_FavorCap_2in.wav + K100_SM57_CapEdge_1in.wav
+   Mix Ratio: 70:30
+   Score: 90/100
+   Expected Tone: A punchy, aggressive tone with a strong midrange and a bright, cutting high-end.
+   Best For: Hard rock and classic rock tones with a focus on midrange punch and high-end clarity.
+   Why: IR 1.17 (2786Hz) provides a strong midrange focus with a touch of high-end aggression, while IR 2.21 (2927Hz) adds additional brightness and presence. The mix ratio emphasizes the punchy midrange of the first IR while using the second IR to enhance the high-end for a hard rock tone.
+
+4. Aggressive Clarity
+   Cream_PR30_CapEdge_2.5in.wav + K100_SM57_CapEdge_FavorCap_1in.wav
+   Mix Ratio: 60:40
+   Score: 88/100
+   Expected Tone: A bright, aggressive tone with clear midrange and a cutting high-end.
+   Best For: Aggressive rock and hard rock tones with a focus on clarity and brightness.
+   Why: IR 1.15 (3695Hz) delivers a bright, aggressive tone with strong high-end energy, while IR 2.23 (2903Hz) adds a touch of midrange warmth and clarity. The pairing creates a tone that is both aggressive and clear, with a slight emphasis on the first IR for brightness.
+
+5. Rock Presence Boost
+   Cream_e906_CapEdge_FavorCone_4in_Presence.wav + K100_e906_CapEdge_FavorCap_1in_Presence.wav
+   Mix Ratio: 50:50
+   Score: 87/100
+   Expected Tone: A bright, present tone with a balanced high-end and midrange focus.
+   Best For: Rock and hard rock tones that need a strong presence and clarity in the mix.
+   Why: Both IRs (IR 1.14 at 3214Hz and IR 2.16 at 3191Hz) have a similar spectral centroid and high-energy content, making them complementary for a bright, present tone. The equal mix ratio ensures a balanced blend of their tonal characteristics, resulting in a tone with strong presence and clarity.
+
