@@ -105,6 +105,184 @@ function generateSingleCacheKey(input: {
   return hash.digest('hex');
 }
 
+// Generate cache key for batch IR (uses filename and metrics only)
+function generateBatchIRCacheKey(ir: {
+  filename: string;
+  duration: number;
+  peakLevel: number;
+  spectralCentroid: number;
+  lowEnergy: number;
+  midEnergy: number;
+  highEnergy: number;
+}): string {
+  const normalized = {
+    filename: ir.filename.toLowerCase(),
+    duration: Math.round(ir.duration * 10) / 10,
+    peakLevel: Math.round(ir.peakLevel * 10) / 10,
+    spectralCentroid: Math.round(ir.spectralCentroid),
+    lowEnergy: Math.round(ir.lowEnergy * 1000) / 1000,
+    midEnergy: Math.round(ir.midEnergy * 1000) / 1000,
+    highEnergy: Math.round(ir.highEnergy * 1000) / 1000,
+  };
+  const hash = createHash('sha256');
+  hash.update(JSON.stringify(normalized));
+  return hash.digest('hex');
+}
+
+// Shared single-IR scoring function used by both single and batch modes
+// This ensures identical scores for identical IRs
+async function scoreSingleIR(ir: {
+  filename: string;
+  duration: number;
+  peakLevel: number;
+  spectralCentroid: number;
+  lowEnergy: number;
+  midEnergy: number;
+  highEnergy: number;
+}): Promise<{
+  score: number;
+  isPerfect: boolean;
+  advice: string;
+  highlights: string[];
+  issues: string[];
+  parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null };
+  renameSuggestion: { suggestedModifier: string; suggestedFilename: string; reason: string } | null;
+}> {
+  // Check cache first
+  const cacheKey = generateBatchIRCacheKey(ir);
+  const cachedEntry = singleAnalysisCache.get(cacheKey);
+  if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
+    console.log(`[Batch/Single IR] Cache HIT for ${ir.filename}`);
+    return cachedEntry.data as ReturnType<typeof scoreSingleIR> extends Promise<infer T> ? T : never;
+  }
+  
+  console.log(`[Batch/Single IR] Cache MISS for ${ir.filename}, calling AI...`);
+  
+  const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
+Analyze the provided technical metrics to determine the TECHNICAL QUALITY of this single IR.
+Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
+
+Knowledge Base (Microphones):
+- SM57: Classic dynamic, mid-forward, aggressive.
+- R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
+- M160: Hypercardioid ribbon, tighter, more focused.
+- MD421 / Kompakt: Large diaphragm dynamic, punchy.
+- M88: Warm, great low-end punch.
+- PR30: Large diaphragm dynamic, very clear highs.
+- e906: Supercardioid, presence boost or flat modes.
+- M201: Very accurate dynamic.
+- SM7B: Smooth, thick dynamic.
+- Roswell Cab Mic: Specialized condenser designed for loud cabs.
+
+Knowledge Base (Speakers):
+- G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
+- V30: Aggressive upper-mids, modern rock.
+- V30 (Black Cat): Smoother, more refined than standard V30.
+- G12K-100: Big low end, clear highs, neutral.
+- G12T-75: Scooped mids, sizzly highs.
+- G12-65: Warm, punchy, large sound.
+- G12H30 Anniversary: Tight bass, bright highs, detailed.
+- Celestion Cream: Alnico smoothness with high power.
+- GA12-SC64: Vintage American, tight and punchy.
+- G10-SC64: 10" version, more focused.
+
+Microphone Position Tonal Characteristics:
+- Cap: Dead center of speaker dust cap. Brightest, most aggressive tone.
+- Cap Edge: Transition zone between cap and cone. Balanced tone.
+- Cap Edge (Favor Cap): Brighter than standard cap-edge.
+- Cap Edge (Favor Cone): Darker and warmer than standard cap-edge.
+- Cone: Focused on the paper cone. Darkest, warmest tone.
+- Cap Off Center: On the cap but not dead center. Retains brightness with less harsh attack.
+
+Parse information from filename when possible:
+- Mic types: SM57, R121, R10, M160, MD421, M88, e906, M201, C414, Roswell, etc.
+- Positions: Cap, CapEdge, Cone, CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
+- Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
+- Distances: Numbers followed by "in" (e.g., 1in, 2, 1.5in)
+
+Technical Scoring Criteria:
+- 90-100: Exceptional. Professional studio quality, no technical issues.
+- 85-89: Very Good. High quality capture, minor improvements possible.
+- 80-84: Good. Usable quality, some technical aspects could be improved.
+- 70-79: Acceptable. Noticeable issues but still usable.
+- Below 70: Needs work. Significant technical problems.
+
+IMPORTANT SCORING GUIDELINES:
+- Evaluate based on audio quality metrics: spectral balance, peak level, energy distribution.
+- Consider whether spectral centroid is reasonable for the mic/position/speaker combination.
+- Mild tonal deviations = minor point deduction, not major penalty.
+- Extreme spectral imbalances = moderate deduction.
+- Only major penalties for actual technical problems: clipping, noise, phase issues.
+- Duration is NOT a scoring factor.
+
+TONAL MODIFIER SUGGESTION (optional):
+If the spectral characteristics don't match what's typical for the position in the filename, suggest adding a tonal modifier.
+- Cap position typically has HIGH spectral centroid (2500Hz+)
+- Cone position typically has LOW spectral centroid (under 1800Hz)
+- Cap Edge is balanced (1800-2500Hz)
+- If darker than expected, suggest "_Dark" or "_Warm"
+- If brighter than expected, suggest "_Bright" or "_Crisp"
+
+Output JSON format:
+{
+  "parsedInfo": {
+    "mic": "detected mic or null",
+    "position": "detected position or null",
+    "speaker": "detected speaker or null",
+    "distance": "detected distance or null"
+  },
+  "score": number (0-100),
+  "isPerfect": boolean (true if score >= 85),
+  "advice": "Brief technical advice (1-2 sentences)",
+  "highlights": ["good thing 1", "good thing 2"],
+  "issues": ["issue 1"] or [],
+  "renameSuggestion": {
+    "suggestedModifier": "tonal modifier",
+    "suggestedFilename": "filename with modifier added before extension",
+    "reason": "Brief explanation"
+  } or null
+}`;
+
+  const userMessage = `Analyze this IR for technical quality:
+
+Filename: "${ir.filename}"
+- Duration: ${ir.duration.toFixed(1)}ms
+- Peak Level: ${ir.peakLevel.toFixed(1)}dB
+- Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+- Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
+- Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
+- High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`;
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage }
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0,
+    seed: 42,
+  });
+
+  const result = JSON.parse(response.choices[0].message.content || "{}");
+  
+  const formatted = {
+    score: result.score || 0,
+    isPerfect: result.isPerfect || false,
+    advice: result.advice || "Could not generate advice.",
+    highlights: result.highlights || [],
+    issues: result.issues || [],
+    parsedInfo: result.parsedInfo || { mic: null, position: null, speaker: null, distance: null },
+    renameSuggestion: result.renameSuggestion || null,
+  };
+  
+  // Cache the result
+  singleAnalysisCache.set(cacheKey, { data: formatted, timestamp: Date.now() });
+  console.log(`[Batch/Single IR] Cached result for ${ir.filename}`);
+  
+  return formatted;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -956,189 +1134,97 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
     }
   });
 
-  // Batch IR Analysis endpoint - automatic quality analysis of multiple IRs
+  // Batch IR Analysis endpoint - uses shared single-IR scoring for consistency
   app.post(api.batchAnalysis.analyze.path, async (req, res) => {
     try {
       const input = api.batchAnalysis.analyze.input.parse(req.body);
       const { irs } = input;
 
-      // Use IDENTICAL knowledge base and scoring criteria as single file analysis
-      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
-      Analyze the provided technical metrics to determine the TECHNICAL QUALITY of each IR.
-      Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
-      
-      Knowledge Base (Microphones):
-      - SM57: Classic dynamic, mid-forward, aggressive.
-      - R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
-      - M160: Hypercardioid ribbon, tighter, more focused.
-      - MD421 / Kompakt: Large diaphragm dynamic, punchy.
-      - M88: Warm, great low-end punch.
-      - PR30: Large diaphragm dynamic, very clear highs.
-      - e906: Supercardioid, presence boost or flat modes.
-      - M201: Very accurate dynamic.
-      - SM7B: Smooth, thick dynamic.
-      - Roswell Cab Mic: Specialized condenser designed for loud cabs. Manufacturer recommends starting at 6" distance, centered directly on dust cap.
-      
-      Knowledge Base (Speakers):
-      - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
-      - V30: Aggressive upper-mids, modern rock. The standard unlabeled Vintage 30.
-      - V30 (Black Cat): Smoother, more refined than standard V30.
-      - G12K-100: Big low end, clear highs, neutral.
-      - G12T-75: Scooped mids, sizzly highs.
-      - G12-65: Warm, punchy, large sound.
-      - G12H30 Anniversary: Tight bass, bright highs, detailed.
-      - Celestion Cream: Alnico smoothness with high power.
-      - GA12-SC64: Vintage American, tight and punchy.
-      - G10-SC64: 10" version, more focused.
-      
-      Microphone Position Tonal Characteristics:
-      - Cap: Dead center of speaker dust cap. Brightest, most aggressive tone with maximum high-end detail.
-      - Cap Edge: Transition zone between cap and cone. Balanced tone, often the "sweet spot."
-      - Cap Edge (Favor Cap): On the cap edge but angled/focused more towards the cap. Brighter than standard cap-edge.
-      - Cap Edge (Favor Cone): On the cap edge but angled/focused more towards the cone. Darker and warmer than standard cap-edge.
-      - Cone: Focused directly on the paper cone area (not the cap). Darkest, warmest tone with the most body and least high-end.
-      - Cap Off Center: Still on the cap but not dead center - slightly off to one side. Retains brightness but with less harsh direct attack.
-      
-      Parse information from filenames when possible:
-      - Mic types: SM57, R121, R10, M160, MD421, M88, e906, M201, C414, Roswell, etc.
-      - Positions: Cap, CapEdge, Cone, CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
-      - Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
-      - Distances: Numbers followed by "in" or just numbers (e.g., 1in, 2, 1.5in)
-      
-      Technical Scoring Criteria (APPLY CONSISTENTLY - same as single file analysis):
-      - 90-100: Exceptional. Professional studio quality, no technical issues. Clean capture with good spectral content.
-      - 85-89: Very Good. High quality capture, minor improvements possible.
-      - 80-84: Good. Usable quality, some technical aspects could be improved.
-      - 70-79: Acceptable. Noticeable issues but still usable.
-      - Below 70: Needs work. Significant technical problems.
-      
-      IMPORTANT SCORING GUIDELINES:
-      - SCORE EACH IR INDEPENDENTLY - do NOT compare IRs to each other or adjust scores based on the batch.
-      - Each IR should receive the SAME score it would get if analyzed alone in single-file mode.
-      - Evaluate based on audio quality metrics: spectral balance, peak level, energy distribution, absence of artifacts.
-      - Consider whether spectral centroid is reasonable for the mic/position/speaker combination (when detected).
-      - Mild tonal deviations from expected (e.g., slightly darker Cap) = minor point deduction, not major penalty.
-      - Extreme spectral imbalances (very dark for Cap, very bright for Cone) = moderate deduction.
-      - Only major penalties for actual technical problems: clipping, noise, phase issues, corrupted data.
-      - Apply the SAME scoring whether context is parsed from filename or unknown.
-      - The gaps analysis is SEPARATE from scoring - do not let missing tones influence individual IR scores.
-      
-      Criteria for "Perfect" IR (technical quality):
-      - Normalization: The system normalizes every IR to 0dB peak before analysis.
-      - Peak: Should be around 0dB (since it's normalized).
-      - Spectral balance: Reasonable frequency content for the detected mic/speaker/position combination.
-      - Clean capture: No clipping artifacts, phase issues, or excessive noise.
-      - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
-      
-      Advice Guidelines:
-      - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on spectral centroid/energy distribution and whether it's typical for the detected setup.
-      - Identify any technical issues (clipping, noise) - do NOT mention duration.
-      - If spectral content is unusual for the detected position, suggest a tonal modifier.
-      
-      For each IR, provide:
-      - Parsed info from filename (if detectable)
-      - A quality score (0-100) using the SAME criteria as single-file analysis
-      - Whether it's "perfect" (score >= 85)
-      - Brief advice (1-2 sentences)
-      - 1-3 highlights (what's good)
-      - 1-3 issues (what could be improved, if any)
-      - TONAL MODIFIER SUGGESTION (optional): If the spectral characteristics don't match what's typical for the position in the filename, suggest adding a tonal modifier to the filename. The user captured the IR at the position they specified, so DON'T change the position - just add a descriptor. Only suggest when confident:
-        - Cap position typically has HIGH spectral centroid (2500Hz+) and high-energy emphasis
-        - Cone position typically has LOW spectral centroid (under 1800Hz) and low-energy emphasis
-        - Cap Edge is balanced between the two (1800-2500Hz)
-        - If an IR sounds darker than expected for its position, suggest adding "_Dark" or "_Warm"
-        - If an IR sounds brighter than expected for its position, suggest adding "_Bright" or "_Crisp"
-        - Be conservative - only suggest when there's a noticeable tonal mismatch
-      
-      GAPS ANALYSIS (required):
-      After analyzing all IRs, identify what tonal characteristics are MISSING from this set.
-      Since the user typically mixes two IRs together, a comprehensive set needs variety:
-      - Bright/aggressive tones (high spectral centroid, Cap positions)
-      - Dark/warm tones (low spectral centroid, Cone positions)  
-      - Balanced/neutral tones (mid spectral centroid, Cap Edge positions)
-      - Different mic characters (ribbon smoothness, dynamic punch, etc.)
-      
-      For each missing tone, suggest a specific capture to fill the gap:
-      - What tonal quality is missing
-      - Recommended mic (from the mics already used if possible, or suggest alternatives)
-      - Recommended position and distance
-      - Why this would complement the existing set
-      
-      Output JSON format:
-      {
-        "results": [
-          {
-            "filename": "exact filename",
-            "parsedInfo": {
-              "mic": "detected mic or null",
-              "position": "detected position or null",
-              "speaker": "detected speaker or null",
-              "distance": "detected distance or null"
-            },
-            "score": number (0-100),
-            "isPerfect": boolean,
-            "advice": "Brief technical advice",
-            "highlights": ["good thing 1", "good thing 2"],
-            "issues": ["issue 1"] or [],
-            "renameSuggestion": {
-              "suggestedModifier": "tonal modifier like Dark, Bright, Warm, Crisp",
-              "suggestedFilename": "original filename with modifier added before extension",
-              "reason": "Brief explanation of the tonal character"
-            } or null (only include if noticeable tonal mismatch detected)
-          }
-        ],
-        "summary": "Overall assessment of the IR batch",
-        "averageScore": number,
-        "gapsSuggestions": [
-          {
-            "missingTone": "What tonal quality is missing (e.g., 'Dark/Warm', 'Bright/Aggressive', 'Smooth Ribbon Character')",
-            "recommendation": {
-              "mic": "Specific mic to use",
-              "position": "Specific position (Cap, Cone, CapEdge, etc.)",
-              "distance": "Recommended distance in inches",
-              "speaker": "Use same speaker as batch or specify"
-            },
-            "reason": "Why this would complement the set for IR mixing"
-          }
-        ] or [] (empty if set is already comprehensive)
-      }`;
-
-      const irDescriptions = irs.map((ir, i) => 
-        `IR ${i + 1}: "${ir.filename}"
-         - Duration: ${ir.duration.toFixed(1)}ms
-         - Peak Level: ${ir.peakLevel.toFixed(1)}dB
-         - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
-         - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
-         - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-         - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
-      ).join('\n\n');
-
-      const userMessage = `Analyze these ${irs.length} IRs for technical quality. Parse what you can from filenames and assess each one:\n\n${irDescriptions}`;
-
-      // Check cache first for consistent results
+      // Check batch cache first
       const cacheKey = generateBatchCacheKey(irs);
       const cachedEntry = batchAnalysisCache.get(cacheKey);
       if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
         console.log(`[Batch Analysis] Cache HIT for ${irs.length} IRs`);
         return res.json(cachedEntry.data);
       }
-      console.log(`[Batch Analysis] Cache MISS for ${irs.length} IRs, calling AI...`);
+      console.log(`[Batch Analysis] Cache MISS for ${irs.length} IRs, scoring each IR individually...`);
 
-      const response = await openai.chat.completions.create({
+      // Score each IR using the SAME function as single-file mode
+      // This guarantees identical scores for identical files
+      const scoredResults = await Promise.all(
+        irs.map(async (ir) => {
+          const scored = await scoreSingleIR(ir);
+          return {
+            filename: ir.filename,
+            parsedInfo: scored.parsedInfo,
+            score: scored.score,
+            isPerfect: scored.isPerfect,
+            advice: scored.advice,
+            highlights: scored.highlights,
+            issues: scored.issues,
+            renameSuggestion: scored.renameSuggestion,
+          };
+        })
+      );
+
+      // Calculate average score
+      const totalScore = scoredResults.reduce((sum, r) => sum + r.score, 0);
+      const averageScore = Math.round(totalScore / scoredResults.length);
+
+      // Now do gaps analysis as a separate LLM call using the scored results
+      const gapsPrompt = `You are an expert audio engineer analyzing an IR set for completeness.
+Given the following scored IRs, identify what tonal characteristics are MISSING for a comprehensive IR mixing set.
+
+The user typically mixes two IRs together, so variety is essential:
+- Bright/aggressive tones (high spectral centroid, Cap positions)
+- Dark/warm tones (low spectral centroid, Cone positions)
+- Balanced/neutral tones (mid spectral centroid, Cap Edge positions)
+- Different mic characters (ribbon smoothness, dynamic punch, etc.)
+
+Scored IRs:
+${scoredResults.map((r, i) => 
+  `${i + 1}. ${r.filename} (Score: ${r.score})
+   - Parsed: Mic=${r.parsedInfo.mic || 'unknown'}, Position=${r.parsedInfo.position || 'unknown'}, Speaker=${r.parsedInfo.speaker || 'unknown'}, Distance=${r.parsedInfo.distance || 'unknown'}`
+).join('\n')}
+
+Output JSON format:
+{
+  "summary": "Overall assessment of the IR batch (1-2 sentences)",
+  "gapsSuggestions": [
+    {
+      "missingTone": "What tonal quality is missing",
+      "recommendation": {
+        "mic": "Specific mic to use",
+        "position": "Specific position",
+        "distance": "Recommended distance",
+        "speaker": "Same as batch or specify"
+      },
+      "reason": "Why this would complement the set"
+    }
+  ] or [] (empty if comprehensive)
+}`;
+
+      const gapsResponse = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage }
+          { role: "system", content: gapsPrompt },
+          { role: "user", content: "Analyze the IR set for gaps and suggest what's missing." }
         ],
         response_format: { type: "json_object" },
         temperature: 0,
         seed: 42,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const gapsResult = JSON.parse(gapsResponse.choices[0].message.content || "{}");
+
+      const result = {
+        results: scoredResults,
+        summary: gapsResult.summary || `Analyzed ${irs.length} IRs with average score of ${averageScore}.`,
+        averageScore,
+        gapsSuggestions: gapsResult.gapsSuggestions || [],
+      };
       
-      // Store in cache for future identical requests
+      // Store in cache
       batchAnalysisCache.set(cacheKey, { data: result, timestamp: Date.now() });
       console.log(`[Batch Analysis] Cached result for ${irs.length} IRs (cache size: ${batchAnalysisCache.size})`);
       
