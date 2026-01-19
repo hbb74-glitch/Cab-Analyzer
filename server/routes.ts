@@ -1091,15 +1091,35 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const totalScore = scoredResults.reduce((sum, r) => sum + r.score, 0);
       const averageScore = Math.round(totalScore / scoredResults.length);
 
+      // Extract mics used in this batch for context
+      const micsInBatch = Array.from(new Set(scoredResults.map(r => r.parsedInfo.mic).filter((m): m is string => Boolean(m))));
+      const positionsInBatch = Array.from(new Set(scoredResults.map(r => r.parsedInfo.position).filter((p): p is string => Boolean(p))));
+      
       // Now do gaps analysis as a separate LLM call using the scored results
       const gapsPrompt = `You are an expert audio engineer analyzing an IR set for completeness.
 Given the following scored IRs, identify what tonal characteristics are MISSING for a comprehensive IR mixing set.
 
+AVAILABLE MICS (user's collection - ONLY suggest from this list):
+SM57, R-121, R10, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence/Flat), M88, PR30, e906 (Presence/Flat), M201, SM7B, AKG C414, Roswell Cab Mic
+
+CRITICAL RULES:
+1. ONLY suggest mics the user owns (listed above). Never suggest mics outside this list.
+2. Do NOT always find gaps. If the set already covers the essential tonal bases (bright, warm, balanced), return an EMPTY gapsSuggestions array.
+3. A comprehensive set needs at MINIMUM:
+   - One bright/aggressive option (Cap position OR bright mic like SM57/PR30)
+   - One warm/dark option (Cone position OR ribbon mic)
+   - One balanced option (Cap Edge position)
+   If these are covered, the set is COMPLETE. Return empty suggestions.
+4. Only suggest additions if there's a MAJOR missing tonal category - not just "nice to have" variations.
+5. Maximum 2 suggestions ever. If the user follows suggestions and reruns, do NOT find new gaps unless something critical is still missing.
+
+Mics already in this batch: ${micsInBatch.join(', ') || 'none detected'}
+Positions already in this batch: ${positionsInBatch.join(', ') || 'none detected'}
+
 The user typically mixes two IRs together, so variety is essential:
-- Bright/aggressive tones (high spectral centroid, Cap positions)
-- Dark/warm tones (low spectral centroid, Cone positions)
+- Bright/aggressive tones (high spectral centroid, Cap positions, SM57/PR30/e906)
+- Dark/warm tones (low spectral centroid, Cone positions, ribbons like R-121/M160/R92)
 - Balanced/neutral tones (mid spectral centroid, Cap Edge positions)
-- Different mic characters (ribbon smoothness, dynamic punch, etc.)
 
 Scored IRs:
 ${scoredResults.map((r, i) => 
@@ -1109,19 +1129,19 @@ ${scoredResults.map((r, i) =>
 
 Output JSON format:
 {
-  "summary": "Overall assessment of the IR batch (1-2 sentences)",
+  "summary": "Overall assessment of the IR batch (1-2 sentences). If complete, say so clearly.",
   "gapsSuggestions": [
     {
-      "missingTone": "What tonal quality is missing",
+      "missingTone": "What MAJOR tonal quality is missing",
       "recommendation": {
-        "mic": "Specific mic to use",
+        "mic": "Specific mic from user's collection ONLY",
         "position": "Specific position",
         "distance": "Recommended distance",
         "speaker": "Same as batch or specify"
       },
-      "reason": "Why this would complement the set"
+      "reason": "Why this is ESSENTIAL (not just nice to have)"
     }
-  ] or [] (empty if comprehensive)
+  ] or [] (empty if the set is comprehensive - this is the preferred outcome for complete sets)
 }`;
 
       const gapsResponse = await openai.chat.completions.create({
