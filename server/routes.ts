@@ -9,6 +9,60 @@ import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment } from "@shared/knowledge/spectral-centroid";
 
+// Genre-to-tonal characteristics mapping for dropdown selections
+// Expands genre codes into specific tonal guidance for the AI
+const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics: string; avoid: string }> = {
+  'classic-rock': {
+    tonalGoal: 'warm, fat, punchy rock tone with smooth highs and powerful mids',
+    characteristics: 'Think Led Zeppelin, AC/DC, Cream - big creamy overdriven tones, not harsh or fizzy. Prioritize warmth and body over definition. Ribbons and darker positions work well.',
+    avoid: 'Avoid overly bright or aggressive combinations. Skip harsh high-end or scooped mids.'
+  },
+  'hard-rock': {
+    tonalGoal: 'tight, punchy, aggressive rock tone with controlled lows and cutting mids',
+    characteristics: 'Think Van Halen, Def Leppard, GN\'R - more gain, tighter low-end than classic rock, but still musical and not harsh. Good note definition is important.',
+    avoid: 'Avoid muddy or boomy combinations. Skip anything too dark that loses definition.'
+  },
+  'alternative-rock': {
+    tonalGoal: 'textured, dynamic tone with character and room for effects',
+    characteristics: 'Think Radiohead, R.E.M., The Smiths - can be jangly or heavy, but always musical and expressive. Room for dynamics and texture is key.',
+    avoid: 'Avoid overly compressed or one-dimensional tones. Skip anything too polished or sterile.'
+  },
+  'punk': {
+    tonalGoal: 'raw, aggressive, in-your-face tone with bite and energy',
+    characteristics: 'Think Ramones, Green Day, The Clash - not refined, but powerful and immediate. Close mic positions, aggressive dynamics work well.',
+    avoid: 'Avoid anything too smooth, polished, or warm. Skip distant/roomy placements.'
+  },
+  'grunge': {
+    tonalGoal: 'thick, heavy, sludgy tone with massive low-mids and controlled fizz',
+    characteristics: 'Think Nirvana, Soundgarden, Alice in Chains - walls of sound, detuned heaviness, but still articulate enough to cut through.',
+    avoid: 'Avoid thin, bright, or sterile tones. Skip anything too polished or hi-fi.'
+  },
+  'classic-metal': {
+    tonalGoal: 'tight, powerful, articulate metal tone with punch and clarity',
+    characteristics: 'Think Iron Maiden, Judas Priest, Black Sabbath - powerful but musical, good palm mute definition, not overly scooped.',
+    avoid: 'Avoid muddy or boomy combinations. Skip overly scooped or fizzy tones.'
+  },
+  'indie-rock': {
+    tonalGoal: 'vintage, characterful tone with warmth and personality',
+    characteristics: 'Think The Strokes, Arctic Monkeys, Vampire Weekend - often smaller amps pushed hard, lo-fi character is a feature not a bug.',
+    avoid: 'Avoid modern, sterile, or overly produced tones. Skip anything too aggressive or heavy.'
+  }
+};
+
+// Helper to expand genre code into detailed tonal guidance
+function expandGenreToTonalGuidance(genre: string): string {
+  const profile = GENRE_TONAL_PROFILES[genre];
+  if (profile) {
+    return `${profile.tonalGoal}
+
+Studio Context: ${profile.characteristics}
+
+${profile.avoid}`;
+  }
+  // Return custom genre text as-is (user typed their own)
+  return genre;
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({ 
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -463,20 +517,14 @@ export async function registerRoutes(
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest${genre ? `
       
       === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
-      The user wants: "${genre}"
+      The user wants: ${expandGenreToTonalGuidance(genre)}
       
       CRITICAL: This tonal goal is your PRIMARY filter for all recommendations.
       - ONLY recommend distances/positions that genuinely achieve this specific sound
-      - Each rationale MUST explicitly explain HOW this distance achieves "${genre}"
-      - The expectedTone MUST describe how this delivers "${genre}"
-      - The bestFor MUST reference "${genre}" or closely related sounds
-      - EXCLUDE generic recommendations that don't serve this tonal goal
-      
-      For example, if the user wants "warm tones for cleans":
-      - Favor moderate distances (1.5"-3") to reduce proximity harshness
-      - Recommend darker positions (CapEdge_DK, CapEdge_Cone_Tr, Cone)
-      - Avoid very close distances (0-0.5") that add aggressive proximity bass
-      - Avoid bright positions (Cap) that add harsh attack` : ''}
+      - Each rationale MUST explicitly explain HOW this distance achieves the tonal goal
+      - The expectedTone MUST describe how this delivers the requested sound
+      - The bestFor MUST reference the tonal goal or closely related sounds
+      - EXCLUDE generic recommendations that don't serve this tonal goal` : ''}
       
       Provide 4-6 distance recommendations${genre ? ` optimized for "${genre}"` : ' covering the usable range for this mic+speaker combo'}.
       Also provide 2-3 best position recommendations${genre ? ` that achieve "${genre}"` : ' for this specific mic+speaker combination'}.
@@ -507,7 +555,8 @@ export async function registerRoutes(
 
       let userMessage = `Please recommend ideal distances for the ${micType} microphone paired with the ${speakerModel} speaker.`;
       if (genre) {
-        userMessage += ` The user's PRIMARY goal is: "${genre}". Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
+        const expandedGoal = expandGenreToTonalGuidance(genre);
+        userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
       } else {
         userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
       }
@@ -593,20 +642,14 @@ Use these curated recipes as the foundation of your recommendations. You may add
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
       
       === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
-      The user wants: "${genre}"
+      The user wants: ${expandGenreToTonalGuidance(genre)}
       
       CRITICAL: This tonal goal is your PRIMARY filter. Every single recommendation MUST be optimized for this specific sound.
       - ONLY recommend combinations that genuinely serve this tonal goal
       - EXCLUDE combinations that don't align with this sound (even if they're popular for other purposes)
-      - Each rationale MUST explicitly explain HOW this combination achieves "${genre}"
-      - The expectedTone MUST describe how this achieves "${genre}"
-      - The bestFor MUST reference "${genre}" or closely related sounds
-      
-      For example, if the user wants "warm tones for cleans":
-      - Prioritize ribbons (R121, M160, R10) over harsh dynamics
-      - Favor darker positions (CapEdge_DK, CapEdge_Cone_Tr, Cone) over bright positions (Cap)
-      - Suggest moderate distances (1.5"-3") to reduce proximity harshness
-      - Avoid combinations known for aggressive attack or brittle highs` : ''}
+      - Each rationale MUST explicitly explain HOW this combination achieves the tonal goal
+      - The expectedTone MUST describe how this achieves the requested sound
+      - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
       
       Provide 6-10 specific mic/position/distance recommendations.
       ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'Include curated recipes first, then fill in gaps with additional proven techniques.'}
@@ -632,7 +675,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
 
       let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;
       if (genre) {
-        userMessage += ` The user's PRIMARY goal is: "${genre}". Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
+        const expandedGoal = expandGenreToTonalGuidance(genre);
+        userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
       }
       userMessage += ` Base your recommendations on proven IR production techniques.`;
 
@@ -695,8 +739,14 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - Dumble/boutique → Celestion Cream, G12-65 for touch-sensitive response
       ${genre ? `
       
-      Genre Context (${genre}):
-      Optimize recommendations for this genre's signature amp/speaker pairings and recording techniques.` : ''}
+      === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
+      The user wants: ${expandGenreToTonalGuidance(genre)}
+      
+      CRITICAL: Filter all speaker recommendations through this tonal goal.
+      - ONLY recommend speakers that genuinely achieve this sound
+      - Each rationale MUST explain HOW this speaker achieves the tonal goal
+      - The expectedTone MUST describe how this delivers the requested sound
+      - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
       
       Based on the user's amp description, recommend 3-5 speakers that would pair well.
       Consider the amp's characteristics (clean, crunch, high-gain), era (vintage, modern), and typical use cases.
@@ -718,7 +768,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
 
       let userMessage = `Please recommend speakers for this amp: "${ampDescription}"`;
       if (genre) {
-        userMessage += ` I'll primarily be playing ${genre}.`;
+        const expandedGoal = expandGenreToTonalGuidance(genre);
+        userMessage += ` My tonal goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound.`;
       }
       userMessage += ` Consider classic amp/speaker pairings and what would work best.`;
 
