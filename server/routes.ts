@@ -88,6 +88,48 @@ const TONAL_KEYWORDS = {
     avoidPositions: [], // No position restrictions
     prefer: ['C414', 'SM57', 'Roswell'], // Detailed/accurate mics
     preferPositions: ['CapEdge', 'CapEdge_BR'] // Balanced positions
+  },
+  leads: {
+    synonyms: ['solo', 'singing', 'sustain', 'soaring', 'melodic', 'expressive', 'lyrical', 'vocal-like'],
+    avoid: [], // No strict avoidances - leads can be bright or smooth
+    avoidPositions: ['Cone'], // Too dark for cutting leads
+    prefer: ['SM57', 'MD421', 'e906', 'R121'], // Mics with presence for cutting through
+    preferPositions: ['Cap', 'CapEdge', 'CapEdge_BR'] // More presence for leads
+  },
+  rhythm: {
+    synonyms: ['chunky', 'tight', 'chug', 'palm mute', 'riff', 'chugging', 'percussive', 'djent'],
+    avoid: ['R92', 'SM7B'], // Too smooth for tight rhythm
+    avoidPositions: ['Cone'], // Too loose for tight rhythm
+    prefer: ['SM57', 'MD421', 'e906'], // Tight, punchy mics
+    preferPositions: ['CapEdge', 'CapEdge_BR', 'Cap_OffCenter'] // Balanced with definition
+  },
+  ambient: {
+    synonyms: ['spacious', 'atmospheric', 'ethereal', 'dreamy', 'reverb', 'shimmer', 'washy', 'pad', 'swells'],
+    avoid: ['MD421', 'PR30'], // Too aggressive/forward
+    avoidPositions: ['Cap'], // Too direct
+    prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Smoother positions
+  },
+  lofi: {
+    synonyms: ['lo-fi', 'gritty', 'vintage', 'character', 'vibe', 'dusty', 'tape', 'old-school', 'retro'],
+    avoid: ['C414', 'PR30'], // Too modern/hi-fi
+    avoidPositions: [], // Any position can work for lo-fi
+    prefer: ['SM57', 'MD421', 'R121', 'M160'], // Classic mics with character
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cone'] // Less clinical positions
+  },
+  crunch: {
+    synonyms: ['crunchy', 'grit', 'bite', 'edge', 'saturated', 'driven', 'cooking'],
+    avoid: ['R92', 'SM7B'], // Too smooth
+    avoidPositions: ['Cone'], // Too dark for crunch clarity
+    prefer: ['SM57', 'MD421', 'e906'], // Handle gain well
+    preferPositions: ['CapEdge', 'CapEdge_BR', 'Cap_OffCenter'] // Balanced with presence
+  },
+  breakup: {
+    synonyms: ['edge of breakup', 'just breaking up', 'touch-sensitive', 'dynamic', 'responsive', 'clean-ish'],
+    avoid: [], // No restrictions - need full dynamic range
+    avoidPositions: [], // No restrictions
+    prefer: ['SM57', 'R121', 'MD421', 'C414'], // Dynamic response mics
+    preferPositions: ['CapEdge', 'CapEdge_BR'] // Balanced, revealing positions
   }
 };
 
