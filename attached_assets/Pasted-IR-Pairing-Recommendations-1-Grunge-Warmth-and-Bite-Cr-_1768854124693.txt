@@ -1,0 +1,43 @@
+IR Pairing Recommendations
+========================================
+
+1. Grunge Warmth and Bite
+   Cream_R10_Cap_5in.wav + Cream_SM57_CapEdge_2in.wav
+   Mix Ratio: 65:35
+   Score: 95/100
+   Expected Tone: A thick, warm foundation with a cutting edge for clarity and aggression.
+   Best For: Grunge rhythm guitar, heavy riffs, and thick, distorted tones.
+   Why: The warm, low-mid focus of 'Cream_R10_Cap_5in' (spectral centroid: 2152Hz, high low/mid energy) pairs beautifully with the bright, aggressive character of 'Cream_SM57_CapEdge_2in' (spectral centroid: 3145Hz, high high-energy content). This combination balances warmth and bite, ideal for grunge tones.
+
+2. Dirty Modern Crunch
+   Cream_M201_Cone_3in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav
+   Mix Ratio: 60:40
+   Score: 92/100
+   Expected Tone: A gritty, mid-forward tone with a bright, cutting top end.
+   Best For: Grunge lead lines, modern alternative rock, and crunchy rhythm tones.
+   Why: The warm, midrange-heavy 'Cream_M201_Cone_3in' (spectral centroid: 2329Hz) is complemented by the bright, high-energy 'Cream_PR30_Cap_OffCenter_2.5in' (spectral centroid: 4025Hz). This pairing creates a modern crunch with a dirty, raw edge.
+
+3. Vintage Grunge Grit
+   Cream_R121_Cap_4in.wav + Cream_SM57_CapEdge_FavorCap_2in.wav
+   Mix Ratio: 70:30
+   Score: 90/100
+   Expected Tone: A warm, vintage base with a gritty, present high-midrange for added aggression.
+   Best For: Grunge rhythm and lead tones, vintage-inspired alternative rock.
+   Why: The smooth, vintage warmth of 'Cream_R121_Cap_4in' (spectral centroid: 2493Hz) is enhanced by the aggressive, high-mid presence of 'Cream_SM57_CapEdge_FavorCap_2in' (spectral centroid: 2786Hz). This pairing delivers a gritty, vintage-inspired tone with a modern edge.
+
+4. Thick and Bright Grunge
+   Cream_MD421Kompakt_Cone_6in.wav + Cream_C414_Cap_5.5in.wav
+   Mix Ratio: 60:40
+   Score: 88/100
+   Expected Tone: A full, thick low-midrange with a bright, airy top end for clarity.
+   Best For: Grunge rhythm guitar, heavy riffs, and full-bodied tones.
+   Why: The thick, low-mid focus of 'Cream_MD421Kompakt_Cone_6in' (spectral centroid: 2277Hz) is complemented by the bright, high-energy 'Cream_C414_Cap_5.5in' (spectral centroid: 3372Hz). This pairing creates a thick, full-bodied tone with a bright, cutting top end.
+
+5. Aggressive Grunge Edge
+   Cream_SM57_Cone_2in.wav + Cream_PR30_CapEdge_2.5in.wav
+   Mix Ratio: 65:35
+   Score: 87/100
+   Expected Tone: A sharp, aggressive tone with a bright, cutting high end.
+   Best For: Grunge lead lines, aggressive rhythm tones, and alternative rock.
+   Why: The aggressive, high-mid focus of 'Cream_SM57_Cone_2in' (spectral centroid: 2710Hz) is enhanced by the bright, cutting 'Cream_PR30_CapEdge_2.5in' (spectral centroid: 3695Hz). This pairing delivers an aggressive, edgy tone perfect for grunge.
+
