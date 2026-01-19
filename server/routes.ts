@@ -462,12 +462,25 @@ export async function registerRoutes(
       - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest${genre ? `
       
-      Genre Context (${genre}):
-      Use this to refine recommendations. Consider what distances and positions work best for achieving the signature sound of this genre.` : ''}
+      === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
+      The user wants: "${genre}"
       
-      Provide 4-6 distance recommendations covering the usable range for this mic+speaker combo.
-      Also provide 2-3 best position recommendations for this specific mic+speaker combination.
-      Explain how each distance/position affects the tone and what it's best suited for.
+      CRITICAL: This tonal goal is your PRIMARY filter for all recommendations.
+      - ONLY recommend distances/positions that genuinely achieve this specific sound
+      - Each rationale MUST explicitly explain HOW this distance achieves "${genre}"
+      - The expectedTone MUST describe how this delivers "${genre}"
+      - The bestFor MUST reference "${genre}" or closely related sounds
+      - EXCLUDE generic recommendations that don't serve this tonal goal
+      
+      For example, if the user wants "warm tones for cleans":
+      - Favor moderate distances (1.5"-3") to reduce proximity harshness
+      - Recommend darker positions (CapEdge_DK, CapEdge_Cone_Tr, Cone)
+      - Avoid very close distances (0-0.5") that add aggressive proximity bass
+      - Avoid bright positions (Cap) that add harsh attack` : ''}
+      
+      Provide 4-6 distance recommendations${genre ? ` optimized for "${genre}"` : ' covering the usable range for this mic+speaker combo'}.
+      Also provide 2-3 best position recommendations${genre ? ` that achieve "${genre}"` : ' for this specific mic+speaker combination'}.
+      ${genre ? `FILTER all recommendations through the user's tonal goal. Only include distances/positions that genuinely serve "${genre}".` : 'Explain how each distance/position affects the tone and what it\'s best suited for.'}
       
       Output JSON format:
       {
@@ -479,24 +492,25 @@ export async function registerRoutes(
         "recommendations": [
           {
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "rationale": "Why this distance works for this mic+speaker combo and what tonal effect it produces",
-            "expectedTone": "Description of the expected tonal result",
-            "bestFor": "What styles/sounds this distance is ideal for (e.g., 'tight rhythm tracks', 'warm leads', 'room ambience')"
+            "rationale": "Why this distance achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
+            "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
+            "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this distance is ideal for'}"
           }
         ],
         "bestPositions": [
           {
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
-            "reason": "Brief reason why this position works well for this mic+speaker combo"
+            "reason": "Why this position${genre ? ` achieves '${genre}'` : ' works well for this mic+speaker combo'}"
           }
         ]
       }`;
 
       let userMessage = `Please recommend ideal distances for the ${micType} microphone paired with the ${speakerModel} speaker.`;
       if (genre) {
-        userMessage += ` Optimize recommendations for the ${genre} genre, referencing classic studio techniques.`;
+        userMessage += ` The user's PRIMARY goal is: "${genre}". Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
+      } else {
+        userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
       }
-      userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -578,11 +592,24 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
       
-      Genre Context (${genre}):
-      Optimize recommendations for this genre's signature sound and classic recording techniques.` : ''}
+      === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
+      The user wants: "${genre}"
+      
+      CRITICAL: This tonal goal is your PRIMARY filter. Every single recommendation MUST be optimized for this specific sound.
+      - ONLY recommend combinations that genuinely serve this tonal goal
+      - EXCLUDE combinations that don't align with this sound (even if they're popular for other purposes)
+      - Each rationale MUST explicitly explain HOW this combination achieves "${genre}"
+      - The expectedTone MUST describe how this achieves "${genre}"
+      - The bestFor MUST reference "${genre}" or closely related sounds
+      
+      For example, if the user wants "warm tones for cleans":
+      - Prioritize ribbons (R121, M160, R10) over harsh dynamics
+      - Favor darker positions (CapEdge_DK, CapEdge_Cone_Tr, Cone) over bright positions (Cap)
+      - Suggest moderate distances (1.5"-3") to reduce proximity harshness
+      - Avoid combinations known for aggressive attack or brittle highs` : ''}
       
       Provide 6-10 specific mic/position/distance recommendations.
-      Include curated recipes first, then fill in gaps with additional proven techniques.
+      ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'Include curated recipes first, then fill in gaps with additional proven techniques.'}
       
       Output JSON format:
       {
@@ -595,17 +622,17 @@ Use these curated recipes as the foundation of your recommendations. You may add
             "micLabel": "Display name exactly as listed above (e.g. 'SM57', 'R121', 'e906 (Presence Boost)', 'MD441 (Flat)', 'Roswell Cab Mic')",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "rationale": "Why this specific combination works with this speaker - reference IR production experience",
-            "expectedTone": "Description of the expected tonal result",
-            "bestFor": "What styles/sounds this is ideal for"
+            "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
+            "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
+            "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this is ideal for'}"
           }
         ],
-        "summary": "Brief overall summary of the best approach for this speaker based on IR production experience"
+        "summary": "${genre ? `How these recommendations collectively achieve '${genre}' for this speaker` : 'Brief overall summary of the best approach for this speaker based on IR production experience'}"
       }`;
 
       let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;
       if (genre) {
-        userMessage += ` Optimize recommendations for the ${genre} genre, referencing classic studio techniques.`;
+        userMessage += ` The user's PRIMARY goal is: "${genre}". Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
       }
       userMessage += ` Base your recommendations on proven IR production techniques.`;
 
