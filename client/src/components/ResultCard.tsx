@@ -21,6 +21,7 @@ interface ResultCardProps {
     duration: number;
     centroid: number;
   };
+  micLabel?: string;
   bestPositions?: BestPosition[];
   renameSuggestion?: RenameSuggestion | null;
 }
@@ -34,7 +35,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap Off Center",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, bestPositions, renameSuggestion }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -79,7 +80,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, bestPositions, r
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-2xl font-bold text-white mb-2">Analysis Result</h3>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {isPerfect ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium border border-primary/20">
                     <CheckCircle2 className="w-4 h-4" /> Perfect Capture
@@ -87,6 +88,11 @@ export function ResultCard({ score, isPerfect, advice, metrics, bestPositions, r
                 ) : (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/20 text-orange-400 text-sm font-medium border border-orange-500/20">
                     <Info className="w-4 h-4" /> Optimization Needed
+                  </span>
+                )}
+                {micLabel && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-sm font-medium border border-blue-500/20">
+                    <Activity className="w-4 h-4" /> {micLabel}
                   </span>
                 )}
               </div>

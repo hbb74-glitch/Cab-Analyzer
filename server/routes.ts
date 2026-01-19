@@ -85,6 +85,7 @@ function generateSingleCacheKey(input: {
   lowEnergy: number;
   midEnergy: number;
   highEnergy: number;
+  originalFilename?: string;
 }): string {
   const normalized = {
     micType: input.micType.toLowerCase(),
@@ -97,6 +98,7 @@ function generateSingleCacheKey(input: {
     lowEnergy: Math.round(input.lowEnergy * 1000) / 1000,
     midEnergy: Math.round(input.midEnergy * 1000) / 1000,
     highEnergy: Math.round(input.highEnergy * 1000) / 1000,
+    originalFilename: (input.originalFilename || '').toLowerCase(),
   };
   const hash = createHash('sha256');
   hash.update(JSON.stringify(normalized));
@@ -273,16 +275,17 @@ export async function registerRoutes(
         isPerfect: aiResult.is_perfect || false
       });
 
-      // Include tonal modifier suggestion in response (not stored in DB)
-      const responseWithSuggestion = {
+      // Include tonal modifier suggestion and detected mic variant in response (not stored in DB)
+      const responseWithExtras = {
         ...saved,
+        micLabel: micVariant, // Return the detected mic variant (e.g., "e906 (Presence Boost)")
         renameSuggestion: aiResult.rename_suggestion ? {
           suggestedModifier: aiResult.rename_suggestion.suggested_modifier,
           reason: aiResult.rename_suggestion.reason
         } : null
       };
 
-      res.status(201).json(responseWithSuggestion);
+      res.status(201).json(responseWithExtras);
     } catch (err) {
       console.error('Analysis error:', err);
       if (err instanceof z.ZodError) {

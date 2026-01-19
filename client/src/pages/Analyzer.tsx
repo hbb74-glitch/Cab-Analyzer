@@ -937,6 +937,7 @@ export default function Analyzer() {
                     duration: metrics.durationMs,
                     centroid: metrics.spectralCentroid
                   }}
+                  micLabel={result.micLabel}
                   renameSuggestion={result.renameSuggestion}
                 />
               )}
