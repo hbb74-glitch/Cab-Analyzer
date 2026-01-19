@@ -12,6 +12,7 @@ import { FrequencyGraph } from "@/components/FrequencyGraph";
 import { ResultCard } from "@/components/ResultCard";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 
 // Validation schema for the form
@@ -160,9 +161,9 @@ export default function Analyzer() {
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<any | null>(null);
 
-  // Batch mode state
+  // Batch mode state - use context for persistence
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
-  const [batchResult, setBatchResult] = useState<BatchAnalysisResponse | null>(null);
+  const { batchAnalysisResult: batchResult, setBatchAnalysisResult: setBatchResult } = useResults();
   const [copied, setCopied] = useState(false);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({

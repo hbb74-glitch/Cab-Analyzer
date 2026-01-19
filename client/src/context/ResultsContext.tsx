@@ -1,14 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import type { RecommendationsResponse, SpeakerRecommendationsResponse, AmpRecommendationsResponse, PositionImportResponse, PairingResponse } from "@shared/routes";
-
-interface AnalysisResult {
-  filename: string;
-  score: number;
-  verdict: string;
-  advice: string;
-  highlights: string[];
-  issues: string[];
-}
+import type { RecommendationsResponse, SpeakerRecommendationsResponse, AmpRecommendationsResponse, PositionImportResponse, PairingResponse, BatchAnalysisResponse } from "@shared/routes";
 
 interface ResultsContextType {
   recommendationsResult: RecommendationsResponse | null;
@@ -21,8 +12,8 @@ interface ResultsContextType {
   setImportResult: (r: PositionImportResponse | null) => void;
   pairingResult: PairingResponse | null;
   setPairingResult: (r: PairingResponse | null) => void;
-  analyzerResults: AnalysisResult[] | null;
-  setAnalyzerResults: (r: AnalysisResult[] | null) => void;
+  batchAnalysisResult: BatchAnalysisResponse | null;
+  setBatchAnalysisResult: (r: BatchAnalysisResponse | null) => void;
   clearAllResults: () => void;
 }
 
@@ -34,7 +25,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
   const [importResult, setImportResult] = useState<PositionImportResponse | null>(null);
   const [pairingResult, setPairingResult] = useState<PairingResponse | null>(null);
-  const [analyzerResults, setAnalyzerResults] = useState<AnalysisResult[] | null>(null);
+  const [batchAnalysisResult, setBatchAnalysisResult] = useState<BatchAnalysisResponse | null>(null);
 
   const clearAllResults = () => {
     setRecommendationsResult(null);
@@ -42,7 +33,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     setAmpResult(null);
     setImportResult(null);
     setPairingResult(null);
-    setAnalyzerResults(null);
+    setBatchAnalysisResult(null);
   };
 
   return (
@@ -57,8 +48,8 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       setImportResult,
       pairingResult,
       setPairingResult,
-      analyzerResults,
-      setAnalyzerResults,
+      batchAnalysisResult,
+      setBatchAnalysisResult,
       clearAllResults,
     }}>
       {children}
