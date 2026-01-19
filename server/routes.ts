@@ -292,94 +292,11 @@ export async function registerRoutes(
     try {
       const input = api.analyses.create.input.parse(req.body);
       
-      // AI Analysis Logic - Purely technical, objective quality assessment
-      const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs). 
-      Analyze the provided technical metrics and user context to determine the TECHNICAL QUALITY of the IR.
-      Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
-      
-      Knowledge Base (Microphones):
-      - SM57: Classic dynamic, mid-forward, aggressive.
-      - R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
-      - M160: Hypercardioid ribbon, tighter, more focused.
-      - MD421 / Kompakt: Large diaphragm dynamic, punchy.
-      - M88: Warm, great low-end punch.
-      - PR30: Large diaphragm dynamic, very clear highs.
-      - e906: Supercardioid, presence boost or flat modes.
-      - M201: Very accurate dynamic.
-      - SM7B: Smooth, thick dynamic.
-      - Roswell Cab Mic: Specialized condenser designed for loud cabs. Manufacturer recommends starting at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is designed to be aimed at dead center with no harshness. Closer = more bass, farther = tighter low end.
-      
-      Knowledge Base (Speakers):
-      - G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
-      - V30: Aggressive upper-mids, modern rock. The standard unlabeled Vintage 30.
-      - V30 (Black Cat): Smoother, more refined than standard V30.
-      - G12K-100: Big low end, clear highs, neutral.
-      - G12T-75: Scooped mids, sizzly highs.
-      - G12-65: Warm, punchy, large sound.
-      - G12H30 Anniversary: Tight bass, bright highs, detailed.
-      - Celestion Cream: Alnico smoothness with high power.
-      - GA12-SC64: Vintage American, tight and punchy.
-      - G10-SC64: 10" version, more focused.
-      
-      Microphone Position Tonal Characteristics:
-      - Cap: Dead center of speaker dust cap. Brightest, most aggressive tone with maximum high-end detail.
-      - Cap Edge: Transition zone between cap and cone. Balanced tone, often the "sweet spot."
-      - Cap Edge (Favor Cap): On the cap edge but angled/focused more towards the cap. Brighter than standard cap-edge.
-      - Cap Edge (Favor Cone): On the cap edge but angled/focused more towards the cone. Darker and warmer than standard cap-edge.
-      - Cone: Focused directly on the paper cone area (not the cap). Darkest, warmest tone with the most body and least high-end.
-      - Cap Off Center: Still on the cap but not dead center - slightly off to one side. Retains brightness but with less harsh direct attack than dead center. NOT the same as off-axis.
-      
-      Technical Scoring Criteria (APPLY CONSISTENTLY - same as batch analysis):
-      - 90-100: Exceptional. Professional studio quality, no technical issues. Clean capture with good spectral content.
-      - 85-89: Very Good. High quality capture, minor improvements possible.
-      - 80-84: Good. Usable quality, some technical aspects could be improved.
-      - 70-79: Acceptable. Noticeable issues but still usable.
-      - Below 70: Needs work. Significant technical problems.
-      
-      IMPORTANT SCORING GUIDELINES:
-      - Evaluate based on audio quality metrics: spectral balance, peak level, absence of artifacts.
-      - Consider whether spectral centroid is reasonable for the mic/position/speaker combination.
-      - Mild tonal deviations from expected (e.g., slightly darker Cap) = minor point deduction, not major penalty.
-      - Extreme spectral imbalances (very dark for Cap, very bright for Cone) = moderate deduction.
-      - Only major penalties for actual technical problems: clipping, noise, phase issues, corrupted data.
-      
-      Criteria for "Perfect" IR (technical quality):
-      - Normalization: The system normalizes every IR to 0dB peak before analysis.
-      - Peak: Should be around 0dB (since it's normalized).
-      - Spectral balance: Reasonable frequency content for the mic/speaker/position combination.
-      - Clean capture: No clipping artifacts, phase issues, or excessive noise.
-      - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
-      
-      Advice Guidelines:
-      - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on spectral centroid and energy distribution, whether it's typical for the setup.
-      - Identify any technical issues (clipping, noise) - do NOT mention duration.
-      - If spectral content is unusual for the position, suggest a tonal modifier.
-      
-      TONAL MODIFIER SUGGESTION (optional):
-      If the spectral characteristics don't match what's typical for the position specified by the user, suggest adding a tonal modifier to help identify this IR's character. The user captured it at the position they specified, so DON'T change the position - just add a descriptor.
-      Only suggest when you're confident there's a noticeable mismatch:
-      - Cap position typically has HIGH spectral centroid (2500Hz+) and high-energy emphasis
-      - Cone position typically has LOW spectral centroid (under 1800Hz) and low-energy emphasis  
-      - Cap Edge is balanced between the two (1800-2500Hz range)
-      - If it sounds darker than expected, suggest "_Dark" or "_Warm"
-      - If it sounds brighter than expected, suggest "_Bright" or "_Crisp"
-      - Be conservative - only suggest when there's a noticeable tonal difference
-      
-      Output JSON format:
-      {
-        "score": number (0-100),
-        "is_perfect": boolean (true if score >= 85),
-        "advice": "string (2-3 sentences max, focus on technical quality)",
-        "rename_suggestion": {
-          "suggested_modifier": "tonal modifier like Dark, Bright, Warm, Crisp",
-          "reason": "Brief explanation of the tonal character"
-        } or null (only include if noticeable tonal mismatch detected)
-      }`;
-
-      // Detect e906 presence boost from filename
+      // Use the SAME scoring function as batch mode for consistency
       const filename = input.originalFilename || input.filename;
       const filenameLC = filename.toLowerCase();
+      
+      // Detect e906 presence boost from filename
       const hasPresenceBoost = filenameLC.includes('presence') || filenameLC.includes('boost') || filenameLC.includes('e906boost');
       const hasFlat = filenameLC.includes('flat') || filenameLC.includes('e906flat');
       
@@ -391,75 +308,37 @@ export async function registerRoutes(
         } else if (hasFlat) {
           micVariant = 'e906 (Flat)';
         } else {
-          micVariant = input.micType; // User-specified variant
+          micVariant = input.micType;
         }
       }
       
-      const userMessage = `
-        Filename: "${filename}"
-        Mic Type: ${micVariant}
-        Position: ${input.micPosition}
-        Speaker: ${input.speakerModel}
-        Distance: ${input.distance}
-        
-        Metrics:
-        - Duration: ${input.durationSamples} samples
-        - Peak Amplitude: ${input.peakAmplitudeDb}dB
-        - Spectral Centroid: ${input.spectralCentroid}Hz
-        - Low Energy (20-250Hz): ${(input.lowEnergy * 100).toFixed(1)}%
-        - Mid Energy (250-4000Hz): ${(input.midEnergy * 100).toFixed(1)}%
-        - High Energy (4000-20000Hz): ${(input.highEnergy * 100).toFixed(1)}%
-        
-        Please analyze the technical quality of this IR capture.
-      `;
-
-      // Check cache first for consistent results
-      const cacheKey = generateSingleCacheKey(input);
-      type AiResultType = {
-        score?: number;
-        is_perfect?: boolean;
-        advice?: string;
-        rename_suggestion?: { suggested_modifier: string; reason: string } | null;
-      };
-      
-      let aiResult: AiResultType;
-      const cachedEntry = singleAnalysisCache.get(cacheKey);
-      
-      if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
-        console.log(`[Single Analysis] Cache HIT`);
-        aiResult = cachedEntry.data as AiResultType;
-      } else {
-        console.log(`[Single Analysis] Cache MISS, calling AI...`);
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage }
-          ],
-          response_format: { type: "json_object" },
-          temperature: 0,
-          seed: 42,
-        });
-
-        aiResult = JSON.parse(response.choices[0].message.content || "{}");
-        singleAnalysisCache.set(cacheKey, { data: aiResult, timestamp: Date.now() });
-        console.log(`[Single Analysis] Cached result (cache size: ${singleAnalysisCache.size})`);
-      }
+      // Call the shared scoring function (same as batch mode)
+      // This guarantees identical scores for identical files
+      console.log(`[Single Analysis] Using shared scorer for ${filename}`);
+      const scored = await scoreSingleIR({
+        filename: filename,
+        duration: input.durationSamples / 44100 * 1000, // Convert samples to ms (assuming 44.1kHz)
+        peakLevel: input.peakAmplitudeDb,
+        spectralCentroid: input.spectralCentroid,
+        lowEnergy: input.lowEnergy,
+        midEnergy: input.midEnergy,
+        highEnergy: input.highEnergy,
+      });
       
       const saved = await storage.createAnalysis({
         ...input,
-        advice: aiResult.advice || "Could not generate advice.",
-        qualityScore: aiResult.score || 0,
-        isPerfect: aiResult.is_perfect || false
+        advice: scored.advice,
+        qualityScore: scored.score,
+        isPerfect: scored.isPerfect
       });
 
-      // Include tonal modifier suggestion and detected mic variant in response (not stored in DB)
+      // Include tonal modifier suggestion and detected mic variant in response
       const responseWithExtras = {
         ...saved,
-        micLabel: micVariant, // Return the detected mic variant (e.g., "e906 (Presence Boost)")
-        renameSuggestion: aiResult.rename_suggestion ? {
-          suggestedModifier: aiResult.rename_suggestion.suggested_modifier,
-          reason: aiResult.rename_suggestion.reason
+        micLabel: micVariant,
+        renameSuggestion: scored.renameSuggestion ? {
+          suggestedModifier: scored.renameSuggestion.suggestedModifier,
+          reason: scored.renameSuggestion.reason
         } : null
       };
 
