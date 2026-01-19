@@ -1112,21 +1112,31 @@ COVERAGE CHECKLIST - Evaluate each category:
    - Condenser (C414, Roswell) - optional but nice for detail
 
 ESSENTIAL MIC CHARACTERS (distinct tools, not duplicates):
+DYNAMICS:
 - SM57: Aggressive mid-forward attack, the standard
 - MD421/MD421 Kompakt: Punchy, full-bodied, tighter low-end - ESSENTIAL complement to SM57
 - e906: Scooped mids, fizzy presence, different EQ curve than SM57
-- R-121/R10: Smooth ribbon darkness, the classic blend partner
+- PR30: Extremely bright, almost harsh - for cutting through dense mixes
+- SM7B: Warm, thick, smooth dynamic - great for leads
+- M88/M201: Alternative dynamic characters
+
+RIBBONS:
+- R-121/R10: Smooth ribbon darkness, the classic blend partner for SM57
 - M160: Tighter, more focused ribbon character
-- PR30: Extremely bright, almost harsh - for cutting through
-- SM7B: Warm, thick, smooth dynamic
-- C414: Detailed condenser, captures nuance
+- R92: Similar to R-121 but different proximity effect
+
+CONDENSERS (for true cab picture):
+- Roswell Cab Mic: Global/overall cab representation, captures the full speaker character
+- C414: Detailed clarity, true picture of the cab with extended high frequency response
+- Condensers reveal nuances that dynamics/ribbons color over - valuable for reference and blending
 
 COMPLETENESS EVALUATION:
 A truly comprehensive set for ANY close-miked tone needs:
 1. At least TWO distinct dynamic characters (e.g., SM57 AND MD421 - they serve different purposes)
 2. At least ONE ribbon for smooth/dark blending
-3. Coverage of Cap, Cap Edge, and Cone positions (or equivalents)
-4. Reasonable distance variety (0-2" for aggressive, 2-4" for balanced)
+3. At least ONE condenser (Roswell or C414) for true cab picture and reference - reveals what dynamics/ribbons color
+4. Coverage of Cap, Cap Edge, and Cone positions (or equivalents)
+5. Reasonable distance variety (0-2" for aggressive, 2-4" for balanced)
 
 WHEN TO SUGGEST:
 - Suggest when a DISTINCT mic character is missing (MD421 adds something SM57 cannot)
@@ -1135,9 +1145,10 @@ WHEN TO SUGGEST:
 
 WHEN TO STOP (anti-creep):
 - Do NOT suggest a second ribbon if one ribbon already covers dark/smooth
+- Do NOT suggest a second condenser if one already provides the reference/clarity role
 - Do NOT suggest slight position variants (Cap vs Cap-OffCenter) if the category is covered
 - Do NOT suggest distance variants if the range is reasonably covered
-- Once you have: 2+ distinct dynamics, 1+ ribbon, 3 position types → evaluate carefully before suggesting more
+- Once you have: 2+ distinct dynamics, 1+ ribbon, 1+ condenser, 3 position types → the set is comprehensive
 
 Mics in this batch: ${micsInBatch.join(', ') || 'none detected'}
 Positions in this batch: ${positionsInBatch.join(', ') || 'none detected'}
