@@ -19,13 +19,13 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
 };
 
 export const POSITION_OFFSETS: Record<string, { offset: number; description: string }> = {
-  'cap': { offset: 400, description: 'Dead center dust cap, brightest position' },
-  'cap_offcenter': { offset: 250, description: 'Still on cap but off-center, slightly less bright' },
-  'capedge': { offset: 0, description: 'Transition zone, balanced (baseline)' },
-  'capedge_favorcap': { offset: 150, description: 'Cap edge angled toward cap, brighter' },
-  'capedge_favorcone': { offset: -150, description: 'Cap edge angled toward cone, warmer' },
-  'cone': { offset: -500, description: 'Paper cone area, darkest and warmest' },
-  'between_cap_cone': { offset: -250, description: 'Between cap and cone, moderately warm' },
+  'cap': { offset: 400, description: 'Dead center of the dust cap, brightest position' },
+  'cap_offcenter': { offset: 250, description: 'Small lateral offset from Cap, still fully on the dust cap' },
+  'capedge': { offset: 0, description: 'Seam line where the dust cap meets the cone (baseline)' },
+  'capedge_br': { offset: 150, description: 'CapEdge favoring the cap side of the seam, brighter' },
+  'capedge_dk': { offset: -150, description: 'CapEdge favoring the cone side of the seam, darker' },
+  'capedge_cone_tr': { offset: -250, description: 'Smooth cone immediately past the cap edge, transition zone' },
+  'cone': { offset: -500, description: 'True mid-cone position, ribs allowed, not near surround' },
 };
 
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -69,13 +69,19 @@ function normalizeMicName(mic: string): string {
 function normalizePosition(position: string): string {
   const lower = position.toLowerCase().replace(/[^a-z_]/g, '');
   
-  if (lower.includes('capedge') && lower.includes('favorcap')) return 'capedge_favorcap';
-  if (lower.includes('capedge') && lower.includes('favorcone')) return 'capedge_favorcone';
+  // New naming convention
+  if (lower.includes('capedge_br') || lower.includes('capedgebr')) return 'capedge_br';
+  if (lower.includes('capedge_dk') || lower.includes('capedgedk')) return 'capedge_dk';
+  if (lower.includes('capedge_cone_tr') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) return 'capedge_cone_tr';
+  // Legacy mappings for backwards compatibility
+  if (lower.includes('capedge') && lower.includes('favorcap')) return 'capedge_br';
+  if (lower.includes('capedge') && lower.includes('favorcone')) return 'capedge_dk';
+  if (lower.includes('between')) return 'capedge_cone_tr';
+  // Standard positions
   if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
   if (lower.includes('offcenter') || lower.includes('off_center')) return 'cap_offcenter';
   if (lower === 'cap') return 'cap';
   if (lower === 'cone') return 'cone';
-  if (lower.includes('between')) return 'between_cap_cone';
   
   return 'capedge';
 }

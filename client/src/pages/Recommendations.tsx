@@ -190,26 +190,34 @@ export default function Recommendations() {
       return { baseMic: baseMic.replace(/\s+/g, ''), suffix };
     };
     
-    // Helper to format position as CamelCase with underscore for sub-positions
+    // Helper to format position - maps to new naming convention
     const formatPosition = (pos: string) => {
-      // Handle positions like "cap-edge-favor-cap" -> "CapEdge_FavorCap"
-      const parts = pos.toLowerCase().split('-');
+      const posLower = pos.toLowerCase().replace(/-/g, '_');
       
-      if (parts.length <= 2) {
-        // Simple positions: "cap", "cone", "cap-edge" -> "Cap", "Cone", "CapEdge"
-        return parts.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
-      } else {
-        // Complex positions with "favor" or "off": "cap-edge-favor-cap" -> "CapEdge_FavorCap"
-        // Find where to split (at "favor" or "off")
-        const splitIndex = parts.findIndex(p => p === 'favor' || p === 'off');
-        if (splitIndex > 0) {
-          const firstPart = parts.slice(0, splitIndex).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-          const secondPart = parts.slice(splitIndex).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-          return `${firstPart}_${secondPart}`;
-        }
-        // Fallback: just CamelCase everything
-        return parts.map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
-      }
+      // New position mappings
+      const positionMap: Record<string, string> = {
+        'cap': 'Cap',
+        'cap_offcenter': 'Cap_OffCenter',
+        'capoffcenter': 'Cap_OffCenter',
+        'capedge': 'CapEdge',
+        'cap_edge': 'CapEdge',
+        'capedge_br': 'CapEdge_BR',
+        'capedgebr': 'CapEdge_BR',
+        'capedge_dk': 'CapEdge_DK',
+        'capedgedk': 'CapEdge_DK',
+        'capedge_cone_tr': 'CapEdge_Cone_Tr',
+        'capedgeconetr': 'CapEdge_Cone_Tr',
+        'cone': 'Cone',
+        // Legacy mappings
+        'cap_edge_favor_cap': 'CapEdge_BR',
+        'capedge_favorcap': 'CapEdge_BR',
+        'cap_edge_favor_cone': 'CapEdge_DK',
+        'capedge_favorcone': 'CapEdge_DK',
+        'cap_off_center': 'Cap_OffCenter',
+        'between_cap_cone': 'CapEdge_Cone_Tr',
+      };
+      
+      return positionMap[posLower] || pos;
     };
 
     if (mode === 'by-speaker' && result) {
@@ -437,11 +445,17 @@ export default function Recommendations() {
   
   const POSITION_LABELS: Record<string, string> = {
     "cap": "Cap",
-    "cap-edge": "Cap Edge",
-    "cap-edge-favor-cap": "Cap Edge (Favor Cap)",
-    "cap-edge-favor-cone": "Cap Edge (Favor Cone)",
+    "cap_offcenter": "Cap_OffCenter",
+    "capedge": "CapEdge",
+    "capedge_br": "CapEdge_BR",
+    "capedge_dk": "CapEdge_DK",
+    "capedge_cone_tr": "CapEdge_Cone_Tr",
     "cone": "Cone",
-    "cap-off-center": "Cap Off Center",
+    // Legacy mappings
+    "cap-edge": "CapEdge",
+    "cap-edge-favor-cap": "CapEdge_BR",
+    "cap-edge-favor-cone": "CapEdge_DK",
+    "cap-off-center": "Cap_OffCenter",
   };
 
   const handleModeChange = (newMode: Mode) => {

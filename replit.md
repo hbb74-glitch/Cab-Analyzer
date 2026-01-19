@@ -80,7 +80,7 @@ shared/           # Shared between client/server
 ### Microphone & Speaker Knowledge Base
 - **17 microphones**: SM57, R-121, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence Boost/Flat), R10, M88, PR30, e906 (Presence Boost/Flat), M201, SM7B, AKG C414, Roswell Cab Mic
 - **10 speakers**: V30, V30 (Black Cat), Greenback, G12T-75, G12-65, G12H30 Anniversary, Celestion Cream, GA12-SC64, G10-SC64
-- **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
+- **7 mic positions**: Cap, Cap_OffCenter, CapEdge, CapEdge_BR, CapEdge_DK, CapEdge_Cone_Tr, Cone
 - **Distances**: 0" to 6" in 0.5" increments
 
 ### Spectral Centroid Knowledge Base (`shared/knowledge/spectral-centroid.ts`)
@@ -98,12 +98,13 @@ Deterministic expected spectral centroid ranges for consistent scoring:
 - Roswell: 2400-3400 (specialized cab mic)
 
 **Position Offsets (Hz):**
-- Cap: +400 (brightest)
-- CapEdge: 0 (baseline)
-- CapEdge_FavorCap: +150
-- CapEdge_FavorCone: -150
-- Cap_OffCenter: +250
-- Cone: -500 (darkest)
+- Cap: +400 (dead center of dust cap, brightest)
+- Cap_OffCenter: +250 (small lateral offset from Cap, still on dust cap)
+- CapEdge: 0 (seam line where dust cap meets cone, baseline)
+- CapEdge_BR: +150 (CapEdge favoring cap side, brighter)
+- CapEdge_DK: -150 (CapEdge favoring cone side, darker)
+- CapEdge_Cone_Tr: -250 (smooth cone immediately past cap edge, transition zone)
+- Cone: -500 (true mid-cone position, ribs allowed, darkest)
 
 **Speaker Offsets (Hz):**
 - V30: +200 (aggressive mids)
@@ -132,12 +133,22 @@ Format: `Speaker_Mic_Position_distance_variant`
 
 **Position Format:**
 - Simple: `Cap`, `Cone`, `CapEdge`
-- Complex with underscore: `CapEdge_FavorCap`, `CapEdge_FavorCone`, `Cap_OffCenter`
+- Complex with underscore: `Cap_OffCenter`, `CapEdge_BR`, `CapEdge_DK`, `CapEdge_Cone_Tr`
+
+**Position Definitions:**
+- Cap: Dead center of the dust cap
+- Cap_OffCenter: Small lateral offset from Cap, still fully on the dust cap
+- CapEdge: Seam line where the dust cap meets the cone
+- CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
+- CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
+- CapEdge_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
+- Cone: True mid-cone position, further out from the cap edge, ribs allowed
 
 **Examples:**
-- `V30_SM57_CapEdge_FavorCap_2in`
+- `V30_SM57_CapEdge_BR_2in`
 - `Cream_e906_Cap_1in_Presence`
 - `G12M_R121_Cone_1.5in`
+- `V30_MD421_CapEdge_Cone_Tr_1.5in`
 
 ### Genre-Specific Studio Techniques (Recommendations only)
 The Recommendations AI is trained on classic recording techniques for each genre:

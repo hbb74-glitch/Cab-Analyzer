@@ -28,11 +28,17 @@ interface ResultCardProps {
 
 const POSITION_LABELS: Record<string, string> = {
   "cap": "Cap",
-  "cap-edge": "Cap Edge",
-  "cap-edge-favor-cap": "Cap Edge (Favor Cap)",
-  "cap-edge-favor-cone": "Cap Edge (Favor Cone)",
+  "cap_offcenter": "Cap_OffCenter",
+  "capedge": "CapEdge",
+  "capedge_br": "CapEdge_BR",
+  "capedge_dk": "CapEdge_DK",
+  "capedge_cone_tr": "CapEdge_Cone_Tr",
   "cone": "Cone",
-  "cap-off-center": "Cap Off Center",
+  // Legacy mappings for backwards compatibility
+  "cap-edge": "CapEdge",
+  "cap-edge-favor-cap": "CapEdge_BR",
+  "cap-edge-favor-cone": "CapEdge_DK",
+  "cap-off-center": "Cap_OffCenter",
 };
 
 export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion }: ResultCardProps) {

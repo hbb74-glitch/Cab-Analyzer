@@ -17,7 +17,7 @@ import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/rout
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.string().min(1, "Microphone is required"),
-  micPosition: z.enum(["cap", "cap-edge", "cap-edge-favor-cap", "cap-edge-favor-cone", "cone", "cap-off-center"]),
+  micPosition: z.enum(["cap", "cap_offcenter", "capedge", "capedge_br", "capedge_dk", "capedge_cone_tr", "cone"]),
   speakerModel: z.string().min(1, "Speaker model is required"),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
 });
@@ -48,12 +48,20 @@ const MIC_PATTERNS: Record<string, string> = {
 };
 
 const POSITION_PATTERNS: Record<string, string> = {
-  "cap-edge-favor-cap": "cap-edge-favor-cap", "capedgefavorcap": "cap-edge-favor-cap",
-  "cap-edge-favor-cone": "cap-edge-favor-cone", "capedgefavorcone": "cap-edge-favor-cone",
-  "cap-edge": "cap-edge", "capedge": "cap-edge", "edge": "cap-edge",
-  "cap-off-center": "cap-off-center", "capoffcenter": "cap-off-center", "offcenter": "cap-off-center",
+  // New naming convention
+  "capedge_br": "capedge_br", "capedgebr": "capedge_br",
+  "capedge_dk": "capedge_dk", "capedgedk": "capedge_dk",
+  "capedge_cone_tr": "capedge_cone_tr", "capedgeconetr": "capedge_cone_tr", "cone_tr": "capedge_cone_tr",
+  "cap_offcenter": "cap_offcenter", "capoffcenter": "cap_offcenter", "offcenter": "cap_offcenter",
+  "capedge": "capedge", "cap_edge": "capedge", "edge": "capedge",
   "cap": "cap", "center": "cap",
   "cone": "cone",
+  // Legacy mappings for backwards compatibility
+  "cap-edge-favor-cap": "capedge_br", "favorcap": "capedge_br",
+  "cap-edge-favor-cone": "capedge_dk", "favorcone": "capedge_dk",
+  "between-cap-cone": "capedge_cone_tr", "between": "capedge_cone_tr",
+  "cap-edge": "capedge",
+  "cap-off-center": "cap_offcenter",
 };
 
 const SPEAKER_PATTERNS: Record<string, string> = {
@@ -834,11 +842,12 @@ export default function Analyzer() {
                       className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                     >
                       <option value="cap">Cap</option>
-                      <option value="cap-edge">Cap Edge</option>
-                      <option value="cap-edge-favor-cap">Cap Edge (Favor Cap)</option>
-                      <option value="cap-edge-favor-cone">Cap Edge (Favor Cone)</option>
+                      <option value="cap_offcenter">Cap_OffCenter</option>
+                      <option value="capedge">CapEdge</option>
+                      <option value="capedge_br">CapEdge_BR (Brighter)</option>
+                      <option value="capedge_dk">CapEdge_DK (Darker)</option>
+                      <option value="capedge_cone_tr">CapEdge_Cone_Tr (Transition)</option>
                       <option value="cone">Cone</option>
-                      <option value="cap-off-center">Cap Off Center</option>
                     </select>
                   </div>
                 </div>

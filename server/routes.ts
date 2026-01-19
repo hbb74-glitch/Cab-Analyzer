@@ -154,14 +154,21 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   else if (lower.includes('c414') || lower.includes('_414_')) mic = 'c414';
   else if (lower.includes('roswell')) mic = 'roswell';
   
-  // Parse position
+  // Parse position - new naming convention
   let position = 'capedge'; // default
-  if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap')) position = 'capedge_favorcap';
-  else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone')) position = 'capedge_favorcone';
+  // New names first
+  if (lower.includes('capedge_br') || lower.includes('capedgebr')) position = 'capedge_br';
+  else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) position = 'capedge_dk';
+  else if (lower.includes('capedge_cone_tr') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) position = 'capedge_cone_tr';
+  // Legacy mappings
+  else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) position = 'capedge_br';
+  else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) position = 'capedge_dk';
+  else if (lower.includes('between')) position = 'capedge_cone_tr';
+  // Standard positions
   else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
   else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
   else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) position = 'cap';
-  else if (lower.includes('_cone_') || lower.includes('cone_')) position = 'cone';
+  else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) position = 'cone';
   
   // Parse speaker
   let speaker = 'v30'; // default
@@ -448,12 +455,13 @@ export async function registerRoutes(
       - 4.5-6": Minimal proximity, roomier sound, more natural but less direct
       
       Available Positions:
-      - cap: Dead center of speaker dust cap, brightest, most high-end detail
-      - cap-edge: Transition zone between cap and cone, balanced tone, often the "sweet spot"
-      - cap-edge-favor-cap: On cap edge but focused more towards the cap, brighter than standard cap-edge
-      - cap-edge-favor-cone: On cap edge but focused more towards the cone, darker/warmer than standard cap-edge
-      - cone: Focused directly on the paper cone (not the cap), darkest/warmest tone with most body
-      - cap-off-center: Still on the cap but not dead center - retains brightness with less harsh direct attack (NOT off-axis)${genre ? `
+      - Cap: Dead center of the dust cap, brightest, most high-end detail
+      - Cap_OffCenter: Small lateral offset from Cap, still fully on the dust cap, less harsh attack
+      - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
+      - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
+      - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
+      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest${genre ? `
       
       Genre Context (${genre}):
       Use this to refine recommendations. Consider what distances and positions work best for achieving the signature sound of this genre.` : ''}
@@ -479,7 +487,7 @@ export async function registerRoutes(
         ],
         "bestPositions": [
           {
-            "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
             "reason": "Brief reason why this position works well for this mic+speaker combo"
           }
         ]
@@ -561,12 +569,13 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6", centered on cap. Unlike typical dynamics, designed for dead center with no harshness.
       
       Available Positions:
-      - cap: Dead center of dust cap, brightest, most high-end detail
-      - cap-edge: Transition zone, balanced tone, often the "sweet spot"
-      - cap-edge-favor-cap: On cap edge focused towards cap, brighter
-      - cap-edge-favor-cone: On cap edge focused towards cone, darker/warmer
-      - cone: Focused on paper cone, darkest/warmest with most body
-      - cap-off-center: On cap but not dead center, retains brightness with less harsh attack
+      - Cap: Dead center of the dust cap, brightest, most high-end detail
+      - Cap_OffCenter: Small lateral offset from Cap, still fully on the dust cap, less harsh attack
+      - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
+      - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter
+      - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
+      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
       
@@ -585,7 +594,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
           {
             "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
             "micLabel": "Display name exactly as listed above (e.g. 'SM57', 'R121', 'e906 (Presence Boost)', 'MD441 (Flat)', 'Roswell Cab Mic')",
-            "position": "cap|cap-edge|cap-edge-favor-cap|cap-edge-favor-cone|cone|cap-off-center",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this specific combination works with this speaker - reference IR production experience",
             "expectedTone": "Description of the expected tonal result",
@@ -916,16 +925,27 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       
       Position Format:
       - Simple: Cap, Cone, CapEdge
-      - Complex: CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
+      - Complex: Cap_OffCenter, CapEdge_BR, CapEdge_DK, CapEdge_Cone_Tr
       
-      Position Translation (users may use alternate names):
-      - "CapEdge_Outer" or "cap edge outer" → CapEdge_FavorCone
-      - "CapEdge_Inner" or "cap edge inner" → CapEdge_FavorCap
+      Position Definitions:
+      - Cap: Dead center of the dust cap
+      - Cap_OffCenter: Small lateral offset from Cap, still fully on the dust cap
+      - CapEdge: Seam line where the dust cap meets the cone
+      - CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
+      - CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
+      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
+      - Cone: True mid-cone position, further out from the cap edge, ribs allowed
+      
+      Legacy Position Translation (users may use old names):
+      - "CapEdge_FavorCap" or "cap edge favor cap" → CapEdge_BR
+      - "CapEdge_FavorCone" or "cap edge favor cone" → CapEdge_DK
+      - "CapEdge_Outer" or "between cap cone" → CapEdge_Cone_Tr
       
       Examples:
       - V30_SM57_CapEdge_2in
       - Cream_e906_Cap_1in_Presence
       - G12M_R121_Cone_1.5in
+      - V30_MD421_CapEdge_BR_1.5in
       
       Available Microphones:
       - SM57: Classic dynamic, mid-forward
@@ -945,12 +965,13 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       - Roswell Cab Mic: Specialized condenser for loud cabs
       
       Available Positions:
-      - Cap: Dead center, brightest
-      - CapEdge: Transition zone, balanced
-      - CapEdge_FavorCap: Towards cap, brighter
-      - CapEdge_FavorCone: Towards cone, warmer
-      - Cone: Darkest, most body
-      - Cap_OffCenter: On cap but not center
+      - Cap: Dead center of the dust cap, brightest
+      - Cap_OffCenter: Small lateral offset from Cap, still on dust cap
+      - CapEdge: Seam line where dust cap meets cone, balanced
+      - CapEdge_BR: CapEdge favoring cap side, brighter
+      - CapEdge_DK: CapEdge favoring cone side, darker/warmer
+      - CapEdge_Cone_Tr: Smooth cone past cap edge, transition zone
+      - Cone: True mid-cone, darkest, most body
       
       Distances: 0" to 6" in 0.5" increments
       
@@ -1105,7 +1126,7 @@ SM57, R-121, R10, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence/Flat), M8
 COVERAGE CHECKLIST - Evaluate each category:
 1. BRIGHT/AGGRESSIVE: Cap positions, SM57, PR30, e906, C414 at close distance
 2. WARM/DARK: Cone positions, ribbons (R-121, R10, R92, M160), SM7B
-3. BALANCED/NEUTRAL: Cap Edge positions, MD421, M201, moderate distances
+3. BALANCED/NEUTRAL: CapEdge positions, MD421, M201, moderate distances
 4. MIC FAMILY DIVERSITY: At least one from each family present?
    - Dynamic (SM57, MD421, e906, PR30, M88, M201, SM7B)
    - Ribbon (R-121, R10, R92, M160)
@@ -1137,7 +1158,7 @@ A truly comprehensive set for ANY close-miked tone needs:
 1. At least TWO distinct dynamic characters (e.g., SM57 AND MD421 - they serve different purposes)
 2. At least ONE ribbon for smooth/dark blending
 3. At least ONE condenser (Roswell or C414) for true cab picture and reference - reveals what dynamics/ribbons color
-4. Coverage of Cap, Cap Edge, and Cone positions (or equivalents)
+4. Coverage of Cap, CapEdge, and Cone positions (or equivalents)
 5. Reasonable distance variety (0-2" for aggressive, 2-4" for balanced)
 
 CLASSIC BLEND PAIRS (for mixing two IRs):
