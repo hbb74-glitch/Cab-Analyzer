@@ -622,14 +622,24 @@ export default function Analyzer() {
                         Average Score: <span className="text-primary font-bold">{batchResult.averageScore}/100</span>
                       </p>
                     </div>
-                    <button
-                      onClick={copyBatchResults}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                      data-testid="button-copy-batch-results"
-                    >
-                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                      {copied ? "Copied!" : "Copy All"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={copyBatchResults}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                        data-testid="button-copy-batch-results"
+                      >
+                        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                        {copied ? "Copied!" : "Copy All"}
+                      </button>
+                      <button
+                        onClick={() => setBatchResult(null)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
+                        data-testid="button-clear-batch-results"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Clear
+                      </button>
+                    </div>
                   </div>
 
                   <p className="text-muted-foreground">{batchResult.summary}</p>
@@ -968,18 +978,35 @@ export default function Analyzer() {
             {/* Results Area */}
             <AnimatePresence>
               {result && metrics && (
-                <ResultCard
-                  score={result.qualityScore}
-                  isPerfect={result.isPerfect ?? false}
-                  advice={result.advice}
-                  metrics={{
-                    peak: metrics.peakAmplitudeDb,
-                    duration: metrics.durationMs,
-                    centroid: metrics.spectralCentroid
-                  }}
-                  micLabel={result.micLabel}
-                  renameSuggestion={result.renameSuggestion}
-                />
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-2"
+                >
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setResult(null)}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
+                      data-testid="button-clear-single-result"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Clear Result
+                    </button>
+                  </div>
+                  <ResultCard
+                    score={result.qualityScore}
+                    isPerfect={result.isPerfect ?? false}
+                    advice={result.advice}
+                    metrics={{
+                      peak: metrics.peakAmplitudeDb,
+                      duration: metrics.durationMs,
+                      centroid: metrics.spectralCentroid
+                    }}
+                    micLabel={result.micLabel}
+                    renameSuggestion={result.renameSuggestion}
+                  />
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

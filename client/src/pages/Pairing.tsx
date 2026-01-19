@@ -551,14 +551,24 @@ export default function Pairing() {
                     <Zap className="w-6 h-6 text-primary" />
                     {isMixedMode ? "Best Cross-Speaker Pairings" : "Best Pairings"}
                   </h2>
-                  <button
-                    onClick={copyPairings}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                    data-testid="button-copy-pairings"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? "Copied!" : "Copy All"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copyPairings}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-pairings"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                    <button
+                      onClick={() => setResult(null)}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
+                      data-testid="button-clear-pairings"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Clear
+                    </button>
+                  </div>
                 </div>
                 <p className="text-muted-foreground mb-6">{result.summary}</p>
 
