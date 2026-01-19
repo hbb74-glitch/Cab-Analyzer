@@ -1111,17 +1111,33 @@ COVERAGE CHECKLIST - Evaluate each category:
    - Ribbon (R-121, R10, R92, M160)
    - Condenser (C414, Roswell) - optional but nice for detail
 
-COMPLETENESS RULES:
-- A set is COMPLETE when categories 1-3 are covered with reasonable diversity
-- Once complete, return isComplete: true and EMPTY gapsSuggestions
-- Do NOT suggest variations or "nice to haves" - only genuine gaps
-- Each suggestion must pass the ESSENTIALITY TEST: "Would the user be unable to create a common mixing pair without this?"
+ESSENTIAL MIC CHARACTERS (distinct tools, not duplicates):
+- SM57: Aggressive mid-forward attack, the standard
+- MD421/MD421 Kompakt: Punchy, full-bodied, tighter low-end - ESSENTIAL complement to SM57
+- e906: Scooped mids, fizzy presence, different EQ curve than SM57
+- R-121/R10: Smooth ribbon darkness, the classic blend partner
+- M160: Tighter, more focused ribbon character
+- PR30: Extremely bright, almost harsh - for cutting through
+- SM7B: Warm, thick, smooth dynamic
+- C414: Detailed condenser, captures nuance
 
-ANTI-CREEP RULES:
-- If bright, warm, and balanced are all represented, the set IS complete
-- Having multiple mics per category is NOT required - one good option per category is sufficient
-- Do not suggest "another ribbon for variety" if a ribbon already exists
-- Do not suggest position variants if that position family is already covered
+COMPLETENESS EVALUATION:
+A truly comprehensive set for ANY close-miked tone needs:
+1. At least TWO distinct dynamic characters (e.g., SM57 AND MD421 - they serve different purposes)
+2. At least ONE ribbon for smooth/dark blending
+3. Coverage of Cap, Cap Edge, and Cone positions (or equivalents)
+4. Reasonable distance variety (0-2" for aggressive, 2-4" for balanced)
+
+WHEN TO SUGGEST:
+- Suggest when a DISTINCT mic character is missing (MD421 adds something SM57 cannot)
+- Suggest when a tonal category has zero coverage
+- Suggest when position variety is lacking for mixing options
+
+WHEN TO STOP (anti-creep):
+- Do NOT suggest a second ribbon if one ribbon already covers dark/smooth
+- Do NOT suggest slight position variants (Cap vs Cap-OffCenter) if the category is covered
+- Do NOT suggest distance variants if the range is reasonably covered
+- Once you have: 2+ distinct dynamics, 1+ ribbon, 3 position types → evaluate carefully before suggesting more
 
 Mics in this batch: ${micsInBatch.join(', ') || 'none detected'}
 Positions in this batch: ${positionsInBatch.join(', ') || 'none detected'}
