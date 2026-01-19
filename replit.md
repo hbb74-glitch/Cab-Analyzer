@@ -59,6 +59,8 @@ shared/           # Shared between client/server
 3. **AI-assisted quality scoring**: Provides actionable, context-aware feedback rather than just raw metrics
 4. **Recommendations feature**: AI generates optimal mic/position/distance combinations based on speaker AND genre
 5. **Separation of concerns**: IR analysis is purely technical/objective; genre-specific advice is in Recommendations only
+6. **Deterministic spectral centroid scoring**: Uses knowledge base with expected ranges per mic/position/speaker, not AI guessing
+7. **Shared scoring function**: Both single and batch modes use `scoreSingleIR()` for identical results
 
 ### Feature Separation
 - **IR Analysis (Analyzer page)**: Has two modes accessible via toggle:
@@ -80,6 +82,43 @@ shared/           # Shared between client/server
 - **10 speakers**: V30, V30 (Black Cat), Greenback, G12T-75, G12-65, G12H30 Anniversary, Celestion Cream, GA12-SC64, G10-SC64
 - **6 mic positions**: cap, cap-edge, cap-edge-outer, cone, cap-off-center, between-cap-cone
 - **Distances**: 0" to 6" in 0.5" increments
+
+### Spectral Centroid Knowledge Base (`shared/knowledge/spectral-centroid.ts`)
+Deterministic expected spectral centroid ranges for consistent scoring:
+
+**Mic Base Ranges (Hz):**
+- SM57: 2200-3000 (mid-forward)
+- R121/R10/R92: 1400-2200 (ribbon smooth)
+- M160: 1800-2600 (tighter ribbon)
+- MD421/Kompakt: 2000-2900 (punchy dynamic)
+- PR30: 2800-3800 (very bright)
+- e906: 2300-3200 (flat), 2600-3600 (presence boost)
+- SM7B: 1700-2400 (smooth/thick)
+- C414: 2600-3600 (detailed condenser)
+- Roswell: 2400-3400 (specialized cab mic)
+
+**Position Offsets (Hz):**
+- Cap: +400 (brightest)
+- CapEdge: 0 (baseline)
+- CapEdge_FavorCap: +150
+- CapEdge_FavorCone: -150
+- Cap_OffCenter: +250
+- Cone: -500 (darkest)
+
+**Speaker Offsets (Hz):**
+- V30: +200 (aggressive mids)
+- V30BC: +100 (smoother)
+- Greenback/G12M: -150 (woody)
+- Cream: -100 (alnico smooth)
+- G12H Anniversary: +150 (bright)
+- G12T-75: +100 (sizzly highs)
+
+**Scoring Adjustments:**
+- Within range: 0 points
+- <25% deviation: -1 point
+- 25-50% deviation: -2 points
+- 50-100% deviation: -3-4 points
+- >100% deviation: -5-6 points
 
 ### IR Shorthand Naming Convention
 Format: `Speaker_Mic_Position_distance_variant`

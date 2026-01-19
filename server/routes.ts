@@ -7,6 +7,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
+import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment } from "@shared/knowledge/spectral-centroid";
 
 // Initialize OpenAI client
 const openai = new OpenAI({ 
@@ -105,19 +106,19 @@ function generateSingleCacheKey(input: {
   return hash.digest('hex');
 }
 
-// Generate cache key for batch IR (uses filename and metrics only)
-function generateBatchIRCacheKey(ir: {
+// Generate cache key for IR scoring (excludes duration since it doesn't affect scoring)
+function generateIRCacheKey(ir: {
   filename: string;
-  duration: number;
   peakLevel: number;
   spectralCentroid: number;
   lowEnergy: number;
   midEnergy: number;
   highEnergy: number;
 }): string {
+  // Duration explicitly excluded - it's NOT a scoring factor
+  // This ensures identical files get the same cache key regardless of mode
   const normalized = {
     filename: ir.filename.toLowerCase(),
-    duration: Math.round(ir.duration * 10) / 10,
     peakLevel: Math.round(ir.peakLevel * 10) / 10,
     spectralCentroid: Math.round(ir.spectralCentroid),
     lowEnergy: Math.round(ir.lowEnergy * 1000) / 1000,
@@ -127,6 +128,55 @@ function generateBatchIRCacheKey(ir: {
   const hash = createHash('sha256');
   hash.update(JSON.stringify(normalized));
   return hash.digest('hex');
+}
+
+// Parse mic/position/speaker from filename for spectral centroid expectations
+function parseFilenameForExpectations(filename: string): { mic: string; position: string; speaker: string } {
+  const lower = filename.toLowerCase();
+  
+  // Parse mic
+  let mic = 'sm57'; // default
+  if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) mic = 'e906_presence';
+  else if (lower.includes('e906')) mic = 'e906';
+  else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) mic = 'md441_presence';
+  else if (lower.includes('md441')) mic = 'md441';
+  else if (lower.includes('md421') && lower.includes('kompakt')) mic = 'md421kompakt';
+  else if (lower.includes('md421') || lower.includes('421')) mic = 'md421';
+  else if (lower.includes('sm57') || lower.includes('_57_')) mic = 'sm57';
+  else if (lower.includes('sm7b') || lower.includes('sm7_')) mic = 'sm7b';
+  else if (lower.includes('r121') || lower.includes('_121_')) mic = 'r121';
+  else if (lower.includes('r92') || lower.includes('_92_')) mic = 'r92';
+  else if (lower.includes('r10') || lower.includes('_r10_')) mic = 'r10';
+  else if (lower.includes('m160') || lower.includes('_160_')) mic = 'm160';
+  else if (lower.includes('m88') || lower.includes('_88_')) mic = 'm88';
+  else if (lower.includes('m201') || lower.includes('_201_')) mic = 'm201';
+  else if (lower.includes('pr30') || lower.includes('_30_')) mic = 'pr30';
+  else if (lower.includes('c414') || lower.includes('_414_')) mic = 'c414';
+  else if (lower.includes('roswell')) mic = 'roswell';
+  
+  // Parse position
+  let position = 'capedge'; // default
+  if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap')) position = 'capedge_favorcap';
+  else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone')) position = 'capedge_favorcone';
+  else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
+  else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
+  else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) position = 'cap';
+  else if (lower.includes('_cone_') || lower.includes('cone_')) position = 'cone';
+  
+  // Parse speaker
+  let speaker = 'v30'; // default
+  if (lower.includes('v30bc') || lower.includes('v30_bc') || lower.includes('blackcat')) speaker = 'v30bc';
+  else if (lower.includes('v30')) speaker = 'v30';
+  else if (lower.includes('greenback') || lower.includes('g12m25') || lower.includes('g12m_')) speaker = 'greenback';
+  else if (lower.includes('g12t75') || lower.includes('g12t-75')) speaker = 'g12t75';
+  else if (lower.includes('g12-65') || lower.includes('g1265') || lower.includes('heritage')) speaker = 'g12-65';
+  else if (lower.includes('g12h') && lower.includes('anni')) speaker = 'g12hanni';
+  else if (lower.includes('cream')) speaker = 'cream';
+  else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) speaker = 'ga12-sc64';
+  else if (lower.includes('ga10') || lower.includes('g10')) speaker = 'ga10-sc64';
+  else if (lower.includes('k100')) speaker = 'k100';
+  
+  return { mic, position, speaker };
 }
 
 // Shared single-IR scoring function used by both single and batch modes
@@ -149,7 +199,7 @@ async function scoreSingleIR(ir: {
   renameSuggestion: { suggestedModifier: string; suggestedFilename: string; reason: string } | null;
 }> {
   // Check cache first
-  const cacheKey = generateBatchIRCacheKey(ir);
+  const cacheKey = generateIRCacheKey(ir);
   const cachedEntry = singleAnalysisCache.get(cacheKey);
   if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL_MS)) {
     console.log(`[Batch/Single IR] Cache HIT for ${ir.filename}`);
@@ -158,47 +208,37 @@ async function scoreSingleIR(ir: {
   
   console.log(`[Batch/Single IR] Cache MISS for ${ir.filename}, calling AI...`);
   
+  // Calculate expected spectral centroid range based on mic/position/speaker
+  const parsed = parseFilenameForExpectations(ir.filename);
+  const expectedRange = getExpectedCentroidRange(parsed.mic, parsed.position, parsed.speaker);
+  const deviation = calculateCentroidDeviation(ir.spectralCentroid, expectedRange);
+  const scoreAdjustment = getDeviationScoreAdjustment(deviation.deviationPercent);
+  
+  console.log(`[Spectral Analysis] ${ir.filename}:`);
+  console.log(`  Parsed: mic=${parsed.mic}, pos=${parsed.position}, spk=${parsed.speaker}`);
+  console.log(`  Expected range: ${expectedRange.min}-${expectedRange.max}Hz, Actual: ${ir.spectralCentroid.toFixed(0)}Hz`);
+  console.log(`  Deviation: ${deviation.deviation.toFixed(0)}Hz (${deviation.deviationPercent.toFixed(1)}%), Direction: ${deviation.direction}, Score adj: ${scoreAdjustment}`);
+  
   const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
 Analyze the provided technical metrics to determine the TECHNICAL QUALITY of this single IR.
 Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
 
-Knowledge Base (Microphones):
-- SM57: Classic dynamic, mid-forward, aggressive.
-- R-121 / R10: Ribbon, smooth highs, big low-mid, figure-8.
-- M160: Hypercardioid ribbon, tighter, more focused.
-- MD421 / Kompakt: Large diaphragm dynamic, punchy.
-- M88: Warm, great low-end punch.
-- PR30: Large diaphragm dynamic, very clear highs.
-- e906: Supercardioid, presence boost or flat modes.
-- M201: Very accurate dynamic.
-- SM7B: Smooth, thick dynamic.
-- Roswell Cab Mic: Specialized condenser designed for loud cabs.
+SPECTRAL CENTROID EXPECTATIONS (use these deterministic ranges for scoring):
+For this IR, based on the detected mic/position/speaker combination:
+- Expected centroid range: ${expectedRange.min}Hz - ${expectedRange.max}Hz
+- Actual centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+- Deviation: ${deviation.isWithinRange ? 'WITHIN expected range' : `${deviation.deviation.toFixed(0)}Hz ${deviation.direction === 'bright' ? 'ABOVE' : 'BELOW'} expected range`}
 
-Knowledge Base (Speakers):
-- G12M-25 (Greenback): Classic woody, mid-forward, compression at high volume.
-- V30: Aggressive upper-mids, modern rock.
-- V30 (Black Cat): Smoother, more refined than standard V30.
-- G12K-100: Big low end, clear highs, neutral.
-- G12T-75: Scooped mids, sizzly highs.
-- G12-65: Warm, punchy, large sound.
-- G12H30 Anniversary: Tight bass, bright highs, detailed.
-- Celestion Cream: Alnico smoothness with high power.
-- GA12-SC64: Vintage American, tight and punchy.
-- G10-SC64: 10" version, more focused.
+SCORING RULES:
+- If centroid is within expected range: No penalty for spectral balance
+- If centroid deviates by <25% of range width: Minor (-1 point)
+- If centroid deviates by 25-50%: Small (-2 points)
+- If centroid deviates by 50-100%: Moderate (-3-4 points)
+- If centroid deviates by >100%: Significant (-5-6 points)
 
-Microphone Position Tonal Characteristics:
-- Cap: Dead center of speaker dust cap. Brightest, most aggressive tone.
-- Cap Edge: Transition zone between cap and cone. Balanced tone.
-- Cap Edge (Favor Cap): Brighter than standard cap-edge.
-- Cap Edge (Favor Cone): Darker and warmer than standard cap-edge.
-- Cone: Focused on the paper cone. Darkest, warmest tone.
-- Cap Off Center: On the cap but not dead center. Retains brightness with less harsh attack.
-
-Parse information from filename when possible:
-- Mic types: SM57, R121, R10, M160, MD421, M88, e906, M201, C414, Roswell, etc.
-- Positions: Cap, CapEdge, Cone, CapEdge_FavorCap, CapEdge_FavorCone, Cap_OffCenter
-- Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
-- Distances: Numbers followed by "in" (e.g., 1in, 2, 1.5in)
+The pre-calculated score adjustment for this IR is: ${scoreAdjustment} points
+Start with a base score of 92 (excellent technical quality) and apply this adjustment.
+Final score should be around ${92 + scoreAdjustment}, unless there are other technical issues.
 
 Technical Scoring Criteria:
 - 90-100: Exceptional. Professional studio quality, no technical issues.
@@ -207,21 +247,15 @@ Technical Scoring Criteria:
 - 70-79: Acceptable. Noticeable issues but still usable.
 - Below 70: Needs work. Significant technical problems.
 
-IMPORTANT SCORING GUIDELINES:
-- Evaluate based on audio quality metrics: spectral balance, peak level, energy distribution.
-- Consider whether spectral centroid is reasonable for the mic/position/speaker combination.
-- Mild tonal deviations = minor point deduction, not major penalty.
-- Extreme spectral imbalances = moderate deduction.
-- Only major penalties for actual technical problems: clipping, noise, phase issues.
+ADDITIONAL PENALTIES (beyond spectral centroid):
+- Clipping (peak > 0dB): -5 to -10 points
+- Very unbalanced energy distribution: -2 to -5 points
 - Duration is NOT a scoring factor.
 
-TONAL MODIFIER SUGGESTION (optional):
-If the spectral characteristics don't match what's typical for the position in the filename, suggest adding a tonal modifier.
-- Cap position typically has HIGH spectral centroid (2500Hz+)
-- Cone position typically has LOW spectral centroid (under 1800Hz)
-- Cap Edge is balanced (1800-2500Hz)
-- If darker than expected, suggest "_Dark" or "_Warm"
-- If brighter than expected, suggest "_Bright" or "_Crisp"
+TONAL MODIFIER SUGGESTION:
+${deviation.isWithinRange 
+  ? 'Spectral centroid is within expected range - no modifier needed unless there are other tonal characteristics to note.' 
+  : `Spectral centroid is ${deviation.direction === 'bright' ? 'brighter' : 'darker'} than expected. Suggest "_${deviation.direction === 'bright' ? 'Bright' : 'Warm'}" modifier.`}
 
 Output JSON format:
 {
@@ -251,7 +285,9 @@ Filename: "${ir.filename}"
 - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
 - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
 - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-- High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`;
+- High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
+
+Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
