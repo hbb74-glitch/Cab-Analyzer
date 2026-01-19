@@ -379,6 +379,9 @@ export default function Analyzer() {
         durationSamples: metrics.durationSamples,
         peakAmplitudeDb: metrics.peakAmplitudeDb,
         spectralCentroid: metrics.spectralCentroid,
+        lowEnergy: metrics.lowEnergy,
+        midEnergy: metrics.midEnergy,
+        highEnergy: metrics.highEnergy,
       });
       setResult(response);
     } catch (error) {

@@ -35,8 +35,12 @@ export const insertAnalysisSchema = createInsertSchema(analyses).omit({
 
 // Input type for the API (includes audio metrics calculated by client)
 export const analysisRequestSchema = insertAnalysisSchema.extend({
-  // Add any extra fields needed for the AI context but not stored if needed
+  // Energy distribution metrics - used for AI analysis but not stored in DB
+  lowEnergy: z.number().min(0).max(1),   // Energy in 20-250Hz range
+  midEnergy: z.number().min(0).max(1),   // Energy in 250-4000Hz range
+  highEnergy: z.number().min(0).max(1),  // Energy in 4000-20000Hz range
 });
 
 export type Analysis = typeof analyses.$inferSelect;
 export type InsertAnalysis = z.infer<typeof insertAnalysisSchema>;
+export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;

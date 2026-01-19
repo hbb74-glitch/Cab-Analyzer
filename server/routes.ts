@@ -82,6 +82,9 @@ function generateSingleCacheKey(input: {
   durationSamples: number;
   peakAmplitudeDb: number;
   spectralCentroid: number;
+  lowEnergy: number;
+  midEnergy: number;
+  highEnergy: number;
 }): string {
   const normalized = {
     micType: input.micType.toLowerCase(),
@@ -91,6 +94,9 @@ function generateSingleCacheKey(input: {
     durationSamples: input.durationSamples,
     peakAmplitudeDb: Math.round(input.peakAmplitudeDb * 10) / 10,
     spectralCentroid: Math.round(input.spectralCentroid),
+    lowEnergy: Math.round(input.lowEnergy * 1000) / 1000,
+    midEnergy: Math.round(input.midEnergy * 1000) / 1000,
+    highEnergy: Math.round(input.highEnergy * 1000) / 1000,
   };
   const hash = createHash('sha256');
   hash.update(JSON.stringify(normalized));
@@ -166,7 +172,7 @@ export async function registerRoutes(
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on spectral centroid and whether it's typical for the setup.
+      - Comment on spectral centroid and energy distribution, whether it's typical for the setup.
       - Identify any technical issues (clipping, noise) - do NOT mention duration.
       - If spectral content is unusual for the position, suggest a tonal modifier.
       
@@ -201,6 +207,9 @@ export async function registerRoutes(
         - Duration: ${input.durationSamples} samples
         - Peak Amplitude: ${input.peakAmplitudeDb}dB
         - Spectral Centroid: ${input.spectralCentroid}Hz
+        - Low Energy (20-250Hz): ${(input.lowEnergy * 100).toFixed(1)}%
+        - Mid Energy (250-4000Hz): ${(input.midEnergy * 100).toFixed(1)}%
+        - High Energy (4000-20000Hz): ${(input.highEnergy * 100).toFixed(1)}%
         
         Please analyze the technical quality of this IR capture.
       `;

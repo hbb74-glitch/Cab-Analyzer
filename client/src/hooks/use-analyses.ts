@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import type { InsertAnalysis } from "@shared/schema";
+import type { AnalysisRequest } from "@shared/schema";
 
 // ============================================
 // Types
@@ -31,7 +31,7 @@ export function useCreateAnalysis() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: InsertAnalysis) => {
+    mutationFn: async (data: AnalysisRequest) => {
       // Validate input against schema before sending
       const validated = api.analyses.create.input.parse(data);
       

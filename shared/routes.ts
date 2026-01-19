@@ -1,6 +1,6 @@
 
 import { z } from 'zod';
-import { insertAnalysisSchema, analyses } from './schema';
+import { insertAnalysisSchema, analysisRequestSchema, analyses } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -233,7 +233,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/analyze',
-      input: insertAnalysisSchema, 
+      input: analysisRequestSchema, 
       responses: {
         201: z.custom<typeof analyses.$inferSelect>(), 
         400: errorSchemas.validation,
