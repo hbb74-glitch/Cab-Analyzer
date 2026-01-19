@@ -1,5 +1,19 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import type { RecommendationsResponse, SpeakerRecommendationsResponse, AmpRecommendationsResponse, PositionImportResponse, PairingResponse, BatchAnalysisResponse } from "@shared/routes";
+import type { Analysis } from "@shared/schema";
+
+type RecommendationsMode = 'by-speaker' | 'by-amp' | 'import-positions';
+type AnalyzerMode = 'single' | 'batch';
+
+interface RenameSuggestion {
+  suggestedModifier: string;
+  reason: string;
+}
+
+type SingleAnalysisResult = Analysis & { 
+  micLabel?: string; 
+  renameSuggestion?: RenameSuggestion | null; 
+};
 
 interface ResultsContextType {
   recommendationsResult: RecommendationsResponse | null;
@@ -14,6 +28,12 @@ interface ResultsContextType {
   setPairingResult: (r: PairingResponse | null) => void;
   batchAnalysisResult: BatchAnalysisResponse | null;
   setBatchAnalysisResult: (r: BatchAnalysisResponse | null) => void;
+  singleAnalysisResult: SingleAnalysisResult | null;
+  setSingleAnalysisResult: (r: SingleAnalysisResult | null) => void;
+  recommendationsMode: RecommendationsMode;
+  setRecommendationsMode: (m: RecommendationsMode) => void;
+  analyzerMode: AnalyzerMode;
+  setAnalyzerMode: (m: AnalyzerMode) => void;
   clearAllResults: () => void;
 }
 
@@ -26,6 +46,9 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   const [importResult, setImportResult] = useState<PositionImportResponse | null>(null);
   const [pairingResult, setPairingResult] = useState<PairingResponse | null>(null);
   const [batchAnalysisResult, setBatchAnalysisResult] = useState<BatchAnalysisResponse | null>(null);
+  const [singleAnalysisResult, setSingleAnalysisResult] = useState<SingleAnalysisResult | null>(null);
+  const [recommendationsMode, setRecommendationsMode] = useState<RecommendationsMode>('by-speaker');
+  const [analyzerMode, setAnalyzerMode] = useState<AnalyzerMode>('single');
 
   const clearAllResults = () => {
     setRecommendationsResult(null);
@@ -34,6 +57,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     setImportResult(null);
     setPairingResult(null);
     setBatchAnalysisResult(null);
+    setSingleAnalysisResult(null);
   };
 
   return (
@@ -50,6 +74,12 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       setPairingResult,
       batchAnalysisResult,
       setBatchAnalysisResult,
+      singleAnalysisResult,
+      setSingleAnalysisResult,
+      recommendationsMode,
+      setRecommendationsMode,
+      analyzerMode,
+      setAnalyzerMode,
       clearAllResults,
     }}>
       {children}

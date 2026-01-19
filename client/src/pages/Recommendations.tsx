@@ -75,7 +75,6 @@ const GENRES = [
 type Mode = 'by-speaker' | 'by-amp' | 'import-positions';
 
 export default function Recommendations() {
-  const [mode, setMode] = useState<Mode>('by-speaker');
   const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
@@ -99,6 +98,8 @@ export default function Recommendations() {
     setAmpResult,
     importResult,
     setImportResult,
+    recommendationsMode: mode,
+    setRecommendationsMode: setMode,
   } = useResults();
 
   // Detect ambiguous speakers in position list

@@ -153,17 +153,23 @@ interface BatchIR {
 }
 
 export default function Analyzer() {
-  const [mode, setMode] = useState<'single' | 'batch'>('single');
+  // Use context for mode and results persistence
+  const { 
+    batchAnalysisResult: batchResult, 
+    setBatchAnalysisResult: setBatchResult,
+    singleAnalysisResult: result,
+    setSingleAnalysisResult: setResult,
+    analyzerMode: mode,
+    setAnalyzerMode: setMode
+  } = useResults();
   
   // Single mode state
   const [file, setFile] = useState<File | null>(null);
   const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
 
-  // Batch mode state - use context for persistence
+  // Batch mode state
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
-  const { batchAnalysisResult: batchResult, setBatchAnalysisResult: setBatchResult } = useResults();
   const [copied, setCopied] = useState(false);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
@@ -964,7 +970,7 @@ export default function Analyzer() {
               {result && metrics && (
                 <ResultCard
                   score={result.qualityScore}
-                  isPerfect={result.isPerfect}
+                  isPerfect={result.isPerfect ?? false}
                   advice={result.advice}
                   metrics={{
                     peak: metrics.peakAmplitudeDb,
