@@ -150,15 +150,59 @@ Format: `Speaker_Mic_Position_distance_variant`
 - `G12M_R121_Cone_1.5in`
 - `V30_MD421_CapEdge_Cone_Tr_1.5in`
 
+### Genre Dropdown System
+Both Recommendations and Pairing pages include genre dropdowns with 16 presets + custom text option:
+- Classic Rock, Hard Rock, Alternative Rock, Punk, Grunge
+- Classic Heavy Metal, Thrash Metal, Funk Rock, Indie Rock
+- Blues, Jazz, Country, Doom/Stoner, Shoegaze, Post-Punk, Custom
+
+Each genre expands into detailed tonal guidance with:
+- **Tonal Goal**: Specific sound characteristics
+- **Studio Context**: Reference artists and techniques
+- **Avoid Rules**: Combinations that contradict the genre
+
+### Tonal Keyword System (Custom Text Analysis)
+When users enter custom text (e.g., "spanky cleans", "dark congested death metal"), the system:
+1. Detects tonal keywords from 17 categories
+2. Generates explicit AVOID and PREFER rules for mics and positions
+3. Validates recommendations against the user's tonal goal
+
+**Tonal Categories:**
+- **Bright**: spanky, sparkly, crisp, cutting, articulate, snappy, chimey, glassy, twang, jangle
+- **Dark**: warm, smooth, thick, fat, round, mellow, creamy, wooly, vintage, brown
+- **Aggressive**: edgy, biting, raw, gritty, punchy, attack, snarl, growl
+- **Clean**: pristine, clear, transparent, detailed, hi-fi, studio, neutral
+- **Leads**: solo, singing, sustain, soaring, melodic, expressive, lyrical
+- **Rhythm**: chunky, tight, chug, palm mute, riff, chugging, percussive, djent
+- **Ambient**: spacious, atmospheric, ethereal, dreamy, reverb, shimmer, washy
+- **Lo-fi**: gritty, vintage, character, vibe, dusty, tape, old-school, retro
+- **Crunch**: crunchy, grit, bite, saturated, driven, cooking
+- **Breakup**: edge of breakup, touch-sensitive, dynamic, responsive
+- **Scooped**: mid-cut, v-shaped, thrash, nu-metal, djenty
+- **Mid-forward**: mid-heavy, mid-range, vocal, bluesy
+- **Heavy**: massive, crushing, doom, sludge, wall of sound, huge
+- **Bluesy**: blues, singing, expressive, BB King, SRV
+- **Jazzy**: jazz, round, mellow, Pat Metheny, Wes Montgomery
+- **Country**: twang, chicken pickin, telecaster, Nashville
+- **Modern**: tight, precise, defined, clinical, polished
+
 ### Genre-Specific Studio Techniques (Recommendations only)
 The Recommendations AI is trained on classic recording techniques for each genre:
 - **Classic Rock** (1970s): Led Zeppelin, AC/DC - SM57 at 1-2" from grille, dual-mic with ribbon at distance
 - **Hard Rock** (1980s): Van Halen, Def Leppard - Tighter placement for definition, double-tracking
-- **Alternative Rock**: R.E.M., Radiohead - Experimental placements, room mics, dynamic response
-- **Punk**: Ramones, Green Day - Close mic for raw aggression, embrace imperfections
-- **Grunge**: Nirvana, Soundgarden - Big Muff fuzz, multi-tracking layers, wall of sound
+- **Alternative Rock**: Pixies, Dinosaur Jr, Radiohead - Experimental placements, room mics, dynamic response
+- **Punk**: Ramones, Green Day, The Clash - Close mic for raw aggression, embrace imperfections
+- **Grunge**: Nirvana, Soundgarden, Alice in Chains, Pearl Jam - Big Muff fuzz, multi-tracking layers, wall of sound
+- **Thrash Metal**: Metallica, Slayer, Anthrax - Ultra-tight, scooped, razor-sharp attack
+- **Funk Rock**: RHCP, Funkadelic, Living Colour - Snappy, percussive, clean-to-dirty
 - **Classic Heavy Metal**: Black Sabbath, Iron Maiden - Fredman technique, tight low-end definition
 - **Indie Rock**: The Strokes, Arctic Monkeys - Vintage character, smaller amps pushed to breakup
+- **Blues**: BB King, SRV, Clapton - Warm, expressive, touch-sensitive
+- **Jazz**: Pat Metheny, Wes Montgomery - Round, warm, pristine cleans
+- **Country**: Brad Paisley, Brent Mason - Bright, twangy, chicken pickin' clarity
+- **Doom/Stoner**: Electric Wizard, Sleep, Kyuss - Massive, crushing, fuzzy
+- **Shoegaze**: My Bloody Valentine, Slowdive - Washy, ethereal, layered
+- **Post-Punk**: Joy Division, The Cure - Angular, dark, jangly
 
 ## External Dependencies
 
