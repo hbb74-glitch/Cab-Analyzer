@@ -56,6 +56,36 @@ const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics:
     tonalGoal: 'vintage, characterful tone with warmth and personality',
     characteristics: 'Think The Strokes, Arctic Monkeys, Vampire Weekend - often smaller amps pushed hard, lo-fi character is a feature not a bug.',
     avoid: 'Avoid modern, sterile, or overly produced tones. Skip anything too aggressive or heavy.'
+  },
+  'blues': {
+    tonalGoal: 'warm, vocal, expressive tone with singing sustain and touch sensitivity',
+    characteristics: 'Think BB King, SRV, Clapton - responsive to dynamics, creamy overdrive when pushed, clean headroom when backed off. Ribbons and darker positions capture the expressiveness.',
+    avoid: 'Avoid harsh, aggressive, or scooped tones. Skip overly bright or clinical combinations.'
+  },
+  'jazz': {
+    tonalGoal: 'round, warm, clean tone with smooth highs and full lows',
+    characteristics: 'Think Pat Metheny, Wes Montgomery, Jim Hall - pristine cleans, no fizz, full bodied. Darker positions and ribbon mics excel here.',
+    avoid: 'Avoid bright, aggressive, or gritty tones. Skip anything with presence peaks or harsh highs.'
+  },
+  'country': {
+    tonalGoal: 'bright, twangy, snappy tone with sparkling highs and tight attack',
+    characteristics: 'Think Brad Paisley, Brent Mason, Vince Gill - chicken pickin\' clarity, Telecaster spank, pristine cleans with shimmer.',
+    avoid: 'Avoid dark, muddy, or overly smooth tones. Skip anything that loses pick attack or twang.'
+  },
+  'doom-stoner': {
+    tonalGoal: 'massive, crushing, fuzzy tone with huge low-end and thick mids',
+    characteristics: 'Think Electric Wizard, Sleep, Kyuss - slow, heavy, saturated. Big Muff style fuzz, downtuned guitars, massive sustain.',
+    avoid: 'Avoid bright, thin, or clinical tones. Skip anything tight or controlled - embrace the sludge.'
+  },
+  'shoegaze': {
+    tonalGoal: 'washy, ethereal, layered tone with smooth textures and ambient quality',
+    characteristics: 'Think My Bloody Valentine, Slowdive, Ride - reverb-drenched, layered, swirling. Tone serves the texture, not the attack.',
+    avoid: 'Avoid aggressive, punchy, or forward tones. Skip anything too focused or direct.'
+  },
+  'post-punk': {
+    tonalGoal: 'angular, dark, jangly tone with character and edge',
+    characteristics: 'Think Joy Division, The Cure, Interpol - can be cold and sparse or lush and atmospheric. Often uses chorus and delay.',
+    avoid: 'Avoid overly warm, smooth, or vintage tones. Skip anything too polished or refined.'
   }
 };
 
@@ -130,6 +160,90 @@ const TONAL_KEYWORDS = {
     avoidPositions: [], // No restrictions
     prefer: ['SM57', 'R121', 'MD421', 'C414'], // Dynamic response mics
     preferPositions: ['CapEdge', 'CapEdge_BR'] // Balanced, revealing positions
+  },
+  scooped: {
+    synonyms: ['mid-cut', 'v-shaped', 'thrash', 'nu-metal', 'djenty'],
+    avoid: ['R121', 'M160', 'R92'], // Mid-heavy ribbons
+    avoidPositions: ['CapEdge_DK', 'Cone'], // Add more mids
+    prefer: ['SM57', 'MD421', 'e906'], // Scoopable mics
+    preferPositions: ['Cap', 'CapEdge_BR'] // Brighter, tighter positions
+  },
+  midforward: {
+    synonyms: ['mid-forward', 'mid-heavy', 'mid-range', 'honk', 'nasal', 'vocal', 'bluesy'],
+    avoid: ['PR30'], // Can be too scooped
+    avoidPositions: ['Cap'], // Can be too bright/scooped
+    prefer: ['SM57', 'MD421', 'R121', 'M160'], // Mid-present mics
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Mid-rich positions
+  },
+  heavy: {
+    synonyms: ['massive', 'crushing', 'doom', 'sludge', 'wall of sound', 'huge', 'thunderous'],
+    avoid: ['C414', 'PR30'], // Too clinical/bright
+    avoidPositions: [], // Any position can work
+    prefer: ['SM57', 'MD421', 'R121', 'M160'], // Handle weight well
+    preferPositions: ['CapEdge', 'CapEdge_DK'] // Full, balanced positions
+  },
+  bluesy: {
+    synonyms: ['blues', 'singing', 'expressive', 'vocal', 'cry', 'bb king', 'srv'],
+    avoid: ['PR30', 'e906'], // Too aggressive
+    avoidPositions: ['Cap'], // Too harsh for blues
+    prefer: ['R121', 'SM57', 'MD421', 'M160'], // Classic blues mics
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_BR'] // Balanced, warm-ish
+  },
+  jazzy: {
+    synonyms: ['jazz', 'round', 'mellow', 'clean jazz', 'pat metheny', 'wes montgomery'],
+    avoid: ['SM57', 'MD421', 'PR30', 'e906'], // Too aggressive
+    avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Too bright
+    prefer: ['R121', 'M160', 'R92', 'C414'], // Smooth, detailed mics
+    preferPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'] // Warm, smooth positions
+  },
+  country: {
+    synonyms: ['twang', 'chicken pickin', 'telecaster', 'nashville', 'brad paisley', 'brent mason'],
+    avoid: ['M160', 'R92', 'SM7B'], // Too dark
+    avoidPositions: ['Cone', 'CapEdge_DK'], // Too dark
+    prefer: ['SM57', 'e906', 'PR30', 'C414'], // Bright, snappy mics
+    preferPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'] // Bright, twangy positions
+  },
+  modern: {
+    synonyms: ['tight', 'precise', 'defined', 'clinical', 'studio', 'polished', 'hi-fi'],
+    avoid: ['R92'], // Too vintage
+    avoidPositions: ['Cone'], // Too loose
+    prefer: ['SM57', 'MD421', 'e906', 'C414'], // Precise mics
+    preferPositions: ['CapEdge', 'CapEdge_BR', 'Cap_OffCenter'] // Defined positions
+  },
+  woody: {
+    synonyms: ['organic', 'natural', 'acoustic', 'resonant', 'open', 'airy'],
+    avoid: ['PR30', 'e906'], // Too aggressive
+    avoidPositions: ['Cap'], // Too direct
+    prefer: ['R121', 'M160', 'C414', 'R92'], // Natural-sounding mics
+    preferPositions: ['CapEdge', 'CapEdge_Cone_Tr', 'Cone'] // More open positions
+  },
+  balanced: {
+    synonyms: ['neutral', 'flat', 'mix-ready', 'versatile', 'all-purpose'],
+    avoid: [], // No restrictions
+    avoidPositions: [], // No restrictions
+    prefer: ['SM57', 'MD421', 'e906'], // Versatile mics
+    preferPositions: ['CapEdge', 'CapEdge_BR'] // Balanced positions
+  },
+  doomy: {
+    synonyms: ['doom', 'stoner', 'sludge', 'slow', 'massive lows', 'crushing', 'fuzz'],
+    avoid: ['PR30', 'C414'], // Too bright/clinical
+    avoidPositions: ['Cap', 'Cap_OffCenter'], // Too bright
+    prefer: ['R121', 'M160', 'SM57', 'MD421'], // Handle low-end well
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Fuller positions
+  },
+  shoegaze: {
+    synonyms: ['washy', 'layered', 'reverb', 'my bloody valentine', 'dreamy', 'swirling'],
+    avoid: ['MD421', 'PR30'], // Too aggressive/direct
+    avoidPositions: ['Cap'], // Too focused
+    prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Smooth positions
+  },
+  postpunk: {
+    synonyms: ['post-punk', 'angular', 'jangly', 'dark', 'new wave', 'joy division', 'the cure'],
+    avoid: ['R92', 'SM7B'], // Too smooth
+    avoidPositions: [], // Flexible
+    prefer: ['SM57', 'MD421', 'R121'], // Character mics
+    preferPositions: ['CapEdge', 'CapEdge_BR', 'CapEdge_DK'] // Varied for effect
   }
 };
 

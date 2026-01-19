@@ -8,6 +8,26 @@ import { useToast } from "@/hooks/use-toast";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
 
+const GENRES = [
+  { value: "", label: "Any / General" },
+  { value: "classic-rock", label: "Classic Rock" },
+  { value: "hard-rock", label: "Hard Rock" },
+  { value: "alternative-rock", label: "Alternative Rock" },
+  { value: "punk", label: "Punk" },
+  { value: "grunge", label: "Grunge" },
+  { value: "classic-metal", label: "Classic Heavy Metal" },
+  { value: "thrash-metal", label: "Thrash Metal" },
+  { value: "funk-rock", label: "Funk Rock" },
+  { value: "indie-rock", label: "Indie Rock" },
+  { value: "blues", label: "Blues" },
+  { value: "jazz", label: "Jazz" },
+  { value: "country", label: "Country" },
+  { value: "doom-stoner", label: "Doom / Stoner" },
+  { value: "shoegaze", label: "Shoegaze" },
+  { value: "post-punk", label: "Post-Punk" },
+  { value: "custom", label: "Custom (type your own)" },
+];
+
 interface UploadedIR {
   file: File;
   metrics: AudioMetrics | null;
@@ -20,6 +40,8 @@ export default function Pairing() {
   const [speaker2IRs, setSpeaker2IRs] = useState<UploadedIR[]>([]);
   const [result, setResult] = useState<PairingResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const [genre, setGenre] = useState("");
+  const [customGenre, setCustomGenre] = useState("");
   const [tonePreferences, setTonePreferences] = useState("");
   const { toast } = useToast();
 
@@ -182,17 +204,21 @@ export default function Pairing() {
         highEnergy: ir.metrics!.highEnergy,
       }));
 
+    // Combine genre and tone preferences for the API
+    const effectiveGenre = genre === 'custom' ? customGenre : genre;
+    const combinedTonePrefs = [effectiveGenre, tonePreferences].filter(Boolean).join('; ') || undefined;
+
     if (isMixedMode) {
       analyzePairings({ 
         irs: toMetrics(valid1), 
         irs2: toMetrics(valid2), 
-        tonePrefs: tonePreferences || undefined,
+        tonePrefs: combinedTonePrefs,
         mixedMode: true 
       });
     } else {
       analyzePairings({ 
         irs: toMetrics(valid1), 
-        tonePrefs: tonePreferences || undefined 
+        tonePrefs: combinedTonePrefs 
       });
     }
   };
@@ -408,27 +434,55 @@ export default function Pairing() {
           </motion.div>
         )}
 
-        {/* Tone preferences and analyze button */}
+        {/* Genre and Tone preferences */}
         {(valid1Count >= 2 || isMixedMode) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4 max-w-2xl mx-auto"
           >
+            {/* Genre Selection */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">
-                Desired Tone (optional)
+                Genre / Style (optional)
+              </label>
+              <select
+                value={genre}
+                onChange={(e) => setGenre(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-pairing-genre"
+              >
+                {GENRES.map((g) => (
+                  <option key={g.value} value={g.value}>{g.label}</option>
+                ))}
+              </select>
+              {genre === 'custom' && (
+                <input
+                  type="text"
+                  value={customGenre}
+                  onChange={(e) => setCustomGenre(e.target.value)}
+                  placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze', 'post-punk')"
+                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                  data-testid="input-pairing-custom-genre"
+                />
+              )}
+            </div>
+
+            {/* Tone Preferences */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Tonal Goals (optional)
               </label>
               <textarea
                 value={tonePreferences}
                 onChange={(e) => setTonePreferences(e.target.value)}
-                placeholder="Describe your desired sound: edgy, bright, thick, dark, aggressive, chunky, rhythm tones, leads, smooth highs, tight bass..."
+                placeholder="Describe your desired sound: spanky cleans, thick rhythm, cutting leads, smooth highs, tight bass, ambient shimmer..."
                 className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-sm placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
                 rows={2}
                 data-testid="input-tone-preferences"
               />
               <p className="text-xs text-muted-foreground">
-                The AI will prioritize pairings that achieve your tonal goals
+                AI prioritizes pairings matching your genre and tonal goals
               </p>
             </div>
 

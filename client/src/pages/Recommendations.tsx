@@ -62,6 +62,12 @@ const GENRES = [
   { value: "thrash-metal", label: "Thrash Metal" },
   { value: "funk-rock", label: "Funk Rock" },
   { value: "indie-rock", label: "Indie Rock" },
+  { value: "blues", label: "Blues" },
+  { value: "jazz", label: "Jazz" },
+  { value: "country", label: "Country" },
+  { value: "doom-stoner", label: "Doom / Stoner" },
+  { value: "shoegaze", label: "Shoegaze" },
+  { value: "post-punk", label: "Post-Punk" },
   { value: "custom", label: "Custom (type your own)" },
 ];
 
