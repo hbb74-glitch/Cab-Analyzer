@@ -59,6 +59,90 @@ const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics:
   }
 };
 
+// Tonal keyword mappings for custom text analysis
+const TONAL_KEYWORDS = {
+  bright: {
+    synonyms: ['spanky', 'sparkly', 'crisp', 'cutting', 'present', 'articulate', 'snappy', 'chimey', 'glassy', 'brilliant', 'airy', 'open', 'sizzle', 'twang', 'jangle'],
+    avoid: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warm/dark mics
+    avoidPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'], // Darker positions
+    prefer: ['SM57', 'PR30', 'e906', 'C414', 'Roswell'], // Brighter mics
+    preferPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'] // Brighter positions
+  },
+  dark: {
+    synonyms: ['warm', 'smooth', 'thick', 'fat', 'round', 'mellow', 'creamy', 'wooly', 'vintage', 'brown'],
+    avoid: ['PR30', 'e906', 'C414'], // Bright mics
+    avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Brighter positions
+    prefer: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warmer mics
+    preferPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'] // Darker positions
+  },
+  aggressive: {
+    synonyms: ['edgy', 'biting', 'raw', 'gritty', 'punchy', 'attack', 'snarl', 'growl', 'mean'],
+    avoid: ['R121', 'R92', 'R10', 'SM7B'], // Smooth mics
+    avoidPositions: ['Cone'], // Too dark for aggression
+    prefer: ['SM57', 'MD421', 'e906', 'PR30'], // Punchy/aggressive mics
+    preferPositions: ['Cap', 'CapEdge', 'CapEdge_BR'] // More present positions
+  },
+  clean: {
+    synonyms: ['pristine', 'clear', 'transparent', 'detailed', 'hi-fi', 'studio', 'neutral'],
+    avoid: [], // No mic restrictions for clean
+    avoidPositions: [], // No position restrictions
+    prefer: ['C414', 'SM57', 'Roswell'], // Detailed/accurate mics
+    preferPositions: ['CapEdge', 'CapEdge_BR'] // Balanced positions
+  }
+};
+
+// Analyze custom text for tonal implications and generate filtering rules
+function analyzeCustomTonalGoal(customText: string): string {
+  const textLower = customText.toLowerCase();
+  const detectedTones: string[] = [];
+  const avoidMics = new Set<string>();
+  const avoidPositions = new Set<string>();
+  const preferMics = new Set<string>();
+  const preferPositions = new Set<string>();
+  
+  // Check each tonal category
+  for (const [category, config] of Object.entries(TONAL_KEYWORDS)) {
+    // Check if category name or any synonym appears in the text
+    const allTerms = [category, ...config.synonyms];
+    const found = allTerms.some(term => textLower.includes(term));
+    
+    if (found) {
+      detectedTones.push(category);
+      config.avoid.forEach(m => avoidMics.add(m));
+      config.avoidPositions.forEach(p => avoidPositions.add(p));
+      config.prefer.forEach(m => preferMics.add(m));
+      config.preferPositions.forEach(p => preferPositions.add(p));
+    }
+  }
+  
+  // Build enhanced guidance
+  let guidance = `User's tonal goal: "${customText}"`;
+  
+  if (detectedTones.length > 0) {
+    guidance += `\n\nDetected tonal characteristics: ${detectedTones.join(', ')}`;
+    
+    if (avoidMics.size > 0) {
+      guidance += `\n\nCRITICAL - MUST AVOID these mics (contradict the tonal goal): ${Array.from(avoidMics).join(', ')}`;
+    }
+    
+    if (avoidPositions.size > 0) {
+      guidance += `\nCRITICAL - MUST AVOID these positions (contradict the tonal goal): ${Array.from(avoidPositions).join(', ')}`;
+    }
+    
+    if (preferMics.size > 0) {
+      guidance += `\n\nPREFER these mics (align with tonal goal): ${Array.from(preferMics).join(', ')}`;
+    }
+    
+    if (preferPositions.size > 0) {
+      guidance += `\nPREFER these positions (align with tonal goal): ${Array.from(preferPositions).join(', ')}`;
+    }
+    
+    guidance += `\n\nVALIDATION: Before including any recommendation, verify it does NOT use avoided mics or positions. Each recommendation MUST genuinely achieve "${customText}" - do not just echo the words in descriptions.`;
+  }
+  
+  return guidance;
+}
+
 // Helper to expand genre code into detailed tonal guidance
 function expandGenreToTonalGuidance(genre: string): string {
   const profile = GENRE_TONAL_PROFILES[genre];
@@ -69,8 +153,8 @@ Studio Context: ${profile.characteristics}
 
 ${profile.avoid}`;
   }
-  // Return custom genre text as-is (user typed their own)
-  return genre;
+  // For custom text, analyze and generate filtering rules
+  return analyzeCustomTonalGoal(genre);
 }
 
 // Initialize OpenAI client
