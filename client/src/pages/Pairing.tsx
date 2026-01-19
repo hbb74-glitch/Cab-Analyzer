@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
 
@@ -38,12 +39,12 @@ interface UploadedIR {
 export default function Pairing() {
   const [speaker1IRs, setSpeaker1IRs] = useState<UploadedIR[]>([]);
   const [speaker2IRs, setSpeaker2IRs] = useState<UploadedIR[]>([]);
-  const [result, setResult] = useState<PairingResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [genre, setGenre] = useState("");
   const [customGenre, setCustomGenre] = useState("");
   const [tonePreferences, setTonePreferences] = useState("");
   const { toast } = useToast();
+  const { pairingResult: result, setPairingResult: setResult } = useResults();
 
   const isMixedMode = speaker1IRs.length > 0 && speaker2IRs.length > 0;
 
@@ -205,8 +206,8 @@ export default function Pairing() {
       }));
 
     // Combine genre and tone preferences for the API
-    const effectiveGenre = genre === 'custom' ? customGenre : genre;
-    const combinedTonePrefs = [effectiveGenre, tonePreferences].filter(Boolean).join('; ') || undefined;
+    const effectiveGenre = genre === 'custom' ? customGenre.trim() : genre;
+    const combinedTonePrefs = [effectiveGenre, tonePreferences.trim()].filter(Boolean).join('; ') || undefined;
 
     if (isMixedMode) {
       analyzePairings({ 
@@ -486,37 +487,53 @@ export default function Pairing() {
               </p>
             </div>
 
-            <button
-              onClick={handleAnalyze}
-              disabled={!canAnalyze || isPending}
-              className={cn(
-                "w-full py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
-                canAnalyze && !isPending
-                  ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
-                  : "bg-white/5 text-muted-foreground cursor-not-allowed"
-              )}
-              data-testid="button-analyze-pairings"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Analyzing {isMixedMode ? "Cross-Speaker " : ""}Pairings...
-                </>
-              ) : totalAnalyzing > 0 ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing {totalAnalyzing} file(s)...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5" />
-                  {isMixedMode 
-                    ? `Find Best Cross-Speaker Pairings (${valid1Count} + ${valid2Count} IRs)`
-                    : `Find Best Pairings (${valid1Count} IRs)`
-                  }
-                </>
-              )}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setSpeaker1IRs([]);
+                  setSpeaker2IRs([]);
+                  setResult(null);
+                  setGenre("");
+                  setCustomGenre("");
+                  setTonePreferences("");
+                }}
+                className="px-4 py-3 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/5 transition-all flex items-center gap-2"
+                data-testid="button-clear-pairings"
+              >
+                <Trash2 className="w-4 h-4" /> Clear All
+              </button>
+              <button
+                onClick={handleAnalyze}
+                disabled={!canAnalyze || isPending}
+                className={cn(
+                  "flex-1 py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
+                  canAnalyze && !isPending
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
+                    : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                )}
+                data-testid="button-analyze-pairings"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Analyzing {isMixedMode ? "Cross-Speaker " : ""}Pairings...
+                  </>
+                ) : totalAnalyzing > 0 ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing {totalAnalyzing} file(s)...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" />
+                    {isMixedMode 
+                      ? `Find Best Cross-Speaker Pairings (${valid1Count} + ${valid2Count} IRs)`
+                      : `Find Best Pairings (${valid1Count} IRs)`
+                    }
+                  </>
+                )}
+              </button>
+            </div>
           </motion.div>
         )}
 

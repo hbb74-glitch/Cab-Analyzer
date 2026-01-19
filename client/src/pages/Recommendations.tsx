@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { useResults } from "@/context/ResultsContext";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
 
 // Ambiguous speaker patterns that need clarification
@@ -79,18 +80,26 @@ export default function Recommendations() {
   const [speaker, setSpeaker] = useState<string>("");
   const [genre, setGenre] = useState<string>("");
   const [customGenre, setCustomGenre] = useState<string>("");
+  const [tonalText, setTonalText] = useState<string>("");
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
-  const [result, setResult] = useState<RecommendationsResponse | null>(null);
-  const [speakerResult, setSpeakerResult] = useState<SpeakerRecommendationsResponse | null>(null);
-  const [ampResult, setAmpResult] = useState<AmpRecommendationsResponse | null>(null);
-  const [importResult, setImportResult] = useState<PositionImportResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [showClarification, setShowClarification] = useState(false);
   const [pendingClarifications, setPendingClarifications] = useState<{ key: string; options: { value: string; label: string }[]; question: string }[]>([]);
   const [speakerClarifications, setSpeakerClarifications] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  
+  const {
+    recommendationsResult: result,
+    setRecommendationsResult: setResult,
+    speakerResult,
+    setSpeakerResult,
+    ampResult,
+    setAmpResult,
+    importResult,
+    setImportResult,
+  } = useResults();
 
   // Detect ambiguous speakers in position list
   const detectAmbiguousSpeakers = (text: string): string[] => {
@@ -373,9 +382,10 @@ export default function Recommendations() {
       toast({ title: "Select a speaker", description: "Please choose a speaker model", variant: "destructive" });
       return;
     }
-    const effectiveGenre = genre === 'custom' ? customGenre : genre;
+    const effectiveGenre = buildEffectiveGenre();
     setAmpResult(null);
-    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: effectiveGenre || undefined });
+    setImportResult(null);
+    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: effectiveGenre });
   };
 
   const handleAmpSubmit = (e: React.FormEvent) => {
@@ -384,10 +394,11 @@ export default function Recommendations() {
       toast({ title: "Describe your amp", description: "Please enter an amp description", variant: "destructive" });
       return;
     }
-    const effectiveGenre = genre === 'custom' ? customGenre : genre;
+    const effectiveGenre = buildEffectiveGenre();
     setResult(null);
     setSpeakerResult(null);
-    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre || undefined });
+    setImportResult(null);
+    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre });
   };
 
   const handleImportSubmit = (e: React.FormEvent) => {
@@ -416,14 +427,14 @@ export default function Recommendations() {
   };
 
   const processImport = (positions: string) => {
-    const effectiveGenre = genre === 'custom' ? customGenre : genre;
+    const effectiveGenre = buildEffectiveGenre();
     setResult(null);
     setSpeakerResult(null);
     setAmpResult(null);
     refinePositions({ 
       positionList: positions, 
       speaker: importSpeaker || undefined, 
-      genre: effectiveGenre || undefined 
+      genre: effectiveGenre 
     });
   };
 
@@ -467,10 +478,32 @@ export default function Recommendations() {
 
   const handleModeChange = (newMode: Mode) => {
     setMode(newMode);
+  };
+
+  const handleClearResults = () => {
     setResult(null);
     setSpeakerResult(null);
     setAmpResult(null);
     setImportResult(null);
+    setMicType("");
+    setSpeaker("");
+    setGenre("");
+    setCustomGenre("");
+    setTonalText("");
+    setAmpDescription("");
+    setPositionList("");
+    setImportSpeaker("");
+  };
+
+  const buildEffectiveGenre = () => {
+    const parts: string[] = [];
+    if (genre === 'custom') {
+      if (customGenre.trim()) parts.push(customGenre.trim());
+    } else if (genre) {
+      parts.push(genre);
+    }
+    if (tonalText.trim()) parts.push(tonalText.trim());
+    return parts.join('; ') || undefined;
   };
 
   return (
@@ -573,58 +606,84 @@ export default function Recommendations() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Music className="w-3 h-3" /> Genre (Optional)
-            </label>
-            <select
-              value={genre}
-              onChange={(e) => setGenre(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              data-testid="select-genre"
-            >
-              {GENRES.map((g) => (
-                <option key={g.value} value={g.value}>{g.label}</option>
-              ))}
-            </select>
-            {genre === 'custom' && (
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Music className="w-3 h-3" /> Genre (Optional)
+              </label>
+              <select
+                value={genre}
+                onChange={(e) => setGenre(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-genre"
+              >
+                {GENRES.map((g) => (
+                  <option key={g.value} value={g.value}>{g.label}</option>
+                ))}
+              </select>
+              {genre === 'custom' && (
+                <input
+                  type="text"
+                  value={customGenre}
+                  onChange={(e) => setCustomGenre(e.target.value)}
+                  placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze')"
+                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                  data-testid="input-custom-genre"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Tonal Goals (Optional)
+              </label>
               <input
                 type="text"
-                value={customGenre}
-                onChange={(e) => setCustomGenre(e.target.value)}
-                placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze', 'post-punk')"
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
-                data-testid="input-custom-genre"
+                value={tonalText}
+                onChange={(e) => setTonalText(e.target.value)}
+                placeholder="e.g., Green Day power pop, spanky cleans, thick rhythm..."
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-tonal-text"
               />
-            )}
-            <p className="text-xs text-muted-foreground">Leave as "Any / General" for position-agnostic distance recommendations</p>
+              <p className="text-xs text-muted-foreground">Add specific tonal qualities or artist references</p>
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={!speaker || isPending || (genre === 'custom' && !customGenre.trim())}
-            className={cn(
-              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !speaker || isPending
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
-            )}
-            data-testid="button-get-recommendations"
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
-              </>
-            ) : micType ? (
-              <>
-                <Lightbulb className="w-4 h-4" /> Get Distance Recommendations
-              </>
-            ) : (
-              <>
-                <ListFilter className="w-4 h-4" /> Get Mic Recommendations
-              </>
-            )}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClearResults}
+              className="px-4 py-3 rounded-xl font-medium text-sm border border-white/10 hover:bg-white/5 transition-all flex items-center gap-2"
+              data-testid="button-clear-recommendations"
+            >
+              <Trash2 className="w-4 h-4" /> Clear
+            </button>
+            <button
+              type="submit"
+              disabled={!speaker || isPending || (genre === 'custom' && !customGenre.trim())}
+              className={cn(
+                "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+                !speaker || isPending
+                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+              )}
+              data-testid="button-get-recommendations"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+                </>
+              ) : micType ? (
+                <>
+                  <Lightbulb className="w-4 h-4" /> Get Distance Recommendations
+                </>
+              ) : (
+                <>
+                  <ListFilter className="w-4 h-4" /> Get Mic Recommendations
+                </>
+              )}
+            </button>
+          </div>
         </form>
         )}
 
@@ -646,53 +705,79 @@ export default function Recommendations() {
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Music className="w-3 h-3" /> Genre (Optional)
-            </label>
-            <select
-              value={genre}
-              onChange={(e) => setGenre(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              data-testid="select-genre-amp"
-            >
-              {GENRES.map((g) => (
-                <option key={g.value} value={g.value}>{g.label}</option>
-              ))}
-            </select>
-            {genre === 'custom' && (
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Music className="w-3 h-3" /> Genre (Optional)
+              </label>
+              <select
+                value={genre}
+                onChange={(e) => setGenre(e.target.value)}
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-genre-amp"
+              >
+                {GENRES.map((g) => (
+                  <option key={g.value} value={g.value}>{g.label}</option>
+                ))}
+              </select>
+              {genre === 'custom' && (
+                <input
+                  type="text"
+                  value={customGenre}
+                  onChange={(e) => setCustomGenre(e.target.value)}
+                  placeholder="Enter your genre"
+                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
+                  data-testid="input-custom-genre-amp"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Tonal Goals (Optional)
+              </label>
               <input
                 type="text"
-                value={customGenre}
-                onChange={(e) => setCustomGenre(e.target.value)}
-                placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze', 'post-punk')"
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
-                data-testid="input-custom-genre-amp"
+                value={tonalText}
+                onChange={(e) => setTonalText(e.target.value)}
+                placeholder="e.g., bright leads, thick rhythm, vintage warmth..."
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-tonal-text-amp"
               />
-            )}
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={!ampDescription.trim() || isAmpPending || (genre === 'custom' && !customGenre.trim())}
-            className={cn(
-              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !ampDescription.trim() || isAmpPending
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
-            )}
-            data-testid="button-get-amp-recommendations"
-          >
-            {isAmpPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
-              </>
-            ) : (
-              <>
-                <Speaker className="w-4 h-4" /> Get Speaker Recommendations
-              </>
-            )}
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClearResults}
+              className="px-4 py-3 rounded-xl font-medium text-sm border border-white/10 hover:bg-white/5 transition-all flex items-center gap-2"
+              data-testid="button-clear-amp"
+            >
+              <Trash2 className="w-4 h-4" /> Clear
+            </button>
+            <button
+              type="submit"
+              disabled={!ampDescription.trim() || isAmpPending || (genre === 'custom' && !customGenre.trim())}
+              className={cn(
+                "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+                !ampDescription.trim() || isAmpPending
+                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+              )}
+              data-testid="button-get-amp-recommendations"
+            >
+              {isAmpPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+                </>
+              ) : (
+                <>
+                  <Speaker className="w-4 h-4" /> Get Speaker Recommendations
+                </>
+              )}
+            </button>
+          </div>
         </form>
         )}
 
@@ -768,27 +853,51 @@ Or written out:
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={!positionList.trim() || isImportPending}
-            className={cn(
-              "w-full py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !positionList.trim() || isImportPending
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
-            )}
-            data-testid="button-refine-positions"
-          >
-            {isImportPending ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="w-4 h-4" /> Refine Shot List
-              </>
-            )}
-          </button>
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Target className="w-3 h-3" /> Tonal Goals (Optional)
+            </label>
+            <input
+              type="text"
+              value={tonalText}
+              onChange={(e) => setTonalText(e.target.value)}
+              placeholder="e.g., Green Day power pop, spanky cleans, thick rhythm..."
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="input-tonal-text-import"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClearResults}
+              className="px-4 py-3 rounded-xl font-medium text-sm border border-white/10 hover:bg-white/5 transition-all flex items-center gap-2"
+              data-testid="button-clear-import"
+            >
+              <Trash2 className="w-4 h-4" /> Clear
+            </button>
+            <button
+              type="submit"
+              disabled={!positionList.trim() || isImportPending}
+              className={cn(
+                "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+                !positionList.trim() || isImportPending
+                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+              )}
+              data-testid="button-refine-positions"
+            >
+              {isImportPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Analyzing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" /> Refine Shot List
+                </>
+              )}
+            </button>
+          </div>
         </form>
         )}
 
@@ -862,7 +971,7 @@ Or written out:
         </AnimatePresence>
 
         <AnimatePresence>
-          {result && (
+          {mode === 'by-speaker' && result && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -968,7 +1077,7 @@ Or written out:
             </motion.div>
           )}
 
-          {speakerResult && (
+          {mode === 'by-speaker' && speakerResult && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1052,7 +1161,7 @@ Or written out:
             </motion.div>
           )}
 
-          {ampResult && (
+          {mode === 'by-amp' && ampResult && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1119,7 +1228,7 @@ Or written out:
             </motion.div>
           )}
 
-          {importResult && (
+          {mode === 'import-positions' && importResult && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
