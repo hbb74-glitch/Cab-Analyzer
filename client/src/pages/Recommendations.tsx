@@ -59,6 +59,8 @@ const GENRES = [
   { value: "punk", label: "Punk" },
   { value: "grunge", label: "Grunge" },
   { value: "classic-metal", label: "Classic Heavy Metal" },
+  { value: "thrash-metal", label: "Thrash Metal" },
+  { value: "funk-rock", label: "Funk Rock" },
   { value: "indie-rock", label: "Indie Rock" },
   { value: "custom", label: "Custom (type your own)" },
 ];

@@ -23,8 +23,8 @@ const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics:
     avoid: 'Avoid muddy or boomy combinations. Skip anything too dark that loses definition.'
   },
   'alternative-rock': {
-    tonalGoal: 'textured, dynamic tone with character and room for effects',
-    characteristics: 'Think Radiohead, R.E.M., The Smiths - can be jangly or heavy, but always musical and expressive. Room for dynamics and texture is key.',
+    tonalGoal: 'textured, dynamic tone with character, edge, and room for effects',
+    characteristics: 'Think Pixies, Dinosaur Jr, Radiohead, R.E.M. - can be jangly, noisy, or heavy, but always musical and expressive. Room for dynamics, feedback, and texture is key. Often uses unconventional mic choices.',
     avoid: 'Avoid overly compressed or one-dimensional tones. Skip anything too polished or sterile.'
   },
   'punk': {
@@ -34,13 +34,23 @@ const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics:
   },
   'grunge': {
     tonalGoal: 'thick, heavy, sludgy tone with massive low-mids and controlled fizz',
-    characteristics: 'Think Nirvana, Soundgarden, Alice in Chains - walls of sound, detuned heaviness, but still articulate enough to cut through.',
+    characteristics: 'Think Nirvana, Soundgarden, Alice in Chains, Pearl Jam - walls of sound, detuned heaviness, but still articulate enough to cut through. Big muff-style saturation.',
     avoid: 'Avoid thin, bright, or sterile tones. Skip anything too polished or hi-fi.'
   },
   'classic-metal': {
     tonalGoal: 'tight, powerful, articulate metal tone with punch and clarity',
     characteristics: 'Think Iron Maiden, Judas Priest, Black Sabbath - powerful but musical, good palm mute definition, not overly scooped.',
     avoid: 'Avoid muddy or boomy combinations. Skip overly scooped or fizzy tones.'
+  },
+  'thrash-metal': {
+    tonalGoal: 'ultra-tight, aggressive, scooped metal tone with razor-sharp attack and machine-gun palm mutes',
+    characteristics: 'Think Metallica, Slayer, Anthrax, Megadeth - fast, precise, aggressive. Tight low-end is critical for speed riffs. Presence peak for cutting through. Often uses V30s or G12T-75s.',
+    avoid: 'Avoid muddy, loose, or boomy combinations. Skip anything warm or smooth that loses definition at speed.'
+  },
+  'funk-rock': {
+    tonalGoal: 'snappy, percussive, clean-to-slightly-dirty tone with tight lows and sparkling highs',
+    characteristics: 'Think Red Hot Chili Peppers, Funkadelic, Living Colour - articulate single-note lines, clean slap-back, funky rhythm work. Needs clarity for percussive playing.',
+    avoid: 'Avoid overly dark, muddy, or high-gain tones. Skip anything that loses pick attack or note separation.'
   },
   'indie-rock': {
     tonalGoal: 'vintage, characterful tone with warmth and personality',
