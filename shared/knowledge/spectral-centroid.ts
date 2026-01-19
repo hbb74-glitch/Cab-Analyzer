@@ -76,7 +76,6 @@ function normalizePosition(position: string): string {
   // Legacy mappings for backwards compatibility
   if (lower.includes('capedge') && lower.includes('favorcap')) return 'capedge_br';
   if (lower.includes('capedge') && lower.includes('favorcone')) return 'capedge_dk';
-  if (lower.includes('between')) return 'capedge_cone_tr';
   // Standard positions
   if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
   if (lower.includes('offcenter') || lower.includes('off_center')) return 'cap_offcenter';

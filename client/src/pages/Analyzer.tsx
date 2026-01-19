@@ -59,7 +59,6 @@ const POSITION_PATTERNS: Record<string, string> = {
   // Legacy mappings for backwards compatibility
   "cap-edge-favor-cap": "capedge_br", "favorcap": "capedge_br",
   "cap-edge-favor-cone": "capedge_dk", "favorcone": "capedge_dk",
-  "between-cap-cone": "capedge_cone_tr", "between": "capedge_cone_tr",
   "cap-edge": "capedge",
   "cap-off-center": "cap_offcenter",
 };

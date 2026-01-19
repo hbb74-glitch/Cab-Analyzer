@@ -163,7 +163,6 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   // Legacy mappings
   else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) position = 'capedge_br';
   else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) position = 'capedge_dk';
-  else if (lower.includes('between')) position = 'capedge_cone_tr';
   // Standard positions
   else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
   else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
@@ -939,7 +938,6 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       Legacy Position Translation (users may use old names):
       - "CapEdge_FavorCap" or "cap edge favor cap" → CapEdge_BR
       - "CapEdge_FavorCone" or "cap edge favor cone" → CapEdge_DK
-      - "CapEdge_Outer" or "between cap cone" → CapEdge_Cone_Tr
       
       Examples:
       - V30_SM57_CapEdge_2in

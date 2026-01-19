@@ -214,7 +214,6 @@ export default function Recommendations() {
         'cap_edge_favor_cone': 'CapEdge_DK',
         'capedge_favorcone': 'CapEdge_DK',
         'cap_off_center': 'Cap_OffCenter',
-        'between_cap_cone': 'CapEdge_Cone_Tr',
       };
       
       return positionMap[posLower] || pos;
