@@ -1013,12 +1013,15 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       - Below 70: Needs work. Significant technical problems.
       
       IMPORTANT SCORING GUIDELINES:
+      - SCORE EACH IR INDEPENDENTLY - do NOT compare IRs to each other or adjust scores based on the batch.
+      - Each IR should receive the SAME score it would get if analyzed alone in single-file mode.
       - Evaluate based on audio quality metrics: spectral balance, peak level, energy distribution, absence of artifacts.
       - Consider whether spectral centroid is reasonable for the mic/position/speaker combination (when detected).
       - Mild tonal deviations from expected (e.g., slightly darker Cap) = minor point deduction, not major penalty.
       - Extreme spectral imbalances (very dark for Cap, very bright for Cone) = moderate deduction.
       - Only major penalties for actual technical problems: clipping, noise, phase issues, corrupted data.
       - Apply the SAME scoring whether context is parsed from filename or unknown.
+      - The gaps analysis is SEPARATE from scoring - do not let missing tones influence individual IR scores.
       
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
