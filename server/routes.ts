@@ -1097,52 +1097,69 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       
       // Now do gaps analysis as a separate LLM call using the scored results
       const gapsPrompt = `You are an expert audio engineer analyzing an IR set for completeness.
-Given the following scored IRs, identify what tonal characteristics are MISSING for a comprehensive IR mixing set.
+Given the following scored IRs, determine if the collection is COMPLETE or has genuine gaps.
 
 AVAILABLE MICS (user's collection - ONLY suggest from this list):
 SM57, R-121, R10, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence/Flat), M88, PR30, e906 (Presence/Flat), M201, SM7B, AKG C414, Roswell Cab Mic
 
-CRITICAL RULES:
-1. ONLY suggest mics the user owns (listed above). Never suggest mics outside this list.
-2. Do NOT always find gaps. If the set already covers the essential tonal bases (bright, warm, balanced), return an EMPTY gapsSuggestions array.
-3. A comprehensive set needs at MINIMUM:
-   - One bright/aggressive option (Cap position OR bright mic like SM57/PR30)
-   - One warm/dark option (Cone position OR ribbon mic)
-   - One balanced option (Cap Edge position)
-   If these are covered, the set is COMPLETE. Return empty suggestions.
-4. Only suggest additions if there's a MAJOR missing tonal category - not just "nice to have" variations.
-5. Maximum 2 suggestions ever. If the user follows suggestions and reruns, do NOT find new gaps unless something critical is still missing.
+COVERAGE CHECKLIST - Evaluate each category:
+1. BRIGHT/AGGRESSIVE: Cap positions, SM57, PR30, e906, C414 at close distance
+2. WARM/DARK: Cone positions, ribbons (R-121, R10, R92, M160), SM7B
+3. BALANCED/NEUTRAL: Cap Edge positions, MD421, M201, moderate distances
+4. MIC FAMILY DIVERSITY: At least one from each family present?
+   - Dynamic (SM57, MD421, e906, PR30, M88, M201, SM7B)
+   - Ribbon (R-121, R10, R92, M160)
+   - Condenser (C414, Roswell) - optional but nice for detail
 
-Mics already in this batch: ${micsInBatch.join(', ') || 'none detected'}
-Positions already in this batch: ${positionsInBatch.join(', ') || 'none detected'}
+COMPLETENESS RULES:
+- A set is COMPLETE when categories 1-3 are covered with reasonable diversity
+- Once complete, return isComplete: true and EMPTY gapsSuggestions
+- Do NOT suggest variations or "nice to haves" - only genuine gaps
+- Each suggestion must pass the ESSENTIALITY TEST: "Would the user be unable to create a common mixing pair without this?"
 
-The user typically mixes two IRs together, so variety is essential:
-- Bright/aggressive tones (high spectral centroid, Cap positions, SM57/PR30/e906)
-- Dark/warm tones (low spectral centroid, Cone positions, ribbons like R-121/M160/R92)
-- Balanced/neutral tones (mid spectral centroid, Cap Edge positions)
+ANTI-CREEP RULES:
+- If bright, warm, and balanced are all represented, the set IS complete
+- Having multiple mics per category is NOT required - one good option per category is sufficient
+- Do not suggest "another ribbon for variety" if a ribbon already exists
+- Do not suggest position variants if that position family is already covered
+
+Mics in this batch: ${micsInBatch.join(', ') || 'none detected'}
+Positions in this batch: ${positionsInBatch.join(', ') || 'none detected'}
+Number of IRs: ${scoredResults.length}
 
 Scored IRs:
 ${scoredResults.map((r, i) => 
   `${i + 1}. ${r.filename} (Score: ${r.score})
-   - Parsed: Mic=${r.parsedInfo.mic || 'unknown'}, Position=${r.parsedInfo.position || 'unknown'}, Speaker=${r.parsedInfo.speaker || 'unknown'}, Distance=${r.parsedInfo.distance || 'unknown'}`
+   - Mic=${r.parsedInfo.mic || 'unknown'}, Position=${r.parsedInfo.position || 'unknown'}, Speaker=${r.parsedInfo.speaker || 'unknown'}, Distance=${r.parsedInfo.distance || 'unknown'}`
 ).join('\n')}
 
 Output JSON format:
 {
-  "summary": "Overall assessment of the IR batch (1-2 sentences). If complete, say so clearly.",
+  "coverageAnalysis": {
+    "hasBright": true/false,
+    "hasWarm": true/false,
+    "hasBalanced": true/false,
+    "hasDynamic": true/false,
+    "hasRibbon": true/false,
+    "hasCondenser": true/false
+  },
+  "isComplete": true/false,
+  "summary": "Assessment. If complete, clearly state the collection is comprehensive.",
   "gapsSuggestions": [
     {
-      "missingTone": "What MAJOR tonal quality is missing",
+      "missingTone": "What category is genuinely missing",
       "recommendation": {
-        "mic": "Specific mic from user's collection ONLY",
-        "position": "Specific position",
-        "distance": "Recommended distance",
-        "speaker": "Same as batch or specify"
+        "mic": "Mic from user's collection ONLY",
+        "position": "Position",
+        "distance": "Distance",
+        "speaker": "Same as batch"
       },
-      "reason": "Why this is ESSENTIAL (not just nice to have)"
+      "reason": "Why this is ESSENTIAL for mixing pairs (must pass essentiality test)"
     }
-  ] or [] (empty if the set is comprehensive - this is the preferred outcome for complete sets)
-}`;
+  ]
+}
+
+IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
 
       const gapsResponse = await openai.chat.completions.create({
         model: "gpt-4o",
