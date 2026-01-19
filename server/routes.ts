@@ -150,25 +150,25 @@ export async function registerRoutes(
       - 70-79: Acceptable. Noticeable issues but still usable.
       - Below 70: Needs work. Significant technical problems.
       
-      IMPORTANT SCORING CONSISTENCY RULES:
-      - Score based on RAW AUDIO QUALITY, not whether spectral content "matches expectations" for a mic/position.
-      - Different positions produce different tonal characters - that's intentional, NOT a flaw.
-      - A dark tone from a Cap position is unusual but NOT a quality problem - it's a tonal characteristic.
-      - Do NOT penalize for unexpected tonal balance. Suggest a tonal modifier instead.
-      - Only penalize for actual technical problems: clipping, noise, phase issues, extreme frequency imbalances.
+      IMPORTANT SCORING GUIDELINES:
+      - Evaluate based on audio quality metrics: spectral balance, peak level, absence of artifacts.
+      - Consider whether spectral centroid is reasonable for the mic/position/speaker combination.
+      - Mild tonal deviations from expected (e.g., slightly darker Cap) = minor point deduction, not major penalty.
+      - Extreme spectral imbalances (very dark for Cap, very bright for Cone) = moderate deduction.
+      - Only major penalties for actual technical problems: clipping, noise, phase issues, corrupted data.
       
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
       - Peak: Should be around 0dB (since it's normalized).
+      - Spectral balance: Reasonable frequency content for the mic/speaker/position combination.
       - Clean capture: No clipping artifacts, phase issues, or excessive noise.
-      - Usable spectral content: Has meaningful frequency information (not blank or corrupted).
       - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on the tonal character based on spectral centroid.
+      - Comment on spectral centroid and whether it's typical for the setup.
       - Identify any technical issues (clipping, noise) - do NOT mention duration.
-      - If spectral content is unusual for the position, note it as a tonal characteristic, not a problem.
+      - If spectral content is unusual for the position, suggest a tonal modifier.
       
       TONAL MODIFIER SUGGESTION (optional):
       If the spectral characteristics don't match what's typical for the position specified by the user, suggest adding a tonal modifier to help identify this IR's character. The user captured it at the position they specified, so DON'T change the position - just add a descriptor.
@@ -981,26 +981,26 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       - 70-79: Acceptable. Noticeable issues but still usable.
       - Below 70: Needs work. Significant technical problems.
       
-      IMPORTANT SCORING CONSISTENCY RULES:
-      - Score based on RAW AUDIO QUALITY, not whether spectral content "matches expectations" for a mic/position.
-      - Different positions produce different tonal characters - that's intentional, NOT a flaw.
-      - A dark tone from a Cap position is unusual but NOT a quality problem - it's a tonal characteristic.
-      - Do NOT penalize for unexpected tonal balance. Suggest a tonal modifier instead.
-      - Only penalize for actual technical problems: clipping, noise, phase issues, extreme frequency imbalances.
+      IMPORTANT SCORING GUIDELINES:
+      - Evaluate based on audio quality metrics: spectral balance, peak level, energy distribution, absence of artifacts.
+      - Consider whether spectral centroid is reasonable for the mic/position/speaker combination (when detected).
+      - Mild tonal deviations from expected (e.g., slightly darker Cap) = minor point deduction, not major penalty.
+      - Extreme spectral imbalances (very dark for Cap, very bright for Cone) = moderate deduction.
+      - Only major penalties for actual technical problems: clipping, noise, phase issues, corrupted data.
       - Apply the SAME scoring whether context is parsed from filename or unknown.
       
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
       - Peak: Should be around 0dB (since it's normalized).
+      - Spectral balance: Reasonable frequency content for the detected mic/speaker/position combination.
       - Clean capture: No clipping artifacts, phase issues, or excessive noise.
-      - Usable spectral content: Has meaningful frequency information (not blank or corrupted).
       - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on the tonal character based on spectral centroid and energy distribution.
+      - Comment on spectral centroid/energy distribution and whether it's typical for the detected setup.
       - Identify any technical issues (clipping, noise) - do NOT mention duration.
-      - If spectral content is unusual for the detected position, note it as a tonal characteristic, not a problem.
+      - If spectral content is unusual for the detected position, suggest a tonal modifier.
       
       For each IR, provide:
       - Parsed info from filename (if detectable)
