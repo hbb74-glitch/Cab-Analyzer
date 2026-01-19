@@ -76,11 +76,25 @@ function parseFilename(filename: string): Partial<FormData> {
   const parts = name.split(/[_\-\s]+/);
   const fullName = parts.join('');
   
-  // Try to find mic type
-  for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
-    if (parts.includes(pattern) || fullName.includes(pattern)) {
-      result.micType = value;
-      break;
+  // Special handling for mics with variants (e906, md441)
+  // Check if filename contains both the mic and its variant modifier
+  const hasE906 = parts.includes('e906') || fullName.includes('e906');
+  const hasPresence = parts.includes('presence') || parts.includes('boost') || fullName.includes('presence') || fullName.includes('boost');
+  const hasFlat = parts.includes('flat') || fullName.includes('flat');
+  
+  const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
+  
+  if (hasE906) {
+    result.micType = hasPresence ? 'e906-boost' : (hasFlat ? 'e906-flat' : 'e906-flat');
+  } else if (hasMd441) {
+    result.micType = hasPresence ? '441-boost' : (hasFlat ? '441-flat' : '441-flat');
+  } else {
+    // Try to find mic type from patterns
+    for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
+      if (parts.includes(pattern) || fullName.includes(pattern)) {
+        result.micType = value;
+        break;
+      }
     }
   }
   
