@@ -26,6 +26,9 @@ interface CacheEntry {
 const batchAnalysisCache = new Map<string, CacheEntry>();
 const singleAnalysisCache = new Map<string, CacheEntry>();
 
+// Clear caches on startup to ensure prompt changes take effect
+console.log('[Cache] Cleared all caches on startup for prompt consistency');
+
 // Clean expired entries from a cache
 function cleanExpiredEntries(cache: Map<string, CacheEntry>): void {
   const now = Date.now();
@@ -140,25 +143,32 @@ export async function registerRoutes(
       - Cone: Focused directly on the paper cone area (not the cap). Darkest, warmest tone with the most body and least high-end.
       - Cap Off Center: Still on the cap but not dead center - slightly off to one side. Retains brightness but with less harsh direct attack than dead center. NOT the same as off-axis.
       
-      Technical Scoring Criteria:
-      - 90-100: Exceptional. Professional studio quality, no technical issues.
+      Technical Scoring Criteria (APPLY CONSISTENTLY - same as batch analysis):
+      - 90-100: Exceptional. Professional studio quality, no technical issues. Clean capture with good spectral content.
       - 85-89: Very Good. High quality capture, minor improvements possible.
       - 80-84: Good. Usable quality, some technical aspects could be improved.
       - 70-79: Acceptable. Noticeable issues but still usable.
       - Below 70: Needs work. Significant technical problems.
       
+      IMPORTANT SCORING CONSISTENCY RULES:
+      - Score based on RAW AUDIO QUALITY, not whether spectral content "matches expectations" for a mic/position.
+      - Different positions produce different tonal characters - that's intentional, NOT a flaw.
+      - A dark tone from a Cap position is unusual but NOT a quality problem - it's a tonal characteristic.
+      - Do NOT penalize for unexpected tonal balance. Suggest a tonal modifier instead.
+      - Only penalize for actual technical problems: clipping, noise, phase issues, extreme frequency imbalances.
+      
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
       - Peak: Should be around 0dB (since it's normalized).
-      - Spectral balance: Appropriate frequency content for the mic/speaker/position combination.
-      - No clipping, phase issues, or excessive noise.
+      - Clean capture: No clipping artifacts, phase issues, or excessive noise.
+      - Usable spectral content: Has meaningful frequency information (not blank or corrupted).
       - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on whether the mic/position/distance choice captures the speaker well.
-      - Identify any technical issues (frequency response, noise) - do NOT mention duration.
-      - Suggest technical improvements if needed (different position, distance adjustments).
+      - Comment on the tonal character based on spectral centroid.
+      - Identify any technical issues (clipping, noise) - do NOT mention duration.
+      - If spectral content is unusual for the position, note it as a tonal characteristic, not a problem.
       
       TONAL MODIFIER SUGGESTION (optional):
       If the spectral characteristics don't match what's typical for the position specified by the user, suggest adding a tonal modifier to help identify this IR's character. The user captured it at the position they specified, so DON'T change the position - just add a descriptor.
@@ -964,25 +974,33 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       - Speakers: V30, Greenback, G12M, Cream, GA12-SC64, G12T75, K100, etc.
       - Distances: Numbers followed by "in" or just numbers (e.g., 1in, 2, 1.5in)
       
-      Technical Scoring Criteria (APPLY CONSISTENTLY):
-      - 90-100: Exceptional. Professional studio quality, no technical issues.
+      Technical Scoring Criteria (APPLY CONSISTENTLY - same as single file analysis):
+      - 90-100: Exceptional. Professional studio quality, no technical issues. Clean capture with good spectral content.
       - 85-89: Very Good. High quality capture, minor improvements possible.
       - 80-84: Good. Usable quality, some technical aspects could be improved.
       - 70-79: Acceptable. Noticeable issues but still usable.
       - Below 70: Needs work. Significant technical problems.
       
+      IMPORTANT SCORING CONSISTENCY RULES:
+      - Score based on RAW AUDIO QUALITY, not whether spectral content "matches expectations" for a mic/position.
+      - Different positions produce different tonal characters - that's intentional, NOT a flaw.
+      - A dark tone from a Cap position is unusual but NOT a quality problem - it's a tonal characteristic.
+      - Do NOT penalize for unexpected tonal balance. Suggest a tonal modifier instead.
+      - Only penalize for actual technical problems: clipping, noise, phase issues, extreme frequency imbalances.
+      - Apply the SAME scoring whether context is parsed from filename or unknown.
+      
       Criteria for "Perfect" IR (technical quality):
       - Normalization: The system normalizes every IR to 0dB peak before analysis.
       - Peak: Should be around 0dB (since it's normalized).
-      - Spectral balance: Appropriate frequency content for the mic/speaker/position combination.
-      - No clipping, phase issues, or excessive noise.
+      - Clean capture: No clipping artifacts, phase issues, or excessive noise.
+      - Usable spectral content: Has meaningful frequency information (not blank or corrupted).
       - Duration is NOT a scoring factor - hardware units truncate IRs, so ignore duration entirely.
       
       Advice Guidelines:
       - Focus on TECHNICAL quality only - not genre or style preferences.
-      - Comment on whether the mic/position/distance choice captures the speaker well.
-      - Identify any technical issues (frequency response, noise) - do NOT mention duration.
-      - Suggest technical improvements if needed (different position, distance adjustments).
+      - Comment on the tonal character based on spectral centroid and energy distribution.
+      - Identify any technical issues (clipping, noise) - do NOT mention duration.
+      - If spectral content is unusual for the detected position, note it as a tonal characteristic, not a problem.
       
       For each IR, provide:
       - Parsed info from filename (if detectable)
