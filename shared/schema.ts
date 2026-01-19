@@ -39,6 +39,8 @@ export const analysisRequestSchema = insertAnalysisSchema.extend({
   lowEnergy: z.number().min(0).max(1),   // Energy in 20-250Hz range
   midEnergy: z.number().min(0).max(1),   // Energy in 250-4000Hz range
   highEnergy: z.number().min(0).max(1),  // Energy in 4000-20000Hz range
+  // Original filename for mic variant detection (e.g., e906 presence boost)
+  originalFilename: z.string().optional(),
 });
 
 export type Analysis = typeof analyses.$inferSelect;

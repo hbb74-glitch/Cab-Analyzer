@@ -197,8 +197,27 @@ export async function registerRoutes(
         } or null (only include if noticeable tonal mismatch detected)
       }`;
 
+      // Detect e906 presence boost from filename
+      const filename = input.originalFilename || input.filename;
+      const filenameLC = filename.toLowerCase();
+      const hasPresenceBoost = filenameLC.includes('presence') || filenameLC.includes('boost') || filenameLC.includes('e906boost');
+      const hasFlat = filenameLC.includes('flat') || filenameLC.includes('e906flat');
+      
+      // Determine mic variant for e906
+      let micVariant = input.micType;
+      if (input.micType.toLowerCase().includes('e906') || filenameLC.includes('e906')) {
+        if (hasPresenceBoost) {
+          micVariant = 'e906 (Presence Boost)';
+        } else if (hasFlat) {
+          micVariant = 'e906 (Flat)';
+        } else {
+          micVariant = input.micType; // User-specified variant
+        }
+      }
+      
       const userMessage = `
-        Mic Type: ${input.micType}
+        Filename: "${filename}"
+        Mic Type: ${micVariant}
         Position: ${input.micPosition}
         Speaker: ${input.speakerModel}
         Distance: ${input.distance}

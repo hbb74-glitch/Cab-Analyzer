@@ -382,6 +382,7 @@ export default function Analyzer() {
         lowEnergy: metrics.lowEnergy,
         midEnergy: metrics.midEnergy,
         highEnergy: metrics.highEnergy,
+        originalFilename: file.name, // Pass original filename for mic variant detection
       });
       setResult(response);
     } catch (error) {
