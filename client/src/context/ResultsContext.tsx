@@ -15,6 +15,20 @@ type SingleAnalysisResult = Analysis & {
   renameSuggestion?: RenameSuggestion | null; 
 };
 
+export interface SingleAnalysisMetrics {
+  durationMs: number;
+  durationSamples: number;
+  peakAmplitudeDb: number;
+  spectralCentroid: number;
+  frequencyData: number[];
+  lowEnergy: number;
+  midEnergy: number;
+  highEnergy: number;
+  hasClipping: boolean;
+  clippedSamples: number;
+  crestFactorDb: number;
+}
+
 interface ResultsContextType {
   recommendationsResult: RecommendationsResponse | null;
   setRecommendationsResult: (r: RecommendationsResponse | null) => void;
@@ -30,6 +44,8 @@ interface ResultsContextType {
   setBatchAnalysisResult: (r: BatchAnalysisResponse | null) => void;
   singleAnalysisResult: SingleAnalysisResult | null;
   setSingleAnalysisResult: (r: SingleAnalysisResult | null) => void;
+  singleAnalysisMetrics: SingleAnalysisMetrics | null;
+  setSingleAnalysisMetrics: (m: SingleAnalysisMetrics | null) => void;
   recommendationsMode: RecommendationsMode;
   setRecommendationsMode: (m: RecommendationsMode) => void;
   analyzerMode: AnalyzerMode;
@@ -47,6 +63,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
   const [pairingResult, setPairingResult] = useState<PairingResponse | null>(null);
   const [batchAnalysisResult, setBatchAnalysisResult] = useState<BatchAnalysisResponse | null>(null);
   const [singleAnalysisResult, setSingleAnalysisResult] = useState<SingleAnalysisResult | null>(null);
+  const [singleAnalysisMetrics, setSingleAnalysisMetrics] = useState<SingleAnalysisMetrics | null>(null);
   const [recommendationsMode, setRecommendationsMode] = useState<RecommendationsMode>('by-speaker');
   const [analyzerMode, setAnalyzerMode] = useState<AnalyzerMode>('single');
 
@@ -58,6 +75,7 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
     setPairingResult(null);
     setBatchAnalysisResult(null);
     setSingleAnalysisResult(null);
+    setSingleAnalysisMetrics(null);
   };
 
   return (
@@ -76,6 +94,8 @@ export function ResultsProvider({ children }: { children: ReactNode }) {
       setBatchAnalysisResult,
       singleAnalysisResult,
       setSingleAnalysisResult,
+      singleAnalysisMetrics,
+      setSingleAnalysisMetrics,
       recommendationsMode,
       setRecommendationsMode,
       analyzerMode,

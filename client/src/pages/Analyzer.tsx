@@ -159,13 +159,14 @@ export default function Analyzer() {
     setBatchAnalysisResult: setBatchResult,
     singleAnalysisResult: result,
     setSingleAnalysisResult: setResult,
+    singleAnalysisMetrics: metrics,
+    setSingleAnalysisMetrics: setMetrics,
     analyzerMode: mode,
     setAnalyzerMode: setMode
   } = useResults();
   
   // Single mode state
   const [file, setFile] = useState<File | null>(null);
-  const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
   // Batch mode state
@@ -986,7 +987,7 @@ export default function Analyzer() {
                 >
                   <div className="flex justify-end">
                     <button
-                      onClick={() => setResult(null)}
+                      onClick={() => { setResult(null); setMetrics(null); }}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
                       data-testid="button-clear-single-result"
                     >
