@@ -1113,12 +1113,14 @@ COVERAGE CHECKLIST - Evaluate each category:
 
 ESSENTIAL MIC CHARACTERS (distinct tools, not duplicates):
 DYNAMICS:
-- SM57: Aggressive mid-forward attack, the standard
-- MD421/MD421 Kompakt: Punchy, full-bodied, tighter low-end - ESSENTIAL complement to SM57
-- e906: Scooped mids, fizzy presence, different EQ curve than SM57
+- SM57: Aggressive mid-forward attack, the standard - pairs classically with ribbons
+- MD421/MD421 Kompakt: Punchy, full-bodied, tighter low-end - ESSENTIAL complement to SM57, different attack character
+- MD441: Exceptional clarity with presence boost/flat options, more refined than MD421
+- e906: Scooped mids, fizzy presence - different EQ curve, great with ribbons for modern tones
 - PR30: Extremely bright, almost harsh - for cutting through dense mixes
-- SM7B: Warm, thick, smooth dynamic - great for leads
-- M88/M201: Alternative dynamic characters
+- SM7B: Warm, thick, smooth dynamic - great for leads and creamy tones
+- M88: TG console vibe, tight controlled low-end, underrated alternative to MD421
+- M201: Hypercardioid, very focused pickup, less room interaction - surgical precision
 
 RIBBONS:
 - R-121/R10: Smooth ribbon darkness, the classic blend partner for SM57
@@ -1138,10 +1140,19 @@ A truly comprehensive set for ANY close-miked tone needs:
 4. Coverage of Cap, Cap Edge, and Cone positions (or equivalents)
 5. Reasonable distance variety (0-2" for aggressive, 2-4" for balanced)
 
+CLASSIC BLEND PAIRS (for mixing two IRs):
+- SM57 + R-121: The industry standard (aggressive + smooth)
+- MD421 + R-121: Punchier attack + smooth (different from SM57 blend)
+- e906 + ribbon: Scooped modern + warmth
+- C414 + SM57: Detail + aggression
+- SM7B + bright dynamic: Smooth leads + definition
+
 WHEN TO SUGGEST:
 - Suggest when a DISTINCT mic character is missing (MD421 adds something SM57 cannot)
+- Suggest when a classic blend pair cannot be achieved with current mics
 - Suggest when a tonal category has zero coverage
 - Suggest when position variety is lacking for mixing options
+- Consider if the user can create both aggressive AND smooth blend pairs
 
 WHEN TO STOP (anti-creep):
 - Do NOT suggest a second ribbon if one ribbon already covers dark/smooth
