@@ -216,21 +216,21 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "k100",
     speakerLabel: "Celestion G12K-100",
     impedanceCurve: {
-      fractalCurve: "1x12 Friedman",
+      fractalCurve: "1x12 G12T75",
       confidence: "high",
-      notes: "The 1x12 Friedman uses a Celestion Redback which shares the same 50oz ceramic magnet as the K100. Both are high-power, tight-response speakers with similar impedance characteristics.",
-      alternates: ["2x12 Band Commander SRO", "1x12 Brit G12H75", "2x12 Recto"]
+      notes: "Mechanical match - the K100 uses the same chassis as the G12T-75 (same voice coil, cone, and suspension). The K100 has a heavier 50oz magnet which slightly tightens the bass response, but the impedance curve shape is nearly identical.",
+      alternates: ["1x12 EVM12L", "1x12 Friedman"]
     },
     spkrSettings: {
-      lfResonanceFreq: 90,
+      lfResonanceFreq: 88,
       lfResonance: 1.0,
       hfResonanceFreq: 1150,
       speakerThump: 1.4,
       speakerDrive: 0.18,
-      speakerCompression: 1.0,
+      speakerCompression: 0.9,
     },
-    notes: "The K100 has the heaviest ceramic magnet in the G12 line (50oz), same as the Redback. Very low Drive (0.18) reflects its clean, stiff cone with minimal breakup. Higher Thump (1.4) captures the massive low-end. Low Compression for tight response.",
-    additionalNotes: "85Hz resonance vs Redback's 75Hz - K100 is slightly less bass-extended. 100W power handling. Massive bottom-end, rock-hard midrange, restrained top-end. Ideal for high-gain metal. Used in Mesa Boogie and Marshall Mode 4 cabs."
+    notes: "K100 shares the G12T-75 chassis but with a heavier 50oz magnet. LF Reso Freq (88Hz) is slightly lower than T75 (90Hz) due to the heavier magnet. Very low Drive (0.18) reflects the clean, stiff cone. Higher Thump (1.4) captures the massive low-end.",
+    additionalNotes: "The K100 has fuller mids and smoother highs than the T75 due to the larger magnet. 85Hz resonance frequency. 100W power handling. Described as 'Celestion's EVM12L' - try the EVM12L curve for that tight, clean character. Ideal for high-gain metal."
   }
 ];
 
