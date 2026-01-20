@@ -216,10 +216,10 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "k100",
     speakerLabel: "Celestion G12K-100",
     impedanceCurve: {
-      fractalCurve: "2x12 Band Commander SRO",
+      fractalCurve: "1x12 Friedman",
       confidence: "high",
-      notes: "No dedicated K100 curve in Fractal. The Band Commander SRO has a similar large magnet with clean response and solid bass - matches the K100's character. Both have broader, less tall resonance peaks.",
-      alternates: ["2x12 Recto", "4x12 C90", "1x12 USA Lead"]
+      notes: "The 1x12 Friedman uses a Celestion Redback which shares the same 50oz ceramic magnet as the K100. Both are high-power, tight-response speakers with similar impedance characteristics.",
+      alternates: ["2x12 Band Commander SRO", "1x12 Brit G12H75", "2x12 Recto"]
     },
     spkrSettings: {
       lfResonanceFreq: 90,
@@ -229,8 +229,8 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       speakerDrive: 0.18,
       speakerCompression: 1.0,
     },
-    notes: "The K100 has the heaviest ceramic magnet in the G12 line (50oz). Very low Drive (0.18) reflects its clean, stiff cone with minimal breakup. Higher Thump (1.4) captures the massive low-end. Low Compression for tight response.",
-    additionalNotes: "85Hz resonance frequency. 100W power handling. Massive bottom-end, rock-hard midrange, restrained top-end. Ideal for high-gain metal and modern rock. Used in Mesa Boogie and Marshall Mode 4 cabs."
+    notes: "The K100 has the heaviest ceramic magnet in the G12 line (50oz), same as the Redback. Very low Drive (0.18) reflects its clean, stiff cone with minimal breakup. Higher Thump (1.4) captures the massive low-end. Low Compression for tight response.",
+    additionalNotes: "85Hz resonance vs Redback's 75Hz - K100 is slightly less bass-extended. 100W power handling. Massive bottom-end, rock-hard midrange, restrained top-end. Ideal for high-gain metal. Used in Mesa Boogie and Marshall Mode 4 cabs."
   }
 ];
 
