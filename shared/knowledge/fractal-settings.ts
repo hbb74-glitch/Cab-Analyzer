@@ -57,10 +57,10 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "v30bc",
     speakerLabel: "Celestion Vintage 30 (Black Cat)",
     impedanceCurve: {
-      fractalCurve: "1x12 V30",
-      confidence: "high",
-      notes: "Black Cat V30 variant - same base speaker with subtle cone differences. The 1x12 V30 curve is the best match.",
-      alternates: ["4x12 Recto Traditional"]
+      fractalCurve: "1x12 Hot Kitty Cat",
+      confidence: "exact",
+      notes: "Direct match! The Hot Kitty Cat curve is based on a Black Cat V30. Perfect for your Black Cat captures.",
+      alternates: ["1x12 V30", "4x12 Recto Traditional"]
     },
     spkrSettings: {
       lfResonanceFreq: 90,
@@ -70,16 +70,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       speakerDrive: 0.20,
       speakerCompression: 1.0,
     },
-    notes: "Black Cat is slightly smoother than standard V30. Marginally lower LF Reso Freq and Thump reflect its warmer character.",
+    notes: "Black Cat is slightly smoother than standard V30. The Hot Kitty Cat curve is the ideal match for this speaker variant.",
   },
   {
     speaker: "greenback",
     speakerLabel: "Celestion G12M Greenback",
     impedanceCurve: {
-      fractalCurve: "4x12 Basketweave",
-      confidence: "high",
-      notes: "Basketweave cabs historically used G12M/G12H speakers. This is the classic British closed-back sound.",
-      alternates: ["4x12 Brit Greenback", "2x12 Class-A Greenback", "1x12 Brit G12H75"]
+      fractalCurve: "1x12 Div 13 CJ11",
+      confidence: "exact",
+      notes: "Direct 1x12 G12M match! The Divided by 13 CJ11 uses a Greenback. Perfect for single-speaker G12M captures.",
+      alternates: ["4x12 Basketweave", "4x12 Brit Greenback", "2x12 Class-A Greenback"]
     },
     spkrSettings: {
       lfResonanceFreq: 85,
@@ -96,10 +96,10 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "g12h",
     speakerLabel: "Celestion G12H Anniversary (30W)",
     impedanceCurve: {
-      fractalCurve: "4x12 Basketweave",
+      fractalCurve: "1x12 Brit G12H75",
       confidence: "high",
-      notes: "G12H Heritage/Anniversary is the heavier-magnet cousin of the Greenback. Basketweave curve captures the tight low-end.",
-      alternates: ["1x12 Brit G12H75", "4x12 Brit Greenback"]
+      notes: "The G12H75 is the 75W version of the G12H family. The G12H Anniversary (30W) is slightly brighter but shares the same impedance characteristics. Best 1x12 match.",
+      alternates: ["4x12 Basketweave", "4x12 Brit Greenback"]
     },
     spkrSettings: {
       lfResonanceFreq: 90,
@@ -109,7 +109,7 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       speakerDrive: 0.25,
       speakerCompression: 1.1,
     },
-    notes: "The 30W G12H has a heavier magnet than Greenback, resulting in tighter bass. Settings between V30 and Greenback - punchy but with vintage character.",
+    notes: "The 30W G12H has a heavier magnet than Greenback, resulting in tighter bass. Your Anniversary is slightly brighter than the G12H75 curve but otherwise a strong match.",
     additionalNotes: "The G12H Anniversary is the 70th anniversary reissue with the original heavy magnet design. Brighter than Greenback but warmer than V30."
   },
   {
@@ -136,10 +136,10 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "g12t75",
     speakerLabel: "Celestion G12T-75",
     impedanceCurve: {
-      fractalCurve: "4x12 Brit 800",
+      fractalCurve: "1x12 G12T75",
       confidence: "exact",
-      notes: "The JCM800 1960 cabinet was loaded with G12T-75s. This is a direct match.",
-      alternates: ["4x12 SLO", "4x12 Brit JM45"]
+      notes: "Direct 1x12 G12T-75 match! Perfect for single-speaker captures.",
+      alternates: ["4x12 Brit 800", "4x12 SLO"]
     },
     spkrSettings: {
       lfResonanceFreq: 100,
@@ -196,10 +196,10 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "g10-sc64",
     speakerLabel: "Eminence GA10-SC64 (Alessandro 10\")",
     impedanceCurve: {
-      fractalCurve: "1x12 Deluxe Oxford",
-      confidence: "high",
-      notes: "Despite being a 10\" speaker, the GA10-SC64 has an unusually 12\"-like frequency response. Use the same curve as the 12\" version.",
-      alternates: ["1x10 USA", "1x12 Bassguy"]
+      fractalCurve: "1x10 BF Princeton's",
+      confidence: "exact",
+      notes: "Direct 1x10 Blackface Princeton match! The GA10-SC64 is voiced for vintage Fender blackface tone - this curve captures the 10\" character perfectly.",
+      alternates: ["1x12 Deluxe Oxford", "1x10 USA", "1x12 Bassguy"]
     },
     spkrSettings: {
       lfResonanceFreq: 105,
@@ -209,8 +209,8 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       speakerDrive: 0.30,
       speakerCompression: 1.0,
     },
-    notes: "10\" speakers have higher resonance frequency (100Hz vs 88Hz for 12\"). Higher LF Reso Freq (105Hz) and lower Thump (1.1) compensate for the smaller driver. Still has smooth breakup character.",
-    additionalNotes: "The GA10-SC64 is praised for having a very '12-inch-ish' frequency response despite being a 10\" speaker. Tight, punchy, sparkly."
+    notes: "10\" speakers have higher resonance frequency (100Hz vs 88Hz for 12\"). Higher LF Reso Freq (105Hz) and lower Thump (1.1) capture the focused, punchy 10\" character with smooth breakup.",
+    additionalNotes: "The GA10-SC64 is praised for vintage Fender blackface tone. The Princeton curve is ideal for this speaker's voiced character."
   }
 ];
 
