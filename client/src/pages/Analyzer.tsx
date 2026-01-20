@@ -18,7 +18,7 @@ import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/rout
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.string().min(1, "Microphone is required"),
-  micPosition: z.enum(["cap", "cap_offcenter", "capedge", "capedge_br", "capedge_dk", "capedge_cone_tr", "cone"]),
+  micPosition: z.enum(["cap", "cap_offcenter", "capedge", "capedge_br", "capedge_dk", "cap_cone_trn", "cone"]),
   speakerModel: z.string().min(1, "Speaker model is required"),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
 });
@@ -52,7 +52,7 @@ const POSITION_PATTERNS: Record<string, string> = {
   // New naming convention
   "capedge_br": "capedge_br", "capedgebr": "capedge_br",
   "capedge_dk": "capedge_dk", "capedgedk": "capedge_dk",
-  "capedge_cone_tr": "capedge_cone_tr", "capedgeconetr": "capedge_cone_tr", "cone_tr": "capedge_cone_tr",
+  "capedge_cone_tr": "cap_cone_trn", "capedgeconetr": "cap_cone_trn", "cone_tr": "cap_cone_trn", "cap_cone_trn": "cap_cone_trn", "capconetrn": "cap_cone_trn",
   "cap_offcenter": "cap_offcenter", "capoffcenter": "cap_offcenter", "offcenter": "cap_offcenter",
   "capedge": "capedge", "cap_edge": "capedge", "edge": "capedge",
   "cap": "cap", "center": "cap",
@@ -863,7 +863,7 @@ export default function Analyzer() {
                       <option value="capedge">CapEdge</option>
                       <option value="capedge_br">CapEdge_BR (Brighter)</option>
                       <option value="capedge_dk">CapEdge_DK (Darker)</option>
-                      <option value="capedge_cone_tr">CapEdge_Cone_Tr (Transition)</option>
+                      <option value="cap_cone_trn">Cap_Cone_Trn (Transition)</option>
                       <option value="cone">Cone</option>
                     </select>
                   </div>

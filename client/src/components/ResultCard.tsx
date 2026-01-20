@@ -32,7 +32,7 @@ const POSITION_LABELS: Record<string, string> = {
   "capedge": "CapEdge",
   "capedge_br": "CapEdge_BR",
   "capedge_dk": "CapEdge_DK",
-  "capedge_cone_tr": "CapEdge_Cone_Tr",
+  "cap_cone_trn": "Cap_Cone_Trn",
   "cone": "Cone",
   // Legacy mappings for backwards compatibility
   "cap-edge": "CapEdge",

@@ -24,7 +24,7 @@ export const POSITION_OFFSETS: Record<string, { offset: number; description: str
   'capedge': { offset: 0, description: 'Seam line where the dust cap meets the cone (baseline)' },
   'capedge_br': { offset: 150, description: 'CapEdge favoring the cap side of the seam, brighter' },
   'capedge_dk': { offset: -150, description: 'CapEdge favoring the cone side of the seam, darker' },
-  'capedge_cone_tr': { offset: -250, description: 'Smooth cone immediately past the cap edge, transition zone' },
+  'cap_cone_trn': { offset: -250, description: 'Smooth cone immediately past the cap edge, transition zone' },
   'cone': { offset: -500, description: 'True mid-cone position, ribs allowed, not near surround' },
 };
 
@@ -72,7 +72,7 @@ function normalizePosition(position: string): string {
   // New naming convention
   if (lower.includes('capedge_br') || lower.includes('capedgebr')) return 'capedge_br';
   if (lower.includes('capedge_dk') || lower.includes('capedgedk')) return 'capedge_dk';
-  if (lower.includes('capedge_cone_tr') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) return 'capedge_cone_tr';
+  if (lower.includes('capedge_cone_tr') || lower.includes('capedgeconetr') || lower.includes('cone_tr') || lower.includes('cap_cone_trn') || lower.includes('capconetrn')) return 'cap_cone_trn';
   // Legacy mappings for backwards compatibility
   if (lower.includes('capedge') && lower.includes('favorcap')) return 'capedge_br';
   if (lower.includes('capedge') && lower.includes('favorcone')) return 'capedge_dk';
