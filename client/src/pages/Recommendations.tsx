@@ -155,7 +155,7 @@ export default function Recommendations() {
     "r92": { base: "R92" },
     "160": { base: "M160" },
     "421": { base: "MD421" },
-    "421-kompakt": { base: "MD421Kom" },
+    "421-kompakt": { base: "MD421Kmp" },
     "441-boost": { base: "MD441", suffix: "_Presence" },
     "441-flat": { base: "MD441", suffix: "_Flat" },
     "r10": { base: "R10" },
