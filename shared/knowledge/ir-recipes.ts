@@ -176,7 +176,7 @@ export const CURATED_IR_RECIPES: IRRecipe[] = [
   },
   {
     speaker: "g12h30-anniversary",
-    speakerLabel: "G12H30 Anniversary",
+    speakerLabel: "G12H",
     mic: "121",
     micLabel: "R-121",
     position: "capedge",

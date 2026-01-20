@@ -35,7 +35,7 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
   'g12m': { offset: -150, description: 'Greenback variant' },
   'g12t75': { offset: 100, description: 'Scooped mids, sizzly highs' },
   'g12-65': { offset: -50, description: 'Warm, punchy, large sound' },
-  'g12hanni': { offset: 150, description: 'Tight bass, bright highs' },
+  'g12h': { offset: 150, description: 'Tight bass, bright highs' },
   'cream': { offset: -100, description: 'Alnico smoothness' },
   'ga12-sc64': { offset: 50, description: 'Vintage American, tight and punchy' },
   'ga10-sc64': { offset: 100, description: '10 inch version, more focused highs' },
@@ -92,8 +92,8 @@ function normalizeSpeaker(speaker: string): string {
   if (lower.includes('v30') || lower.includes('vintage30')) return 'v30';
   if (lower.includes('greenback') || lower.includes('g12m25') || lower === 'g12m') return 'greenback';
   if (lower.includes('g12t75')) return 'g12t75';
-  if (lower.includes('g1265') || lower.includes('heritage')) return 'g12-65';
-  if (lower.includes('g12h') && lower.includes('anni')) return 'g12hanni';
+  if (lower.includes('g1265') || lower.includes('heritage') || lower.includes('g12-65')) return 'g12-65';
+  if (lower.includes('g12h') || lower.includes('anni')) return 'g12h';
   if (lower.includes('cream')) return 'cream';
   if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) return 'ga12-sc64';
   if (lower.includes('ga10') || lower.includes('g10')) return 'ga10-sc64';

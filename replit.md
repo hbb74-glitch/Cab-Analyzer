@@ -125,7 +125,7 @@ Deterministic expected spectral centroid ranges for consistent scoring:
 Format: `Speaker_Mic_Position_distance_variant`
 
 **Speaker Shorthand:**
-- Cream, V30, V30BC, G12M, G12HAnn, G12-65Her, GA12-SC64, GA10-SC64, K100, G12T75
+- Cream, V30, V30BC, G12M, G12H, G12-65, GA12-SC64, GA10-SC64, K100, G12T75
 
 **Mic Shorthand:**
 - SM57, R121, R10, MD421, MD421Kmp, M201, M88, Roswell, M160, e906, C414, R92, PR30
