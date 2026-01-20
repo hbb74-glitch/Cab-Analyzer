@@ -94,7 +94,7 @@ const TONAL_KEYWORDS = {
   bright: {
     synonyms: ['spanky', 'sparkly', 'crisp', 'cutting', 'present', 'articulate', 'snappy', 'chimey', 'glassy', 'brilliant', 'airy', 'open', 'sizzle', 'twang', 'jangle'],
     avoid: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warm/dark mics
-    avoidPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Trn'], // Darker positions
+    avoidPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'], // Darker positions
     prefer: ['SM57', 'PR30', 'e906', 'C414', 'Roswell'], // Brighter mics
     preferPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'] // Brighter positions
   },
@@ -103,7 +103,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'e906', 'C414'], // Bright mics
     avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Brighter positions
     prefer: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warmer mics
-    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Trn'] // Darker positions
+    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'] // Darker positions
   },
   aggressive: {
     synonyms: ['edgy', 'biting', 'raw', 'gritty', 'punchy', 'attack', 'snarl', 'growl', 'mean'],
@@ -138,7 +138,7 @@ const TONAL_KEYWORDS = {
     avoid: ['MD421', 'PR30'], // Too aggressive/forward
     avoidPositions: ['Cap'], // Too direct
     prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Trn'] // Smoother positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Smoother positions
   },
   lofi: {
     synonyms: ['lo-fi', 'gritty', 'vintage', 'character', 'vibe', 'dusty', 'tape', 'old-school', 'retro'],
@@ -173,7 +173,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30'], // Can be too scooped
     avoidPositions: ['Cap'], // Can be too bright/scooped
     prefer: ['SM57', 'MD421', 'R121', 'M160'], // Mid-present mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Trn'] // Mid-rich positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Mid-rich positions
   },
   heavy: {
     synonyms: ['massive', 'crushing', 'doom', 'sludge', 'wall of sound', 'huge', 'thunderous'],
@@ -194,7 +194,7 @@ const TONAL_KEYWORDS = {
     avoid: ['SM57', 'MD421', 'PR30', 'e906'], // Too aggressive
     avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Too bright
     prefer: ['R121', 'M160', 'R92', 'C414'], // Smooth, detailed mics
-    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Trn'] // Warm, smooth positions
+    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'] // Warm, smooth positions
   },
   country: {
     synonyms: ['twang', 'chicken pickin', 'telecaster', 'nashville', 'brad paisley', 'brent mason'],
@@ -215,7 +215,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'e906'], // Too aggressive
     avoidPositions: ['Cap'], // Too direct
     prefer: ['R121', 'M160', 'C414', 'R92'], // Natural-sounding mics
-    preferPositions: ['CapEdge', 'Cap_Cone_Trn', 'Cone'] // More open positions
+    preferPositions: ['CapEdge', 'Cap_Cone_Tr', 'Cone'] // More open positions
   },
   balanced: {
     synonyms: ['neutral', 'flat', 'mix-ready', 'versatile', 'all-purpose'],
@@ -229,14 +229,14 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'C414'], // Too bright/clinical
     avoidPositions: ['Cap', 'Cap_OffCenter'], // Too bright
     prefer: ['R121', 'M160', 'SM57', 'MD421'], // Handle low-end well
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Trn'] // Fuller positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Fuller positions
   },
   shoegaze: {
     synonyms: ['washy', 'layered', 'reverb', 'my bloody valentine', 'dreamy', 'swirling'],
     avoid: ['MD421', 'PR30'], // Too aggressive/direct
     avoidPositions: ['Cap'], // Too focused
     prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Trn'] // Smooth positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Smooth positions
   },
   postpunk: {
     synonyms: ['post-punk', 'angular', 'jangly', 'dark', 'new wave', 'joy division', 'the cure'],
@@ -763,7 +763,7 @@ export async function registerRoutes(
       - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
-      - Cap_Cone_Trn: Smooth cone immediately past the cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest${genre ? `
       
       === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
@@ -797,7 +797,7 @@ export async function registerRoutes(
         ],
         "bestPositions": [
           {
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Trn|Cone",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
             "reason": "Why this position${genre ? ` achieves '${genre}'` : ' works well for this mic+speaker combo'}"
           }
         ]
@@ -886,7 +886,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
-      - Cap_Cone_Trn: Smooth cone immediately past the cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
@@ -913,7 +913,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
           {
             "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
             "micLabel": "Display name exactly as listed above (e.g. 'SM57', 'R121', 'e906 (Presence Boost)', 'MD441 (Flat)', 'Roswell Cab Mic')",
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Trn|Cone",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
             "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
@@ -1252,7 +1252,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       
       Position Format:
       - Simple: Cap, Cone, CapEdge
-      - Complex: Cap_OffCenter, CapEdge_BR, CapEdge_DK, Cap_Cone_Trn
+      - Complex: Cap_OffCenter, CapEdge_BR, CapEdge_DK, Cap_Cone_Tr
       
       Position Definitions:
       - Cap: Dead center of the dust cap
@@ -1260,7 +1260,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       - CapEdge: Seam line where the dust cap meets the cone
       - CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
       - CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
-      - Cap_Cone_Trn: Smooth cone immediately past the cap edge (transition zone)
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed
       
       Legacy Position Translation (users may use old names):
@@ -1296,7 +1296,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       - CapEdge: Seam line where dust cap meets cone, balanced
       - CapEdge_BR: CapEdge favoring cap side, brighter
       - CapEdge_DK: CapEdge favoring cone side, darker/warmer
-      - Cap_Cone_Trn: Smooth cone past cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone past cap edge, transition zone
       - Cone: True mid-cone, darkest, most body
       
       Distances: 0" to 6" in 0.5" increments

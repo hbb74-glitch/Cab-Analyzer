@@ -223,8 +223,8 @@ export default function Recommendations() {
         'capedgebr': 'CapEdge_BR',
         'capedge_dk': 'CapEdge_DK',
         'capedgedk': 'CapEdge_DK',
-        'cap_cone_trn': 'Cap_Cone_Trn',
-        'capconetrn': 'Cap_Cone_Trn',
+        'cap_cone_tr': 'Cap_Cone_Tr',
+        'capconetr': 'Cap_Cone_Tr',
         'cone': 'Cone',
         // Legacy mappings
         'cap_edge_favor_cap': 'CapEdge_BR',
@@ -468,7 +468,7 @@ export default function Recommendations() {
     "capedge": "CapEdge",
     "capedge_br": "CapEdge_BR",
     "capedge_dk": "CapEdge_DK",
-    "cap_cone_trn": "Cap_Cone_Trn",
+    "cap_cone_tr": "Cap_Cone_Tr",
     "cone": "Cone",
     // Legacy mappings
     "cap-edge": "CapEdge",
