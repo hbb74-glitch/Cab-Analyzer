@@ -50,8 +50,8 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       speakerDrive: 0.20,
       speakerCompression: 1.0,
     },
-    notes: "V30s resonate around 75-80Hz. Higher LF Reso Freq (95Hz) compensates for the deep Grossman enclosure which extends bass response. Slightly elevated Speaker Thump (1.4) captures the aggressive V30 punch.",
-    additionalNotes: "V30s are known for aggressive upper-mids (2-4kHz). The 1x12 curve is optimal for single-speaker iso cab use."
+    notes: "V30s resonate around 75-80Hz. LF Reso Freq (95Hz) is tuned for closed-back 1x12 use. Slightly elevated Speaker Thump (1.4) captures the aggressive V30 punch.",
+    additionalNotes: "V30s are known for aggressive upper-mids (2-4kHz). The 1x12 curve is optimal for IRs captured with a single V30."
   },
   {
     speaker: "v30bc",

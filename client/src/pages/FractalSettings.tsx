@@ -79,7 +79,7 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Speaker impedance curves and SPKR page settings for your Fractal Audio AM4.
-            Optimized for Grossman iso cab use with FRFR monitoring.
+            Match the curve to the speaker used to capture your IRs.
           </p>
         </div>
 
@@ -92,7 +92,9 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                 They affect tone AND feel - they're NOT an EQ and work with your IRs, not instead of them.
               </p>
               <p>
-                These settings are specifically tuned for use with a <span className="text-foreground font-medium">Grossman iso cab</span> (closed-back, deep enclosure design) and FRFR monitoring.
+                <span className="text-foreground font-medium">Match the curve to your IR's speaker</span> (V30, Cream, etc.), not your playback system.
+                Studio monitors and headphones are transparent - they reproduce whatever you send them.
+                The curve adds the dynamics and "push back" feel that the IR alone can't capture.
               </p>
             </div>
           </div>
