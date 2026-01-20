@@ -156,21 +156,21 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     speaker: "cream",
     speakerLabel: "Celestion Cream (Alnico)",
     impedanceCurve: {
-      fractalCurve: "1x12 Cream",
-      confidence: "exact",
-      notes: "Fractal has a dedicated Cream impedance curve - direct match!",
-      alternates: ["1x12 Blue", "1x12 Brit Class-A"]
+      fractalCurve: "1x12 Blue",
+      confidence: "high",
+      notes: "No dedicated Cream impedance curve in Fractal. The Blue is the closest alnico match - both are Celestion alnicos with 75Hz resonance and smooth impedance curves. The Cream is higher power (90W vs 15W) with slightly stiffer cone.",
+      alternates: ["1x12 Brit Class-A", "2x12 Guy Tron Alnico Blue"]
     },
     spkrSettings: {
       lfResonanceFreq: 80,
-      lfResonance: 1.3,
+      lfResonance: 1.2,
       hfResonanceFreq: 1100,
-      speakerThump: 1.5,
-      speakerDrive: 0.35,
-      speakerCompression: 1.3,
+      speakerThump: 1.3,
+      speakerDrive: 0.25,
+      speakerCompression: 1.1,
     },
-    notes: "Alnico speakers have warmer, rounder tone and excellent touch sensitivity. Higher Thump (1.5) and Drive (0.35) capture the smooth breakup and natural low-end warmth. Higher compression adds the musical sag.",
-    additionalNotes: "The Cream is a 90W alnico speaker with 'bell-like chime' highs and smooth breakup. Resonance frequency is 75Hz. Exceptional touch sensitivity."
+    notes: "The Cream is a higher-power alnico (90W) than the Blue (15W), so it has less speaker breakup. Lower Drive (0.25) and Compression (1.1) vs typical alnico settings reflect the stiffer, higher-headroom character. Still has the smooth alnico warmth.",
+    additionalNotes: "The Cream's 90W rating means less cone movement/breakup than vintage alnicos. Resonance frequency is 75Hz. Bell-like chime highs, warm lows, exceptional touch sensitivity. Consider slightly lower Thump (1.3) for the more controlled low-end."
   },
   {
     speaker: "ga12-sc64",
