@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +70,26 @@ export default function Pairing() {
       title: "Copied to clipboard",
       description: "Pairing recommendations copied with descriptions.",
     });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copySimpleList = () => {
+    // Get all unique IR names from both speaker groups, sorted alphabetically
+    const allIRs = [
+      ...speaker1IRs.filter(ir => ir.metrics && !ir.error).map(ir => ir.file.name.replace(/\.wav$/i, '')),
+      ...speaker2IRs.filter(ir => ir.metrics && !ir.error).map(ir => ir.file.name.replace(/\.wav$/i, '')),
+    ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    
+    if (allIRs.length === 0) {
+      toast({ title: "No IRs", description: "Upload IRs first", variant: "destructive" });
+      return;
+    }
+    
+    const text = allIRs.map((name, i) => `${i + 1}. ${name}`).join('\n');
+    
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard", description: "IR list copied." });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -552,6 +572,14 @@ export default function Pairing() {
                     {isMixedMode ? "Best Cross-Speaker Pairings" : "Best Pairings"}
                   </h2>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={copySimpleList}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-simple-list"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy List"}
+                    </button>
                     <button
                       onClick={copyPairings}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"

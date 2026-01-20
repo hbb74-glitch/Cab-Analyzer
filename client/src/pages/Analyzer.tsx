@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -328,6 +328,22 @@ export default function Analyzer() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copySimpleList = () => {
+    if (!batchResult) return;
+    
+    // Extract shot names and sort alphabetically
+    const shotNames = batchResult.results
+      .map(r => r.filename.replace(/\.wav$/i, ''))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    
+    const text = shotNames.map((name, i) => `${i + 1}. ${name}`).join('\n');
+    
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard", description: "Shot list copied." });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const batchDropzone = useDropzone({
     onDrop: onBatchDrop,
     accept: { "audio/wav": [".wav"] },
@@ -624,6 +640,14 @@ export default function Analyzer() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={copySimpleList}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                        data-testid="button-copy-simple-list"
+                      >
+                        {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                        {copied ? "Copied!" : "Copy List"}
+                      </button>
                       <button
                         onClick={copyBatchResults}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"

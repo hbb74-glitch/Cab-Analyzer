@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2 } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -282,6 +282,68 @@ export default function Recommendations() {
       });
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const copySimpleList = () => {
+    let items: string[] = [];
+    
+    // Helper for shorthand formatting
+    const getSpeakerShorthand = (value: string) => SPEAKER_SHORTHAND[value] || value;
+    const getMicShorthand = (value: string) => MIC_SHORTHAND[value] || { base: value };
+    const formatPosition = (pos: string) => {
+      const posLower = pos.toLowerCase().replace(/-/g, '_');
+      const positionMap: Record<string, string> = {
+        'cap': 'Cap', 'cap_offcenter': 'Cap_OffCenter', 'capedge': 'CapEdge',
+        'capedge_br': 'CapEdge_BR', 'capedge_dk': 'CapEdge_DK',
+        'cap_cone_tr': 'Cap_Cone_Tr', 'cone': 'Cone',
+      };
+      return positionMap[posLower] || pos;
+    };
+    const formatMicLabel = (micLabel: string) => {
+      const mic = MICS.find(m => m.label === micLabel);
+      if (mic) {
+        const shorthand = MIC_SHORTHAND[mic.value];
+        if (shorthand) return { baseMic: shorthand.base, suffix: shorthand.suffix || '' };
+      }
+      let baseMic = micLabel;
+      let suffix = '';
+      if (micLabel.includes('Presence Boost')) { baseMic = micLabel.replace(/\s*\(Presence Boost\)/, ''); suffix = '_Presence'; }
+      else if (micLabel.includes('Flat')) { baseMic = micLabel.replace(/\s*\(Flat\)/, ''); suffix = '_Flat'; }
+      return { baseMic: baseMic.replace(/\s+/g, ''), suffix };
+    };
+
+    if (mode === 'by-speaker' && result) {
+      items = result.recommendations.map((rec) => {
+        const speakerPart = getSpeakerShorthand(result.speaker);
+        const micInfo = getMicShorthand(result.mic);
+        const posPart = formatPosition(rec.bestFor);
+        const distPart = `${rec.distance}in`;
+        return `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
+      });
+    } else if (mode === 'by-speaker' && speakerResult) {
+      items = speakerResult.micRecommendations.map((rec) => {
+        const speakerPart = getSpeakerShorthand(speakerResult.speaker);
+        const { baseMic, suffix } = formatMicLabel(rec.micLabel);
+        const posPart = formatPosition(rec.position);
+        const distPart = `${rec.distance}in`;
+        return `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
+      });
+    } else if (mode === 'by-amp' && ampResult) {
+      items = ampResult.speakerSuggestions.map((s) => s.speakerLabel);
+    } else if (mode === 'import-positions' && importResult) {
+      items = importResult.refinements.map(r => r.shorthand);
+    }
+
+    if (items.length === 0) return;
+
+    // Sort alphabetically
+    items.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    const text = items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard", description: "Simple list copied." });
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // Mode: if mic is selected, use mic+speaker endpoint; otherwise use speaker-only endpoint
@@ -985,14 +1047,24 @@ Or written out:
                     <Mic2 className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">{getMicLabel(result.mic)}</span>
                   </div>
-                  <button
-                    onClick={copyToClipboard}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                    data-testid="button-copy-suggestions"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? "Copied!" : "Copy Shorthand"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copySimpleList}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-simple-list"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy List"}
+                    </button>
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-suggestions"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   <span className="text-muted-foreground">+</span>
@@ -1091,14 +1163,24 @@ Or written out:
                     <Speaker className="w-4 h-4 text-secondary" />
                     <span className="text-sm font-medium text-secondary">{getSpeakerLabel(speakerResult.speaker)}</span>
                   </div>
-                  <button
-                    onClick={copyToClipboard}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                    data-testid="button-copy-speaker-suggestions"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? "Copied!" : "Copy Shorthand"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copySimpleList}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-simple-list-speaker"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy List"}
+                    </button>
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-speaker-suggestions"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
                   {speakerResult.genre && (
@@ -1175,14 +1257,24 @@ Or written out:
                     <Zap className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">Amp Analysis</span>
                   </div>
-                  <button
-                    onClick={copyToClipboard}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                    data-testid="button-copy-amp-suggestions"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? "Copied!" : "Copy Shorthand"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copySimpleList}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-simple-list-amp"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy List"}
+                    </button>
+                    <button
+                      onClick={copyToClipboard}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-amp-suggestions"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   <span className="text-foreground font-medium">Your Amp:</span> {ampResult.ampSummary}
@@ -1242,22 +1334,32 @@ Or written out:
                     <FileText className="w-4 h-4 text-primary" />
                     <span className="text-sm font-medium text-primary">Shot List Analysis</span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const shorthandList = importResult.refinements
-                        .filter(r => r.type !== 'remove' && r.shorthand)
-                        .map(r => r.shorthand)
-                        .join('\n');
-                      navigator.clipboard.writeText(shorthandList);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
-                    data-testid="button-copy-refined-list"
-                  >
-                    {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                    {copied ? "Copied!" : "Copy Shorthand"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copySimpleList}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-simple-list-import"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy List"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const shorthandList = importResult.refinements
+                          .filter(r => r.type !== 'remove' && r.shorthand)
+                          .map(r => r.shorthand)
+                          .join('\n');
+                        navigator.clipboard.writeText(shorthandList);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                      data-testid="button-copy-refined-list"
+                    >
+                      {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                      {copied ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded">
