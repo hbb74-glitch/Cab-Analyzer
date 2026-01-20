@@ -24,6 +24,7 @@ interface ResultCardProps {
   micLabel?: string;
   bestPositions?: BestPosition[];
   renameSuggestion?: RenameSuggestion | null;
+  filename?: string;
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -41,13 +42,19 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap_OffCenter",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="glass-panel rounded-2xl p-6 md:p-8 space-y-8"
     >
+      {filename && (
+        <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground border-b border-white/10 pb-4">
+          <Activity className="w-4 h-4 text-primary" />
+          <span className="text-foreground font-medium">{filename}</span>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row gap-8 items-start">
         {/* Score Circle */}
         <div className="relative shrink-0 flex items-center justify-center w-32 h-32 md:w-40 md:h-40 mx-auto md:mx-0">

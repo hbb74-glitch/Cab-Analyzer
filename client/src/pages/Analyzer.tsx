@@ -432,7 +432,7 @@ export default function Analyzer() {
         highEnergy: metrics.highEnergy,
         originalFilename: file.name, // Pass original filename for mic variant detection
       });
-      setResult(response);
+      setResult({ ...response, filename: file.name });
     } catch (error) {
       // Error handled in hook
     }
@@ -1030,6 +1030,7 @@ export default function Analyzer() {
                     }}
                     micLabel={result.micLabel}
                     renameSuggestion={result.renameSuggestion}
+                    filename={result.filename}
                   />
                 </motion.div>
               )}

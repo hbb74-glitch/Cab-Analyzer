@@ -12,7 +12,8 @@ interface RenameSuggestion {
 
 type SingleAnalysisResult = Analysis & { 
   micLabel?: string; 
-  renameSuggestion?: RenameSuggestion | null; 
+  renameSuggestion?: RenameSuggestion | null;
+  filename?: string;
 };
 
 export interface SingleAnalysisMetrics {
