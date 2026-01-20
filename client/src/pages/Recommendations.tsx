@@ -430,9 +430,6 @@ export default function Recommendations() {
     },
     onSuccess: (data) => {
       setImportResult(data);
-      setResult(null);
-      setSpeakerResult(null);
-      setAmpResult(null);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to analyze positions", variant: "destructive" });
@@ -446,8 +443,6 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
-    setAmpResult(null);
-    setImportResult(null);
     getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: effectiveGenre });
   };
 
@@ -458,9 +453,6 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
-    setResult(null);
-    setSpeakerResult(null);
-    setImportResult(null);
     getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre });
   };
 
@@ -491,9 +483,6 @@ export default function Recommendations() {
 
   const processImport = (positions: string) => {
     const effectiveGenre = buildEffectiveGenre();
-    setResult(null);
-    setSpeakerResult(null);
-    setAmpResult(null);
     refinePositions({ 
       positionList: positions, 
       speaker: importSpeaker || undefined, 
