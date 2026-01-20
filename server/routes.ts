@@ -1243,7 +1243,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       
       Speaker Shorthand:
       - Cream (Celestion Cream), V30 (Vintage 30), V30BC (V30 Black Cat)
-      - G12M (Greenback), G12HAnni (G12H30 Anniversary), G12-65Heri (G12-65 Heritage)
+      - G12M (Greenback), G12HAnn (G12H30 Anniversary), G12-65Her (G12-65 Heritage)
       - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75)
       
       Mic Shorthand:
