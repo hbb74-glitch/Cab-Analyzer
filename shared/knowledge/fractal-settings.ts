@@ -211,6 +211,26 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
     },
     notes: "10\" speakers have higher resonance frequency (100Hz vs 88Hz for 12\"). Higher LF Reso Freq (105Hz) and lower Thump (1.1) capture the focused, punchy 10\" character with smooth breakup.",
     additionalNotes: "The GA10-SC64 is praised for vintage Fender blackface tone. The Princeton curve is ideal for this speaker's voiced character."
+  },
+  {
+    speaker: "k100",
+    speakerLabel: "Celestion G12K-100",
+    impedanceCurve: {
+      fractalCurve: "2x12 Band Commander SRO",
+      confidence: "high",
+      notes: "No dedicated K100 curve in Fractal. The Band Commander SRO has a similar large magnet with clean response and solid bass - matches the K100's character. Both have broader, less tall resonance peaks.",
+      alternates: ["2x12 Recto", "4x12 C90", "1x12 USA Lead"]
+    },
+    spkrSettings: {
+      lfResonanceFreq: 90,
+      lfResonance: 1.0,
+      hfResonanceFreq: 1150,
+      speakerThump: 1.4,
+      speakerDrive: 0.18,
+      speakerCompression: 1.0,
+    },
+    notes: "The K100 has the heaviest ceramic magnet in the G12 line (50oz). Very low Drive (0.18) reflects its clean, stiff cone with minimal breakup. Higher Thump (1.4) captures the massive low-end. Low Compression for tight response.",
+    additionalNotes: "85Hz resonance frequency. 100W power handling. Massive bottom-end, rock-hard midrange, restrained top-end. Ideal for high-gain metal and modern rock. Used in Mesa Boogie and Marshall Mode 4 cabs."
   }
 ];
 
