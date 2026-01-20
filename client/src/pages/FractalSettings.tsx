@@ -9,13 +9,13 @@ import {
   Copy, 
   Check,
   Settings,
-  HelpCircle
+  HelpCircle,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
   FRACTAL_SPEAKER_SETTINGS, 
-  GROSSMAN_CAB_NOTES, 
-  FRACTAL_SETTINGS_INTRO,
+  AM4_SPKR_DEFAULTS,
   type FractalSpeakerSettings 
 } from "@shared/knowledge/fractal-settings";
 
@@ -33,15 +33,19 @@ const CONFIDENCE_LABELS = {
 
 export default function FractalSettings() {
   const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedSpeaker, setExpandedSpeaker] = useState<string | null>(null);
 
   const copyAllSettings = () => {
     const lines = FRACTAL_SPEAKER_SETTINGS.map((s, i) => {
       return `${i + 1}. ${s.speakerLabel}
    Impedance Curve: ${s.impedanceCurve.fractalCurve}
-   Cab Resonance: ${s.cabResonance.value}
-   Speaker Drive: ${s.speakerDrive || "5.0 (default)"}
-   Speaker Thump: ${s.speakerThump || "5.0 (default)"}`;
+   LF Reso Freq: ${s.spkrSettings.lfResonanceFreq} Hz
+   LF Resonance: ${s.spkrSettings.lfResonance}
+   HF Reso Freq: ${s.spkrSettings.hfResonanceFreq} Hz
+   Speaker Thump: ${s.spkrSettings.speakerThump}
+   Speaker Drive: ${s.spkrSettings.speakerDrive}
+   Speaker Compression: ${s.spkrSettings.speakerCompression}`;
     }).join("\n\n");
     
     navigator.clipboard.writeText(lines);
@@ -52,14 +56,17 @@ export default function FractalSettings() {
   const copySingleSetting = (setting: FractalSpeakerSettings) => {
     const text = `${setting.speakerLabel}
 Impedance Curve: ${setting.impedanceCurve.fractalCurve}
-Cab Resonance: ${setting.cabResonance.value}
-Speaker Drive: ${setting.speakerDrive || "5.0 (default)"}
-Speaker Thump: ${setting.speakerThump || "5.0 (default)"}
+LF Reso Freq: ${setting.spkrSettings.lfResonanceFreq} Hz
+LF Resonance: ${setting.spkrSettings.lfResonance}
+HF Reso Freq: ${setting.spkrSettings.hfResonanceFreq} Hz
+Speaker Thump: ${setting.spkrSettings.speakerThump}
+Speaker Drive: ${setting.spkrSettings.speakerDrive}
+Speaker Compression: ${setting.spkrSettings.speakerCompression}
 ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alternates.join(", ")}` : ""}`;
     
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedId(setting.speaker);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
@@ -68,11 +75,11 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            Fractal Audio Settings
+            AM4 Settings
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Speaker impedance curves and cab resonance settings for your Axe-Fx III, FM9, FM3, or AM4.
-            Optimized for Grossman iso cab use.
+            Speaker impedance curves and SPKR page settings for your Fractal Audio AM4.
+            Optimized for Grossman iso cab use with FRFR monitoring.
           </p>
         </div>
 
@@ -82,19 +89,65 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
             <div className="text-sm text-muted-foreground space-y-2">
               <p>
                 <span className="text-foreground font-medium">Speaker Impedance Curves</span> model the electrical interaction between the power amp and speaker. 
-                They affect tone and feel but are NOT an EQ - they work with your IRs, not instead of them.
+                They affect tone AND feel - they're NOT an EQ and work with your IRs, not instead of them.
               </p>
               <p>
-                These settings are specifically tuned for use with a <span className="text-foreground font-medium">Grossman iso cab</span> (closed-back, deep enclosure design).
+                These settings are specifically tuned for use with a <span className="text-foreground font-medium">Grossman iso cab</span> (closed-back, deep enclosure design) and FRFR monitoring.
               </p>
             </div>
           </div>
         </div>
 
+        <div className="glass-panel p-6 rounded-2xl space-y-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Settings className="w-5 h-5 text-secondary" />
+            AM4 SPKR Page Parameters
+          </h3>
+          <div className="grid md:grid-cols-2 gap-6 text-sm">
+            <div className="space-y-3">
+              <h4 className="font-medium text-foreground">Resonance Parameters</h4>
+              <div className="space-y-2 text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>LF Reso Freq</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.lfResonanceFreq} Hz</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>LF Resonance</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.lfResonance}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>HF Reso Freq</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.hfResonanceFreq} Hz</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-medium text-foreground">Speaker Modeling</h4>
+              <div className="space-y-2 text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>Speaker Thump</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.speakerThump}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Speaker Drive</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.speakerDrive}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Speaker Compression</span>
+                  <span className="font-mono text-foreground">{AM4_SPKR_DEFAULTS.speakerCompression}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground italic pt-2 border-t border-white/10">
+            These are the AM4 defaults. The speaker-specific settings below are optimized for the Grossman iso cab.
+          </p>
+        </div>
+
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" />
-            Speaker Settings Reference
+            <Speaker className="w-5 h-5 text-primary" />
+            Speaker-Specific Settings
           </h2>
           <button
             onClick={copyAllSettings}
@@ -136,7 +189,7 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                 className="w-full p-5 flex items-center justify-between hover:bg-white/5 transition-all"
                 data-testid={`button-expand-${setting.speaker}`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   <div className="flex items-center gap-2 bg-primary/20 px-3 py-1.5 rounded-full border border-primary/20">
                     <Speaker className="w-4 h-4 text-primary" />
                     <span className="font-bold text-primary">{setting.speakerLabel}</span>
@@ -148,11 +201,11 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
                     <div className="text-sm font-medium text-foreground">{setting.impedanceCurve.fractalCurve}</div>
-                    <div className="text-xs text-muted-foreground">Cab Res: {setting.cabResonance.value}</div>
+                    <div className="text-xs text-muted-foreground">Thump: {setting.spkrSettings.speakerThump} | Drive: {setting.spkrSettings.speakerDrive}</div>
                   </div>
-                  <Zap className={cn(
+                  <ChevronDown className={cn(
                     "w-5 h-5 transition-transform",
-                    expandedSpeaker === setting.speaker ? "rotate-90 text-primary" : "text-muted-foreground"
+                    expandedSpeaker === setting.speaker ? "rotate-180 text-primary" : "text-muted-foreground"
                   )} />
                 </div>
               </button>
@@ -170,7 +223,7 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
                             <Zap className="w-4 h-4 text-secondary" />
-                            Impedance Curve Settings
+                            Impedance Curve
                           </h4>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
@@ -180,7 +233,7 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                             {setting.impedanceCurve.alternates && (
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Alternates:</span>
-                                <span className="font-mono text-xs text-muted-foreground">
+                                <span className="font-mono text-xs text-muted-foreground text-right max-w-[200px]">
                                   {setting.impedanceCurve.alternates.join(", ")}
                                 </span>
                               </div>
@@ -194,35 +247,48 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                         <div className="space-y-3">
                           <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
                             <Settings className="w-4 h-4 text-secondary" />
-                            SPKR Tab Settings
+                            SPKR Page Settings
                           </h4>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Cab Resonance:</span>
-                              <span className="font-mono text-foreground">{setting.cabResonance.value}</span>
+                              <span className="text-muted-foreground">LF Reso Freq:</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.lfResonanceFreq} Hz</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-muted-foreground">Speaker Drive:</span>
-                              <span className="font-mono text-foreground">{setting.speakerDrive || "5.0"}</span>
+                              <span className="text-muted-foreground">LF Resonance:</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.lfResonance}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">HF Reso Freq:</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.hfResonanceFreq} Hz</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Speaker Thump:</span>
-                              <span className="font-mono text-foreground">{setting.speakerThump || "5.0"}</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.speakerThump}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Speaker Drive:</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.speakerDrive}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Speaker Compression:</span>
+                              <span className="font-mono text-foreground">{setting.spkrSettings.speakerCompression}</span>
                             </div>
                           </div>
-                          <p className="text-xs text-muted-foreground italic">
-                            {setting.cabResonance.notes}
-                          </p>
                         </div>
                       </div>
 
+                      <div className="pt-3 border-t border-white/10">
+                        <p className="text-xs text-muted-foreground flex items-start gap-2">
+                          <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          {setting.notes}
+                        </p>
+                      </div>
+
                       {setting.additionalNotes && (
-                        <div className="pt-3 border-t border-white/10">
-                          <p className="text-xs text-muted-foreground flex items-start gap-2">
-                            <HelpCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                            {setting.additionalNotes}
-                          </p>
-                        </div>
+                        <p className="text-xs text-muted-foreground/70 italic pl-6">
+                          {setting.additionalNotes}
+                        </p>
                       )}
 
                       <div className="flex justify-end">
@@ -231,8 +297,8 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
                           className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
                           data-testid={`button-copy-${setting.speaker}`}
                         >
-                          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-                          {copied ? "Copied!" : "Copy Settings"}
+                          {copiedId === setting.speaker ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          {copiedId === setting.speaker ? "Copied!" : "Copy Settings"}
                         </button>
                       </div>
                     </div>
@@ -251,35 +317,35 @@ ${setting.impedanceCurve.alternates ? `Alternates: ${setting.impedanceCurve.alte
           <div className="prose prose-sm prose-invert max-w-none">
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
-                The Grossman iso cab is a <span className="text-foreground font-medium">closed-back</span> design with deeper internal dimensions than a typical guitar cabinet. This affects the impedance curve interaction:
+                The Grossman iso cab is a <span className="text-foreground font-medium">closed-back</span> design with deeper internal dimensions than a typical guitar cabinet. This affects the speaker impedance curve interaction:
               </p>
               
               <div className="space-y-2">
                 <h4 className="text-foreground font-medium">Key Characteristics:</h4>
                 <ul className="list-disc list-inside space-y-1">
-                  <li><span className="text-foreground">Closed-back design</span> - Use closed-back impedance curves (not open-back like Deluxe Reverb)</li>
+                  <li><span className="text-foreground">Closed-back design</span> - Use closed-back impedance curves (not open-back)</li>
                   <li><span className="text-foreground">Deeper enclosure</span> - More low-end extension than typical 1x12 or 2x12 cabs</li>
                   <li><span className="text-foreground">Single speaker</span> - Use 1x12 curves when available (not 4x12)</li>
-                  <li><span className="text-foreground">Acoustic isolation</span> - No room interaction, so cab resonance modeling matters more</li>
+                  <li><span className="text-foreground">Acoustic isolation</span> - No room interaction, so speaker modeling matters more</li>
                 </ul>
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-foreground font-medium">General Recommendations:</h4>
+                <h4 className="text-foreground font-medium">Grossman-Specific Adjustments:</h4>
                 <ul className="list-disc list-inside space-y-1">
-                  <li><span className="text-foreground">Cab Resonance:</span> Start at 5.5-6.5 (higher than default) to capture extended low-end</li>
-                  <li><span className="text-foreground">Speaker Thump:</span> 5.0-6.0 depending on speaker (alnico speakers benefit from more)</li>
-                  <li><span className="text-foreground">Speaker Drive:</span> Match to speaker power handling (lower wattage = more drive)</li>
-                  <li><span className="text-foreground">LF Resonance:</span> May need slight boost (+0.5-1.0) for the deeper enclosure</li>
+                  <li><span className="text-foreground">LF Reso Freq:</span> May need +5-10 Hz higher to compensate for extended bass</li>
+                  <li><span className="text-foreground">Speaker Thump:</span> 1.3-1.5 range captures the deeper cabinet's punch</li>
+                  <li><span className="text-foreground">LF Resonance:</span> Slight boost (1.1-1.3) for the extended low-end</li>
                 </ul>
               </div>
 
               <div className="bg-white/5 p-4 rounded-lg border border-white/10">
                 <h4 className="text-foreground font-medium mb-2">When in Doubt:</h4>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Start with the recommended 1x12 curve for your speaker</li>
-                  <li>If tone is too tight/thin, try a 2x12 curve variant</li>
-                  <li>If tone is too boomy, reduce Cab Resonance and Speaker Thump</li>
+                  <li>Start with the recommended settings for your speaker</li>
+                  <li>If tone is too boomy, reduce LF Resonance and Speaker Thump</li>
+                  <li>If tone is too thin, increase LF Resonance and Speaker Thump</li>
+                  <li>Trust your ears - impedance curves affect feel as much as tone</li>
                 </ul>
               </div>
             </div>

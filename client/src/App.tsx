@@ -10,6 +10,7 @@ import Analyzer from "@/pages/Analyzer";
 import History from "@/pages/History";
 import Recommendations from "@/pages/Recommendations";
 import Pairing from "@/pages/Pairing";
+import FractalSettings from "@/pages/FractalSettings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/pairing" component={Pairing} />
       <Route path="/history" component={History} />
       <Route path="/recommendations" component={Recommendations} />
+      <Route path="/fractal" component={FractalSettings} />
       <Route component={NotFound} />
     </Switch>
   );

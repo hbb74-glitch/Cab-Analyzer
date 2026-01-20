@@ -5,21 +5,32 @@ export interface FractalImpedanceCurve {
   alternates?: string[];
 }
 
-export interface FractalCabResonance {
-  setting: string;
-  value: number;
-  notes: string;
+export interface FractalSPKRSettings {
+  lfResonanceFreq: number;
+  lfResonance: number;
+  hfResonanceFreq: number;
+  speakerThump: number;
+  speakerDrive: number;
+  speakerCompression: number;
 }
 
 export interface FractalSpeakerSettings {
   speaker: string;
   speakerLabel: string;
   impedanceCurve: FractalImpedanceCurve;
-  cabResonance: FractalCabResonance;
-  speakerDrive?: string;
-  speakerThump?: string;
+  spkrSettings: FractalSPKRSettings;
+  notes: string;
   additionalNotes?: string;
 }
+
+export const AM4_SPKR_DEFAULTS = {
+  lfResonanceFreq: 90,
+  lfResonance: 1.0,
+  hfResonanceFreq: 1200,
+  speakerThump: 1.25,
+  speakerDrive: 0.20,
+  speakerCompression: 1.0,
+};
 
 export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
   {
@@ -31,14 +42,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "Direct match. V30 is one of the most commonly measured speakers in Fractal.",
       alternates: ["4x12 Recto Traditional", "4x12 Uber"]
     },
-    cabResonance: {
-      setting: "Medium-High",
-      value: 6.5,
-      notes: "Grossman closed-back iso cab is deeper than typical 1x12, so slightly higher resonance captures the extended low-end response."
+    spkrSettings: {
+      lfResonanceFreq: 95,
+      lfResonance: 1.2,
+      hfResonanceFreq: 1400,
+      speakerThump: 1.4,
+      speakerDrive: 0.20,
+      speakerCompression: 1.0,
     },
-    speakerDrive: "5.0 - Default. V30s have good power handling.",
-    speakerThump: "5.5 - Slightly above default for the deep Grossman enclosure.",
-    additionalNotes: "V30s are aggressive in the upper mids (2-4kHz). The 1x12 curve is optimal for single-speaker iso cab use."
+    notes: "V30s resonate around 75-80Hz. Higher LF Reso Freq (95Hz) compensates for the deep Grossman enclosure which extends bass response. Slightly elevated Speaker Thump (1.4) captures the aggressive V30 punch.",
+    additionalNotes: "V30s are known for aggressive upper-mids (2-4kHz). The 1x12 curve is optimal for single-speaker iso cab use."
   },
   {
     speaker: "v30bc",
@@ -49,13 +62,15 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "Black Cat V30 variant - same base speaker with subtle cone differences. The 1x12 V30 curve is the best match.",
       alternates: ["4x12 Recto Traditional"]
     },
-    cabResonance: {
-      setting: "Medium-High",
-      value: 6.5,
-      notes: "Same as standard V30 - the BC variant doesn't significantly change impedance characteristics."
+    spkrSettings: {
+      lfResonanceFreq: 90,
+      lfResonance: 1.1,
+      hfResonanceFreq: 1300,
+      speakerThump: 1.3,
+      speakerDrive: 0.20,
+      speakerCompression: 1.0,
     },
-    speakerDrive: "5.0",
-    speakerThump: "5.5"
+    notes: "Black Cat is slightly smoother than standard V30. Marginally lower LF Reso Freq and Thump reflect its warmer character.",
   },
   {
     speaker: "greenback",
@@ -66,14 +81,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "Basketweave cabs historically used G12M/G12H speakers. This is the classic British closed-back sound.",
       alternates: ["4x12 Brit Greenback", "2x12 Class-A Greenback", "1x12 Brit G12H75"]
     },
-    cabResonance: {
-      setting: "Medium",
-      value: 5.5,
-      notes: "Greenbacks have a lower power handling (25W) and looser cone - moderate resonance works well in the deep Grossman enclosure."
+    spkrSettings: {
+      lfResonanceFreq: 85,
+      lfResonance: 1.3,
+      hfResonanceFreq: 1100,
+      speakerThump: 1.5,
+      speakerDrive: 0.30,
+      speakerCompression: 1.2,
     },
-    speakerDrive: "6.0 - Greenbacks break up earlier, slightly more drive captures this.",
-    speakerThump: "5.0 - Default. Greenbacks already have woody low-end character.",
-    additionalNotes: "The 25W Greenback has the classic 'woody' British tone. Lower resonance peak than V30."
+    notes: "Greenbacks (25W) have a looser cone and break up earlier. Higher Speaker Drive (0.30) and Thump (1.5) capture the woody, vintage character. Slightly higher compression adds the natural speaker sag.",
+    additionalNotes: "The 25W Greenback has the classic 'woody' British tone with a lower resonance peak than V30."
   },
   {
     speaker: "g12h",
@@ -84,14 +101,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "G12H Heritage/Anniversary is the heavier-magnet cousin of the Greenback. Basketweave curve captures the tight low-end.",
       alternates: ["1x12 Brit G12H75", "4x12 Brit Greenback"]
     },
-    cabResonance: {
-      setting: "Medium-High",
-      value: 6.0,
-      notes: "The 30W G12H has a heavier magnet than Greenback, resulting in tighter bass - slightly higher resonance for the Grossman depth."
+    spkrSettings: {
+      lfResonanceFreq: 90,
+      lfResonance: 1.2,
+      hfResonanceFreq: 1200,
+      speakerThump: 1.4,
+      speakerDrive: 0.25,
+      speakerCompression: 1.1,
     },
-    speakerDrive: "5.5",
-    speakerThump: "5.5",
-    additionalNotes: "The G12H Anniversary is the 70th anniversary reissue with the original heavy magnet design."
+    notes: "The 30W G12H has a heavier magnet than Greenback, resulting in tighter bass. Settings between V30 and Greenback - punchy but with vintage character.",
+    additionalNotes: "The G12H Anniversary is the 70th anniversary reissue with the original heavy magnet design. Brighter than Greenback but warmer than V30."
   },
   {
     speaker: "g12-65",
@@ -102,14 +121,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "No direct G12-65 curve in Fractal. The Brit 800 (JCM800 era Marshall) used similar 65W Celestions. This is the closest match.",
       alternates: ["4x12 Basketweave", "1x12 Brit G12H75"]
     },
-    cabResonance: {
-      setting: "Medium",
-      value: 5.5,
-      notes: "G12-65 has tight bass and balanced mids - moderate resonance preserves articulation."
+    spkrSettings: {
+      lfResonanceFreq: 88,
+      lfResonance: 1.1,
+      hfResonanceFreq: 1300,
+      speakerThump: 1.3,
+      speakerDrive: 0.22,
+      speakerCompression: 1.0,
     },
-    speakerDrive: "5.0",
-    speakerThump: "5.0",
-    additionalNotes: "The G12-65 sits between Greenback and Classic Lead 80 tonally. Fast attack, tight bass, crisp highs."
+    notes: "G12-65 has tight, controlled bass and crisp highs. Lower thump and drive preserve the fast attack and articulation characteristic of this speaker.",
+    additionalNotes: "The G12-65 sits between Greenback and Classic Lead 80 tonally. Fast attack, tight bass, crisp highs. Resonance frequency is 85Hz."
   },
   {
     speaker: "g12t75",
@@ -120,14 +141,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "The JCM800 1960 cabinet was loaded with G12T-75s. This is a direct match.",
       alternates: ["4x12 SLO", "4x12 Brit JM45"]
     },
-    cabResonance: {
-      setting: "Medium-Low",
-      value: 4.5,
-      notes: "G12T-75 is a stiffer, higher-power speaker - lower resonance keeps the tight, sizzly character."
+    spkrSettings: {
+      lfResonanceFreq: 100,
+      lfResonance: 1.0,
+      hfResonanceFreq: 1500,
+      speakerThump: 1.1,
+      speakerDrive: 0.18,
+      speakerCompression: 0.9,
     },
-    speakerDrive: "4.5 - T75s don't break up as easily.",
-    speakerThump: "4.5 - Tighter low-end by design.",
-    additionalNotes: "G12T-75 is brighter and stiffer than vintage Celestions. The 'sizzly' high-end is characteristic."
+    notes: "G12T-75 is a stiff, high-power speaker. Lower Thump (1.1) and Drive (0.18) keep the tight, modern character. Higher HF Resonance captures the sizzly highs.",
+    additionalNotes: "G12T-75 is brighter and stiffer than vintage Celestions. The 'sizzly' high-end is characteristic. Higher power handling = less speaker breakup."
   },
   {
     speaker: "cream",
@@ -138,14 +161,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "Fractal has a dedicated Cream impedance curve - direct match!",
       alternates: ["1x12 Blue", "1x12 Brit Class-A"]
     },
-    cabResonance: {
-      setting: "Medium-High",
-      value: 6.5,
-      notes: "Alnico speakers have a different resonance character - warmer, rounder. The deep Grossman enclosure enhances this."
+    spkrSettings: {
+      lfResonanceFreq: 80,
+      lfResonance: 1.3,
+      hfResonanceFreq: 1100,
+      speakerThump: 1.5,
+      speakerDrive: 0.35,
+      speakerCompression: 1.3,
     },
-    speakerDrive: "6.0 - Alnico speakers are more touch-sensitive and break up smoothly.",
-    speakerThump: "6.0 - Alnico has natural low-end warmth - enhance this with the deep enclosure.",
-    additionalNotes: "The Cream is a 90W alnico speaker with 'bell-like chime' highs and smooth breakup. Exceptional touch sensitivity."
+    notes: "Alnico speakers have warmer, rounder tone and excellent touch sensitivity. Higher Thump (1.5) and Drive (0.35) capture the smooth breakup and natural low-end warmth. Higher compression adds the musical sag.",
+    additionalNotes: "The Cream is a 90W alnico speaker with 'bell-like chime' highs and smooth breakup. Resonance frequency is 75Hz. Exceptional touch sensitivity."
   },
   {
     speaker: "ga12-sc64",
@@ -156,14 +181,16 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "The GA12-SC64 is voiced for vintage Fender blackface tone. The Deluxe Oxford curve captures similar American ceramic character.",
       alternates: ["1x12 Bassguy", "2x12 65 Bassguy", "1x12 USA Clean"]
     },
-    cabResonance: {
-      setting: "Medium",
-      value: 5.5,
-      notes: "American voiced speaker with tight, punchy bass. Moderate resonance in the Grossman preserves the focused low-end."
+    spkrSettings: {
+      lfResonanceFreq: 92,
+      lfResonance: 1.2,
+      hfResonanceFreq: 1250,
+      speakerThump: 1.3,
+      speakerDrive: 0.28,
+      speakerCompression: 1.1,
     },
-    speakerDrive: "5.5 - Smooth breakup characteristics.",
-    speakerThump: "5.5",
-    additionalNotes: "Designed by George Alessandro for vintage 1964 Fender blackface tones. Warm, balanced, excellent breakup."
+    notes: "American voiced speaker with tight, punchy bass. Moderate settings preserve the focused low-end and vintage 1964 blackface character. Smooth breakup like vintage Fender speakers.",
+    additionalNotes: "Designed by George Alessandro for vintage 1964 Fender blackface tones. Resonance frequency is 88Hz. Warm, balanced, excellent breakup."
   },
   {
     speaker: "g10-sc64",
@@ -174,42 +201,91 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
       notes: "Despite being a 10\" speaker, the GA10-SC64 has an unusually 12\"-like frequency response. Use the same curve as the 12\" version.",
       alternates: ["1x10 USA", "1x12 Bassguy"]
     },
-    cabResonance: {
-      setting: "Medium-Low",
-      value: 4.5,
-      notes: "10\" speakers have higher resonance frequency (100Hz vs 88Hz for 12\"). Lower cab resonance setting compensates in the deep Grossman."
+    spkrSettings: {
+      lfResonanceFreq: 105,
+      lfResonance: 1.0,
+      hfResonanceFreq: 1400,
+      speakerThump: 1.1,
+      speakerDrive: 0.30,
+      speakerCompression: 1.0,
     },
-    speakerDrive: "5.5",
-    speakerThump: "4.5 - Less low-end extension than 12\" version.",
+    notes: "10\" speakers have higher resonance frequency (100Hz vs 88Hz for 12\"). Higher LF Reso Freq (105Hz) and lower Thump (1.1) compensate for the smaller driver. Still has smooth breakup character.",
     additionalNotes: "The GA10-SC64 is praised for having a very '12-inch-ish' frequency response despite being a 10\" speaker. Tight, punchy, sparkly."
   }
 ];
 
 export const GROSSMAN_CAB_NOTES = `
-## Grossman Iso Cab Settings Notes
+## Grossman Iso Cab - AM4 Settings Notes
 
-The Grossman iso cab is a **closed-back** design with deeper internal dimensions than a typical guitar cabinet. This affects the impedance curve interaction:
+The Grossman iso cab is a **closed-back** design with deeper internal dimensions than a typical guitar cabinet. This affects the speaker impedance curve interaction.
 
 ### Key Characteristics:
-- **Closed-back design** - Use closed-back impedance curves (not open-back like Deluxe Reverb)
+- **Closed-back design** - Use closed-back impedance curves (not open-back)
 - **Deeper enclosure** - More low-end extension than typical 1x12 or 2x12 cabs
 - **Single speaker** - Use 1x12 curves when available (not 4x12)
-- **Acoustic isolation** - No room interaction, so cab resonance modeling matters more
+- **Acoustic isolation** - No room interaction, so speaker modeling matters more
 
-### General Recommendations:
-1. **Cab Resonance**: Start at 5.5-6.5 (higher than default) to capture the extended low-end
-2. **Speaker Thump**: 5.0-6.0 depending on speaker (alnico speakers benefit from more)
-3. **Speaker Drive**: Match to speaker power handling (lower wattage = more drive)
-4. **LF Resonance**: May need slight boost (+0.5-1.0) for the deeper enclosure
+### AM4 SPKR Page Settings (for FRFR/Monitors):
+The SPKR page parameters model the amp-to-speaker interaction. For FRFR use:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| **LF Reso Freq** | 90 Hz | Low frequency resonance point - adjust per speaker |
+| **LF Resonance** | 1.0 | Amount of low frequency resonance peak |
+| **HF Reso Freq** | 1200 Hz | High frequency resonance (voice coil inductance) |
+| **Speaker Thump** | 1.25 | Low frequency excursion modeling |
+| **Speaker Drive** | 0.20 | Speaker cone distortion/nonlinearity |
+| **Speaker Compression** | 1.0 | Dynamic compression from speaker excursion |
+
+### Grossman-Specific Adjustments:
+Because the Grossman has a deeper enclosure than typical 1x12 cabs:
+
+1. **LF Reso Freq**: May need +5-10 Hz higher to compensate for extended bass
+2. **Speaker Thump**: 1.3-1.5 range captures the deeper cabinet's punch
+3. **LF Resonance**: Slight boost (1.1-1.3) for the extended low-end
 
 ### When in Doubt:
-- Start with the recommended 1x12 curve for your speaker
-- If tone is too tight/thin, try a 2x12 curve variant
-- If tone is too boomy, reduce Cab Resonance and Speaker Thump
+- Start with the recommended settings for your speaker
+- If tone is too boomy, reduce LF Resonance and Speaker Thump
+- If tone is too thin, increase LF Resonance and Speaker Thump
+- Trust your ears - impedance curves affect feel as much as tone
 `;
 
 export const FRACTAL_SETTINGS_INTRO = `
-This page provides recommended Fractal Audio Axe-Fx/FM9/FM3/AM4 settings for using your IRs with the proper speaker impedance curves and cabinet resonance. These recommendations are specifically tuned for use with a **Grossman iso cab** (closed-back, deep enclosure design).
+This page provides recommended Fractal Audio AM4 settings for using your IRs with the proper speaker impedance curves and SPKR page parameters. These recommendations are specifically tuned for use with a **Grossman iso cab** (closed-back, deep enclosure design) and FRFR monitoring.
 
-**Important**: Speaker Impedance Curves model the electrical interaction between the power amp and speaker - they're NOT EQ and work differently than cabinet IRs. Using the correct curve adds realism and feel to your tone.
+**Important**: Speaker Impedance Curves model the electrical interaction between the power amp and speaker. They affect tone AND feel - they're NOT EQ and work differently than cabinet IRs. Using the correct curve adds realism and responsiveness to your tone.
+`;
+
+export const AM4_PARAMETER_INFO = `
+## AM4 Amp Block - SPKR Page Parameters
+
+These are the adjustable parameters on the AM4's Amp block SPKR (Speaker) page:
+
+### Impedance Curve Selection
+- **Speaker Impedance Curve**: Dropdown selector with 80+ preset curves
+- Automatically loads appropriate curve when you select an amp model
+- Can be manually changed to match your IR/cab
+
+### Resonance Parameters
+| Parameter | Range | What it does |
+|-----------|-------|--------------|
+| **LF Reso Freq** | 50-120 Hz | Sets the low-frequency resonance point where impedance peaks |
+| **LF Resonance** | 0.0-2.0+ | Controls the intensity of the low-frequency resonance peak |
+| **HF Reso Freq** | 700-2000 Hz | Sets the high-frequency resonance (voice coil inductance) |
+| **HF Resonance** | 0.0-2.0+ | Controls the amplitude of high-frequency resonance |
+| **HF Slope** | 3.0-4.5 | Rate of high-frequency impedance rise (affects mids) |
+
+### Speaker Modeling
+| Parameter | Default | What it does |
+|-----------|---------|--------------|
+| **Speaker Thump** | 1.25 | Models low-frequency resonance/excursion (the "knock" of a cab) |
+| **Speaker Drive** | 0.20 | Models speaker cone distortion and nonlinearity |
+| **Speaker Compression** | 1.0 | Models dynamic compression from speaker excursion |
+
+### For FRFR/Headphone Use:
+Use the default values or the Grossman-optimized settings in this guide.
+
+### For Real Cab + Solid State Power Amp:
+Set Speaker Thump, Speaker Drive, and Speaker Compression to 0 (your real cab provides these characteristics).
 `;
