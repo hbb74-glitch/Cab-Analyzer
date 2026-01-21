@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -300,6 +300,15 @@ export default function Analyzer() {
       text += `   Advice: ${r.advice}\n`;
       if (r.highlights?.length) text += `   Highlights: ${r.highlights.join(", ")}\n`;
       if (r.issues?.length) text += `   Issues: ${r.issues.join(", ")}\n`;
+      if (r.spectralDeviation) {
+        const sd = r.spectralDeviation;
+        text += `   Spectral: Expected ${sd.expectedMin}-${sd.expectedMax}Hz, Actual ${Math.round(sd.actual)}Hz`;
+        if (sd.isWithinRange) {
+          text += ` (On Target)\n`;
+        } else {
+          text += ` (${sd.direction === 'bright' ? '+' : '-'}${Math.round(sd.deviationHz)}Hz, ${Math.round(sd.deviationPercent)}% ${sd.direction})\n`;
+        }
+      }
       if (r.renameSuggestion) {
         text += `   Tonal Character: ${r.renameSuggestion.suggestedModifier}\n`;
         text += `   Suggested Name: ${r.renameSuggestion.suggestedFilename}\n`;
@@ -736,6 +745,50 @@ export default function Analyzer() {
                           </div>
                         )}
 
+                        {/* Spectral Deviation */}
+                        {r.spectralDeviation && (
+                          <div className={cn(
+                            "mt-2 p-2 rounded-lg border flex items-center gap-3 text-xs",
+                            r.spectralDeviation.isWithinRange 
+                              ? "bg-emerald-500/10 border-emerald-500/20" 
+                              : r.spectralDeviation.deviationPercent > 50 
+                                ? "bg-red-500/10 border-red-500/20"
+                                : "bg-amber-500/10 border-amber-500/20"
+                          )}>
+                            <Target className={cn(
+                              "w-4 h-4 flex-shrink-0",
+                              r.spectralDeviation.isWithinRange 
+                                ? "text-emerald-400" 
+                                : r.spectralDeviation.deviationPercent > 50 
+                                  ? "text-red-400"
+                                  : "text-amber-400"
+                            )} />
+                            <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span className="text-muted-foreground">
+                                Expected: <span className="font-mono text-foreground">{r.spectralDeviation.expectedMin}-{r.spectralDeviation.expectedMax} Hz</span>
+                              </span>
+                              <span className="text-muted-foreground">
+                                Actual: <span className="font-mono text-foreground">{Math.round(r.spectralDeviation.actual)} Hz</span>
+                              </span>
+                              <span className={cn(
+                                "font-medium",
+                                r.spectralDeviation.isWithinRange 
+                                  ? "text-emerald-400" 
+                                  : r.spectralDeviation.deviationPercent > 50 
+                                    ? "text-red-400"
+                                    : "text-amber-400"
+                              )}>
+                                {r.spectralDeviation.isWithinRange 
+                                  ? "On Target" 
+                                  : `${r.spectralDeviation.direction === 'bright' ? '+' : '-'}${Math.round(r.spectralDeviation.deviationHz)} Hz (${Math.round(r.spectralDeviation.deviationPercent)}% ${r.spectralDeviation.direction})`}
+                              </span>
+                              {!r.spectralDeviation.isWithinRange && r.spectralDeviation.deviationPercent > 100 && (
+                                <span className="text-red-400 font-medium">Consider reshoot</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Tonal Modifier Suggestion */}
                         {r.renameSuggestion && (
                           <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -1031,6 +1084,7 @@ export default function Analyzer() {
                     micLabel={result.micLabel}
                     renameSuggestion={result.renameSuggestion}
                     filename={result.filename}
+                    spectralDeviation={result.spectralDeviation}
                   />
                 </motion.div>
               )}

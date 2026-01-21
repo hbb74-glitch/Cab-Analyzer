@@ -186,6 +186,16 @@ export const batchAnalysisInputSchema = z.object({
   irs: z.array(batchIRInputSchema).min(1, "At least one IR is required"),
 });
 
+export const spectralDeviationSchema = z.object({
+  expectedMin: z.number(),
+  expectedMax: z.number(),
+  actual: z.number(),
+  deviationHz: z.number(),
+  deviationPercent: z.number(),
+  direction: z.enum(['bright', 'dark', 'normal']),
+  isWithinRange: z.boolean(),
+});
+
 export const batchIRResultSchema = z.object({
   filename: z.string(),
   parsedInfo: z.object({
@@ -204,6 +214,7 @@ export const batchIRResultSchema = z.object({
     suggestedFilename: z.string(),
     reason: z.string(),
   }).optional().nullable(),
+  spectralDeviation: spectralDeviationSchema.optional().nullable(),
 });
 
 export const gapSuggestionSchema = z.object({

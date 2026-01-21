@@ -10,10 +10,21 @@ interface RenameSuggestion {
   reason: string;
 }
 
+interface SpectralDeviation {
+  expectedMin: number;
+  expectedMax: number;
+  actual: number;
+  deviationHz: number;
+  deviationPercent: number;
+  direction: 'bright' | 'dark' | 'normal';
+  isWithinRange: boolean;
+}
+
 type SingleAnalysisResult = Analysis & { 
   micLabel?: string; 
   renameSuggestion?: RenameSuggestion | null;
   filename?: string;
+  spectralDeviation?: SpectralDeviation | null;
 };
 
 export interface SingleAnalysisMetrics {

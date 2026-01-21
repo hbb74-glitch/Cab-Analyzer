@@ -12,6 +12,16 @@ interface RenameSuggestion {
   reason: string;
 }
 
+interface SpectralDeviation {
+  expectedMin: number;
+  expectedMax: number;
+  actual: number;
+  deviationHz: number;
+  deviationPercent: number;
+  direction: 'bright' | 'dark' | 'normal';
+  isWithinRange: boolean;
+}
+
 interface ResultCardProps {
   score: number;
   isPerfect: boolean;
@@ -25,6 +35,7 @@ interface ResultCardProps {
   bestPositions?: BestPosition[];
   renameSuggestion?: RenameSuggestion | null;
   filename?: string;
+  spectralDeviation?: SpectralDeviation | null;
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -42,7 +53,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap_OffCenter",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -138,6 +149,91 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
               </p>
             </div>
           </div>
+
+          {spectralDeviation && (
+            <div className={cn(
+              "p-4 rounded-xl border",
+              spectralDeviation.isWithinRange 
+                ? "bg-emerald-500/10 border-emerald-500/20" 
+                : spectralDeviation.deviationPercent > 50 
+                  ? "bg-red-500/10 border-red-500/20"
+                  : "bg-amber-500/10 border-amber-500/20"
+            )}>
+              <div className="flex items-start gap-3">
+                <Target className={cn(
+                  "w-5 h-5 mt-0.5 flex-shrink-0",
+                  spectralDeviation.isWithinRange 
+                    ? "text-emerald-400" 
+                    : spectralDeviation.deviationPercent > 50 
+                      ? "text-red-400"
+                      : "text-amber-400"
+                )} />
+                <div className="flex-1">
+                  <h4 className={cn(
+                    "text-sm font-semibold mb-2",
+                    spectralDeviation.isWithinRange 
+                      ? "text-emerald-400" 
+                      : spectralDeviation.deviationPercent > 50 
+                        ? "text-red-400"
+                        : "text-amber-400"
+                  )}>
+                    Spectral Centroid Analysis
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Expected</span>
+                      <span className="font-mono text-foreground">{spectralDeviation.expectedMin}-{spectralDeviation.expectedMax} Hz</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Actual</span>
+                      <span className="font-mono text-foreground">{Math.round(spectralDeviation.actual)} Hz</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Deviation</span>
+                      <span className={cn(
+                        "font-mono font-medium",
+                        spectralDeviation.isWithinRange 
+                          ? "text-emerald-400" 
+                          : spectralDeviation.deviationPercent > 50 
+                            ? "text-red-400"
+                            : "text-amber-400"
+                      )}>
+                        {spectralDeviation.isWithinRange 
+                          ? "Within range" 
+                          : `${spectralDeviation.direction === 'bright' ? '+' : '-'}${Math.round(spectralDeviation.deviationHz)} Hz`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Status</span>
+                      <span className={cn(
+                        "font-medium",
+                        spectralDeviation.isWithinRange 
+                          ? "text-emerald-400" 
+                          : spectralDeviation.deviationPercent > 50 
+                            ? "text-red-400"
+                            : "text-amber-400"
+                      )}>
+                        {spectralDeviation.isWithinRange 
+                          ? "On Target" 
+                          : spectralDeviation.deviationPercent > 100
+                            ? "Consider reshoot"
+                            : spectralDeviation.deviationPercent > 50
+                              ? "Review needed"
+                              : "Acceptable"}
+                      </span>
+                    </div>
+                  </div>
+                  {!spectralDeviation.isWithinRange && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {spectralDeviation.direction === 'bright' 
+                        ? `IR is ${Math.round(spectralDeviation.deviationPercent)}% brighter than expected. Try moving mic toward cone or increasing distance.`
+                        : `IR is ${Math.round(spectralDeviation.deviationPercent)}% darker than expected. Try moving mic toward cap or decreasing distance.`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
