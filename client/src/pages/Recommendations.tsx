@@ -291,6 +291,16 @@ When recommending distances:
 2. If recommending a mic the user hasn't used, explain why you're suggesting a particular distance
 3. If you think a different distance would work better for the selected speaker, explain the trade-off (e.g., "Your typical SM57 distance is 2", but on this speaker 1" might capture more low-end presence - worth trying both")
 
+COMPLETE SET GUIDANCE - FILL THE GAPS:
+Your goal is to help the user create a COMPLETE, production-ready IR set for mixing. Beyond their preferences:
+1. If they only use dynamic mics, suggest adding a ribbon (like R121) or condenser (like U87) for tonal variety and blending options
+2. If they're missing key positions (Cap, CapEdge, Cone, Edge), suggest adding them for fuller speaker coverage
+3. If all their distances are close (1-2"), suggest a mid-distance option (3-4") for more room/body
+4. If all their distances are far, suggest a close option for more attack/definition
+5. Suggest complementary mics that blend well with their favorites (e.g., SM57 + R121 is a classic pairing)
+6. Label additional suggestions clearly as "Suggested additions for a complete set" so user knows these are beyond their learned preferences
+7. Explain WHY each addition is useful for mixing/production (e.g., "Adding an R121 at CapEdge gives you a darker option to blend with your SM57 for fuller mids")
+
 Also blend with professional best practices:
 - If user has multiple positions for the same mic, they likely want full speaker coverage
 - Note patterns (preference for bright vs warm, close vs distant, coverage vs single sweet spot)`;
