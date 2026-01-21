@@ -510,6 +510,15 @@ async function scoreSingleIR(ir: {
   issues: string[];
   parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null };
   renameSuggestion: { suggestedModifier: string; suggestedFilename: string; reason: string } | null;
+  spectralDeviation: {
+    expectedMin: number;
+    expectedMax: number;
+    actual: number;
+    deviationHz: number;
+    deviationPercent: number;
+    direction: 'bright' | 'dark' | 'normal';
+    isWithinRange: boolean;
+  };
 }> {
   // Check cache first
   const cacheKey = generateIRCacheKey(ir);
@@ -625,6 +634,15 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
     issues: result.issues || [],
     parsedInfo: result.parsedInfo || { mic: null, position: null, speaker: null, distance: null },
     renameSuggestion: result.renameSuggestion || null,
+    spectralDeviation: {
+      expectedMin: expectedRange.min,
+      expectedMax: expectedRange.max,
+      actual: ir.spectralCentroid,
+      deviationHz: deviation.deviation,
+      deviationPercent: deviation.deviationPercent,
+      direction: deviation.direction,
+      isWithinRange: deviation.isWithinRange,
+    },
   };
   
   // Cache the result
@@ -683,14 +701,15 @@ export async function registerRoutes(
         isPerfect: scored.isPerfect
       });
 
-      // Include tonal modifier suggestion and detected mic variant in response
+      // Include tonal modifier suggestion, detected mic variant, and spectral deviation in response
       const responseWithExtras = {
         ...saved,
         micLabel: micVariant,
         renameSuggestion: scored.renameSuggestion ? {
           suggestedModifier: scored.renameSuggestion.suggestedModifier,
           reason: scored.renameSuggestion.reason
-        } : null
+        } : null,
+        spectralDeviation: scored.spectralDeviation
       };
 
       res.status(201).json(responseWithExtras);
@@ -1430,6 +1449,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             highlights: scored.highlights,
             issues: scored.issues,
             renameSuggestion: scored.renameSuggestion,
+            spectralDeviation: scored.spectralDeviation,
           };
         })
       );
