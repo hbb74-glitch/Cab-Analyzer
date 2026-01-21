@@ -794,43 +794,43 @@ export async function registerRoutes(
       - The bestFor MUST reference the tonal goal or closely related sounds
       - EXCLUDE generic recommendations that don't serve this tonal goal` : ''}
       
-      Provide 4-6 distance recommendations${genre ? ` optimized for "${genre}"` : ' covering the usable range for this mic+speaker combo'}.
-      Also provide 2-3 best position recommendations${genre ? ` that achieve "${genre}"` : ' for this specific mic+speaker combination'}.
-      ${genre ? `FILTER all recommendations through the user's tonal goal. Only include distances/positions that genuinely serve "${genre}".` : 'Explain how each distance/position affects the tone and what it\'s best suited for.'}
+      Provide 6-8 COMPLETE SHOT recommendations - each shot is a specific POSITION + DISTANCE combination.
+      IMPORTANT: These are NOT interchangeable. Certain distances work better at certain positions.
+      For example: Cap at 1" is very different from Cap at 4". CapEdge at 2" is different from Cone at 2".
+      ${genre ? `FILTER all recommendations through the user's tonal goal "${genre}". Only include shots that genuinely serve this sound.` : 'Cover a variety of useful shots for this mic+speaker combo.'}
+      
+      For MD441: Specify "(Presence)" or "(Flat)" in micLabel based on the tonal goal.
+      For e906: Specify "(Presence)" or "(Flat)" in micLabel based on the tonal goal.
       
       Output JSON format:
       {
         "mic": "${micType}",
+        "micLabel": "Display name - for MD441/e906, include (Presence) or (Flat) setting",
         "micDescription": "Brief description of the microphone's character",
         "speaker": "${speakerModel}",
         "speakerDescription": "Brief description of the speaker's tonal characteristics",
         ${genre ? `"genre": "${genre}",` : ''}
-        "recommendations": [
-          {
-            "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "rationale": "Why this distance achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
-            "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
-            "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this distance is ideal for'}"
-          }
-        ],
-        "bestPositions": [
+        "shots": [
           {
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
-            "reason": "Why this position${genre ? ` achieves '${genre}'` : ' works well for this mic+speaker combo'}"
+            "distance": "distance in inches as string (e.g. '1' or '2.5')",
+            "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
+            "expectedTone": "How this exact shot sounds",
+            "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this shot is ideal for'}"
           }
         ]
       }`;
 
-      let userMessage = `Please recommend ideal distances for the ${micType} microphone paired with the ${speakerModel} speaker.`;
+      let userMessage = `Please recommend specific position+distance SHOTS for the ${micType} microphone paired with the ${speakerModel} speaker.`;
       if (genre) {
         const expandedGoal = expandGenreToTonalGuidance(genre);
-        userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
+        userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every shot must be specifically optimized for this sound. Do not include generic shots that don't serve this tonal goal.`;
       } else {
-        userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
+        userMessage += ` Cover a variety of useful position+distance combinations, explaining what each specific shot delivers tonally.`;
       }
       
       if (preferredShots) {
-        userMessage += `\n\n=== USER'S PREFERRED SHOTS/DISTANCES ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific distances or positions they like, include those in your suggestions. If they have existing shots they want to complement, suggest distances that would pair well with what they already have.`;
+        userMessage += `\n\n=== USER'S PREFERRED SHOTS ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific position+distance combos they like, include those in your suggestions. If they have existing shots they want to complement, suggest shots that would pair well.`;
       }
 
       const response = await openai.chat.completions.create({

@@ -545,18 +545,19 @@ export default function Recommendations() {
     };
 
     if (mode === 'by-speaker' && result) {
-      text = `IR Suggestions for ${getSpeakerLabel(result.speaker)}\n`;
-      text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
-      result.recommendations.forEach((rec, i) => {
+      const shots = result.shots || result.recommendations || [];
+      text = `IR Shots for ${getSpeakerLabel(result.speaker)}\n`;
+      text += `Microphone: ${result.micLabel || getMicLabel(result.mic)}\n\n`;
+      shots.forEach((shot: any, i: number) => {
         // Schema: Speaker_Mic_Position_distance_variant
         const speakerPart = getSpeakerShorthand(result.speaker);
         const micInfo = getMicShorthand(result.mic);
-        const posPart = formatPosition(rec.bestFor);
-        const distPart = `${rec.distance}in`;
+        const posPart = formatPosition(shot.position || shot.bestFor);
+        const distPart = `${shot.distance}in`;
         
         const shorthand = `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
         text += `${i + 1}. ${shorthand}\n`;
-        text += `   Rationale: ${rec.rationale}\n\n`;
+        text += `   Rationale: ${shot.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
@@ -620,11 +621,12 @@ export default function Recommendations() {
     };
 
     if (mode === 'by-speaker' && result) {
-      items = result.recommendations.map((rec) => {
+      const shots = result.shots || result.recommendations || [];
+      items = shots.map((shot: any) => {
         const speakerPart = getSpeakerShorthand(result.speaker);
         const micInfo = getMicShorthand(result.mic);
-        const posPart = formatPosition(rec.bestFor);
-        const distPart = `${rec.distance}in`;
+        const posPart = formatPosition(shot.position || shot.bestFor);
+        const distPart = `${shot.distance}in`;
         return `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
@@ -1593,65 +1595,43 @@ Or written out:
                 </div>
               </div>
 
-              <h3 className="text-lg font-semibold text-white">Recommended Distances</h3>
+              <h3 className="text-lg font-semibold text-white">Recommended Shots</h3>
 
               <div className="grid gap-4">
-                {result.recommendations.map((rec, i) => (
+                {(result.shots || result.recommendations)?.map((shot: any, i: number) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
                     className="glass-panel p-5 rounded-xl space-y-3"
-                    data-testid={`card-recommendation-${i}`}
+                    data-testid={`card-shot-${i}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 bg-primary/30 px-4 py-2 rounded-full border border-primary/30">
-                          <Ruler className="w-4 h-4 text-primary" />
-                          <span className="text-lg font-bold text-primary">{rec.distance}"</span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {shot.position && (
+                        <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
+                          <Target className="w-4 h-4 text-secondary" />
+                          <span className="text-sm font-medium text-secondary">{POSITION_LABELS[shot.position] || shot.position}</span>
                         </div>
-                        <span className="text-sm text-muted-foreground font-medium">{rec.bestFor}</span>
+                      )}
+                      <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
+                        <Ruler className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-bold text-primary">{shot.distance}"</span>
                       </div>
+                      <span className="text-xs text-muted-foreground font-medium ml-auto">{shot.bestFor}</span>
                     </div>
                     
                     <div className="space-y-2 pl-1">
                       <p className="text-sm text-muted-foreground">
-                        <span className="text-foreground font-medium">Why:</span> {rec.rationale}
+                        <span className="text-foreground font-medium">Why:</span> {shot.rationale}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        <span className="text-foreground font-medium">Expected Tone:</span> {rec.expectedTone}
+                        <span className="text-foreground font-medium">Expected Tone:</span> {shot.expectedTone}
                       </p>
                     </div>
                   </motion.div>
                 ))}
               </div>
-
-              {result.bestPositions && result.bestPositions.length > 0 && (
-                <>
-                  <h3 className="text-lg font-semibold text-white flex items-center gap-2 pt-4">
-                    <Target className="w-5 h-5 text-secondary" />
-                    Best Positions for This Mic + Speaker
-                  </h3>
-                  <div className="grid gap-3">
-                    {result.bestPositions.map((pos, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        className="flex items-start gap-3 glass-panel p-4 rounded-xl"
-                        data-testid={`card-position-${i}`}
-                      >
-                        <span className="shrink-0 px-3 py-1.5 rounded-full bg-secondary/20 text-secondary text-sm font-medium border border-secondary/20">
-                          {POSITION_LABELS[pos.position] || pos.position}
-                        </span>
-                        <p className="text-sm text-muted-foreground">{pos.reason}</p>
-                      </motion.div>
-                    ))}
-                  </div>
-                </>
-              )}
             </motion.div>
           )}
 

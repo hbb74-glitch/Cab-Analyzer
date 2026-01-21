@@ -30,6 +30,14 @@ export const distanceRecommendationSchema = z.object({
   bestFor: z.string(),
 });
 
+export const shotRecommendationSchema = z.object({
+  position: z.string(),
+  distance: z.string(),
+  rationale: z.string(),
+  expectedTone: z.string(),
+  bestFor: z.string(),
+});
+
 export const positionRecommendationSchema = z.object({
   position: z.string(),
   reason: z.string(),
@@ -37,11 +45,13 @@ export const positionRecommendationSchema = z.object({
 
 export const recommendationsResponseSchema = z.object({
   mic: z.string(),
+  micLabel: z.string().optional(),
   micDescription: z.string(),
   speaker: z.string(),
   speakerDescription: z.string(),
   genre: z.string().optional(),
-  recommendations: z.array(distanceRecommendationSchema),
+  shots: z.array(shotRecommendationSchema).optional(),
+  recommendations: z.array(distanceRecommendationSchema).optional(),
   bestPositions: z.array(positionRecommendationSchema).optional(),
 });
 
@@ -66,6 +76,7 @@ export const speakerRecommendationsResponseSchema = z.object({
 
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
 export type DistanceRecommendation = z.infer<typeof distanceRecommendationSchema>;
+export type ShotRecommendation = z.infer<typeof shotRecommendationSchema>;
 export type RecommendationsResponse = z.infer<typeof recommendationsResponseSchema>;
 export type MicRecommendation = z.infer<typeof micRecommendationSchema>;
 export type SpeakerRecommendationsResponse = z.infer<typeof speakerRecommendationsResponseSchema>;
