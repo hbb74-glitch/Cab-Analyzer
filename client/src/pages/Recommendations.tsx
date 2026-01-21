@@ -320,6 +320,11 @@ DISTANCES PER MIC:
 - If R121 is consistently at 4", that's the user's preferred R121 distance
 - If a mic like Roswell shows multiple distances (4", 5", 6"), the user likes that range for that specific mic
 
+MULTIPLE SHOTS AT SAME DISTANCE (important pattern):
+- If user has 3 shots at 2" (Cap 2", CapEdge 2", Cone 2"), they want POSITION VARIETY at their preferred distance
+- This means: recommend multiple positions at their preferred distance, not just one shot per distance
+- Example: If SM57 shows 4 shots all at 2" with different positions, recommend 4 shots at 2" with different positions for the new speaker
+
 When recommending:
 1. For each mic, recommend the SAME positions they used for that mic in their favorites
 2. Use the mic-specific distance preference for that mic

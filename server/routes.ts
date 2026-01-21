@@ -797,6 +797,9 @@ export async function registerRoutes(
       Provide 6-8 COMPLETE SHOT recommendations - each shot is a specific POSITION + DISTANCE combination.
       IMPORTANT: These are NOT interchangeable. Certain distances work better at certain positions.
       For example: Cap at 1" is very different from Cap at 4". CapEdge at 2" is different from Cone at 2".
+      
+      MULTIPLE SHOTS AT SAME DISTANCE: If user preferences show multiple positions at the same distance (e.g., Cap 2", CapEdge 2", Cone 2"), 
+      they want POSITION VARIETY at their preferred distance. Recommend multiple shots at that distance with different positions.
       ${genre ? `FILTER all recommendations through the user's tonal goal "${genre}". Only include shots that genuinely serve this sound.` : 'Cover a variety of useful shots for this mic+speaker combo.'}
       
       For MD441: Specify "(Presence)" or "(Flat)" in micLabel based on the tonal goal.
