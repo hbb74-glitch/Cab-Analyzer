@@ -33,7 +33,7 @@ const MIC_PATTERNS: Record<string, string> = {
   "r92": "r92", "aear92": "r92", "aea-r92": "r92",
   "m160": "160", "160": "160",
   "md421": "421", "421": "421",
-  "421kompakt": "421-kompakt", "421-kompakt": "421-kompakt", "kompakt": "421-kompakt", "md421kmp": "421-kompakt", "421kmp": "421-kompakt",
+  "421kompakt": "421", "421-kompakt": "421", "kompakt": "421", "md421kmp": "421", "421kmp": "421",
   "md441boost": "441-boost", "441-boost": "441-boost", "441boost": "441-boost", "md441-boost": "441-boost", "441presence": "441-boost",
   "md441flat": "441-flat", "441-flat": "441-flat", "441flat": "441-flat", "md441-flat": "441-flat", "md441": "441-flat", "441": "441-flat",
   "r10": "r10",

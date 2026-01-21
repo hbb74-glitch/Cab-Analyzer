@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List } from "lucide-react";
+import { useDropzone } from "react-dropzone";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +74,178 @@ const GENRES = [
 
 type Mode = 'by-speaker' | 'by-amp' | 'import-positions';
 
+// Filename parsing patterns (same as Analyzer.tsx)
+const PREF_MIC_PATTERNS: Record<string, string> = {
+  "sm57": "SM57", "57": "SM57",
+  "r121": "R121", "r-121": "R121", "121": "R121",
+  "r92": "R92", "aear92": "R92", "aea-r92": "R92",
+  "m160": "M160", "160": "M160",
+  "md421": "MD421", "421": "MD421",
+  "421kompakt": "MD421", "421-kompakt": "MD421", "kompakt": "MD421", "md421kmp": "MD421", "421kmp": "MD421",
+  "md441boost": "MD441 (Presence)", "441-boost": "MD441 (Presence)", "441boost": "MD441 (Presence)", "md441-boost": "MD441 (Presence)", "441presence": "MD441 (Presence)",
+  "md441flat": "MD441 (Flat)", "441-flat": "MD441 (Flat)", "441flat": "MD441 (Flat)", "md441-flat": "MD441 (Flat)", "md441": "MD441 (Flat)", "441": "MD441 (Flat)",
+  "r10": "R10",
+  "m88": "M88", "88": "M88",
+  "pr30": "PR30", "30": "PR30",
+  "e906boost": "e906 (Presence)", "e906-boost": "e906 (Presence)", "906boost": "e906 (Presence)",
+  "e906presence": "e906 (Presence)", "e906-presence": "e906 (Presence)", "906presence": "e906 (Presence)",
+  "e906flat": "e906 (Flat)", "e906-flat": "e906 (Flat)", "906flat": "e906 (Flat)", "e906": "e906 (Flat)",
+  "m201": "M201", "201": "M201",
+  "sm7b": "SM7B", "sm7": "SM7B", "7b": "SM7B",
+  "c414": "C414", "akgc414": "C414", "akg-c414": "C414", "414": "C414",
+  "roswellcab": "Roswell", "roswell-cab": "Roswell", "roswell": "Roswell",
+};
+
+const PREF_POSITION_PATTERNS: Record<string, string> = {
+  "capedge_br": "CapEdge_BR", "capedgebr": "CapEdge_BR",
+  "capedge_dk": "CapEdge_DK", "capedgedk": "CapEdge_DK",
+  "capedge_cone_tr": "Cap_Cone_Tr", "capedgeconetr": "Cap_Cone_Tr", "cone_tr": "Cap_Cone_Tr", "cap_cone_tr": "Cap_Cone_Tr", "capconetr": "Cap_Cone_Tr",
+  "cap_offcenter": "Cap_OffCenter", "capoffcenter": "Cap_OffCenter", "offcenter": "Cap_OffCenter",
+  "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
+  "cap": "Cap", "center": "Cap",
+  "cone": "Cone",
+  "cap-edge-favor-cap": "CapEdge_BR", "favorcap": "CapEdge_BR",
+  "cap-edge-favor-cone": "CapEdge_DK", "favorcone": "CapEdge_DK",
+  "cap-edge": "CapEdge",
+  "cap-off-center": "Cap_OffCenter",
+};
+
+const PREF_SPEAKER_PATTERNS: Record<string, string> = {
+  "g12m25": "Greenback", "greenback": "Greenback", "gb": "Greenback", "g12m": "Greenback",
+  "v30china": "V30", "v30-china": "V30", "v30c": "V30",
+  "v30blackcat": "V30BC", "v30-blackcat": "V30BC", "blackcat": "V30BC", "v30bc": "V30BC",
+  "v30": "V30",
+  "k100": "K100", "g12k100": "K100", "g12k-100": "K100",
+  "g12t75": "G12T75", "t75": "G12T75", "g12t-75": "G12T75",
+  "g12-65": "G12-65", "g1265": "G12-65", "65": "G12-65", "g1265her": "G12-65", "g12-65her": "G12-65",
+  "g12h30": "G12H", "g12h30-anniversary": "G12H", "anniversary": "G12H", "h30": "G12H", "g12h": "G12H", "g12hann": "G12H", "g12h30ann": "G12H",
+  "cream": "Cream", "celestion-cream": "Cream", "celestioncream": "Cream",
+  "ga12sc64": "GA12-SC64", "ga12-sc64": "GA12-SC64", "sc64": "GA12-SC64",
+  "g10sc64": "GA10-SC64", "g10-sc64": "GA10-SC64", "g10": "GA10-SC64",
+};
+
+interface ParsedIR {
+  filename: string;
+  mic?: string;
+  position?: string;
+  speaker?: string;
+  distance?: string;
+}
+
+interface LearnedPreferences {
+  mics: { name: string; count: number }[];
+  positions: { name: string; count: number }[];
+  distances: { value: string; count: number }[];
+  speakers: { name: string; count: number }[];
+  totalIRs: number;
+}
+
+function parseIRFilename(filename: string): ParsedIR {
+  const result: ParsedIR = { filename };
+  const name = filename.toLowerCase().replace('.wav', '');
+  const parts = name.split(/[_\-\s]+/);
+  const fullName = parts.join('');
+  
+  // Special handling for mics with variants (e906, md441)
+  const hasE906 = parts.includes('e906') || fullName.includes('e906');
+  const hasPresence = parts.includes('presence') || parts.includes('boost') || fullName.includes('presence') || fullName.includes('boost');
+  const hasFlat = parts.includes('flat') || fullName.includes('flat');
+  const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
+  
+  if (hasE906) {
+    result.mic = hasPresence ? 'e906 (Presence)' : (hasFlat ? 'e906 (Flat)' : 'e906 (Flat)');
+  } else if (hasMd441) {
+    result.mic = hasPresence ? 'MD441 (Presence)' : (hasFlat ? 'MD441 (Flat)' : 'MD441 (Flat)');
+  } else {
+    for (const [pattern, value] of Object.entries(PREF_MIC_PATTERNS)) {
+      if (parts.includes(pattern) || fullName.includes(pattern)) {
+        result.mic = value;
+        break;
+      }
+    }
+  }
+  
+  // Position
+  const sortedPositions = Object.entries(PREF_POSITION_PATTERNS).sort((a, b) => b[0].length - a[0].length);
+  for (const [pattern, value] of sortedPositions) {
+    if (parts.includes(pattern) || fullName.includes(pattern)) {
+      result.position = value;
+      break;
+    }
+  }
+  
+  // Speaker
+  const sortedSpeakers = Object.entries(PREF_SPEAKER_PATTERNS).sort((a, b) => b[0].length - a[0].length);
+  for (const [pattern, value] of sortedSpeakers) {
+    if (parts.includes(pattern) || fullName.includes(pattern)) {
+      result.speaker = value;
+      break;
+    }
+  }
+  
+  // Distance
+  for (const part of parts) {
+    const distMatch = part.match(/^(\d+(?:\.\d+)?)\s*(?:in|inch)?$/);
+    if (distMatch) {
+      const dist = parseFloat(distMatch[1]);
+      if (dist >= 0.25 && dist <= 12) {
+        result.distance = `${dist}"`;
+        break;
+      }
+    }
+  }
+  
+  return result;
+}
+
+function buildPreferenceProfile(parsedIRs: ParsedIR[]): LearnedPreferences {
+  const mics: Record<string, number> = {};
+  const positions: Record<string, number> = {};
+  const distances: Record<string, number> = {};
+  const speakers: Record<string, number> = {};
+  
+  for (const ir of parsedIRs) {
+    if (ir.mic) mics[ir.mic] = (mics[ir.mic] || 0) + 1;
+    if (ir.position) positions[ir.position] = (positions[ir.position] || 0) + 1;
+    if (ir.distance) distances[ir.distance] = (distances[ir.distance] || 0) + 1;
+    if (ir.speaker) speakers[ir.speaker] = (speakers[ir.speaker] || 0) + 1;
+  }
+  
+  const sortByCount = (obj: Record<string, number>) => 
+    Object.entries(obj)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  
+  return {
+    mics: sortByCount(mics),
+    positions: sortByCount(positions),
+    distances: sortByCount(distances).map(d => ({ value: d.name, count: d.count })),
+    speakers: sortByCount(speakers),
+    totalIRs: parsedIRs.length,
+  };
+}
+
+function formatLearnedPreferencesForAI(prefs: LearnedPreferences): string {
+  const parts: string[] = [];
+  
+  if (prefs.mics.length > 0) {
+    parts.push(`Preferred mics: ${prefs.mics.slice(0, 5).map(m => `${m.name} (${m.count}x)`).join(', ')}`);
+  }
+  if (prefs.positions.length > 0) {
+    parts.push(`Preferred positions: ${prefs.positions.slice(0, 5).map(p => `${p.name} (${p.count}x)`).join(', ')}`);
+  }
+  if (prefs.distances.length > 0) {
+    parts.push(`Preferred distances: ${prefs.distances.slice(0, 5).map(d => `${d.value} (${d.count}x)`).join(', ')}`);
+  }
+  if (prefs.speakers.length > 0) {
+    parts.push(`Speakers used: ${prefs.speakers.slice(0, 5).map(s => `${s.name} (${s.count}x)`).join(', ')}`);
+  }
+  
+  if (parts.length === 0) return '';
+  
+  return `\n\nLEARNED USER PREFERENCES (from ${prefs.totalIRs} uploaded favorite IRs):\n${parts.join('\n')}\n\nPrioritize recommendations that align with these learned preferences - the user clearly favors these mics, positions, and distances.`;
+}
+
 export default function Recommendations() {
   const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
@@ -88,7 +261,48 @@ export default function Recommendations() {
   const [showClarification, setShowClarification] = useState(false);
   const [pendingClarifications, setPendingClarifications] = useState<{ key: string; options: { value: string; label: string }[]; question: string }[]>([]);
   const [speakerClarifications, setSpeakerClarifications] = useState<Record<string, string>>({});
+  
+  // Learn From My IRs state
+  const [showLearnSection, setShowLearnSection] = useState(false);
+  const [learnedIRs, setLearnedIRs] = useState<ParsedIR[]>([]);
+  const [learnedPrefs, setLearnedPrefs] = useState<LearnedPreferences | null>(null);
+  
   const { toast } = useToast();
+  
+  // Dropzone for learning from IRs
+  const onDropLearnIRs = useCallback((acceptedFiles: File[]) => {
+    const parsed = acceptedFiles.map(f => parseIRFilename(f.name));
+    const validParsed = parsed.filter(p => p.mic || p.position || p.distance || p.speaker);
+    
+    if (validParsed.length === 0) {
+      toast({ 
+        title: "Couldn't parse filenames", 
+        description: "Make sure your IR files follow a naming convention with mic/position/distance info", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    const allParsed = [...learnedIRs, ...validParsed];
+    setLearnedIRs(allParsed);
+    setLearnedPrefs(buildPreferenceProfile(allParsed));
+    
+    toast({ 
+      title: `Learned from ${validParsed.length} IRs`, 
+      description: `Total: ${allParsed.length} favorite IRs analyzed` 
+    });
+  }, [learnedIRs, toast]);
+  
+  const { getRootProps: getLearnRootProps, getInputProps: getLearnInputProps, isDragActive: isLearnDragActive } = useDropzone({
+    onDrop: onDropLearnIRs,
+    accept: { 'audio/wav': ['.wav'] },
+    multiple: true,
+  });
+  
+  const clearLearnedPrefs = () => {
+    setLearnedIRs([]);
+    setLearnedPrefs(null);
+  };
   
   const {
     recommendationsResult: result,
@@ -445,11 +659,19 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
+    
+    // Combine manual preferences with learned preferences
+    let combinedPrefs = preferredShots.trim();
+    if (learnedPrefs) {
+      const learnedText = formatLearnedPreferencesForAI(learnedPrefs);
+      combinedPrefs = combinedPrefs ? `${combinedPrefs}\n\n${learnedText}` : learnedText;
+    }
+    
     getRecommendations({ 
       micType: micType || undefined, 
       speakerModel: speaker, 
       genre: effectiveGenre,
-      preferredShots: preferredShots.trim() || undefined
+      preferredShots: combinedPrefs || undefined
     });
   };
 
@@ -706,6 +928,138 @@ export default function Recommendations() {
               />
               <p className="text-xs text-muted-foreground">Add specific tonal qualities or artist references</p>
             </div>
+          </div>
+
+          {/* Learn From My IRs Section */}
+          <div className="border-t border-white/10 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowLearnSection(!showLearnSection)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-toggle-learn-section"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Learn From My Favorite IRs</span>
+              <span className={cn(
+                "transition-transform",
+                showLearnSection ? "rotate-180" : ""
+              )}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+              {learnedPrefs && (
+                <span className="text-xs bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">
+                  {learnedPrefs.totalIRs} IRs Learned
+                </span>
+              )}
+            </button>
+            
+            <AnimatePresence>
+              {showLearnSection && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-4 space-y-4">
+                    <div
+                      {...getLearnRootProps()}
+                      className={cn(
+                        "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all",
+                        isLearnDragActive 
+                          ? "border-secondary bg-secondary/10" 
+                          : "border-white/20 hover:border-white/40"
+                      )}
+                      data-testid="dropzone-learn-irs"
+                    >
+                      <input {...getLearnInputProps()} />
+                      <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">
+                        {isLearnDragActive 
+                          ? "Drop your favorite IRs here..." 
+                          : "Drop IRs you love, or click to select"}
+                      </p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">
+                        The app will learn your mic/position/distance preferences from filenames
+                      </p>
+                    </div>
+                    
+                    {learnedPrefs && (
+                      <div className="bg-black/20 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-medium text-foreground">Your Preference Profile</h4>
+                          <button
+                            type="button"
+                            onClick={clearLearnedPrefs}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                            data-testid="button-clear-learned"
+                          >
+                            <X className="w-3 h-3" /> Clear
+                          </button>
+                        </div>
+                        
+                        {learnedPrefs.mics.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Preferred Mics:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {learnedPrefs.mics.slice(0, 5).map((m, i) => (
+                                <span key={i} className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                                  {m.name} ({m.count}x)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {learnedPrefs.positions.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Preferred Positions:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {learnedPrefs.positions.slice(0, 5).map((p, i) => (
+                                <span key={i} className="text-xs bg-secondary/20 text-secondary px-2 py-0.5 rounded-full">
+                                  {p.name} ({p.count}x)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {learnedPrefs.distances.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Preferred Distances:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {learnedPrefs.distances.slice(0, 5).map((d, i) => (
+                                <span key={i} className="text-xs bg-white/10 text-foreground px-2 py-0.5 rounded-full">
+                                  {d.value} ({d.count}x)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {learnedPrefs.speakers.length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Speakers Used:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {learnedPrefs.speakers.slice(0, 5).map((s, i) => (
+                                <span key={i} className="text-xs bg-accent/20 text-accent-foreground px-2 py-0.5 rounded-full">
+                                  {s.name} ({s.count}x)
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        <p className="text-xs text-muted-foreground italic pt-2 border-t border-white/10">
+                          AI recommendations will prioritize these learned preferences
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Preferred Shots Section */}
