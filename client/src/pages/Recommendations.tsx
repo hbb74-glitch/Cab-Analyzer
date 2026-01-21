@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3 } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -560,13 +560,17 @@ export default function Recommendations() {
         // Schema: Speaker_Mic_Setting_Position_distance
         const speakerPart = getSpeakerShorthand(result.speaker);
         // Use shot.micLabel if available (for MD441/e906 switch settings), else fall back to top-level
-        const { baseMic, switchSetting } = formatMicForShorthand(shot.micLabel || getMicLabel(result.mic));
+        const micLabelToUse = shot.micLabel || getMicLabel(result.mic);
+        console.log(`Shot ${i}: micLabel="${shot.micLabel}", using="${micLabelToUse}"`);
+        const { baseMic, switchSetting } = formatMicForShorthand(micLabelToUse);
+        console.log(`  -> baseMic="${baseMic}", switchSetting="${switchSetting}"`);
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
         
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
         const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
+        console.log(`  -> shorthand="${shorthand}"`);
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Rationale: ${shot.rationale}\n\n`;
       });
@@ -1708,7 +1712,19 @@ Or written out:
                       {shot.micLabel && (
                         <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
                           <Mic2 className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-bold text-primary">{shot.micLabel}</span>
+                          <span className="text-sm font-bold text-primary">
+                            {/* Strip voicing from display since we show it separately */}
+                            {shot.micLabel.replace(/\s*\((Presence|Flat)(?:\s+Boost)?\)/i, '')}
+                          </span>
+                        </div>
+                      )}
+                      {/* Show voicing (Presence/Flat) as separate badge if present */}
+                      {shot.micLabel && (shot.micLabel.toLowerCase().includes('presence') || shot.micLabel.toLowerCase().includes('flat')) && (
+                        <div className="flex items-center gap-2 bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/30">
+                          <Settings2 className="w-4 h-4 text-amber-400" />
+                          <span className="text-sm font-medium text-amber-400">
+                            {shot.micLabel.toLowerCase().includes('presence') ? 'Presence' : 'Flat'}
+                          </span>
                         </div>
                       )}
                       {shot.position && (
