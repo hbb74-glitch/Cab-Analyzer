@@ -174,7 +174,7 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
   },
   {
     speaker: "ga12-sc64",
-    speakerLabel: "Eminence GA12-SC64 (Alessandro)",
+    speakerLabel: "Eminence GA-SC64 (12\")",
     impedanceCurve: {
       fractalCurve: "1x12 Deluxe Oxford",
       confidence: "high",
@@ -194,7 +194,7 @@ export const FRACTAL_SPEAKER_SETTINGS: FractalSpeakerSettings[] = [
   },
   {
     speaker: "g10-sc64",
-    speakerLabel: "Eminence GA10-SC64 (Alessandro 10\")",
+    speakerLabel: "Eminence GA-SC64 (10\")",
     impedanceCurve: {
       fractalCurve: "1x10 BF Princeton's",
       confidence: "exact",
