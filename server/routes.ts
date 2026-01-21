@@ -746,10 +746,11 @@ export async function registerRoutes(
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Strong proximity effect.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect than R-121.
       - 421 (MD421): Large diaphragm dynamic, punchy. Moderate proximity effect.
+      - md441 (MD441): Dynamic with presence/flat switch. Presence = upper-mid clarity. Flat = accurate/neutral.
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
-      - e906 (e906): Supercardioid with presence/flat switch (AI chooses based on context). Presence adds bite, Flat is balanced. In recommendations, specify which setting and why.
+      - e906 (e906): Supercardioid with presence/flat switch. Presence = extra bite. Flat = balanced.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick.
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is DESIGNED to be aimed at dead center of cap - no harshness due to its voiced capsule. Closer = more bass (predictable linear proximity effect), farther = tighter low end. Moving around cone gives tonal variation. Handles extreme SPL, mix-ready tones with minimal EQ needed.
@@ -891,12 +892,12 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
       - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
-      - md441 (MD441): Dynamic with presence/flat switch (AI chooses based on context). Both settings use "M" (musical/full bandwidth). Presence adds upper-mid clarity, Flat is very accurate. In recommendations, specify which setting and why.
+      - md441 (MD441): Dynamic with presence/flat switch. MUST specify setting in micLabel as "MD441 (Presence)" or "MD441 (Flat)". Presence = upper-mid clarity/cut. Flat = accurate/neutral. Include why you chose that setting.
       - r10 (R10): Ribbon, smooth and warm.
       - r92 (R92): AEA ribbon, warm, figure-8, similar to R-121 with different proximity effect.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
-      - e906 (e906): Supercardioid with presence/flat switch (AI chooses based on context). Presence adds bite, Flat is balanced. In recommendations, specify which setting and why.
+      - e906 (e906): Supercardioid with presence/flat switch. MUST specify setting in micLabel as "e906 (Presence)" or "e906 (Flat)". Presence = extra bite/cut. Flat = balanced. Include why you chose that setting.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
       - c414 (C414): AKG condenser, detailed highs, versatile.
@@ -924,6 +925,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
       
       Provide 6-10 specific mic/position/distance recommendations.
+      CRITICAL: Each recommendation is a COMPLETE COMBO - one specific mic at one specific position at one specific distance.
+      Example: "MD441 (Presence) at CapEdge, 2 inches" - not separate lists of mics, positions, distances.
       ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'Include curated recipes first, then fill in gaps with additional proven techniques.'}
       
       Output JSON format:
@@ -933,8 +936,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
         ${genre ? `"genre": "${genre}",` : ''}
         "micRecommendations": [
           {
-            "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
-            "micLabel": "Display name (e.g. 'SM57', 'R121', 'MD441 (Presence)', 'e906 (Flat)', 'Roswell Cab Mic') - for MD441/e906, include (Presence) or (Flat) with reasoning",
+            "mic": "mic code (e.g. '57', '121', 'md441', 'e906', 'roswell-cab')",
+            "micLabel": "Display name - MUST include switch setting for MD441/e906: 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
