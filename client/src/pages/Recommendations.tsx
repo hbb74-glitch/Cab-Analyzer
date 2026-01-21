@@ -496,28 +496,29 @@ export default function Recommendations() {
     
     // Helper to format mic name and extract variant suffix from label
     const formatMicForShorthand = (micLabel: string) => {
-      // Find matching mic by label
-      const mic = MICS.find(m => m.label === micLabel);
+      // Find matching mic by label (without switch setting)
+      let baseMic = micLabel;
+      let switchSetting = '';
+      
+      // Extract switch setting from micLabel - handle both "(Presence)" and "(Presence Boost)"
+      if (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)')) {
+        baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/, '').trim();
+        switchSetting = 'Presence';
+      } else if (micLabel.includes('(Flat)')) {
+        baseMic = micLabel.replace(/\s*\(Flat\)/, '').trim();
+        switchSetting = 'Flat';
+      }
+      
+      // Find the mic shorthand
+      const mic = MICS.find(m => m.label === baseMic || m.label === micLabel);
       if (mic) {
         const shorthand = MIC_SHORTHAND[mic.value];
         if (shorthand) {
-          return { baseMic: shorthand.base, suffix: shorthand.suffix || '' };
+          return { baseMic: shorthand.base, switchSetting };
         }
       }
       
-      // Fallback parsing
-      let baseMic = micLabel;
-      let suffix = '';
-      
-      if (micLabel.includes('Presence Boost')) {
-        baseMic = micLabel.replace(/\s*\(Presence Boost\)/, '');
-        suffix = '_Presence';
-      } else if (micLabel.includes('Flat')) {
-        baseMic = micLabel.replace(/\s*\(Flat\)/, '');
-        suffix = '_Flat';
-      }
-      
-      return { baseMic: baseMic.replace(/\s+/g, ''), suffix };
+      return { baseMic: baseMic.replace(/\s+/g, ''), switchSetting };
     };
     
     // Helper to format position - maps to new naming convention
@@ -567,13 +568,15 @@ export default function Recommendations() {
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
       speakerResult.micRecommendations.forEach((rec, i) => {
-        // Schema: Speaker_Mic_Position_distance_variant
+        // Schema: Speaker_Mic_Setting_Position_distance (setting after mic if present)
         const speakerPart = getSpeakerShorthand(speakerResult.speaker);
-        const { baseMic, suffix } = formatMicForShorthand(rec.micLabel);
+        const { baseMic, switchSetting } = formatMicForShorthand(rec.micLabel);
         const posPart = formatPosition(rec.position);
         const distPart = `${rec.distance}in`;
         
-        const shorthand = `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
+        // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
+        const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Tone: ${rec.expectedTone}\n\n`;
       });
@@ -613,16 +616,25 @@ export default function Recommendations() {
       return positionMap[posLower] || pos;
     };
     const formatMicLabel = (micLabel: string) => {
-      const mic = MICS.find(m => m.label === micLabel);
+      // Extract switch setting from micLabel
+      let baseMic = micLabel;
+      let switchSetting = '';
+      
+      if (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)')) {
+        baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/, '').trim();
+        switchSetting = 'Presence';
+      } else if (micLabel.includes('(Flat)')) {
+        baseMic = micLabel.replace(/\s*\(Flat\)/, '').trim();
+        switchSetting = 'Flat';
+      }
+      
+      // Find mic shorthand
+      const mic = MICS.find(m => m.label === baseMic || m.label === micLabel);
       if (mic) {
         const shorthand = MIC_SHORTHAND[mic.value];
-        if (shorthand) return { baseMic: shorthand.base, suffix: shorthand.suffix || '' };
+        if (shorthand) return { baseMic: shorthand.base, switchSetting };
       }
-      let baseMic = micLabel;
-      let suffix = '';
-      if (micLabel.includes('Presence Boost')) { baseMic = micLabel.replace(/\s*\(Presence Boost\)/, ''); suffix = '_Presence'; }
-      else if (micLabel.includes('Flat')) { baseMic = micLabel.replace(/\s*\(Flat\)/, ''); suffix = '_Flat'; }
-      return { baseMic: baseMic.replace(/\s+/g, ''), suffix };
+      return { baseMic: baseMic.replace(/\s+/g, ''), switchSetting };
     };
 
     if (mode === 'by-speaker' && result) {
@@ -637,10 +649,12 @@ export default function Recommendations() {
     } else if (mode === 'by-speaker' && speakerResult) {
       items = speakerResult.micRecommendations.map((rec) => {
         const speakerPart = getSpeakerShorthand(speakerResult.speaker);
-        const { baseMic, suffix } = formatMicLabel(rec.micLabel);
+        const { baseMic, switchSetting } = formatMicLabel(rec.micLabel);
         const posPart = formatPosition(rec.position);
         const distPart = `${rec.distance}in`;
-        return `${speakerPart}_${baseMic}_${posPart}_${distPart}${suffix}`;
+        // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
+        const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        return `${speakerPart}_${micPart}_${posPart}_${distPart}`;
       });
     } else if (mode === 'by-amp' && ampResult) {
       items = ampResult.speakerSuggestions.map((s) => s.speakerLabel);

@@ -804,9 +804,10 @@ export async function registerRoutes(
       
       For MD441 and e906 (switchable mics):
       - These mics have Presence/Flat switches - treat each setting as a SEPARATE MIC option
-      - Include BOTH variants as separate shots when both are useful (e.g., "MD441 (Presence) at Cap 2in" AND "MD441 (Flat) at CapEdge 2in")
-      - Only use ONE setting if there's a strong tonal reason (e.g., "Metal needs cut, so only Presence")
-      - If recommending both, explain what each setting brings to the tonal palette
+      - Include BOTH variants as separate shots when both are useful
+      - CRITICAL: EVERY shot with MD441 or e906 MUST include the setting in micLabel: "MD441 (Presence)", "MD441 (Flat)", "e906 (Presence)", "e906 (Flat)"
+      - Never omit the setting - if you recommend MD441, specify which setting for EACH shot
+      - Only use ONE setting (all Presence or all Flat) if the genre strongly demands it
       
       Output JSON format:
       {
