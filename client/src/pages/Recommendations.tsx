@@ -559,11 +559,23 @@ export default function Recommendations() {
       shots.forEach((shot: any, i: number) => {
         // Schema: Speaker_Mic_Setting_Position_distance
         const speakerPart = getSpeakerShorthand(result.speaker);
-        // Use shot.micLabel if available (for MD441/e906 switch settings), else fall back to top-level
+        // Use shot.micLabel if available, else fall back to top-level
         const micLabelToUse = shot.micLabel || getMicLabel(result.mic);
-        console.log(`Shot ${i}: micLabel="${shot.micLabel}", using="${micLabelToUse}"`);
-        const { baseMic, switchSetting } = formatMicForShorthand(micLabelToUse);
-        console.log(`  -> baseMic="${baseMic}", switchSetting="${switchSetting}"`);
+        let { baseMic, switchSetting } = formatMicForShorthand(micLabelToUse);
+        
+        // For MD441/e906, detect voicing from rationale if not in micLabel
+        const topMicLower = (result.mic || '').toLowerCase();
+        const isSwitchableMic = topMicLower.includes('441') || topMicLower.includes('e906') || topMicLower.includes('906');
+        if (isSwitchableMic && !switchSetting) {
+          const searchText = `${shot.rationale || ''} ${shot.expectedTone || ''}`.toLowerCase();
+          if (searchText.includes('presence') || searchText.includes('boost')) {
+            switchSetting = 'Presence';
+          } else if (searchText.includes('flat') || searchText.includes('neutral')) {
+            switchSetting = 'Flat';
+          }
+        }
+        
+        console.log(`Shot ${i}: micLabel="${shot.micLabel}", baseMic="${baseMic}", switchSetting="${switchSetting}"`);
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
         
@@ -669,7 +681,20 @@ export default function Recommendations() {
       items = shots.map((shot: any) => {
         const speakerPart = getSpeakerShorthand(result.speaker);
         // Use shot.micLabel for switch settings, else fall back to top-level mic
-        const { baseMic, switchSetting } = formatMicLabel(shot.micLabel || getMicLabelLocal(result.mic));
+        let { baseMic, switchSetting } = formatMicLabel(shot.micLabel || getMicLabelLocal(result.mic));
+        
+        // For MD441/e906, detect voicing from rationale if not in micLabel
+        const topMicLower = (result.mic || '').toLowerCase();
+        const isSwitchableMic = topMicLower.includes('441') || topMicLower.includes('e906') || topMicLower.includes('906');
+        if (isSwitchableMic && !switchSetting) {
+          const searchText = `${shot.rationale || ''} ${shot.expectedTone || ''}`.toLowerCase();
+          if (searchText.includes('presence') || searchText.includes('boost')) {
+            switchSetting = 'Presence';
+          } else if (searchText.includes('flat') || searchText.includes('neutral')) {
+            switchSetting = 'Flat';
+          }
+        }
+        
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
         const dist = parseFloat(shot.distance) || 0;
@@ -1699,7 +1724,27 @@ Or written out:
                     return getSettingOrder(a.micLabel) - getSettingOrder(b.micLabel);
                   });
                   return shots;
-                })().map((shot: any, i: number) => (
+                })().map((shot: any, i: number) => {
+                  // Extract voicing from multiple sources for MD441/e906
+                  const topMicLower = (result.mic || '').toLowerCase();
+                  const isSwitchableMic = topMicLower.includes('441') || topMicLower.includes('e906') || topMicLower.includes('906');
+                  
+                  // Check shot.micLabel first, then rationale/expectedTone
+                  let detectedVoicing: 'Presence' | 'Flat' | null = null;
+                  const micLabel = shot.micLabel || '';
+                  const rationale = shot.rationale || '';
+                  const expectedTone = shot.expectedTone || '';
+                  const searchText = `${micLabel} ${rationale} ${expectedTone}`.toLowerCase();
+                  
+                  if (isSwitchableMic || micLabel.toLowerCase().includes('441') || micLabel.toLowerCase().includes('906')) {
+                    if (searchText.includes('presence') || searchText.includes('boost')) {
+                      detectedVoicing = 'Presence';
+                    } else if (searchText.includes('flat') || searchText.includes('neutral')) {
+                      detectedVoicing = 'Flat';
+                    }
+                  }
+                  
+                  return (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -20 }}
@@ -1713,17 +1758,16 @@ Or written out:
                         <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
                           <Mic2 className="w-4 h-4 text-primary" />
                           <span className="text-sm font-bold text-primary">
-                            {/* Strip voicing from display since we show it separately */}
                             {shot.micLabel.replace(/\s*\((Presence|Flat)(?:\s+Boost)?\)/i, '')}
                           </span>
                         </div>
                       )}
-                      {/* Show voicing (Presence/Flat) as separate badge if present */}
-                      {shot.micLabel && (shot.micLabel.toLowerCase().includes('presence') || shot.micLabel.toLowerCase().includes('flat')) && (
+                      {/* Show voicing (Presence/Flat) as separate badge - from micLabel or detected from rationale */}
+                      {detectedVoicing && (
                         <div className="flex items-center gap-2 bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/30">
                           <Settings2 className="w-4 h-4 text-amber-400" />
                           <span className="text-sm font-medium text-amber-400">
-                            {shot.micLabel.toLowerCase().includes('presence') ? 'Presence' : 'Flat'}
+                            {detectedVoicing}
                           </span>
                         </div>
                       )}
@@ -1749,7 +1793,8 @@ Or written out:
                       </p>
                     </div>
                   </motion.div>
-                ))}
+                );
+                })}
               </div>
             </motion.div>
           )}
