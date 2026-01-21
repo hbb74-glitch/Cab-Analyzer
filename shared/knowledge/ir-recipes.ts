@@ -107,8 +107,8 @@ export const CURATED_IR_RECIPES: IRRecipe[] = [
   {
     speaker: "g12t75",
     speakerLabel: "G12T-75",
-    mic: "e906-boost",
-    micLabel: "e906 (Presence Boost)",
+    mic: "e906",
+    micLabel: "e906 (Presence)",
     position: "capedge",
     distance: "1",
     notes: "The e906's presence boost cuts through on the already bright T-75. Extreme clarity for technical playing.",
@@ -214,7 +214,7 @@ export const CURATED_IR_RECIPES: IRRecipe[] = [
   {
     speaker: "v30-china",
     speakerLabel: "V30",
-    mic: "e906-flat",
+    mic: "e906",
     micLabel: "e906 (Flat)",
     position: "capedge",
     distance: "1",
@@ -225,7 +225,7 @@ export const CURATED_IR_RECIPES: IRRecipe[] = [
   {
     speaker: "g12m25",
     speakerLabel: "G12M-25 (Greenback)",
-    mic: "e906-flat",
+    mic: "e906",
     micLabel: "e906 (Flat)",
     position: "capedge_dk",
     distance: "1.5",

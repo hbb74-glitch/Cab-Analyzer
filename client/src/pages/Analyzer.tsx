@@ -34,14 +34,14 @@ const MIC_PATTERNS: Record<string, string> = {
   "m160": "160", "160": "160",
   "md421": "421", "421": "421",
   "421kompakt": "421", "421-kompakt": "421", "kompakt": "421", "md421kmp": "421", "421kmp": "421",
-  "md441boost": "441-boost", "441-boost": "441-boost", "441boost": "441-boost", "md441-boost": "441-boost", "441presence": "441-boost",
-  "md441flat": "441-flat", "441-flat": "441-flat", "441flat": "441-flat", "md441-flat": "441-flat", "md441": "441-flat", "441": "441-flat",
+  "md441boost": "md441", "441-boost": "md441", "441boost": "md441", "md441-boost": "md441", "441presence": "md441",
+  "md441flat": "md441", "441-flat": "md441", "441flat": "md441", "md441-flat": "md441", "md441": "md441", "441": "md441",
   "r10": "r10",
   "m88": "m88", "88": "m88",
   "pr30": "pr30", "30": "pr30",
-  "e906boost": "e906-boost", "e906-boost": "e906-boost", "906boost": "e906-boost",
-  "e906presence": "e906-boost", "e906-presence": "e906-boost", "906presence": "e906-boost",
-  "e906flat": "e906-flat", "e906-flat": "e906-flat", "906flat": "e906-flat", "e906": "e906-flat",
+  "e906boost": "e906", "e906-boost": "e906", "906boost": "e906",
+  "e906presence": "e906", "e906-presence": "e906", "906presence": "e906",
+  "e906flat": "e906", "e906-flat": "e906", "906flat": "e906", "e906": "e906",
   "m201": "m201", "201": "m201",
   "sm7b": "sm7b", "sm7": "sm7b", "7b": "sm7b",
   "c414": "c414", "akgc414": "c414", "akg-c414": "c414", "414": "c414",
@@ -93,9 +93,9 @@ function parseFilename(filename: string): Partial<FormData> {
   const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
   
   if (hasE906) {
-    result.micType = hasPresence ? 'e906-boost' : (hasFlat ? 'e906-flat' : 'e906-flat');
+    result.micType = 'e906';
   } else if (hasMd441) {
-    result.micType = hasPresence ? '441-boost' : (hasFlat ? '441-flat' : '441-flat');
+    result.micType = 'md441';
   } else {
     // Try to find mic type from patterns
     for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
@@ -915,13 +915,11 @@ export default function Analyzer() {
                       <option value="160">M160</option>
                       <option value="421">MD421</option>
                       <option value="421-kompakt">MD421 Kompakt</option>
-                      <option value="441-boost">MD441 (Presence Boost)</option>
-                      <option value="441-flat">MD441 (Flat)</option>
+                      <option value="md441">MD441</option>
                       <option value="r10">R10</option>
                       <option value="m88">M88</option>
                       <option value="pr30">PR30</option>
-                      <option value="e906-boost">e906 (Presence Boost)</option>
-                      <option value="e906-flat">e906 (Flat)</option>
+                      <option value="e906">e906</option>
                       <option value="m201">M201</option>
                       <option value="sm7b">SM7B</option>
                       <option value="c414">C414</option>
