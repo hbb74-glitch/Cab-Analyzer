@@ -497,16 +497,18 @@ export default function Recommendations() {
     // Helper to format mic name and extract variant suffix from label
     const formatMicForShorthand = (micLabel: string) => {
       // Find matching mic by label (without switch setting)
-      let baseMic = micLabel;
+      let baseMic = micLabel || '';
       let switchSetting = '';
       
-      // Extract switch setting from micLabel - handle both "(Presence)" and "(Presence Boost)"
-      if (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)')) {
-        baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/, '').trim();
-        switchSetting = 'Presence';
-      } else if (micLabel.includes('(Flat)')) {
-        baseMic = micLabel.replace(/\s*\(Flat\)/, '').trim();
-        switchSetting = 'Flat';
+      // Simple detection: look for Presence or Flat keywords
+      if (micLabel) {
+        if (micLabel.toLowerCase().includes('presence')) {
+          switchSetting = 'Presence';
+          baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/i, '').replace(/\s*Presence\s*/i, '').trim();
+        } else if (micLabel.toLowerCase().includes('flat')) {
+          switchSetting = 'Flat';
+          baseMic = micLabel.replace(/\s*\(Flat\)/i, '').replace(/\s*Flat\s*/i, '').trim();
+        }
       }
       
       // Find the mic shorthand
@@ -634,16 +636,19 @@ export default function Recommendations() {
       return 0; // No setting
     };
     const formatMicLabel = (micLabel: string) => {
-      // Extract switch setting from micLabel
+      // Extract switch setting from micLabel - check for Presence or Flat anywhere in the label
       let baseMic = micLabel || '';
       let switchSetting = '';
       
-      if (micLabel && (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)'))) {
-        baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/, '').trim();
-        switchSetting = 'Presence';
-      } else if (micLabel && micLabel.includes('(Flat)')) {
-        baseMic = micLabel.replace(/\s*\(Flat\)/, '').trim();
-        switchSetting = 'Flat';
+      // Simple detection: look for Presence or Flat keywords
+      if (micLabel) {
+        if (micLabel.toLowerCase().includes('presence')) {
+          switchSetting = 'Presence';
+          baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/i, '').replace(/\s*Presence\s*/i, '').trim();
+        } else if (micLabel.toLowerCase().includes('flat')) {
+          switchSetting = 'Flat';
+          baseMic = micLabel.replace(/\s*\(Flat\)/i, '').replace(/\s*Flat\s*/i, '').trim();
+        }
       }
       
       // Find mic shorthand
@@ -1664,7 +1669,33 @@ Or written out:
               <h3 className="text-lg font-semibold text-white">Recommended Shots</h3>
 
               <div className="grid gap-4">
-                {(result.shots || result.recommendations)?.map((shot: any, i: number) => (
+                {(() => {
+                  // Sort shots by: distance → position → setting (same as copy list)
+                  const getPositionOrder = (pos: string): number => {
+                    const posLower = (pos || '').toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
+                    const order: Record<string, number> = {
+                      'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
+                      'cap_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
+                    };
+                    return order[posLower] || 99;
+                  };
+                  const getSettingOrder = (label: string): number => {
+                    if (label?.includes('Presence')) return 1;
+                    if (label?.includes('Flat')) return 2;
+                    return 0;
+                  };
+                  const shots = [...(result.shots || result.recommendations || [])];
+                  shots.sort((a: any, b: any) => {
+                    const distA = parseFloat(a.distance) || 0;
+                    const distB = parseFloat(b.distance) || 0;
+                    if (distA !== distB) return distA - distB;
+                    const posA = getPositionOrder(a.position);
+                    const posB = getPositionOrder(b.position);
+                    if (posA !== posB) return posA - posB;
+                    return getSettingOrder(a.micLabel) - getSettingOrder(b.micLabel);
+                  });
+                  return shots;
+                })().map((shot: any, i: number) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -20 }}
