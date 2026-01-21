@@ -48,7 +48,7 @@ function normalizeMicName(mic: string): string {
   if (lower.includes('e906')) return 'e906';
   if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) return 'md441_presence';
   if (lower.includes('md441')) return 'md441';
-  if (lower.includes('md421') && lower.includes('kompakt')) return 'md421kompakt';
+  if (lower.includes('md421') && lower.includes('kompakt')) return 'md421'; // Kompakt treated as standard MD421
   if (lower.includes('md421') || lower === '421') return 'md421';
   if (lower.includes('sm57') || lower === '57') return 'sm57';
   if (lower.includes('sm7b') || lower === 'sm7') return 'sm7b';

@@ -746,7 +746,6 @@ export async function registerRoutes(
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Strong proximity effect.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect than R-121.
       - 421 (MD421): Large diaphragm dynamic, punchy. Moderate proximity effect.
-      - 421-kompakt (MD421 Kompakt): Compact version, similar character.
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
@@ -893,7 +892,6 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
       - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
-      - 421-kompakt (MD421 Kompakt): Compact version, similar character.
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
