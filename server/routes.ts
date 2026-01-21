@@ -852,6 +852,8 @@ export async function registerRoutes(
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+      // Debug: log shots to see if micLabel is present
+      console.log('[By-Mic API] Shots returned:', JSON.stringify(result.shots?.slice(0, 2), null, 2));
       res.json(result);
     } catch (err) {
       console.error('Recommendations error:', err);

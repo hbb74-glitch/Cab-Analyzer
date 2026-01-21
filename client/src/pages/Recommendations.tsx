@@ -1821,8 +1821,20 @@ Or written out:
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
                         <Mic2 className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-bold text-primary">{rec.micLabel}</span>
+                        <span className="text-sm font-bold text-primary">
+                          {/* Strip voicing from display since we show it separately */}
+                          {rec.micLabel?.replace(/\s*\((Presence|Flat)(?:\s+Boost)?\)/i, '') || rec.micLabel}
+                        </span>
                       </div>
+                      {/* Show voicing (Presence/Flat) as separate badge if present */}
+                      {rec.micLabel && (rec.micLabel.toLowerCase().includes('presence') || rec.micLabel.toLowerCase().includes('flat')) && (
+                        <div className="flex items-center gap-2 bg-amber-500/20 px-3 py-1.5 rounded-full border border-amber-500/30">
+                          <Settings2 className="w-4 h-4 text-amber-400" />
+                          <span className="text-sm font-medium text-amber-400">
+                            {rec.micLabel.toLowerCase().includes('presence') ? 'Presence' : 'Flat'}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                         <Target className="w-4 h-4 text-secondary" />
                         <span className="text-sm font-medium text-secondary">{POSITION_LABELS[rec.position] || rec.position}</span>
