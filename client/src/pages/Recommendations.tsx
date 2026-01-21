@@ -1345,7 +1345,7 @@ export default function Recommendations() {
                 </>
               ) : micType ? (
                 <>
-                  <Lightbulb className="w-4 h-4" /> Get Distance Recommendations
+                  <Lightbulb className="w-4 h-4" /> Get Mic Setup Recommendations
                 </>
               ) : (
                 <>
