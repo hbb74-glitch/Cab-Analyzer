@@ -30,6 +30,7 @@ Preferred communication style: Simple, everyday language.
 - **Functionality**: The AI generates quality scores (0-100), classifies IRs as perfect/imperfect, and provides concise, actionable advice based on audio metrics and mic setup context.
 - **Recommendations**: The system offers AI-generated optimal mic/position/distance combinations for speakers and genres. It also refines user-provided IR position lists and suggests speaker pairings based on amplifier descriptions and genre-specific studio techniques.
 - **Tonal Analysis**: A keyword system analyzes custom user text (e.g., "spanky cleans") to generate specific mic and position preferences and avoid rules.
+- **Preference Learning**: Users can upload their favorite IRs and the app learns their mic/position/distance preferences from filenames, then incorporates these into AI recommendations (session-based, no persistence).
 
 ### Core Design Principles
 - **Client-side Processing**: Audio analysis is offloaded to the client to reduce server load and improve responsiveness.
