@@ -892,13 +892,17 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
       - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
+      - md441-presence (MD441 Presence): Dynamic with presence boost engaged, enhanced clarity and upper-mid presence. Both settings use "M" (musical/full bandwidth). Label as "MD441 (Presence)".
+      - md441-flat (MD441 Flat): Dynamic with presence boost OFF, flat response, very accurate. Both settings use "M" (musical/full bandwidth). Label as "MD441 (Flat)".
       - r10 (R10): Ribbon, smooth and warm.
+      - r92 (R92): AEA ribbon, warm, figure-8, similar to R-121 with different proximity effect.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
       - e906-boost: e906 with presence switch engaged, supercardioid, adds bite. Label as "e906 (Presence Boost)".
       - e906-flat: e906 with flat EQ, supercardioid, balanced. Label as "e906 (Flat)".
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
+      - c414 (C414): AKG condenser, detailed highs, versatile.
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6", centered on cap. Unlike typical dynamics, designed for dead center with no harshness.
       
       Available Positions:
