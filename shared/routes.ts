@@ -20,6 +20,7 @@ export const recommendationInputSchema = z.object({
   micType: z.string().optional(), // Optional - if not provided, AI will recommend mics
   speakerModel: z.string().min(1, "Speaker model is required"),
   genre: z.string().optional(),
+  preferredShots: z.string().optional(), // User's preferred distances, positions, or existing shots to consider
 });
 
 export const distanceRecommendationSchema = z.object({
@@ -279,6 +280,7 @@ export const api = {
       input: z.object({
         speakerModel: z.string().min(1, "Speaker model is required"),
         genre: z.string().optional(),
+        preferredShots: z.string().optional(),
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,

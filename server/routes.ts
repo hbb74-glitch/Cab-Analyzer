@@ -734,7 +734,7 @@ export async function registerRoutes(
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { micType, speakerModel, genre } = input;
+      const { micType, speakerModel, genre, preferredShots } = input;
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to recommend IDEAL DISTANCES for a specific microphone and speaker combination.
@@ -829,6 +829,10 @@ export async function registerRoutes(
       } else {
         userMessage += ` Cover a range of distances from close to far, explaining the tonal differences.`;
       }
+      
+      if (preferredShots) {
+        userMessage += `\n\n=== USER'S PREFERRED SHOTS/DISTANCES ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific distances or positions they like, include those in your suggestions. If they have existing shots they want to complement, suggest distances that would pair well with what they already have.`;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -859,7 +863,7 @@ export async function registerRoutes(
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre } = input;
+      const { speakerModel, genre, preferredShots } = input;
 
       // Get curated recipes for this speaker from IR producer knowledge base
       const curatedRecipes = getRecipesForSpeaker(speakerModel);
@@ -948,6 +952,10 @@ Use these curated recipes as the foundation of your recommendations. You may add
         userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
       }
       userMessage += ` Base your recommendations on proven IR production techniques.`;
+      
+      if (preferredShots) {
+        userMessage += `\n\n=== USER'S PREFERRED SHOTS/DISTANCES ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific mics, distances, or positions they like, include those in your suggestions. If they have existing shots they want to complement, suggest combinations that would pair well with what they already have.`;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -1266,7 +1274,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75)
       
       Mic Shorthand:
-      - SM57, R121, R10, MD421, MD421Kmp, M201, M88, Roswell, M160, e906, C414, R92, PR30
+      - SM57, R121, R10, MD421, M201, M88, Roswell, M160, e906, C414, R92, PR30
       - Variants: MD441 and e906 have _Presence or _Flat suffixes
       
       Position Format:

@@ -80,6 +80,8 @@ export default function Recommendations() {
   const [genre, setGenre] = useState<string>("");
   const [customGenre, setCustomGenre] = useState<string>("");
   const [tonalText, setTonalText] = useState<string>("");
+  const [preferredShots, setPreferredShots] = useState<string>("");
+  const [showPreferences, setShowPreferences] = useState(false);
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
@@ -155,7 +157,7 @@ export default function Recommendations() {
     "r92": { base: "R92" },
     "160": { base: "M160" },
     "421": { base: "MD421" },
-    "421-kompakt": { base: "MD421Kmp" },
+    "421-kompakt": { base: "MD421" },
     "441-boost": { base: "MD441", suffix: "_Presence" },
     "441-flat": { base: "MD441", suffix: "_Flat" },
     "r10": { base: "R10" },
@@ -350,11 +352,12 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre }: { micType?: string; speakerModel: string; genre?: string }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string }) => {
       if (micType) {
         // Mic + Speaker mode
-        const payload: { micType: string; speakerModel: string; genre?: string } = { micType, speakerModel };
+        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string } = { micType, speakerModel };
         if (genre) payload.genre = genre;
+        if (preferredShots) payload.preferredShots = preferredShots;
         const validated = api.recommendations.get.input.parse(payload);
         const res = await fetch(api.recommendations.get.path, {
           method: "POST",
@@ -365,8 +368,9 @@ export default function Recommendations() {
         return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
       } else {
         // Speaker-only mode
-        const payload: { speakerModel: string; genre?: string } = { speakerModel };
+        const payload: { speakerModel: string; genre?: string; preferredShots?: string } = { speakerModel };
         if (genre) payload.genre = genre;
+        if (preferredShots) payload.preferredShots = preferredShots;
         const validated = api.recommendations.bySpeaker.input.parse(payload);
         const res = await fetch(api.recommendations.bySpeaker.path, {
           method: "POST",
@@ -443,7 +447,12 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
-    getRecommendations({ micType: micType || undefined, speakerModel: speaker, genre: effectiveGenre });
+    getRecommendations({ 
+      micType: micType || undefined, 
+      speakerModel: speaker, 
+      genre: effectiveGenre,
+      preferredShots: preferredShots.trim() || undefined
+    });
   };
 
   const handleAmpSubmit = (e: React.FormEvent) => {
@@ -699,6 +708,54 @@ export default function Recommendations() {
               />
               <p className="text-xs text-muted-foreground">Add specific tonal qualities or artist references</p>
             </div>
+          </div>
+
+          {/* Preferred Shots Section */}
+          <div className="border-t border-white/10 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowPreferences(!showPreferences)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-toggle-preferences"
+            >
+              <List className="w-4 h-4" />
+              <span>My Preferred Shots/Distances</span>
+              <span className={cn(
+                "transition-transform",
+                showPreferences ? "rotate-180" : ""
+              )}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </span>
+              {preferredShots.trim() && (
+                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">Added</span>
+              )}
+            </button>
+            
+            <AnimatePresence>
+              {showPreferences && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-4 space-y-2">
+                    <textarea
+                      value={preferredShots}
+                      onChange={(e) => setPreferredShots(e.target.value)}
+                      placeholder="List your preferred distances, positions, or existing shots...&#10;Examples:&#10;1in, 1.5in, 2in&#10;CapEdge at 1in&#10;SM57_CapEdge_1in&#10;Already have: V30_SM57_Cap_1in, want similar"
+                      className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none min-h-[100px]"
+                      data-testid="input-preferred-shots"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The AI will prioritize these preferences when suggesting mic positions and distances. 
+                      You can list distances you like, positions that work for you, or existing shots to build upon.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="flex gap-3">
