@@ -802,8 +802,11 @@ export async function registerRoutes(
       they want POSITION VARIETY at their preferred distance. Recommend multiple shots at that distance with different positions.
       ${genre ? `FILTER all recommendations through the user's tonal goal "${genre}". Only include shots that genuinely serve this sound.` : 'Cover a variety of useful shots for this mic+speaker combo.'}
       
-      For MD441: Specify "(Presence)" or "(Flat)" in micLabel based on the tonal goal.
-      For e906: Specify "(Presence)" or "(Flat)" in micLabel based on the tonal goal.
+      For MD441 and e906 (switchable mics):
+      - These mics have Presence/Flat switches - treat each setting as a SEPARATE MIC option
+      - Include BOTH variants as separate shots when both are useful (e.g., "MD441 (Presence) at Cap 2in" AND "MD441 (Flat) at CapEdge 2in")
+      - Only use ONE setting if there's a strong tonal reason (e.g., "Metal needs cut, so only Presence")
+      - If recommending both, explain what each setting brings to the tonal palette
       
       Output JSON format:
       {
@@ -895,12 +898,12 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
       - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
-      - md441 (MD441): Dynamic with presence/flat switch. MUST specify setting in micLabel as "MD441 (Presence)" or "MD441 (Flat)". Presence = upper-mid clarity/cut. Flat = accurate/neutral. Include why you chose that setting.
+      - md441 (MD441): Dynamic with presence/flat switch. Treat EACH setting as a separate mic option. Include BOTH as separate shots when useful: "MD441 (Presence)" for clarity/cut, "MD441 (Flat)" for accuracy. Only pick one if genre demands it.
       - r10 (R10): Ribbon, smooth and warm.
       - r92 (R92): AEA ribbon, warm, figure-8, similar to R-121 with different proximity effect.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
-      - e906 (e906): Supercardioid with presence/flat switch. MUST specify setting in micLabel as "e906 (Presence)" or "e906 (Flat)". Presence = extra bite/cut. Flat = balanced. Include why you chose that setting.
+      - e906 (e906): Supercardioid with presence/flat switch. Treat EACH setting as a separate mic option. Include BOTH as separate shots when useful: "e906 (Presence)" for bite/cut, "e906 (Flat)" for balance. Only pick one if genre demands it.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
       - c414 (C414): AKG condenser, detailed highs, versatile.
