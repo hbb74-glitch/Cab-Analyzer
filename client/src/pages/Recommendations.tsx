@@ -243,7 +243,14 @@ function formatLearnedPreferencesForAI(prefs: LearnedPreferences): string {
   
   if (parts.length === 0) return '';
   
-  return `\n\nLEARNED USER PREFERENCES (from ${prefs.totalIRs} uploaded favorite IRs):\n${parts.join('\n')}\n\nPrioritize recommendations that align with these learned preferences - the user clearly favors these mics, positions, and distances.`;
+  return `\n\nLEARNED USER PREFERENCES (from ${prefs.totalIRs} uploaded favorite IRs):
+${parts.join('\n')}
+
+IMPORTANT: Blend these preferences with professional best practices:
+1. If user has multiple positions for the same mic (e.g., SM57 at Cap, CapEdge, Cone), they likely want full speaker coverage - recommend similar variety.
+2. If user's preferred distances are suboptimal for the selected speaker/mic combo, suggest better alternatives while noting their preference (e.g., "Your favorite is 0.5in, but 1in often captures more body on this speaker - consider trying both").
+3. Prioritize their preferred mics and positions, but adapt distances to what works best for this specific speaker.
+4. Note any patterns you observe (preference for bright vs warm, close vs distant, coverage vs single sweet spot).`;
 }
 
 export default function Recommendations() {
