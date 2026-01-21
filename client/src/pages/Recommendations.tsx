@@ -132,11 +132,17 @@ interface ParsedIR {
   distance?: string;
 }
 
+interface MicDistancePreference {
+  mic: string;
+  distances: { value: string; count: number }[];
+}
+
 interface LearnedPreferences {
   mics: { name: string; count: number }[];
   positions: { name: string; count: number }[];
   distances: { value: string; count: number }[];
   speakers: { name: string; count: number }[];
+  micDistances: MicDistancePreference[];
   totalIRs: number;
 }
 
@@ -203,12 +209,19 @@ function buildPreferenceProfile(parsedIRs: ParsedIR[]): LearnedPreferences {
   const positions: Record<string, number> = {};
   const distances: Record<string, number> = {};
   const speakers: Record<string, number> = {};
+  const micDistanceMap: Record<string, Record<string, number>> = {};
   
   for (const ir of parsedIRs) {
     if (ir.mic) mics[ir.mic] = (mics[ir.mic] || 0) + 1;
     if (ir.position) positions[ir.position] = (positions[ir.position] || 0) + 1;
     if (ir.distance) distances[ir.distance] = (distances[ir.distance] || 0) + 1;
     if (ir.speaker) speakers[ir.speaker] = (speakers[ir.speaker] || 0) + 1;
+    
+    // Track mic-specific distance preferences
+    if (ir.mic && ir.distance) {
+      if (!micDistanceMap[ir.mic]) micDistanceMap[ir.mic] = {};
+      micDistanceMap[ir.mic][ir.distance] = (micDistanceMap[ir.mic][ir.distance] || 0) + 1;
+    }
   }
   
   const sortByCount = (obj: Record<string, number>) => 
@@ -216,11 +229,26 @@ function buildPreferenceProfile(parsedIRs: ParsedIR[]): LearnedPreferences {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
   
+  // Build mic-specific distance preferences
+  const micDistances: MicDistancePreference[] = Object.entries(micDistanceMap)
+    .map(([mic, distCounts]) => ({
+      mic,
+      distances: Object.entries(distCounts)
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => b.count - a.count)
+    }))
+    .sort((a, b) => {
+      const totalA = a.distances.reduce((sum, d) => sum + d.count, 0);
+      const totalB = b.distances.reduce((sum, d) => sum + d.count, 0);
+      return totalB - totalA;
+    });
+  
   return {
     mics: sortByCount(mics),
     positions: sortByCount(positions),
     distances: sortByCount(distances).map(d => ({ value: d.name, count: d.count })),
     speakers: sortByCount(speakers),
+    micDistances,
     totalIRs: parsedIRs.length,
   };
 }
@@ -234,11 +262,17 @@ function formatLearnedPreferencesForAI(prefs: LearnedPreferences): string {
   if (prefs.positions.length > 0) {
     parts.push(`Preferred positions: ${prefs.positions.slice(0, 5).map(p => `${p.name} (${p.count}x)`).join(', ')}`);
   }
-  if (prefs.distances.length > 0) {
-    parts.push(`Preferred distances: ${prefs.distances.slice(0, 5).map(d => `${d.value} (${d.count}x)`).join(', ')}`);
-  }
   if (prefs.speakers.length > 0) {
     parts.push(`Speakers used: ${prefs.speakers.slice(0, 5).map(s => `${s.name} (${s.count}x)`).join(', ')}`);
+  }
+  
+  // Add mic-specific distance preferences (this is key!)
+  if (prefs.micDistances.length > 0) {
+    parts.push(`\nMIC-SPECIFIC DISTANCE PREFERENCES (treat as deliberate choices):`);
+    for (const md of prefs.micDistances.slice(0, 8)) {
+      const distStr = md.distances.slice(0, 4).map(d => `${d.value} (${d.count}x)`).join(', ');
+      parts.push(`  ${md.mic}: ${distStr}`);
+    }
   }
   
   if (parts.length === 0) return '';
@@ -246,11 +280,20 @@ function formatLearnedPreferencesForAI(prefs: LearnedPreferences): string {
   return `\n\nLEARNED USER PREFERENCES (from ${prefs.totalIRs} uploaded favorite IRs):
 ${parts.join('\n')}
 
-IMPORTANT: Blend these preferences with professional best practices:
-1. If user has multiple positions for the same mic (e.g., SM57 at Cap, CapEdge, Cone), they likely want full speaker coverage - recommend similar variety.
-2. If user's preferred distances are suboptimal for the selected speaker/mic combo, suggest better alternatives while noting their preference (e.g., "Your favorite is 0.5in, but 1in often captures more body on this speaker - consider trying both").
-3. Prioritize their preferred mics and positions, but adapt distances to what works best for this specific speaker.
-4. Note any patterns you observe (preference for bright vs warm, close vs distant, coverage vs single sweet spot).`;
+CRITICAL - MIC-SPECIFIC DISTANCE HANDLING:
+The user's distance choices for each mic are DELIBERATE and mic-specific. Do NOT apply one mic's preferred distance to other mics.
+- If SM57 is consistently at 2", that's the user's preferred SM57 distance
+- If R121 is consistently at 4", that's the user's preferred R121 distance
+- If a mic like Roswell shows multiple distances (4", 5", 6"), the user likes that range for that specific mic
+
+When recommending distances:
+1. Use the mic-specific distance preference for that mic if available
+2. If recommending a mic the user hasn't used, explain why you're suggesting a particular distance
+3. If you think a different distance would work better for the selected speaker, explain the trade-off (e.g., "Your typical SM57 distance is 2", but on this speaker 1" might capture more low-end presence - worth trying both")
+
+Also blend with professional best practices:
+- If user has multiple positions for the same mic, they likely want full speaker coverage
+- Note patterns (preference for bright vs warm, close vs distant, coverage vs single sweet spot)`;
 }
 
 export default function Recommendations() {
@@ -1032,14 +1075,21 @@ export default function Recommendations() {
                           </div>
                         )}
                         
-                        {learnedPrefs.distances.length > 0 && (
+                        {learnedPrefs.micDistances.length > 0 && (
                           <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Preferred Distances:</p>
-                            <div className="flex flex-wrap gap-1">
-                              {learnedPrefs.distances.slice(0, 5).map((d, i) => (
-                                <span key={i} className="text-xs bg-white/10 text-foreground px-2 py-0.5 rounded-full">
-                                  {d.value} ({d.count}x)
-                                </span>
+                            <p className="text-xs text-muted-foreground">Mic-Specific Distances:</p>
+                            <div className="space-y-1">
+                              {learnedPrefs.micDistances.slice(0, 6).map((md, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-primary min-w-[60px]">{md.mic}:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {md.distances.slice(0, 4).map((d, j) => (
+                                      <span key={j} className="text-xs bg-white/10 text-foreground px-2 py-0.5 rounded-full">
+                                        {d.value} ({d.count}x)
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
