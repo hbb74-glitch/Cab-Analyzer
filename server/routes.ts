@@ -974,8 +974,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - g12-65 (Celestion G12-65): Warm, punchy, large sound with excellent bass. Heritage/reissue of the classic 60s speaker.
       - g12h30-anniversary (Celestion G12H30 Anniversary): Tight bass, bright detailed highs, complex upper harmonics. Classic 70s rock tone.
       - celestion-cream (Celestion Cream): Alnico smoothness with high power handling. Creamy breakup, touch-sensitive, boutique.
-      - ga12-sc64 (Weber GA12-SC64): Vintage American, tight and punchy. Fender Deluxe/Princeton vibe.
-      - g10-sc64 (Weber G10-SC64): 10" version, more focused and punchy. Great for smaller combos.
+      - ga12-sc64 (Eminence GA-SC64 12"): Vintage American, tight and punchy. Fender Deluxe/Princeton vibe.
+      - g10-sc64 (Eminence GA-SC64 10"): 10" version, more focused and punchy. Great for smaller combos.
       - k100 (Celestion G12K-100): Big low end, clear highs, neutral. High headroom, modern voicing.
       
       Classic Amp/Speaker Pairings Knowledge:
