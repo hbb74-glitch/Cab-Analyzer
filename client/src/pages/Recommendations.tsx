@@ -553,15 +553,18 @@ export default function Recommendations() {
     if (mode === 'by-speaker' && result) {
       const shots = result.shots || result.recommendations || [];
       text = `IR Shots for ${getSpeakerLabel(result.speaker)}\n`;
-      text += `Microphone: ${result.micLabel || getMicLabel(result.mic)}\n\n`;
+      text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       shots.forEach((shot: any, i: number) => {
-        // Schema: Speaker_Mic_Position_distance_variant
+        // Schema: Speaker_Mic_Setting_Position_distance
         const speakerPart = getSpeakerShorthand(result.speaker);
-        const micInfo = getMicShorthand(result.mic);
+        // Use shot.micLabel if available (for MD441/e906 switch settings), else fall back to top-level
+        const { baseMic, switchSetting } = formatMicForShorthand(shot.micLabel || getMicLabel(result.mic));
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
         
-        const shorthand = `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
+        // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
+        const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
         text += `${i + 1}. ${shorthand}\n`;
         text += `   Rationale: ${shot.rationale}\n\n`;
       });
@@ -641,10 +644,13 @@ export default function Recommendations() {
       const shots = result.shots || result.recommendations || [];
       items = shots.map((shot: any) => {
         const speakerPart = getSpeakerShorthand(result.speaker);
-        const micInfo = getMicShorthand(result.mic);
+        // Use shot.micLabel for switch settings, else fall back to top-level mic
+        const { baseMic, switchSetting } = formatMicLabel(shot.micLabel || getMicLabel(result.mic));
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
-        return `${speakerPart}_${micInfo.base}_${posPart}_${distPart}${micInfo.suffix || ''}`;
+        // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
+        const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        return `${speakerPart}_${micPart}_${posPart}_${distPart}`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       items = speakerResult.micRecommendations.map((rec) => {
@@ -1627,15 +1633,21 @@ Or written out:
                     data-testid={`card-shot-${i}`}
                   >
                     <div className="flex flex-wrap items-center gap-3">
+                      {shot.micLabel && (
+                        <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
+                          <Mic2 className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-bold text-primary">{shot.micLabel}</span>
+                        </div>
+                      )}
                       {shot.position && (
                         <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                           <Target className="w-4 h-4 text-secondary" />
                           <span className="text-sm font-medium text-secondary">{POSITION_LABELS[shot.position] || shot.position}</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2 bg-primary/30 px-3 py-1.5 rounded-full border border-primary/30">
-                        <Ruler className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-bold text-primary">{shot.distance}"</span>
+                      <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
+                        <Ruler className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{shot.distance}"</span>
                       </div>
                       <span className="text-xs text-muted-foreground font-medium ml-auto">{shot.bestFor}</span>
                     </div>

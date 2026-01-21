@@ -812,13 +812,13 @@ export async function registerRoutes(
       Output JSON format:
       {
         "mic": "${micType}",
-        "micLabel": "Display name - for MD441/e906, include (Presence) or (Flat) setting",
         "micDescription": "Brief description of the microphone's character",
         "speaker": "${speakerModel}",
         "speakerDescription": "Brief description of the speaker's tonal characteristics",
         ${genre ? `"genre": "${genre}",` : ''}
         "shots": [
           {
+            "micLabel": "REQUIRED: Display name WITH switch setting for MD441/e906 (e.g. 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'). For other mics, use standard label.",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
