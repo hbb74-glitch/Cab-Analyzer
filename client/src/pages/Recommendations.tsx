@@ -604,11 +604,11 @@ export default function Recommendations() {
   };
 
   const copySimpleList = () => {
-    let items: string[] = [];
+    let items: { shorthand: string; distance: number; posOrder: number; settingOrder: number }[] = [];
     
     // Helper for shorthand formatting
     const getSpeakerShorthand = (value: string) => SPEAKER_SHORTHAND[value] || value;
-    const getMicShorthand = (value: string) => MIC_SHORTHAND[value] || { base: value };
+    const getMicLabelLocal = (value: string) => MICS.find(m => m.value === value)?.label || value;
     const formatPosition = (pos: string) => {
       const posLower = pos.toLowerCase().replace(/-/g, '_');
       const positionMap: Record<string, string> = {
@@ -618,15 +618,30 @@ export default function Recommendations() {
       };
       return positionMap[posLower] || pos;
     };
+    // Position order: Cap (brightest) → Cone (darkest)
+    const getPositionOrder = (pos: string): number => {
+      const posLower = pos.toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
+      const order: Record<string, number> = {
+        'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
+        'cap_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
+      };
+      return order[posLower] || 99;
+    };
+    // Setting order: Presence before Flat
+    const getSettingOrder = (setting: string): number => {
+      if (setting === 'Presence') return 1;
+      if (setting === 'Flat') return 2;
+      return 0; // No setting
+    };
     const formatMicLabel = (micLabel: string) => {
       // Extract switch setting from micLabel
-      let baseMic = micLabel;
+      let baseMic = micLabel || '';
       let switchSetting = '';
       
-      if (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)')) {
+      if (micLabel && (micLabel.includes('Presence Boost') || micLabel.includes('(Presence)'))) {
         baseMic = micLabel.replace(/\s*\(Presence(?:\s+Boost)?\)/, '').trim();
         switchSetting = 'Presence';
-      } else if (micLabel.includes('(Flat)')) {
+      } else if (micLabel && micLabel.includes('(Flat)')) {
         baseMic = micLabel.replace(/\s*\(Flat\)/, '').trim();
         switchSetting = 'Flat';
       }
@@ -645,12 +660,18 @@ export default function Recommendations() {
       items = shots.map((shot: any) => {
         const speakerPart = getSpeakerShorthand(result.speaker);
         // Use shot.micLabel for switch settings, else fall back to top-level mic
-        const { baseMic, switchSetting } = formatMicLabel(shot.micLabel || getMicLabel(result.mic));
+        const { baseMic, switchSetting } = formatMicLabel(shot.micLabel || getMicLabelLocal(result.mic));
         const posPart = formatPosition(shot.position || shot.bestFor);
         const distPart = `${shot.distance}in`;
+        const dist = parseFloat(shot.distance) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
-        return `${speakerPart}_${micPart}_${posPart}_${distPart}`;
+        return {
+          shorthand: `${speakerPart}_${micPart}_${posPart}_${distPart}`,
+          distance: dist,
+          posOrder: getPositionOrder(shot.position || ''),
+          settingOrder: getSettingOrder(switchSetting)
+        };
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       items = speakerResult.micRecommendations.map((rec) => {
@@ -658,21 +679,41 @@ export default function Recommendations() {
         const { baseMic, switchSetting } = formatMicLabel(rec.micLabel);
         const posPart = formatPosition(rec.position);
         const distPart = `${rec.distance}in`;
+        const dist = parseFloat(String(rec.distance)) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
-        return `${speakerPart}_${micPart}_${posPart}_${distPart}`;
+        return {
+          shorthand: `${speakerPart}_${micPart}_${posPart}_${distPart}`,
+          distance: dist,
+          posOrder: getPositionOrder(rec.position),
+          settingOrder: getSettingOrder(switchSetting)
+        };
       });
     } else if (mode === 'by-amp' && ampResult) {
-      items = ampResult.speakerSuggestions.map((s) => s.speakerLabel);
+      items = ampResult.speakerSuggestions.map((s) => ({
+        shorthand: s.speakerLabel,
+        distance: 0,
+        posOrder: 0,
+        settingOrder: 0
+      }));
     } else if (mode === 'import-positions' && importResult) {
-      items = importResult.refinements.map(r => r.shorthand);
+      items = importResult.refinements.map(r => ({
+        shorthand: r.shorthand,
+        distance: 0,
+        posOrder: 0,
+        settingOrder: 0
+      }));
     }
 
     if (items.length === 0) return;
 
-    // Sort alphabetically
-    items.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    const text = items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+    // Sort by: distance (ascending) → position (brightest to darkest) → setting (Presence before Flat)
+    items.sort((a, b) => {
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      if (a.posOrder !== b.posOrder) return a.posOrder - b.posOrder;
+      return a.settingOrder - b.settingOrder;
+    });
+    const text = items.map((item, i) => `${i + 1}. ${item.shorthand}`).join('\n');
 
     navigator.clipboard.writeText(text);
     setCopied(true);
