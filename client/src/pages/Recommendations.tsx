@@ -82,18 +82,18 @@ const PREF_MIC_PATTERNS: Record<string, string> = {
   "m160": "M160", "160": "M160",
   "md421": "MD421", "421": "MD421",
   "421kompakt": "MD421", "421-kompakt": "MD421", "kompakt": "MD421", "md421kmp": "MD421", "421kmp": "MD421",
-  "md441presence": "MD441 (Presence)", "md441_presence": "MD441 (Presence)", "md441-presence": "MD441 (Presence)", 
-  "441presence": "MD441 (Presence)", "441_presence": "MD441 (Presence)", "441-presence": "MD441 (Presence)",
-  "md441boost": "MD441 (Presence)", "md441-boost": "MD441 (Presence)", "441boost": "MD441 (Presence)", "441-boost": "MD441 (Presence)",
-  "md441flat": "MD441 (Flat)", "md441-flat": "MD441 (Flat)", "md441_flat": "MD441 (Flat)",
-  "441flat": "MD441 (Flat)", "441-flat": "MD441 (Flat)", "441_flat": "MD441 (Flat)",
-  "md441": "MD441 (Flat)", "441": "MD441 (Flat)",
+  "md441presence": "MD441", "md441_presence": "MD441", "md441-presence": "MD441", 
+  "441presence": "MD441", "441_presence": "MD441", "441-presence": "MD441",
+  "md441boost": "MD441", "md441-boost": "MD441", "441boost": "MD441", "441-boost": "MD441",
+  "md441flat": "MD441", "md441-flat": "MD441", "md441_flat": "MD441",
+  "441flat": "MD441", "441-flat": "MD441", "441_flat": "MD441",
+  "md441": "MD441", "441": "MD441",
   "r10": "R10",
   "m88": "M88", "88": "M88",
   "pr30": "PR30", "30": "PR30",
-  "e906boost": "e906 (Presence)", "e906-boost": "e906 (Presence)", "906boost": "e906 (Presence)",
-  "e906presence": "e906 (Presence)", "e906-presence": "e906 (Presence)", "906presence": "e906 (Presence)",
-  "e906flat": "e906 (Flat)", "e906-flat": "e906 (Flat)", "906flat": "e906 (Flat)", "e906": "e906 (Flat)",
+  "e906boost": "e906", "e906-boost": "e906", "906boost": "e906",
+  "e906presence": "e906", "e906-presence": "e906", "906presence": "e906",
+  "e906flat": "e906", "e906-flat": "e906", "906flat": "e906", "e906": "e906",
   "m201": "M201", "201": "M201",
   "sm7b": "SM7B", "sm7": "SM7B", "7b": "SM7B",
   "c414": "C414", "akgc414": "C414", "akg-c414": "C414", "414": "C414",
@@ -162,17 +162,8 @@ function parseIRFilename(filename: string): ParsedIR {
   const parts = name.split(/[_\-\s]+/);
   const fullName = parts.join('');
   
-  // Special handling for mics with variants (e906, md441)
-  const hasE906 = parts.includes('e906') || fullName.includes('e906');
-  const hasPresence = parts.includes('presence') || parts.includes('boost') || fullName.includes('presence') || fullName.includes('boost');
-  const hasFlat = parts.includes('flat') || fullName.includes('flat');
-  const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
-  
-  if (hasE906) {
-    result.mic = hasPresence ? 'e906 (Presence)' : (hasFlat ? 'e906 (Flat)' : 'e906 (Flat)');
-  } else if (hasMd441) {
-    result.mic = hasPresence ? 'MD441 (Presence)' : (hasFlat ? 'MD441 (Flat)' : 'MD441 (Flat)');
-  } else {
+  // Match mics - sort by pattern length to match longer patterns first
+  {
     for (const [pattern, value] of Object.entries(PREF_MIC_PATTERNS)) {
       if (parts.includes(pattern) || fullName.includes(pattern)) {
         result.mic = value;

@@ -749,8 +749,7 @@ export async function registerRoutes(
       - r10 (R10): Ribbon, smooth and warm.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
-      - e906-boost: e906 with presence switch engaged, supercardioid, adds bite. Label as "e906 (Presence Boost)".
-      - e906-flat: e906 with flat EQ, supercardioid, balanced. Label as "e906 (Flat)".
+      - e906 (e906): Supercardioid with presence/flat switch (AI chooses based on context). Presence adds bite, Flat is balanced. In recommendations, specify which setting and why.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick.
       - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is DESIGNED to be aimed at dead center of cap - no harshness due to its voiced capsule. Closer = more bass (predictable linear proximity effect), farther = tighter low end. Moving around cone gives tonal variation. Handles extreme SPL, mix-ready tones with minimal EQ needed.
@@ -892,14 +891,12 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
       - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
       - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
-      - md441-presence (MD441 Presence): Dynamic with presence boost engaged, enhanced clarity and upper-mid presence. Both settings use "M" (musical/full bandwidth). Label as "MD441 (Presence)".
-      - md441-flat (MD441 Flat): Dynamic with presence boost OFF, flat response, very accurate. Both settings use "M" (musical/full bandwidth). Label as "MD441 (Flat)".
+      - md441 (MD441): Dynamic with presence/flat switch (AI chooses based on context). Both settings use "M" (musical/full bandwidth). Presence adds upper-mid clarity, Flat is very accurate. In recommendations, specify which setting and why.
       - r10 (R10): Ribbon, smooth and warm.
       - r92 (R92): AEA ribbon, warm, figure-8, similar to R-121 with different proximity effect.
       - m88 (M88): Warm, great low-end punch.
       - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
-      - e906-boost: e906 with presence switch engaged, supercardioid, adds bite. Label as "e906 (Presence Boost)".
-      - e906-flat: e906 with flat EQ, supercardioid, balanced. Label as "e906 (Flat)".
+      - e906 (e906): Supercardioid with presence/flat switch (AI chooses based on context). Presence adds bite, Flat is balanced. In recommendations, specify which setting and why.
       - m201 (M201): Very accurate dynamic.
       - sm7b (SM7B): Smooth, thick, broadcast-quality.
       - c414 (C414): AKG condenser, detailed highs, versatile.
@@ -937,7 +934,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
         "micRecommendations": [
           {
             "mic": "mic code (e.g. '57', '121', 'roswell-cab')",
-            "micLabel": "Display name exactly as listed above (e.g. 'SM57', 'R121', 'e906 (Presence Boost)', 'MD441 (Flat)', 'Roswell Cab Mic')",
+            "micLabel": "Display name (e.g. 'SM57', 'R121', 'MD441 (Presence)', 'e906 (Flat)', 'Roswell Cab Mic') - for MD441/e906, include (Presence) or (Flat) with reasoning",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
@@ -1309,11 +1306,11 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       - M160: Hypercardioid ribbon, focused
       - MD421: Large diaphragm dynamic, punchy
       - MD421 Kompakt: Compact version
-      - MD441 (Presence/Flat): Dynamic with EQ switch
+      - MD441: Dynamic with presence/flat switch (AI chooses which)
       - R10: Ribbon, smooth
       - M88: Warm, great low-end
       - PR30: Clear highs, less proximity
-      - e906 (Presence/Flat): Supercardioid with EQ switch
+      - e906: Supercardioid with presence/flat switch (AI chooses which)
       - M201: Accurate dynamic
       - SM7B: Smooth, thick
       - C414: Condenser, detailed
@@ -1477,7 +1474,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 Given the following scored IRs, determine if the collection is COMPLETE or has genuine gaps.
 
 AVAILABLE MICS (user's collection - ONLY suggest from this list):
-SM57, R-121, R10, AEA R92, M160, MD421, MD421 Kompakt, MD441 (Presence/Flat), M88, PR30, e906 (Presence/Flat), M201, SM7B, AKG C414, Roswell Cab Mic
+SM57, R-121, R10, AEA R92, M160, MD421, MD421 Kompakt, MD441, M88, PR30, e906, M201, SM7B, AKG C414, Roswell Cab Mic
+Note: MD441 and e906 have presence/flat switches - specify which setting in your suggestion.
 
 COVERAGE CHECKLIST - Evaluate each category:
 1. BRIGHT/AGGRESSIVE: Cap positions, SM57, PR30, e906, C414 at close distance
