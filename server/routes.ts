@@ -750,7 +750,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         shotCountInstruction = `Provide EXACTLY ${targetShotCount} COMPLETE SHOT recommendations - no more, no less`;
         if (targetShotCount === 1) {
           includeSelectionRationale = true;
-          shotCountInstruction += `. CRITICAL: You are choosing THE SINGLE BEST shot to represent this mic/speaker combination${genre ? ` for ${genre}` : ''}. Include a "selectionRationale" field using SINGULAR language only (never say "these shots" or "variety" - there is only ONE shot). Write 2-3 sentences explaining: 1) Why THIS specific position captures the essential character of this mic+speaker pairing, 2) Why THIS distance is optimal, 3) What makes THIS the definitive single shot a producer would choose. Start with "This shot..." not "These shots..."`;
+          shotCountInstruction += `. CRITICAL: Return EXACTLY 1 shot in the shots array - not 2, not 3, just ONE. For switchable mics (MD441, e906), pick THE SINGLE BEST voicing mode (Presence OR Flat, not both). Include a "selectionRationale" field using SINGULAR language (never "these shots", "variety", or "curated set"). Write 2-3 sentences explaining: 1) Why THIS position+distance captures the essential character, 2) If applicable, why this voicing mode (Presence or Flat) is the better choice for this speaker, 3) What makes THIS the definitive single shot. Start with "This shot..."`;
         } else if (targetShotCount >= 2 && targetShotCount <= 4) {
           includeSelectionRationale = true;
           shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} shots, include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} shots over other possibilities - what makes them the essential picks for this mic/speaker/genre combination`;
@@ -892,6 +892,15 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         }
         // Note: If AI returned fewer shots than requested, we accept what we got
         // rather than hallucinating additional shots
+        
+        // If we trimmed to 1 shot but rationale contains plural language, clear it
+        if (targetShotCount === 1 && result.selectionRationale) {
+          const pluralPatterns = /these shots|curated set|variety of|each shot|versatility|different styles|different genres/i;
+          if (pluralPatterns.test(result.selectionRationale)) {
+            console.log('[By-Mic API] Clearing invalid plural rationale for 1-shot request');
+            delete result.selectionRationale;
+          }
+        }
       }
       
       res.json(result);
@@ -1054,6 +1063,15 @@ Use these curated recipes as the foundation of your recommendations. You may add
       if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
         if (result.micRecommendations.length > targetShotCount) {
           result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
+        }
+        
+        // If we trimmed to 1 shot but rationale contains plural language, clear it
+        if (targetShotCount === 1 && result.selectionRationale) {
+          const pluralPatterns = /these shots|curated set|variety of|each shot|versatility|different styles|different genres/i;
+          if (pluralPatterns.test(result.selectionRationale)) {
+            console.log('[By-Speaker API] Clearing invalid plural rationale for 1-shot request');
+            delete result.selectionRationale;
+          }
         }
       }
       
