@@ -1884,8 +1884,8 @@ Or written out:
                 </div>
               </div>
 
-              {/* Show selection rationale for small shot counts (≤5) */}
-              {result.selectionRationale && (result.shots || result.recommendations || []).length <= 5 && (
+              {/* Show selection rationale for small shot counts (1-4) */}
+              {result.selectionRationale && (result.shots || result.recommendations || []).length <= 4 && (
                 <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale">
                   <p className="text-sm text-muted-foreground">
                     <span className="text-foreground font-medium">Why these shots: </span>
@@ -2021,8 +2021,8 @@ Or written out:
                 <p className="text-sm text-muted-foreground italic">{speakerResult.summary}</p>
               </div>
 
-              {/* Show selection rationale for small shot counts (≤5) */}
-              {speakerResult.selectionRationale && speakerResult.micRecommendations.length <= 5 && (
+              {/* Show selection rationale for small shot counts (1-4) */}
+              {speakerResult.selectionRationale && speakerResult.micRecommendations.length <= 4 && (
                 <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale-speaker">
                   <p className="text-sm text-muted-foreground">
                     <span className="text-foreground font-medium">Why these shots: </span>
