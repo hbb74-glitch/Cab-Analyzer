@@ -21,6 +21,7 @@ export const recommendationInputSchema = z.object({
   speakerModel: z.string().min(1, "Speaker model is required"),
   genre: z.string().optional(),
   preferredShots: z.string().optional(), // User's preferred distances, positions, or existing shots to consider
+  targetShotCount: z.number().min(1).max(50).optional(), // Target number of shots to generate (1-50)
 });
 
 export const distanceRecommendationSchema = z.object({
@@ -85,6 +86,7 @@ export type SpeakerRecommendationsResponse = z.infer<typeof speakerRecommendatio
 export const ampInputSchema = z.object({
   ampDescription: z.string().min(1, "Please describe your amp"),
   genre: z.string().optional(),
+  targetShotCount: z.number().min(1).max(20).optional(), // Target number of speaker suggestions (1-20)
 });
 
 export const speakerSuggestionSchema = z.object({
@@ -149,6 +151,7 @@ export const positionImportInputSchema = z.object({
   positionList: z.string().min(1, "Please paste your IR position list"),
   speaker: z.string().optional(),
   genre: z.string().optional(),
+  targetShotCount: z.number().min(1).max(50).optional(), // Target number of refined shots (1-50)
 });
 
 export const parsedPositionSchema = z.object({
@@ -292,6 +295,7 @@ export const api = {
         speakerModel: z.string().min(1, "Speaker model is required"),
         genre: z.string().optional(),
         preferredShots: z.string().optional(),
+        targetShotCount: z.number().min(1).max(50).optional(),
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,

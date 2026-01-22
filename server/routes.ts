@@ -734,7 +734,16 @@ export async function registerRoutes(
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { micType, speakerModel, genre, preferredShots } = input;
+      const { micType, speakerModel, genre, preferredShots, targetShotCount } = input;
+      
+      // Build shot count instruction
+      let shotCountInstruction = 'Provide 6-8 COMPLETE SHOT recommendations';
+      if (targetShotCount) {
+        shotCountInstruction = `Provide EXACTLY ${targetShotCount} COMPLETE SHOT recommendations - no more, no less`;
+        if (targetShotCount > 25) {
+          shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may overlap in character. Prioritize variety in position, distance, and tonal goals to minimize redundancy`;
+        }
+      }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to recommend IDEAL DISTANCES for a specific microphone and speaker combination.
@@ -794,7 +803,7 @@ export async function registerRoutes(
       - The bestFor MUST reference the tonal goal or closely related sounds
       - EXCLUDE generic recommendations that don't serve this tonal goal` : ''}
       
-      Provide 6-8 COMPLETE SHOT recommendations - each shot is a specific POSITION + DISTANCE combination.
+      ${shotCountInstruction} - each shot is a specific POSITION + DISTANCE combination.
       IMPORTANT: These are NOT interchangeable. Certain distances work better at certain positions.
       For example: Cap at 1" is very different from Cap at 4". CapEdge at 2" is different from Cone at 2".
       
@@ -854,6 +863,16 @@ export async function registerRoutes(
       const result = JSON.parse(response.choices[0].message.content || "{}");
       // Debug: log shots to see if micLabel is present
       console.log('[By-Mic API] Shots returned:', JSON.stringify(result.shots?.slice(0, 2), null, 2));
+      
+      // Enforce exact shot count if specified
+      if (targetShotCount && result.shots && Array.isArray(result.shots)) {
+        if (result.shots.length > targetShotCount) {
+          result.shots = result.shots.slice(0, targetShotCount);
+        }
+        // Note: If AI returned fewer shots than requested, we accept what we got
+        // rather than hallucinating additional shots
+      }
+      
       res.json(result);
     } catch (err) {
       console.error('Recommendations error:', err);
@@ -871,7 +890,16 @@ export async function registerRoutes(
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre, preferredShots } = input;
+      const { speakerModel, genre, preferredShots, targetShotCount } = input;
+      
+      // Build shot count instruction
+      let shotCountInstruction = 'Provide 6-10 specific mic/position/distance recommendations';
+      if (targetShotCount) {
+        shotCountInstruction = `Provide EXACTLY ${targetShotCount} specific mic/position/distance recommendations - no more, no less`;
+        if (targetShotCount > 25) {
+          shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may have similar tonal characteristics. Prioritize variety across mic types, positions, and distances to minimize redundancy`;
+        }
+      }
 
       // Get curated recipes for this speaker from IR producer knowledge base
       const curatedRecipes = getRecipesForSpeaker(speakerModel);
@@ -933,7 +961,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - The expectedTone MUST describe how this achieves the requested sound
       - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
       
-      Provide 6-10 specific mic/position/distance recommendations.
+      ${shotCountInstruction}.
       CRITICAL: Each recommendation is a COMPLETE COMBO - one specific mic at one specific position at one specific distance.
       Example: "MD441 (Presence) at CapEdge, 2 inches" - not separate lists of mics, positions, distances.
       ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'Include curated recipes first, then fill in gaps with additional proven techniques.'}
@@ -980,6 +1008,14 @@ Use these curated recipes as the foundation of your recommendations. You may add
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Enforce exact shot count if specified
+      if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        if (result.micRecommendations.length > targetShotCount) {
+          result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
+        }
+      }
+      
       res.json(result);
     } catch (err) {
       console.error('Speaker recommendations error:', err);
@@ -997,7 +1033,16 @@ Use these curated recipes as the foundation of your recommendations. You may add
   app.post(api.recommendations.byAmp.path, async (req, res) => {
     try {
       const input = api.recommendations.byAmp.input.parse(req.body);
-      const { ampDescription, genre } = input;
+      const { ampDescription, genre, targetShotCount } = input;
+      
+      // Build shot count instruction
+      let shotCountInstruction = 'recommend 3-5 speakers that would pair well';
+      if (targetShotCount) {
+        shotCountInstruction = `recommend EXACTLY ${targetShotCount} speakers - no more, no less`;
+        if (targetShotCount > 8) {
+          shotCountInstruction += `. NOTE: With ${targetShotCount} speakers requested, you may need to include less common or more specialized options. Prioritize variety in tonal character`;
+        }
+      }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs) and amp/speaker matching.
       Your task is to recommend the BEST SPEAKERS for a given amplifier based on its characteristics.
@@ -1036,7 +1081,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - The expectedTone MUST describe how this delivers the requested sound
       - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
       
-      Based on the user's amp description, recommend 3-5 speakers that would pair well.
+      Based on the user's amp description, ${shotCountInstruction}.
       Consider the amp's characteristics (clean, crunch, high-gain), era (vintage, modern), and typical use cases.
       
       Output JSON format:
@@ -1073,6 +1118,14 @@ Use these curated recipes as the foundation of your recommendations. You may add
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Enforce exact shot count if specified
+      if (targetShotCount && result.speakerSuggestions && Array.isArray(result.speakerSuggestions)) {
+        if (result.speakerSuggestions.length > targetShotCount) {
+          result.speakerSuggestions = result.speakerSuggestions.slice(0, targetShotCount);
+        }
+      }
+      
       res.json(result);
     } catch (err) {
       console.error('Amp recommendations error:', err);
@@ -1263,7 +1316,20 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
   app.post(api.positionImport.refine.path, async (req, res) => {
     try {
       const input = api.positionImport.refine.input.parse(req.body);
-      const { positionList, speaker, genre } = input;
+      const { positionList, speaker, genre, targetShotCount } = input;
+      
+      // Build shot count instruction for refinements
+      let shotCountInstruction = '';
+      if (targetShotCount) {
+        shotCountInstruction = `\n\nTARGET SHOT COUNT: The user wants EXACTLY ${targetShotCount} total shots in the final refined list.
+- The FINAL OUTPUT must have exactly ${targetShotCount} refinement entries with type "keep" or "add" (excluding any "remove" entries from this count)
+- If user's list has more positions than ${targetShotCount}, mark the least essential as "remove" and keep only the best ${targetShotCount}
+- If user's list has fewer positions than ${targetShotCount}, keep all valuable ones and "add" complementary shots to reach exactly ${targetShotCount}
+- COUNT CHECK: Number of "keep" entries + Number of "add" entries = ${targetShotCount}`;
+        if (targetShotCount > 30) {
+          shotCountInstruction += `\n- NOTE: With ${targetShotCount} shots requested, include a wide variety of positions, distances, and mics. Some may overlap in tonal character.`;
+        }
+      }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       You help IR producers refine and expand their shot lists based on positions they've already tested.
@@ -1350,7 +1416,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
          - Technically dangerous (e.g., ribbon mic at 0" could damage mic)
          - Completely redundant with a nearly identical position already in the list
          - Known broken/problematic combination that never works
-         If in doubt, KEEP IT - the user's ears approved it${speaker ? `
+         If in doubt, KEEP IT - the user's ears approved it${shotCountInstruction}${speaker ? `
       
       Speaker Context: ${speaker} - tailor suggestions for this speaker's characteristics.` : ''}${genre ? `
       
@@ -1406,6 +1472,33 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return String(value);
       };
       
+      let refinements = (rawResult.refinements || []).map((r: Record<string, unknown>) => ({
+          type: normalizeToString(r.type),
+          original: r.original ? normalizeToString(r.original) : undefined,
+          suggestion: normalizeToString(r.suggestion),
+          shorthand: normalizeToString(r.shorthand),
+          rationale: normalizeToString(r.rationale),
+        }));
+      
+      // Enforce exact shot count if specified (count of keep + add entries)
+      if (targetShotCount) {
+        const keepAndAdd = refinements.filter((r: { type: string }) => r.type === 'keep' || r.type === 'add');
+        if (keepAndAdd.length > targetShotCount) {
+          // Trim excess: keep the first N entries that are keep/add
+          let kept = 0;
+          refinements = refinements.filter((r: { type: string }) => {
+            if (r.type === 'keep' || r.type === 'add') {
+              if (kept < targetShotCount) {
+                kept++;
+                return true;
+              }
+              return false;
+            }
+            return true; // Keep remove entries as-is
+          });
+        }
+      }
+      
       const result = {
         parsedPositions: (rawResult.parsedPositions || []).map((p: Record<string, unknown>) => ({
           original: normalizeToString(p.original),
@@ -1416,13 +1509,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           variant: p.variant ? normalizeToString(p.variant) : undefined,
           parsed: Boolean(p.parsed),
         })),
-        refinements: (rawResult.refinements || []).map((r: Record<string, unknown>) => ({
-          type: normalizeToString(r.type),
-          original: r.original ? normalizeToString(r.original) : undefined,
-          suggestion: normalizeToString(r.suggestion),
-          shorthand: normalizeToString(r.shorthand),
-          rationale: normalizeToString(r.rationale),
-        })),
+        refinements,
         summary: normalizeToString(rawResult.summary),
       };
       

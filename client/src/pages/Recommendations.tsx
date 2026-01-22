@@ -355,6 +355,7 @@ export default function Recommendations() {
   const [preferredShots, setPreferredShots] = useState<string>("");
   const [showPreferences, setShowPreferences] = useState(false);
   const [ampDescription, setAmpDescription] = useState<string>("");
+  const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -759,12 +760,13 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre, preferredShots }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number }) => {
       if (micType) {
         // Mic + Speaker mode
-        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string } = { micType, speakerModel };
+        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number } = { micType, speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
+        if (targetShotCount) payload.targetShotCount = targetShotCount;
         const validated = api.recommendations.get.input.parse(payload);
         const res = await fetch(api.recommendations.get.path, {
           method: "POST",
@@ -775,9 +777,10 @@ export default function Recommendations() {
         return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
       } else {
         // Speaker-only mode
-        const payload: { speakerModel: string; genre?: string; preferredShots?: string } = { speakerModel };
+        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number } = { speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
+        if (targetShotCount) payload.targetShotCount = targetShotCount;
         const validated = api.recommendations.bySpeaker.input.parse(payload);
         const res = await fetch(api.recommendations.bySpeaker.path, {
           method: "POST",
@@ -803,9 +806,10 @@ export default function Recommendations() {
   });
 
   const { mutate: getAmpRecommendations, isPending: isAmpPending } = useMutation({
-    mutationFn: async ({ ampDescription, genre }: { ampDescription: string; genre?: string }) => {
-      const payload: { ampDescription: string; genre?: string } = { ampDescription };
+    mutationFn: async ({ ampDescription, genre, targetShotCount }: { ampDescription: string; genre?: string; targetShotCount?: number }) => {
+      const payload: { ampDescription: string; genre?: string; targetShotCount?: number } = { ampDescription };
       if (genre) payload.genre = genre;
+      if (targetShotCount) payload.targetShotCount = targetShotCount;
       const validated = api.recommendations.byAmp.input.parse(payload);
       const res = await fetch(api.recommendations.byAmp.path, {
         method: "POST",
@@ -826,10 +830,11 @@ export default function Recommendations() {
   });
 
   const { mutate: refinePositions, isPending: isImportPending } = useMutation({
-    mutationFn: async ({ positionList, speaker, genre }: { positionList: string; speaker?: string; genre?: string }) => {
-      const payload: { positionList: string; speaker?: string; genre?: string } = { positionList };
+    mutationFn: async ({ positionList, speaker, genre, targetShotCount }: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number }) => {
+      const payload: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number } = { positionList };
       if (speaker) payload.speaker = speaker;
       if (genre) payload.genre = genre;
+      if (targetShotCount) payload.targetShotCount = targetShotCount;
       const validated = api.positionImport.refine.input.parse(payload);
       const res = await fetch(api.positionImport.refine.path, {
         method: "POST",
@@ -866,7 +871,8 @@ export default function Recommendations() {
       micType: micType || undefined, 
       speakerModel: speaker, 
       genre: effectiveGenre,
-      preferredShots: combinedPrefs || undefined
+      preferredShots: combinedPrefs || undefined,
+      targetShotCount: targetShotCount || undefined
     });
   };
 
@@ -877,7 +883,7 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
-    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre });
+    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre, targetShotCount: targetShotCount || undefined });
   };
 
   const handleImportSubmit = (e: React.FormEvent) => {
@@ -910,7 +916,8 @@ export default function Recommendations() {
     refinePositions({ 
       positionList: positions, 
       speaker: importSpeaker || undefined, 
-      genre: effectiveGenre 
+      genre: effectiveGenre,
+      targetShotCount: targetShotCount || undefined
     });
   };
 
@@ -1319,6 +1326,31 @@ export default function Recommendations() {
             </AnimatePresence>
           </div>
 
+          {/* Target Shot Count */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Target className="w-3 h-3" /> Number of Shots (Optional)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={targetShotCount || ''}
+                onChange={(e) => setTargetShotCount(e.target.value ? parseInt(e.target.value) : null)}
+                placeholder="Auto"
+                className="w-24 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-target-shot-count"
+              />
+              <span className="text-xs text-muted-foreground">
+                {targetShotCount ? `Exactly ${targetShotCount} shots` : 'AI decides based on speaker/genre'}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Set a specific number of shots. The AI will prioritize learned preferences, then genre best practices.
+            </p>
+          </div>
+
           <div className="flex gap-3">
             <button
               type="button"
@@ -1414,6 +1446,28 @@ export default function Recommendations() {
                 className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
                 data-testid="input-tonal-text-amp"
               />
+            </div>
+          </div>
+
+          {/* Target Shot Count */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Target className="w-3 h-3" /> Number of Shots (Optional)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={targetShotCount || ''}
+                onChange={(e) => setTargetShotCount(e.target.value ? parseInt(e.target.value) : null)}
+                placeholder="Auto"
+                className="w-24 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-target-shot-count-amp"
+              />
+              <span className="text-xs text-muted-foreground">
+                {targetShotCount ? `Exactly ${targetShotCount} shots` : 'AI decides based on amp/genre'}
+              </span>
             </div>
           </div>
 
@@ -1535,6 +1589,28 @@ Or written out:
               className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
               data-testid="input-tonal-text-import"
             />
+          </div>
+
+          {/* Target Shot Count */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Target className="w-3 h-3" /> Target Number of Shots (Optional)
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={targetShotCount || ''}
+                onChange={(e) => setTargetShotCount(e.target.value ? parseInt(e.target.value) : null)}
+                placeholder="Auto"
+                className="w-24 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-target-shot-count-import"
+              />
+              <span className="text-xs text-muted-foreground">
+                {targetShotCount ? `Refine to exactly ${targetShotCount} shots` : 'Refine and expand your list'}
+              </span>
+            </div>
           </div>
 
           <div className="flex gap-3">
