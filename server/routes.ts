@@ -748,9 +748,9 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       let includeSelectionRationale = false;
       if (targetShotCount) {
         shotCountInstruction = `Provide EXACTLY ${targetShotCount} COMPLETE SHOT recommendations - no more, no less`;
-        if (targetShotCount <= 5) {
+        if (targetShotCount >= 2 && targetShotCount <= 4) {
           includeSelectionRationale = true;
-          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} shot(s), include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} shot(s) over other possibilities - what makes them the essential picks for this mic/speaker/genre combination`;
+          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} shots, include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} shots over other possibilities - what makes them the essential picks for this mic/speaker/genre combination`;
         }
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may overlap in character. Prioritize variety in position, distance, and tonal goals to minimize redundancy`;
@@ -922,9 +922,9 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       let includeSelectionRationale = false;
       if (targetShotCount) {
         shotCountInstruction = `Provide EXACTLY ${targetShotCount} specific mic/position/distance recommendations - no more, no less`;
-        if (targetShotCount <= 5) {
+        if (targetShotCount >= 2 && targetShotCount <= 4) {
           includeSelectionRationale = true;
-          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} recommendation(s), include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} mic/position/distance combination(s) over other possibilities - what makes them the essential picks for this speaker${genre ? ` and the ${genre} tonal goal` : ''}`;
+          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} recommendations, include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} mic/position/distance combinations over other possibilities - what makes them the essential picks for this speaker${genre ? ` and the ${genre} tonal goal` : ''}`;
         }
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may have similar tonal characteristics. Prioritize variety across mic types, positions, and distances to minimize redundancy`;
