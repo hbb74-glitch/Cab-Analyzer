@@ -1885,14 +1885,17 @@ Or written out:
               </div>
 
               {/* Show selection rationale for small shot counts (1-4) */}
-              {result.selectionRationale && (result.shots || result.recommendations || []).length <= 4 && (
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="text-foreground font-medium">Why these shots: </span>
-                    {result.selectionRationale}
-                  </p>
-                </div>
-              )}
+              {result.selectionRationale && (result.shots || result.recommendations || []).length <= 4 && (() => {
+                const count = (result.shots || result.recommendations || []).length;
+                return (
+                  <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="text-foreground font-medium">{count === 1 ? 'Why this shot: ' : 'Why these shots: '}</span>
+                      {result.selectionRationale}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <h3 className="text-lg font-semibold text-white">Recommended Shots</h3>
 
@@ -2022,14 +2025,17 @@ Or written out:
               </div>
 
               {/* Show selection rationale for small shot counts (1-4) */}
-              {speakerResult.selectionRationale && speakerResult.micRecommendations.length <= 4 && (
-                <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale-speaker">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="text-foreground font-medium">Why these shots: </span>
-                    {speakerResult.selectionRationale}
-                  </p>
-                </div>
-              )}
+              {speakerResult.selectionRationale && speakerResult.micRecommendations.length <= 4 && (() => {
+                const count = speakerResult.micRecommendations.length;
+                return (
+                  <div className="glass-panel p-4 rounded-xl border-l-4 border-l-primary/50" data-testid="text-selection-rationale-speaker">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="text-foreground font-medium">{count === 1 ? 'Why this shot: ' : 'Why these shots: '}</span>
+                      {speakerResult.selectionRationale}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                 <ListFilter className="w-5 h-5 text-primary" />
