@@ -745,8 +745,13 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       
       // Build shot count instruction
       let shotCountInstruction = 'Provide 6-8 COMPLETE SHOT recommendations';
+      let includeSelectionRationale = false;
       if (targetShotCount) {
         shotCountInstruction = `Provide EXACTLY ${targetShotCount} COMPLETE SHOT recommendations - no more, no less`;
+        if (targetShotCount <= 5) {
+          includeSelectionRationale = true;
+          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} shot(s), include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} shot(s) over other possibilities - what makes them the essential picks for this mic/speaker/genre combination`;
+        }
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may overlap in character. Prioritize variety in position, distance, and tonal goals to minimize redundancy`;
         }
@@ -841,8 +846,10 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
             "expectedTone": "How this exact shot sounds",
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this shot is ideal for'}"
           }
-        ]
+        ]${includeSelectionRationale ? `,
+        "selectionRationale": "1-2 sentence explanation of why you chose these specific shots over other options - what makes this curated set optimal for this mic/speaker combination${genre ? ` and the ${genre} tonal goal` : ''}"` : ''}
       }`;
+
 
       let userMessage = `Please recommend specific position+distance SHOTS for the ${micType} microphone paired with the ${speakerModel} speaker.`;
       if (genre) {
@@ -912,8 +919,13 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       
       // Build shot count instruction
       let shotCountInstruction = 'Provide 6-10 specific mic/position/distance recommendations';
+      let includeSelectionRationale = false;
       if (targetShotCount) {
         shotCountInstruction = `Provide EXACTLY ${targetShotCount} specific mic/position/distance recommendations - no more, no less`;
+        if (targetShotCount <= 5) {
+          includeSelectionRationale = true;
+          shotCountInstruction += `. IMPORTANT: Since you're only providing ${targetShotCount} recommendation(s), include a "selectionRationale" field explaining WHY you chose these specific ${targetShotCount} mic/position/distance combination(s) over other possibilities - what makes them the essential picks for this speaker${genre ? ` and the ${genre} tonal goal` : ''}`;
+        }
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may have similar tonal characteristics. Prioritize variety across mic types, positions, and distances to minimize redundancy`;
         }
@@ -1000,7 +1012,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this is ideal for'}"
           }
         ],
-        "summary": "${genre ? `How these recommendations collectively achieve '${genre}' for this speaker` : 'Brief overall summary of the best approach for this speaker based on IR production experience'}"
+        "summary": "${genre ? `How these recommendations collectively achieve '${genre}' for this speaker` : 'Brief overall summary of the best approach for this speaker based on IR production experience'}"${includeSelectionRationale ? `,
+        "selectionRationale": "1-2 sentence explanation of why you chose these specific mic/position/distance combinations over other options - what makes this curated set optimal for this speaker${genre ? ` and the ${genre} tonal goal` : ''}"` : ''}
       }`;
 
       let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;

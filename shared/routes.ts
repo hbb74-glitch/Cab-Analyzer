@@ -55,6 +55,7 @@ export const recommendationsResponseSchema = z.object({
   shots: z.array(shotRecommendationSchema).optional(),
   recommendations: z.array(distanceRecommendationSchema).optional(),
   bestPositions: z.array(positionRecommendationSchema).optional(),
+  selectionRationale: z.string().optional(), // Brief explanation of why these specific shots were chosen (for ≤5 shots)
 });
 
 // Speaker-only recommendations - recommends mics with positions and distances
@@ -74,6 +75,7 @@ export const speakerRecommendationsResponseSchema = z.object({
   genre: z.string().optional(),
   micRecommendations: z.array(micRecommendationSchema),
   summary: z.string(),
+  selectionRationale: z.string().optional(), // Brief explanation of why these specific shots were chosen (for ≤5 shots)
 });
 
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
