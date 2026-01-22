@@ -154,6 +154,43 @@ interface LearnedPreferences {
   totalIRs: number;
 }
 
+// Sort recommendations by: mic → distance (shorter first) → position (Cap first, Cone last)
+function sortRecommendations<T extends { micLabel?: string; distance?: string; position?: string }>(items: T[], fallbackMic?: string): T[] {
+  const getPositionOrder = (pos: string): number => {
+    const posLower = (pos || '').toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
+    const order: Record<string, number> = {
+      'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
+      'cap_cone_tr': 5, 'capedge_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
+    };
+    return order[posLower] || 99;
+  };
+  
+  // Normalize mic name for sorting (strip voicing/settings)
+  const normalizeMic = (mic: string): string => {
+    return (mic || '').toLowerCase()
+      .replace(/\s*\(presence(?:\s+boost)?\)/i, '')
+      .replace(/\s*\(flat\)/i, '')
+      .replace(/\s*presence\s*/i, '')
+      .replace(/\s*flat\s*/i, '')
+      .trim();
+  };
+  
+  return [...items].sort((a, b) => {
+    // 1. Sort by mic name (alphabetically), use fallbackMic if micLabel is missing
+    const micA = normalizeMic(a.micLabel || fallbackMic || '');
+    const micB = normalizeMic(b.micLabel || fallbackMic || '');
+    if (micA !== micB) return micA.localeCompare(micB);
+    
+    // 2. Sort by distance (shorter first)
+    const distA = parseFloat(a.distance || '0') || 0;
+    const distB = parseFloat(b.distance || '0') || 0;
+    if (distA !== distB) return distA - distB;
+    
+    // 3. Sort by position (Cap first, Cone last)
+    return getPositionOrder(a.position || '') - getPositionOrder(b.position || '');
+  });
+}
+
 function parseIRFilename(filename: string): ParsedIR {
   const result: ParsedIR = { filename };
   const name = filename.toLowerCase().replace('.wav', '');
@@ -555,7 +592,7 @@ export default function Recommendations() {
     };
 
     if (mode === 'by-speaker' && result) {
-      const shots = result.shots || result.recommendations || [];
+      const shots = sortRecommendations(result.shots || result.recommendations || [], result.mic);
       text = `IR Shots for ${getSpeakerLabel(result.speaker)}\n`;
       text += `Microphone: ${getMicLabel(result.mic)}\n\n`;
       shots.forEach((shot: any, i: number) => {
@@ -590,7 +627,7 @@ export default function Recommendations() {
       });
     } else if (mode === 'by-speaker' && speakerResult) {
       text = `Mic Combinations for ${getSpeakerLabel(speakerResult.speaker)}\n\n`;
-      speakerResult.micRecommendations.forEach((rec, i) => {
+      sortRecommendations(speakerResult.micRecommendations).forEach((rec, i) => {
         // Schema: Speaker_Mic_Setting_Position_distance (setting after mic if present)
         const speakerPart = getSpeakerShorthand(speakerResult.speaker);
         const { baseMic, switchSetting } = formatMicForShorthand(rec.micLabel);
@@ -624,7 +661,7 @@ export default function Recommendations() {
   };
 
   const copySimpleList = () => {
-    let items: { shorthand: string; distance: number; posOrder: number; settingOrder: number }[] = [];
+    let items: { shorthand: string; mic: string; distance: number; posOrder: number; settingOrder: number }[] = [];
     
     // Helper for shorthand formatting
     const getSpeakerShorthand = (value: string) => SPEAKER_SHORTHAND[value] || value;
@@ -678,6 +715,16 @@ export default function Recommendations() {
       return { baseMic: baseMic.replace(/\s+/g, ''), switchSetting };
     };
 
+    // Normalize mic for sorting (strip voicing suffixes)
+    const normalizeMic = (mic: string): string => {
+      return (mic || '').toLowerCase()
+        .replace(/\s*\(presence(?:\s+boost)?\)/i, '')
+        .replace(/\s*\(flat\)/i, '')
+        .replace(/\s*presence\s*/i, '')
+        .replace(/\s*flat\s*/i, '')
+        .trim();
+    };
+    
     if (mode === 'by-speaker' && result) {
       const shots = result.shots || result.recommendations || [];
       items = shots.map((shot: any) => {
@@ -702,8 +749,11 @@ export default function Recommendations() {
         const dist = parseFloat(shot.distance) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        // Normalize mic for sorting - use baseMic or fallback to top-level mic
+        const micForSort = normalizeMic(shot.micLabel || getMicLabelLocal(result.mic));
         return {
           shorthand: `${speakerPart}_${micPart}_${posPart}_${distPart}`,
+          mic: micForSort,
           distance: dist,
           posOrder: getPositionOrder(shot.position || ''),
           settingOrder: getSettingOrder(switchSetting)
@@ -718,8 +768,11 @@ export default function Recommendations() {
         const dist = parseFloat(String(rec.distance)) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
+        // Normalize mic for sorting
+        const micForSort = normalizeMic(rec.micLabel);
         return {
           shorthand: `${speakerPart}_${micPart}_${posPart}_${distPart}`,
+          mic: micForSort,
           distance: dist,
           posOrder: getPositionOrder(rec.position),
           settingOrder: getSettingOrder(switchSetting)
@@ -728,6 +781,7 @@ export default function Recommendations() {
     } else if (mode === 'by-amp' && ampResult) {
       items = ampResult.speakerSuggestions.map((s) => ({
         shorthand: s.speakerLabel,
+        mic: '',
         distance: 0,
         posOrder: 0,
         settingOrder: 0
@@ -735,6 +789,7 @@ export default function Recommendations() {
     } else if (mode === 'import-positions' && importResult) {
       items = importResult.refinements.map(r => ({
         shorthand: r.shorthand,
+        mic: '',
         distance: 0,
         posOrder: 0,
         settingOrder: 0
@@ -743,11 +798,14 @@ export default function Recommendations() {
 
     if (items.length === 0) return;
 
-    // Sort by: distance (ascending) → position (brightest to darkest) → setting (Presence before Flat)
+    // Sort by: mic → distance (ascending) → position (Cap first, Cone last)
     items.sort((a, b) => {
+      // 1. Sort by mic name (alphabetically)
+      if (a.mic !== b.mic) return a.mic.localeCompare(b.mic);
+      // 2. Sort by distance (shorter first)
       if (a.distance !== b.distance) return a.distance - b.distance;
-      if (a.posOrder !== b.posOrder) return a.posOrder - b.posOrder;
-      return a.settingOrder - b.settingOrder;
+      // 3. Sort by position (Cap first, Cone last)
+      return a.posOrder - b.posOrder;
     });
     const text = items.map((item, i) => `${i + 1}. ${item.shorthand}`).join('\n');
 
@@ -1829,33 +1887,7 @@ Or written out:
               <h3 className="text-lg font-semibold text-white">Recommended Shots</h3>
 
               <div className="grid gap-4">
-                {(() => {
-                  // Sort shots by: distance → position → setting (same as copy list)
-                  const getPositionOrder = (pos: string): number => {
-                    const posLower = (pos || '').toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
-                    const order: Record<string, number> = {
-                      'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
-                      'cap_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
-                    };
-                    return order[posLower] || 99;
-                  };
-                  const getSettingOrder = (label: string): number => {
-                    if (label?.includes('Presence')) return 1;
-                    if (label?.includes('Flat')) return 2;
-                    return 0;
-                  };
-                  const shots = [...(result.shots || result.recommendations || [])];
-                  shots.sort((a: any, b: any) => {
-                    const distA = parseFloat(a.distance) || 0;
-                    const distB = parseFloat(b.distance) || 0;
-                    if (distA !== distB) return distA - distB;
-                    const posA = getPositionOrder(a.position);
-                    const posB = getPositionOrder(b.position);
-                    if (posA !== posB) return posA - posB;
-                    return getSettingOrder(a.micLabel) - getSettingOrder(b.micLabel);
-                  });
-                  return shots;
-                })().map((shot: any, i: number) => {
+                {sortRecommendations(result.shots || result.recommendations || [], result.mic).map((shot: any, i: number) => {
                   // Extract voicing from multiple sources for MD441/e906
                   const topMicLower = (result.mic || '').toLowerCase();
                   const isSwitchableMic = topMicLower.includes('441') || topMicLower.includes('e906') || topMicLower.includes('906');
@@ -1985,7 +2017,7 @@ Or written out:
               </h3>
 
               <div className="grid gap-4">
-                {speakerResult.micRecommendations.map((rec, i) => (
+                {sortRecommendations(speakerResult.micRecommendations).map((rec, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -20 }}
