@@ -734,7 +734,14 @@ export async function registerRoutes(
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { micType, speakerModel, genre, preferredShots, targetShotCount } = input;
+      const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly } = input;
+      
+      // Build position restriction instruction
+      let positionInstruction = '';
+      if (basicPositionsOnly) {
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.`;
+      }
       
       // Build shot count instruction
       let shotCountInstruction = 'Provide 6-8 COMPLETE SHOT recommendations';
@@ -848,6 +855,10 @@ export async function registerRoutes(
       if (preferredShots) {
         userMessage += `\n\n=== USER'S PREFERRED SHOTS ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific position+distance combos they like, include those in your suggestions. If they have existing shots they want to complement, suggest shots that would pair well.`;
       }
+      
+      if (positionInstruction) {
+        userMessage += positionInstruction;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -890,7 +901,14 @@ export async function registerRoutes(
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre, preferredShots, targetShotCount } = input;
+      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly } = input;
+      
+      // Build position restriction instruction
+      let positionInstruction = '';
+      if (basicPositionsOnly) {
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.`;
+      }
       
       // Build shot count instruction
       let shotCountInstruction = 'Provide 6-10 specific mic/position/distance recommendations';
@@ -995,6 +1013,10 @@ Use these curated recipes as the foundation of your recommendations. You may add
       if (preferredShots) {
         userMessage += `\n\n=== USER'S PREFERRED SHOTS/DISTANCES ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific mics, distances, or positions they like, include those in your suggestions. If they have existing shots they want to complement, suggest combinations that would pair well with what they already have.`;
       }
+      
+      if (positionInstruction) {
+        userMessage += positionInstruction;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -1033,7 +1055,13 @@ Use these curated recipes as the foundation of your recommendations. You may add
   app.post(api.recommendations.byAmp.path, async (req, res) => {
     try {
       const input = api.recommendations.byAmp.input.parse(req.body);
-      const { ampDescription, genre, targetShotCount } = input;
+      const { ampDescription, genre, targetShotCount, basicPositionsOnly } = input;
+      
+      // Build position restriction instruction (for when By Amp later leads to mic recommendations)
+      let positionInstruction = '';
+      if (basicPositionsOnly) {
+        positionInstruction = `\n\nPOSITION RESTRICTION NOTE: When this speaker is used for IR production, the user wants to limit positions to: Cap, CapEdge, CapEdge_Cone_Tr, Cone only.`;
+      }
       
       // Build shot count instruction
       let shotCountInstruction = 'recommend 3-5 speakers that would pair well';
@@ -1316,7 +1344,15 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
   app.post(api.positionImport.refine.path, async (req, res) => {
     try {
       const input = api.positionImport.refine.input.parse(req.body);
-      const { positionList, speaker, genre, targetShotCount } = input;
+      const { positionList, speaker, genre, targetShotCount, basicPositionsOnly } = input;
+      
+      // Build position restriction instruction
+      let positionInstruction = '';
+      if (basicPositionsOnly) {
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.
+If the user's imported list contains non-basic positions, mark those as "remove" with rationale explaining the basic positions restriction.`;
+      }
       
       // Build shot count instruction for refinements
       let shotCountInstruction = '';
@@ -1447,10 +1483,14 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
         "summary": "Brief summary of the analysis - what's covered well and what gaps were filled"
       }`;
 
-      const userMessage = `Please analyze my tested IR positions and suggest refinements. Keep most of my positions (they work well!) and add complementary shots to fill gaps.
+      let userMessage = `Please analyze my tested IR positions and suggest refinements. Keep most of my positions (they work well!) and add complementary shots to fill gaps.
 
 My tested positions:
 ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}${genre ? `\nOptimizing for ${genre} genre.` : ''}`;
+      
+      if (positionInstruction) {
+        userMessage += positionInstruction;
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",

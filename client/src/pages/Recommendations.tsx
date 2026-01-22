@@ -356,6 +356,7 @@ export default function Recommendations() {
   const [showPreferences, setShowPreferences] = useState(false);
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
+  const [basicPositionsOnly, setBasicPositionsOnly] = useState(false);
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -760,13 +761,14 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean }) => {
       if (micType) {
         // Mic + Speaker mode
-        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number } = { micType, speakerModel };
+        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { micType, speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
+        if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
         const validated = api.recommendations.get.input.parse(payload);
         const res = await fetch(api.recommendations.get.path, {
           method: "POST",
@@ -777,10 +779,11 @@ export default function Recommendations() {
         return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
       } else {
         // Speaker-only mode
-        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number } = { speakerModel };
+        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
+        if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
         const validated = api.recommendations.bySpeaker.input.parse(payload);
         const res = await fetch(api.recommendations.bySpeaker.path, {
           method: "POST",
@@ -806,10 +809,11 @@ export default function Recommendations() {
   });
 
   const { mutate: getAmpRecommendations, isPending: isAmpPending } = useMutation({
-    mutationFn: async ({ ampDescription, genre, targetShotCount }: { ampDescription: string; genre?: string; targetShotCount?: number }) => {
-      const payload: { ampDescription: string; genre?: string; targetShotCount?: number } = { ampDescription };
+    mutationFn: async ({ ampDescription, genre, targetShotCount, basicPositionsOnly }: { ampDescription: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean }) => {
+      const payload: { ampDescription: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { ampDescription };
       if (genre) payload.genre = genre;
       if (targetShotCount) payload.targetShotCount = targetShotCount;
+      if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
       const validated = api.recommendations.byAmp.input.parse(payload);
       const res = await fetch(api.recommendations.byAmp.path, {
         method: "POST",
@@ -830,11 +834,12 @@ export default function Recommendations() {
   });
 
   const { mutate: refinePositions, isPending: isImportPending } = useMutation({
-    mutationFn: async ({ positionList, speaker, genre, targetShotCount }: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number }) => {
-      const payload: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number } = { positionList };
+    mutationFn: async ({ positionList, speaker, genre, targetShotCount, basicPositionsOnly }: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean }) => {
+      const payload: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { positionList };
       if (speaker) payload.speaker = speaker;
       if (genre) payload.genre = genre;
       if (targetShotCount) payload.targetShotCount = targetShotCount;
+      if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
       const validated = api.positionImport.refine.input.parse(payload);
       const res = await fetch(api.positionImport.refine.path, {
         method: "POST",
@@ -872,7 +877,8 @@ export default function Recommendations() {
       speakerModel: speaker, 
       genre: effectiveGenre,
       preferredShots: combinedPrefs || undefined,
-      targetShotCount: targetShotCount || undefined
+      targetShotCount: targetShotCount || undefined,
+      basicPositionsOnly: basicPositionsOnly || undefined
     });
   };
 
@@ -883,7 +889,7 @@ export default function Recommendations() {
       return;
     }
     const effectiveGenre = buildEffectiveGenre();
-    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre, targetShotCount: targetShotCount || undefined });
+    getAmpRecommendations({ ampDescription: ampDescription.trim(), genre: effectiveGenre, targetShotCount: targetShotCount || undefined, basicPositionsOnly: basicPositionsOnly || undefined });
   };
 
   const handleImportSubmit = (e: React.FormEvent) => {
@@ -917,7 +923,8 @@ export default function Recommendations() {
       positionList: positions, 
       speaker: importSpeaker || undefined, 
       genre: effectiveGenre,
-      targetShotCount: targetShotCount || undefined
+      targetShotCount: targetShotCount || undefined,
+      basicPositionsOnly: basicPositionsOnly || undefined
     });
   };
 
@@ -1351,6 +1358,22 @@ export default function Recommendations() {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={basicPositionsOnly}
+                onChange={(e) => setBasicPositionsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-basic-positions-only"
+              />
+              <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+            </p>
+          </div>
+
           <div className="flex gap-3">
             <button
               type="button"
@@ -1469,6 +1492,22 @@ export default function Recommendations() {
                 {targetShotCount ? `Exactly ${targetShotCount} shots` : 'AI decides based on amp/genre'}
               </span>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={basicPositionsOnly}
+                onChange={(e) => setBasicPositionsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-basic-positions-only-amp"
+              />
+              <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+            </p>
           </div>
 
           <div className="flex gap-3">
@@ -1611,6 +1650,22 @@ Or written out:
                 {targetShotCount ? `Refine to exactly ${targetShotCount} shots` : 'Refine and expand your list'}
               </span>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={basicPositionsOnly}
+                onChange={(e) => setBasicPositionsOnly(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-basic-positions-only-import"
+              />
+              <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+            </p>
           </div>
 
           <div className="flex gap-3">
