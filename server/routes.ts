@@ -778,19 +778,30 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       Distance is the primary variable - position on the speaker is less important for this analysis.
       Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
+      === CRITICAL DISTANCE RULES (0-6" IR production) ===
+      RIBBON MICS (R-121, R10, R92) - MINIMUM 4" distance required!
+      - These have significant proximity effect. Under 4" = excessive bass, unbalanced IRs.
+      - NEVER recommend 0", 0.5", 1", 1.5", 2", 2.5", or 3" for R-121, R10, or R92.
+      - Recommended range: 4-6" for controlled, balanced capture.
+      
+      M160 is an EXCEPTION - hypercardioid ribbon with less proximity effect.
+      - M160 can go as close as 1" (Jacquire King technique).
+      
       Microphone Knowledge for Close-Miking (0-6" range, IR production focus):
-      - 57 (SM57): Classic dynamic, mid-forward with 5-6kHz presence peak. Craig Anderton: Start 1-2" back, half to two-thirds toward edge. Bobby Owsinski: Place 3/4 between edge and center. Moving toward center = brighter, toward edge = darker. 45° off-axis reduces harshness.
-      - 121 (R-121): Ribbon, smooth highs, thick low-mids, figure-8. For close-miking: 4-6" to manage proximity effect. 60° cross-axis technique gives "chewy" tone. Back side (logo away) is brighter. Handles 135-160dB SPL safely.
-      - 160 (M160): Hypercardioid ribbon, tighter pattern than figure-8. Jacquire King: 1" from grille, aimed at cap edge perimeter. Top-address (end-fire) - point the end at speaker. Brighter than most ribbons, great for close-miking.
-      - 421 (MD421): Large diaphragm dynamic, wider frequency range than SM57 (more highs/lows), scooped mids. Position 2-4" back to avoid excessive proximity. Bass switch: Start at 'M', reduce if boomy.
-      - md441 (MD441): Condenser-like transparency, full mids without SM57 scoop. For close-miking: 1-6" works well, slightly off-axis. Move in 1cm increments - small moves = big changes. Presence switch: +4dB at 4kHz.
-      - r10 (R10): Entry-level Royer ribbon, same principles as R-121. For close-miking: 4-6" to balance proximity effect.
-      - m88 (M88): Warm, great low-end punch. Hypercardioid pattern. 0.5-2" sweet spot. Good for taming bright speakers.
-      - pr30 (PR30): Large 1.5" diaphragm, very clear highs without presence peak. Less proximity effect. 0.5-1" sweet spot, halfway between cone center and edge.
-      - e906 (e906): Supercardioid side-address. Three-position switch at 4.2kHz: Bright (+7dB), Normal (+5dB), Dark (+2dB). Best at 0-2", just off-center of cone. High-gain tip: Position 3 (Dark) reduces fizz.
-      - m201 (M201): Very accurate dynamic, "dynamic condenser." Hypercardioid pattern. 1-2" sweet spot.
-      - sm7b (SM7B): Smooth, thick, broadcast-quality. Less presence peak than SM57. 1-2" for warmth.
-      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser (34mm) with ribbon-like voicing. Start at 6" centered on dust cap. DESIGNED for dead center cap - no harshness due to gentle 3kHz rolloff. Closer = more bass. Handles 125dB SPL.
+      - 57 (SM57): Classic dynamic, mid-forward with 5-6kHz presence peak. Craig Anderton: Start 1-2" back. Sweet spot 1-2".
+      - 121 (R-121): Ribbon, smooth highs, thick low-mids, figure-8. MINIMUM 4" required. Sweet spot 4-6".
+      - 160 (M160): Hypercardioid ribbon, less proximity effect. Jacquire King: 1" from grille. Sweet spot 1-4".
+      - 421 (MD421): Large diaphragm dynamic, scooped mids. Sweet spot 2-4".
+      - md441 (MD441): Condenser-like transparency. Sweet spot 4-6", slightly off-axis.
+      - r10 (R10): Entry-level Royer ribbon. MINIMUM 4" required. Sweet spot 4-6".
+      - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" required. Sweet spot 4-6".
+      - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
+      - pr30 (PR30): Large diaphragm, clear highs, less proximity. Sweet spot 0.5-1".
+      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0-2".
+      - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
+      - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
+      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. Recommended 6", centered on cap.
+      - c414 (C414): AKG condenser, detailed highs. Keep at 4-6" with pad.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -982,21 +993,38 @@ Use these curated recipes as the foundation of your recommendations. You may add
       When curated recipes are provided, PRIORITIZE them over generic suggestions.
       ${curatedSection}
       
+      === CRITICAL DISTANCE RULES (0-6" IR production) ===
+      RIBBON MICS (R-121, R10, R92) - MINIMUM 4" distance required!
+      - These have significant proximity effect. Under 4" = excessive bass, unbalanced IRs.
+      - Recommended range: 4-6" for controlled, balanced capture.
+      - NEVER recommend 0", 0.5", 1", 1.5", 2", 2.5", or 3" for R-121, R10, or R92.
+      
+      M160 is an EXCEPTION - hypercardioid ribbon with less proximity effect.
+      - M160 can go as close as 1" (Jacquire King technique).
+      
+      DYNAMIC MICS (SM57, MD421, MD441, M88, PR30, e906, M201, SM7B):
+      - Most work well at 0.5-4" range.
+      - PR30 has less proximity effect, sweet spot at 0.5-1".
+      
+      CONDENSER (C414): Keep at 4-6" with pad for close-miking.
+      
+      ROSWELL CAB MIC: Manufacturer recommends 6", centered on cap.
+      
       Available Microphones:
-      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Great all-rounder.
-      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Pairs well with dynamics.
-      - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect.
-      - 421 (MD421): Large diaphragm dynamic, punchy, versatile.
-      - md441 (MD441): Dynamic with presence/flat switch. Treat EACH setting as a separate mic option. Include BOTH as separate shots when useful: "MD441 (Presence)" for clarity/cut, "MD441 (Flat)" for accuracy. Only pick one if genre demands it.
-      - r10 (R10): Ribbon, smooth and warm.
-      - r92 (R92): AEA ribbon, warm, figure-8, similar to R-121 with different proximity effect.
-      - m88 (M88): Warm, great low-end punch.
-      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity.
-      - e906 (e906): Supercardioid with presence/flat switch. Treat EACH setting as a separate mic option. Include BOTH as separate shots when useful: "e906 (Presence)" for bite/cut, "e906 (Flat)" for balance. Only pick one if genre demands it.
-      - m201 (M201): Very accurate dynamic.
-      - sm7b (SM7B): Smooth, thick, broadcast-quality.
-      - c414 (C414): AKG condenser, detailed highs, versatile.
-      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6", centered on cap. Unlike typical dynamics, designed for dead center with no harshness.
+      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Sweet spot 1-2".
+      - 121 (R-121): Ribbon, smooth highs, big low-mid. MINIMUM 4" distance required.
+      - 160 (M160): Hypercardioid ribbon, less proximity. Can go to 1".
+      - 421 (MD421): Large diaphragm dynamic, punchy. Sweet spot 2-4".
+      - md441 (MD441): Dynamic with presence/flat switch. Treat EACH setting as a separate mic option. Sweet spot 4-6".
+      - r10 (R10): Ribbon, smooth and warm. MINIMUM 4" distance required.
+      - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" distance required.
+      - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
+      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity. Sweet spot 0.5-1".
+      - e906 (e906): Supercardioid with presence/flat switch. Sweet spot 0-2".
+      - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
+      - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
+      - c414 (C414): AKG condenser, detailed highs. Keep at 4-6" with pad.
+      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. RECOMMENDED: 6", centered on cap.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
