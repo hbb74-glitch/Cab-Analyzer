@@ -11,6 +11,7 @@ import History from "@/pages/History";
 import Recommendations from "@/pages/Recommendations";
 import Pairing from "@/pages/Pairing";
 import FractalSettings from "@/pages/FractalSettings";
+import MikingGuide from "@/pages/MikingGuide";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/history" component={History} />
       <Route path="/recommendations" component={Recommendations} />
       <Route path="/fractal" component={FractalSettings} />
+      <Route path="/miking-guide" component={MikingGuide} />
       <Route component={NotFound} />
     </Switch>
   );

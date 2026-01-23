@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic2, Activity, BarChart3, Radio, Lightbulb, Layers, Zap } from "lucide-react";
+import { Mic2, Activity, BarChart3, Radio, Lightbulb, Layers, Zap, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navigation() {
@@ -9,6 +9,7 @@ export function Navigation() {
     { href: "/", label: "Analyzer", icon: Activity },
     { href: "/pairing", label: "Pairing", icon: Layers },
     { href: "/recommendations", label: "Suggestions", icon: Lightbulb },
+    { href: "/miking-guide", label: "Miking", icon: BookOpen },
     { href: "/fractal", label: "AM4", icon: Zap },
     { href: "/history", label: "History", icon: BarChart3 },
   ];

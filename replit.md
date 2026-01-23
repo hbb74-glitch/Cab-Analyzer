@@ -41,6 +41,7 @@ Preferred communication style: Simple, everyday language.
 - **Comprehensive Knowledge Base**: Includes a detailed database of 17 microphones, 10 speakers, 7 mic positions, distances, and genre-specific recording techniques to inform AI recommendations and analysis.
 - **IR Naming Convention**: Supports a structured shorthand for IR filenames (`Speaker_Mic_Position_distance_variant`) for efficient batch processing.
 - **Genre-Specific Guidance**: Offers detailed tonal goals, studio contexts, and "avoid" rules for 16 predefined genres plus custom options.
+- **Miking Guide**: A curated reference of close-miking techniques for 14 microphones, sourced from professional recording engineering references, including distance ranges, best positions, switch settings, and blending recommendations.
 
 ## External Dependencies
 
