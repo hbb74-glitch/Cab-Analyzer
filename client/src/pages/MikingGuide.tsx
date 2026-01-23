@@ -115,24 +115,25 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
   {
     id: "r10",
     name: "R10",
-    fullName: "AEA R10",
+    fullName: "Royer R-10",
     type: "ribbon",
-    manufacturer: "AEA",
+    manufacturer: "Royer Labs",
     pattern: "Figure-8",
-    character: "Warm, smooth ribbon with extended lows. Similar to R92 but with slightly different voicing. Natural, uncolored sound.",
-    closeMikingRange: { min: 2, max: 6, sweet: 3 },
-    bestPositions: ["Cap Edge", "Cone"],
+    character: "Entry-level Royer ribbon with the signature smooth top end. Handles high SPL well. Warm, natural sound similar to the R-121 but more affordable.",
+    closeMikingRange: { min: 1, max: 6, sweet: 2 },
+    bestPositions: ["Cap Edge", "Cone", "Cap-Cone Transition"],
     tips: [
-      "At 2-3 inches: Full proximity effect, rich low-mids",
-      "Smooth, vintage character works well for cleaner tones",
-      "Less aggressive than dynamic mics - great for jazz and blues"
+      "At 1-2 inches: Full proximity effect, rich low-mids",
+      "Shares the R-121's smooth high-frequency character",
+      "Handles 160dB SPL - built for loud sources like guitar cabs",
+      "Figure-8 pattern provides side rejection"
     ],
-    cabinetNotes: "Works beautifully on smaller combos and vintage-style amps. May need high-frequency boost for cutting through dense mixes.",
-    blendsWith: ["SM57", "MD421"],
-    genres: ["Jazz", "Blues", "Classic Rock", "Folk"],
+    cabinetNotes: "Works beautifully on any cabinet. Shares the R-121's ability to tame harsh speakers. Great entry point into Royer ribbon sound.",
+    blendsWith: ["SM57", "MD421", "e906"],
+    genres: ["Rock", "Blues", "Classic Rock", "Jazz"],
     sources: [
-      "AEA Microphones User Guide",
-      "Recording Revolution"
+      "Royer Labs Product Documentation",
+      "Sound on Sound Review"
     ]
   },
   {
@@ -385,23 +386,21 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "condenser",
     manufacturer: "Roswell Pro Audio",
     pattern: "Cardioid",
-    character: "Purpose-built for guitar cabinets. Handles high SPL. Tailored frequency response for guitar frequencies.",
-    closeMikingRange: { min: 0.5, max: 4, sweet: 1 },
-    bestPositions: ["Cap Edge", "Cap", "Cap Off-Center"],
+    character: "Small-diaphragm condenser designed for guitar cabinet recording. Handles high SPL with built-in pad options.",
+    closeMikingRange: { min: 4, max: 12, sweet: 6 },
+    bestPositions: ["Cap Edge", "Cone"],
     tips: [
-      "At 0.5-1 inch: Detailed, present sound with full low-end",
-      "At 2-3 inches: More natural, balanced capture",
-      "Specifically designed for guitar cab SPL levels",
-      "Condenser detail with dynamic-like durability",
-      "Flat-front design similar to e906 concept"
+      "Use the -10dB or -20dB pad for close-miking loud sources",
+      "At 4-6 inches: Balanced capture with condenser detail",
+      "At 8-12 inches: More room interaction, natural ambience",
+      "Small-diaphragm design provides accurate transient response"
     ],
-    cabinetNotes: "A specialized tool for guitar cab recording. Combines condenser detail with durability for high-SPL sources. Works well on any speaker type.",
-    blendsWith: ["R121", "SM57", "MD421"],
-    genres: ["Rock", "Metal", "Blues", "Pop", "Country"],
+    cabinetNotes: "A specialized condenser for cab recording. Best positioned slightly further back than dynamics to capture the full speaker response.",
+    blendsWith: ["SM57", "R121", "MD421"],
+    genres: ["Rock", "Blues", "Pop", "Country"],
     sources: [
-      "Roswell Pro Audio Documentation",
-      "Gearspace reviews",
-      "YouTube professional reviews"
+      "Roswell Pro Audio website",
+      "User community feedback"
     ]
   }
 ];
