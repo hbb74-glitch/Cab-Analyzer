@@ -28,6 +28,8 @@ type FormData = z.infer<typeof formSchema>;
 // Filename parsing to auto-populate fields
 // Supports formats like: SM57_cap-edge_v30-china_1in.wav, 57_cap_greenback_0.5.wav, etc.
 const MIC_PATTERNS: Record<string, string> = {
+  // Order matters! More specific patterns should come first
+  // IMPORTANT: Avoid short patterns that could match speaker names (e.g., "30" matches "V30")
   "sm57": "57", "57": "57",
   "r121": "121", "r-121": "121", "121": "121",
   "r92": "r92", "aear92": "r92", "aea-r92": "r92",
@@ -38,7 +40,7 @@ const MIC_PATTERNS: Record<string, string> = {
   "md441flat": "md441", "441-flat": "md441", "441flat": "md441", "md441-flat": "md441", "md441": "md441", "441": "md441",
   "r10": "r10",
   "m88": "m88", "88": "m88",
-  "pr30": "pr30", "30": "pr30",
+  "pr30": "pr30", // Removed "30" pattern - conflicts with V30 speaker
   "e906boost": "e906", "e906-boost": "e906", "906boost": "e906",
   "e906presence": "e906", "e906-presence": "e906", "906presence": "e906",
   "e906flat": "e906", "e906-flat": "e906", "906flat": "e906", "e906": "e906",
