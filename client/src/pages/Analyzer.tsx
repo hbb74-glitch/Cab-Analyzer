@@ -154,6 +154,132 @@ interface BatchIR {
   error: string | null;
 }
 
+// Redundancy detection types and functions
+interface RedundantPair {
+  ir1: string;
+  ir2: string;
+  similarity: number;
+  details: {
+    frequencyCorrelation: number;
+    centroidProximity: number;
+    energyMatch: number;
+  };
+  recommendation: string;
+}
+
+// Calculate Pearson correlation between two frequency arrays, normalized to [0, 1]
+function calculateFrequencyCorrelation(freq1: number[], freq2: number[]): number {
+  if (freq1.length !== freq2.length || freq1.length === 0) return 0;
+  
+  const n = freq1.length;
+  const mean1 = freq1.reduce((a, b) => a + b, 0) / n;
+  const mean2 = freq2.reduce((a, b) => a + b, 0) / n;
+  
+  let numerator = 0;
+  let denom1 = 0;
+  let denom2 = 0;
+  
+  for (let i = 0; i < n; i++) {
+    const diff1 = freq1[i] - mean1;
+    const diff2 = freq2[i] - mean2;
+    numerator += diff1 * diff2;
+    denom1 += diff1 * diff1;
+    denom2 += diff2 * diff2;
+  }
+  
+  const denominator = Math.sqrt(denom1 * denom2);
+  if (denominator === 0) return 0;
+  
+  // Pearson returns -1 to 1, normalize to 0-1 range using (r+1)/2
+  // -1 (opposite) → 0, 0 (uncorrelated) → 0.5, 1 (identical) → 1
+  const pearson = numerator / denominator;
+  return (pearson + 1) / 2;
+}
+
+// Calculate how close two spectral centroids are (0-1, 1 = identical)
+function calculateCentroidProximity(centroid1: number, centroid2: number): number {
+  const maxDiff = 3000; // Hz - max expected difference for different IRs
+  const diff = Math.abs(centroid1 - centroid2);
+  return Math.max(0, 1 - (diff / maxDiff));
+}
+
+// Calculate energy distribution match (0-1, 1 = identical)
+function calculateEnergyMatch(
+  low1: number, mid1: number, high1: number,
+  low2: number, mid2: number, high2: number
+): number {
+  // Energy values are 0-1 normalized, so differences are also 0-1
+  const lowDiff = Math.abs(low1 - low2);
+  const midDiff = Math.abs(mid1 - mid2);
+  const highDiff = Math.abs(high1 - high2);
+  const avgDiff = (lowDiff + midDiff + highDiff) / 3;
+  // Clamp to ensure 0-1 range
+  return Math.max(0, Math.min(1, 1 - avgDiff));
+}
+
+// Calculate overall similarity between two IRs
+function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
+  similarity: number;
+  details: RedundantPair['details'];
+} {
+  const frequencyCorrelation = calculateFrequencyCorrelation(
+    metrics1.frequencyData,
+    metrics2.frequencyData
+  );
+  
+  const centroidProximity = calculateCentroidProximity(
+    metrics1.spectralCentroid,
+    metrics2.spectralCentroid
+  );
+  
+  const energyMatch = calculateEnergyMatch(
+    metrics1.lowEnergy, metrics1.midEnergy, metrics1.highEnergy,
+    metrics2.lowEnergy, metrics2.midEnergy, metrics2.highEnergy
+  );
+  
+  // Weighted average: frequency curve is most important
+  const similarity = (frequencyCorrelation * 0.5) + (centroidProximity * 0.3) + (energyMatch * 0.2);
+  
+  return {
+    similarity,
+    details: { frequencyCorrelation, centroidProximity, energyMatch }
+  };
+}
+
+// Find all redundant pairs above threshold
+function findRedundantPairs(
+  irs: { filename: string; metrics: AudioMetrics }[],
+  threshold: number = 0.95
+): RedundantPair[] {
+  const pairs: RedundantPair[] = [];
+  
+  for (let i = 0; i < irs.length; i++) {
+    for (let j = i + 1; j < irs.length; j++) {
+      const { similarity, details } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+      
+      if (similarity >= threshold) {
+        // Determine which to recommend removing (prefer removing darker/brighter variants)
+        const centroidDiff = irs[i].metrics.spectralCentroid - irs[j].metrics.spectralCentroid;
+        const recommendation = Math.abs(centroidDiff) < 50 
+          ? `Either "${irs[i].filename}" or "${irs[j].filename}" can be removed`
+          : centroidDiff > 0
+            ? `Consider removing "${irs[i].filename}" (brighter) if you prefer the darker variant`
+            : `Consider removing "${irs[j].filename}" (brighter) if you prefer the darker variant`;
+        
+        pairs.push({
+          ir1: irs[i].filename,
+          ir2: irs[j].filename,
+          similarity,
+          details,
+          recommendation
+        });
+      }
+    }
+  }
+  
+  return pairs.sort((a, b) => b.similarity - a.similarity);
+}
+
 export default function Analyzer() {
   // Use context for mode and results persistence
   const { 
@@ -174,6 +300,12 @@ export default function Analyzer() {
   // Batch mode state
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
   const [copied, setCopied] = useState(false);
+  
+  // Redundancy detection state
+  // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)
+  const [redundantPairs, setRedundantPairs] = useState<RedundantPair[]>([]);
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.95);
+  const [showRedundancies, setShowRedundancies] = useState(false);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -224,6 +356,9 @@ export default function Analyzer() {
 
     setBatchIRs(newIRs);
     setBatchResult(null);
+    // Clear redundancy results when new files are uploaded
+    setRedundantPairs([]);
+    setShowRedundancies(false);
 
     for (let i = 0; i < wavFiles.length; i++) {
       const file = wavFiles[i];
@@ -270,6 +405,32 @@ export default function Analyzer() {
   const clearBatch = () => {
     setBatchIRs([]);
     setBatchResult(null);
+    setRedundantPairs([]);
+    setShowRedundancies(false);
+  };
+  
+  // Find redundant IR pairs
+  const handleFindRedundancies = () => {
+    const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
+    if (validIRs.length < 2) {
+      toast({ title: "Need more IRs", description: "Upload at least 2 IRs to check for redundancies", variant: "destructive" });
+      return;
+    }
+    
+    const irsWithMetrics = validIRs.map(ir => ({
+      filename: ir.file.name,
+      metrics: ir.metrics!
+    }));
+    
+    const pairs = findRedundantPairs(irsWithMetrics, similarityThreshold);
+    setRedundantPairs(pairs);
+    setShowRedundancies(true);
+    
+    if (pairs.length === 0) {
+      toast({ title: "No redundancies found", description: `No IR pairs exceeded ${Math.round(similarityThreshold * 100)}% similarity threshold` });
+    } else {
+      toast({ title: `Found ${pairs.length} redundant pair${pairs.length > 1 ? 's' : ''}`, description: "Review below to identify removable IRs" });
+    }
   };
 
   const copyBatchResults = () => {
@@ -600,34 +761,52 @@ export default function Analyzer() {
                   </AnimatePresence>
                 </div>
 
-                <button
-                  onClick={handleBatchAnalyze}
-                  disabled={validBatchCount === 0 || analyzingBatchCount > 0 || isBatchAnalyzing}
-                  className={cn(
-                    "w-full py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
-                    validBatchCount > 0 && analyzingBatchCount === 0 && !isBatchAnalyzing
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
-                      : "bg-white/5 text-muted-foreground cursor-not-allowed"
-                  )}
-                  data-testid="button-analyze-batch"
-                >
-                  {isBatchAnalyzing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Analyzing {validBatchCount} IRs...
-                    </>
-                  ) : analyzingBatchCount > 0 ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Processing {analyzingBatchCount} file(s)...
-                    </>
-                  ) : (
-                    <>
-                      <Activity className="w-5 h-5" />
-                      Analyze All ({validBatchCount} IRs)
-                    </>
-                  )}
-                </button>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={handleBatchAnalyze}
+                    disabled={validBatchCount === 0 || analyzingBatchCount > 0 || isBatchAnalyzing}
+                    className={cn(
+                      "w-full py-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2",
+                      validBatchCount > 0 && analyzingBatchCount === 0 && !isBatchAnalyzing
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_-5px_rgba(34,197,94,0.5)]"
+                        : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                    )}
+                    data-testid="button-analyze-batch"
+                  >
+                    {isBatchAnalyzing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Analyzing {validBatchCount} IRs...
+                      </>
+                    ) : analyzingBatchCount > 0 ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Processing {analyzingBatchCount} file(s)...
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-5 h-5" />
+                        Analyze All ({validBatchCount} IRs)
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Find Redundancies Button */}
+                  <button
+                    onClick={handleFindRedundancies}
+                    disabled={validBatchCount < 2 || analyzingBatchCount > 0}
+                    className={cn(
+                      "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                      validBatchCount >= 2 && analyzingBatchCount === 0
+                        ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30"
+                        : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                    )}
+                    data-testid="button-find-redundancies"
+                  >
+                    <Target className="w-4 h-4" />
+                    Find Redundancies ({validBatchCount} IRs)
+                  </button>
+                </div>
               </div>
             )}
 
@@ -846,6 +1025,148 @@ export default function Analyzer() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Redundancy Detection Results */}
+            <AnimatePresence>
+              {showRedundancies && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <Target className="w-6 h-6 text-amber-400" />
+                        Redundancy Analysis
+                      </h2>
+                      <p className="text-muted-foreground mt-1">
+                        {redundantPairs.length === 0 
+                          ? `No redundant pairs found at ${Math.round(similarityThreshold * 100)}% threshold`
+                          : `Found ${redundantPairs.length} similar IR pair${redundantPairs.length > 1 ? 's' : ''}`
+                        }
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Threshold:</span>
+                        <input
+                          type="range"
+                          min="80"
+                          max="99"
+                          value={similarityThreshold * 100}
+                          onChange={(e) => setSimilarityThreshold(parseInt(e.target.value) / 100)}
+                          className="w-20 h-1 accent-amber-400"
+                          data-testid="slider-similarity-threshold"
+                        />
+                        <span className="text-xs font-mono text-amber-400">{Math.round(similarityThreshold * 100)}%</span>
+                      </div>
+                      <button
+                        onClick={handleFindRedundancies}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-medium transition-all border border-amber-500/30"
+                        data-testid="button-recheck-redundancies"
+                      >
+                        Re-check
+                      </button>
+                      <button
+                        onClick={() => setShowRedundancies(false)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
+                        data-testid="button-close-redundancies"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  {redundantPairs.length > 0 ? (
+                    <div className="space-y-3">
+                      {redundantPairs.map((pair, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 space-y-3"
+                          data-testid={`redundant-pair-${index}`}
+                        >
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded text-xs font-bold",
+                                  pair.similarity >= 0.98 ? "bg-red-500/30 text-red-300" :
+                                  pair.similarity >= 0.95 ? "bg-amber-500/30 text-amber-300" :
+                                  "bg-yellow-500/30 text-yellow-300"
+                                )}>
+                                  {Math.round(pair.similarity * 100)}% Similar
+                                </span>
+                                {pair.similarity >= 0.98 && (
+                                  <span className="text-xs text-red-400">Nearly Identical</span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                                <div className="p-2 rounded bg-black/20 font-mono text-xs truncate">
+                                  {pair.ir1}
+                                </div>
+                                <div className="p-2 rounded bg-black/20 font-mono text-xs truncate">
+                                  {pair.ir2}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Similarity breakdown */}
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div className="text-center p-2 rounded bg-black/20">
+                              <div className="text-muted-foreground mb-1">Frequency Curve</div>
+                              <div className={cn(
+                                "font-bold",
+                                pair.details.frequencyCorrelation >= 0.95 ? "text-red-400" :
+                                pair.details.frequencyCorrelation >= 0.9 ? "text-amber-400" : "text-green-400"
+                              )}>
+                                {Math.round(pair.details.frequencyCorrelation * 100)}%
+                              </div>
+                            </div>
+                            <div className="text-center p-2 rounded bg-black/20">
+                              <div className="text-muted-foreground mb-1">Brightness</div>
+                              <div className={cn(
+                                "font-bold",
+                                pair.details.centroidProximity >= 0.95 ? "text-red-400" :
+                                pair.details.centroidProximity >= 0.9 ? "text-amber-400" : "text-green-400"
+                              )}>
+                                {Math.round(pair.details.centroidProximity * 100)}%
+                              </div>
+                            </div>
+                            <div className="text-center p-2 rounded bg-black/20">
+                              <div className="text-muted-foreground mb-1">Energy Balance</div>
+                              <div className={cn(
+                                "font-bold",
+                                pair.details.energyMatch >= 0.95 ? "text-red-400" :
+                                pair.details.energyMatch >= 0.9 ? "text-amber-400" : "text-green-400"
+                              )}>
+                                {Math.round(pair.details.energyMatch * 100)}%
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground italic">
+                            {pair.recommendation}
+                          </p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+                      <p>No redundant IRs detected at the current threshold.</p>
+                      <p className="text-xs mt-2">Try lowering the threshold to find more similar pairs.</p>
                     </div>
                   )}
                 </motion.div>
