@@ -54,10 +54,9 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
       "Bobby Owsinski: Place 3/4 between edge and center for balanced body and definition",
       "Moving toward center = brighter; moving toward edge = darker/warmer",
       "At 45° off-axis: Warmer, less harsh - reduces presence peak",
-      "Fredman technique: Two SM57s at 55° angle for thick modern metal tone",
-      "Check phase alignment: ~1ms delay per foot of distance from speaker"
+      "For IR production: Captures well at 0.5-2\" for direct, punchy response"
     ],
-    cabinetNotes: "Works on virtually any cabinet. Bobby Owsinski's favorite combo: SM57 + MD421 at 45° angle pointing toward voice coil. Pairs exceptionally with V30s and Greenbacks.",
+    cabinetNotes: "Works on virtually any cabinet. SM57 IRs blend exceptionally well with ribbon IRs (R121, R10) in post. Pairs exceptionally with V30s and Greenbacks.",
     blendsWith: ["R121", "MD421", "e906"],
     genres: ["Rock", "Metal", "Blues", "Country", "Pop"],
     sources: [
