@@ -627,13 +627,25 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
 
   const result = JSON.parse(response.choices[0].message.content || "{}");
   
+  // Use our deterministic parsing for mic/position/speaker - don't trust AI's parsedInfo
+  // The AI was incorrectly identifying mics (e.g., SM57 as PR30)
+  // Parse distance from filename if present (AI can help with this one)
+  const distanceMatch = ir.filename.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/i) || 
+                        ir.filename.match(/_(\d+(?:\.\d+)?)(?:_|$)/);
+  const parsedDistance = distanceMatch ? distanceMatch[1] : (result.parsedInfo?.distance || null);
+  
   const formatted = {
     score: result.score || 0,
     isPerfect: result.isPerfect || false,
     advice: result.advice || "Could not generate advice.",
     highlights: result.highlights || [],
     issues: result.issues || [],
-    parsedInfo: result.parsedInfo || { mic: null, position: null, speaker: null, distance: null },
+    parsedInfo: {
+      mic: parsed.mic,       // Use deterministic parsing
+      position: parsed.position, // Use deterministic parsing
+      speaker: parsed.speaker,   // Use deterministic parsing
+      distance: parsedDistance,  // Parse from filename or use AI's
+    },
     renameSuggestion: result.renameSuggestion || null,
     spectralDeviation: {
       expectedMin: expectedRange.min,
