@@ -10,8 +10,11 @@ import {
   Ruler, 
   Music, 
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  Printer,
+  X
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface MicrophoneGuide {
   id: string;
@@ -563,14 +566,96 @@ function MicrophoneCard({ mic }: { mic: MicrophoneGuide }) {
   );
 }
 
+function CheatSheet({ onClose }: { onClose: () => void }) {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background print:static print:bg-white">
+      <div className="max-w-4xl mx-auto p-6 print:p-2">
+        <div className="flex items-center justify-between mb-6 print:hidden">
+          <h2 className="text-2xl font-bold">Miking Cheat Sheet</h2>
+          <div className="flex gap-2">
+            <Button onClick={handlePrint} data-testid="button-print-cheatsheet">
+              <Printer className="w-4 h-4 mr-2" />
+              Print
+            </Button>
+            <Button variant="outline" onClick={onClose} data-testid="button-close-cheatsheet">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="print:block">
+          <h1 className="text-xl font-bold mb-4 hidden print:block text-black">IR.Scope Miking Cheat Sheet</h1>
+          
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-border print:border-black">
+                <th className="text-left py-2 px-2 font-semibold">Mic</th>
+                <th className="text-left py-2 px-2 font-semibold">Type</th>
+                <th className="text-left py-2 px-2 font-semibold">Range</th>
+                <th className="text-left py-2 px-2 font-semibold">Sweet Spot</th>
+                <th className="text-left py-2 px-2 font-semibold">Best Positions</th>
+                <th className="text-left py-2 px-2 font-semibold">Switch</th>
+              </tr>
+            </thead>
+            <tbody>
+              {MICROPHONE_GUIDES.map((mic, i) => (
+                <tr key={mic.id} className={`border-b border-border/50 print:border-gray-300 ${i % 2 === 0 ? 'bg-muted/20 print:bg-gray-50' : ''}`}>
+                  <td className="py-2 px-2 font-medium">{mic.name}</td>
+                  <td className="py-2 px-2 text-muted-foreground print:text-gray-600 capitalize">{mic.type}</td>
+                  <td className="py-2 px-2 font-mono">{mic.closeMikingRange.min}"-{mic.closeMikingRange.max}"</td>
+                  <td className="py-2 px-2 font-mono font-bold text-primary print:text-black">{mic.closeMikingRange.sweet}"</td>
+                  <td className="py-2 px-2 text-muted-foreground print:text-gray-600">{mic.bestPositions.slice(0, 2).join(", ")}</td>
+                  <td className="py-2 px-2 text-muted-foreground print:text-gray-600">
+                    {mic.switchSettings ? mic.switchSettings.map(s => s.name).join("/") : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-6 grid grid-cols-2 gap-4 text-xs print:text-[10px]">
+            <div className="p-3 bg-muted/30 rounded print:bg-gray-100 print:border print:border-gray-300">
+              <h4 className="font-semibold mb-1">Position Guide</h4>
+              <ul className="space-y-0.5 text-muted-foreground print:text-gray-600">
+                <li><strong>Cap:</strong> Center of dust cap (brightest)</li>
+                <li><strong>Cap Edge:</strong> Where cap meets cone (balanced)</li>
+                <li><strong>Cap-Cone Tr:</strong> Transition zone (warmer)</li>
+                <li><strong>Cone:</strong> Mid-cone area (darkest)</li>
+              </ul>
+            </div>
+            <div className="p-3 bg-muted/30 rounded print:bg-gray-100 print:border print:border-gray-300">
+              <h4 className="font-semibold mb-1">Distance Effects</h4>
+              <ul className="space-y-0.5 text-muted-foreground print:text-gray-600">
+                <li><strong>Closer:</strong> More bass (proximity), tighter</li>
+                <li><strong>Further:</strong> More balanced, natural</li>
+                <li><strong>Ribbons:</strong> Generally need more distance</li>
+                <li><strong>Dynamics:</strong> Can go very close (0.5-2")</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MikingGuide() {
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [showCheatSheet, setShowCheatSheet] = useState(false);
   
   const micTypes = ["all", "dynamic", "ribbon", "condenser"];
   
   const filteredMics = selectedType === "all" 
     ? MICROPHONE_GUIDES 
     : MICROPHONE_GUIDES.filter(m => m.type === selectedType);
+
+  if (showCheatSheet) {
+    return <CheatSheet onClose={() => setShowCheatSheet(false)} />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
@@ -582,6 +667,15 @@ export default function MikingGuide() {
           Curated close-miking techniques for each microphone in your locker. 
           Information sourced from professional recording engineering references.
         </p>
+        <Button 
+          variant="outline" 
+          className="mt-3"
+          onClick={() => setShowCheatSheet(true)}
+          data-testid="button-show-cheatsheet"
+        >
+          <Printer className="w-4 h-4 mr-2" />
+          Printable Cheat Sheet
+        </Button>
       </div>
 
       <div className="mb-6">
