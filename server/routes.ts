@@ -86,6 +86,11 @@ const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics:
     tonalGoal: 'angular, dark, jangly tone with character and edge',
     characteristics: 'Think Joy Division, The Cure, Interpol - can be cold and sparse or lush and atmospheric. Often uses chorus and delay.',
     avoid: 'Avoid overly warm, smooth, or vintage tones. Skip anything too polished or refined.'
+  },
+  'versatile': {
+    tonalGoal: 'balanced, mix-ready tone that works across multiple genres and sits well in any production',
+    characteristics: 'Prioritize mics and positions known for versatility: CapEdge positions (the sweet spot), MD421 (works on everything), SM57 (industry standard), M160 (smooth but clear). Focus on "safe" combinations that sound good in isolation AND in a mix. Avoid extreme positions (dead center Cap or far Cone) and niche mics.',
+    avoid: 'Avoid extreme or one-dimensional combinations. Skip very bright (Cap+PR30) or very dark (Cone+ribbon) combos. Avoid specialized mics like Roswell unless specifically needed.'
   }
 };
 
@@ -1035,22 +1040,23 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       
-      Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6${genre ? `
+      Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
-      === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
-      The user wants: ${expandGenreToTonalGuidance(genre)}
+      === ${genre ? "USER'S TONAL GOAL" : "VERSATILITY FOCUS"} (HIGHEST PRIORITY) ===
+      ${genre ? `The user wants: ${expandGenreToTonalGuidance(genre)}` : `No specific genre requested - prioritize VERSATILE, MIX-READY combinations.
+      ${expandGenreToTonalGuidance('versatile')}`}
       
-      CRITICAL: This tonal goal is your PRIMARY filter. Every single recommendation MUST be optimized for this specific sound.
-      - ONLY recommend combinations that genuinely serve this tonal goal
-      - EXCLUDE combinations that don't align with this sound (even if they're popular for other purposes)
-      - Each rationale MUST explicitly explain HOW this combination achieves the tonal goal
-      - The expectedTone MUST describe how this achieves the requested sound
-      - The bestFor MUST reference the tonal goal or closely related sounds` : ''}
+      CRITICAL: This ${genre ? 'tonal goal' : 'versatility focus'} is your PRIMARY filter. Every single recommendation MUST be optimized for ${genre ? 'this specific sound' : 'broad usability across genres'}.
+      - ONLY recommend combinations that genuinely serve ${genre ? 'this tonal goal' : 'versatility and mix-readiness'}
+      - EXCLUDE combinations that ${genre ? "don't align with this sound" : 'are too extreme or specialized'} (even if they're popular for other purposes)
+      - Each rationale MUST explicitly explain HOW this combination ${genre ? 'achieves the tonal goal' : 'provides versatility'}
+      - The expectedTone MUST describe how this ${genre ? 'achieves the requested sound' : 'works across different contexts'}
+      - The bestFor MUST reference ${genre ? 'the tonal goal or closely related sounds' : 'multiple genres/styles this works for'}
       
       ${shotCountInstruction}.
       CRITICAL: Each recommendation is a COMPLETE COMBO - one specific mic at one specific position at one specific distance.
       Example: "MD441 (Presence) at CapEdge, 2 inches" - not separate lists of mics, positions, distances.
-      ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'Include curated recipes first, then fill in gaps with additional proven techniques.'}
+      ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'FILTER all recommendations through VERSATILITY - prioritize proven, balanced combinations that work across rock, blues, country, and other genres. Avoid extreme or niche choices.'}
       
       Output JSON format:
       {
@@ -1072,10 +1078,14 @@ Use these curated recipes as the foundation of your recommendations. You may add
         "selectionRationale": "1-2 sentence explanation of why you chose these specific mic/position/distance combinations over other options - what makes this curated set optimal for this speaker${genre ? ` and the ${genre} tonal goal` : ''}"` : ''}
       }`;
 
+      // Use "versatile" as default when no genre specified for intelligent curation
+      const effectiveGenre = genre || 'versatile';
+      const expandedGoal = expandGenreToTonalGuidance(effectiveGenre);
+      
       let userMessage = `Please recommend the best microphones, positions, and distances for the ${speakerModel} speaker.`;
-      if (genre) {
-        const expandedGoal = expandGenreToTonalGuidance(genre);
-        userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound. Do not include generic recommendations that don't serve this tonal goal.`;
+      userMessage += ` The user's PRIMARY goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound.`;
+      if (!genre) {
+        userMessage += ` Since no specific genre was requested, focus on VERSATILE combinations that work across multiple styles - prioritize proven, mix-ready choices over extreme or niche options.`;
       }
       userMessage += ` Base your recommendations on proven IR production techniques.`;
       
