@@ -12,7 +12,9 @@ import {
   AlertCircle,
   ChevronRight,
   Printer,
-  X
+  X,
+  Copy,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
