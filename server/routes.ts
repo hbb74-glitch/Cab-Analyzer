@@ -438,24 +438,25 @@ function generateIRCacheKey(ir: {
 function parseFilenameForExpectations(filename: string): { mic: string; position: string; speaker: string } {
   const lower = filename.toLowerCase();
   
-  // Parse mic
+  // Parse mic - order matters! More specific patterns first
+  // IMPORTANT: Avoid patterns that could match distances (e.g., _30_ could be 30mm distance)
   let mic = 'sm57'; // default
   if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) mic = 'e906_presence';
   else if (lower.includes('e906')) mic = 'e906';
   else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) mic = 'md441_presence';
-  else if (lower.includes('md441')) mic = 'md441';
+  else if (lower.includes('md441') || lower.includes('_441_') || lower.includes('-441-') || lower.includes('_441-')) mic = 'md441';
   else if (lower.includes('md421') && lower.includes('kompakt')) mic = 'md421kompakt';
-  else if (lower.includes('md421') || lower.includes('421')) mic = 'md421';
-  else if (lower.includes('sm57') || lower.includes('_57_')) mic = 'sm57';
-  else if (lower.includes('sm7b') || lower.includes('sm7_')) mic = 'sm7b';
-  else if (lower.includes('r121') || lower.includes('_121_')) mic = 'r121';
-  else if (lower.includes('r92') || lower.includes('_92_')) mic = 'r92';
-  else if (lower.includes('r10') || lower.includes('_r10_')) mic = 'r10';
-  else if (lower.includes('m160') || lower.includes('_160_')) mic = 'm160';
-  else if (lower.includes('m88') || lower.includes('_88_')) mic = 'm88';
-  else if (lower.includes('m201') || lower.includes('_201_')) mic = 'm201';
-  else if (lower.includes('pr30') || lower.includes('_30_')) mic = 'pr30';
-  else if (lower.includes('c414') || lower.includes('_414_')) mic = 'c414';
+  else if (lower.includes('md421') || lower.includes('_421_') || lower.includes('-421-') || lower.includes('_421-')) mic = 'md421';
+  else if (lower.includes('sm57') || lower.includes('_57_') || lower.includes('-57-') || lower.includes('_57-')) mic = 'sm57';
+  else if (lower.includes('sm7b') || lower.includes('sm7_') || lower.includes('sm7-')) mic = 'sm7b';
+  else if (lower.includes('r121') || lower.includes('_121_') || lower.includes('-121-') || lower.includes('_121-')) mic = 'r121';
+  else if (lower.includes('r92') || lower.includes('_92_') || lower.includes('-92-')) mic = 'r92';
+  else if (lower.includes('r10') || lower.includes('_r10_') || lower.includes('-r10-')) mic = 'r10';
+  else if (lower.includes('m160') || lower.includes('_160_') || lower.includes('-160-') || lower.includes('_160-')) mic = 'm160';
+  else if (lower.includes('m88') || lower.includes('_88_') || lower.includes('-88-') || lower.includes('_88-')) mic = 'm88';
+  else if (lower.includes('m201') || lower.includes('_201_') || lower.includes('-201-') || lower.includes('_201-')) mic = 'm201';
+  else if (lower.includes('pr30') || lower.includes('_pr30_') || lower.includes('-pr30-')) mic = 'pr30'; // Removed _30_ - conflicts with distance
+  else if (lower.includes('c414') || lower.includes('_414_') || lower.includes('-414-') || lower.includes('_414-')) mic = 'c414';
   else if (lower.includes('roswell')) mic = 'roswell';
   
   // Parse position - new naming convention
