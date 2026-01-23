@@ -283,7 +283,7 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     bestPositions: ["Cap Edge", "Cap", "Cap Off-Center"],
     tips: [
       "Flat-front design allows hanging directly on cabinet grille",
-      "Presence switch: 'Flat' for neutral, 'Presence' for high boost, 'Scoop' for reduced mids",
+      "Three-position switch: Bright (presence boost), Normal (flat), Dark (high-frequency cut)",
       "At 0.5-1 inch: Tight, focused sound - flat-front minimizes proximity issues",
       "At 2-3 inches: More open, natural tone",
       "Supercardioid pattern provides excellent isolation in live settings"
@@ -292,8 +292,9 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     blendsWith: ["R121", "SM57", "MD421"],
     genres: ["Rock", "Metal", "Pop", "Blues", "Live performance"],
     switchSettings: [
-      { name: "Flat", description: "Neutral response - accurate capture" },
-      { name: "Presence", description: "High-frequency boost - adds cut and brightness" }
+      { name: "Bright", description: "Presence boost - adds cut and clarity" },
+      { name: "Normal", description: "Flat, neutral response" },
+      { name: "Dark", description: "High-frequency reduction - warmer, smoother" }
     ],
     sources: [
       "Sennheiser Application Notes",
