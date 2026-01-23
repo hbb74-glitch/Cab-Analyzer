@@ -256,7 +256,7 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "dynamic",
     manufacturer: "Heil Sound",
     pattern: "Cardioid",
-    character: "Large 1.5\" diaphragm with smooth, natural response. No presence peak (unlike SM57). Similar to ribbon mics but more durable.",
+    character: "Large 1.5\" diaphragm. Bright and clear but without a presence peak (unlike SM57's 5-6kHz bump). Extended, smooth high-frequency response.",
     closeMikingRange: { min: 0.5, max: 4, sweet: 1 },
     bestPositions: ["Halfway center-to-edge", "Cap Edge"],
     tips: [
