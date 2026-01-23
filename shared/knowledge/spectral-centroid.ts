@@ -8,7 +8,7 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'md441': { min: 2300, max: 3200, description: 'Dynamic, very accurate (flat mode)' },
   'md441_presence': { min: 2600, max: 3500, description: 'MD441 with presence boost' },
   'm88': { min: 1900, max: 2700, description: 'Warm, great low-end punch' },
-  'pr30': { min: 2100, max: 2900, description: 'Large diaphragm dynamic, flat/neutral response, smooth highs' },
+  'pr30': { min: 2500, max: 3400, description: 'Large diaphragm dynamic, bright/articulate, 5kHz presence peak' },
   'e906': { min: 2300, max: 3200, description: 'Supercardioid (flat mode)' },
   'e906_presence': { min: 2600, max: 3600, description: 'e906 with presence boost engaged' },
   'm201': { min: 2100, max: 2800, description: 'Very accurate dynamic' },
