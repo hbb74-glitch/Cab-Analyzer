@@ -394,22 +394,23 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     fullName: "Roswell Pro Audio Cab Mic",
     type: "condenser",
     manufacturer: "Roswell Pro Audio",
-    pattern: "Cardioid",
-    character: "Small-diaphragm condenser designed for guitar cabinet recording. Handles high SPL with built-in pad options.",
-    closeMikingRange: { min: 4, max: 12, sweet: 6 },
-    bestPositions: ["Cap Edge", "Cone"],
+    pattern: "Cardioid (slightly narrow)",
+    character: "Large-diaphragm condenser (34mm) with ribbon-like voicing. Gentle roll-off above 3kHz for smooth top end. Handles 125dB SPL without clipping.",
+    closeMikingRange: { min: 2, max: 12, sweet: 6 },
+    bestPositions: ["Cap (dust cap center)", "Cap Edge"],
     tips: [
-      "Use the -10dB or -20dB pad for close-miking loud sources",
-      "At 4-6 inches: Balanced capture with condenser detail",
-      "At 8-12 inches: More room interaction, natural ambience",
-      "Small-diaphragm design provides accurate transient response"
+      "Roswell recommends: Start centered on dust cap, 6 inches from grille",
+      "Move closer for more bass (proximity effect is linear and predictable)",
+      "Move further for less bass - no need to back off far",
+      "Designed to work standalone without needing additional mics",
+      "Ribbon-like smooth top end avoids 5-6kHz harshness"
     ],
-    cabinetNotes: "A specialized condenser for cab recording. Best positioned slightly further back than dynamics to capture the full speaker response.",
+    cabinetNotes: "Purpose-built for guitar cabs. Ribbon-like voicing with condenser durability and headroom. Developed with David Grissom and Tim Pierce.",
     blendsWith: ["SM57", "R121", "MD421"],
-    genres: ["Rock", "Blues", "Pop", "Country"],
+    genres: ["Rock", "Blues", "Country", "Jazz", "All styles"],
     sources: [
-      "Roswell Pro Audio website",
-      "User community feedback"
+      "Roswell Pro Audio official website",
+      "roswellproaudio.com/products/cab-mic"
     ]
   }
 ];
