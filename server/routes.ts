@@ -778,19 +778,19 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       Distance is the primary variable - position on the speaker is less important for this analysis.
       Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
-      Microphone Knowledge:
-      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Proximity effect adds bass up close.
-      - 121 (R-121): Ribbon, smooth highs, big low-mid, figure-8. Strong proximity effect.
-      - 160 (M160): Hypercardioid ribbon, tighter, more focused. Less proximity effect than R-121.
-      - 421 (MD421): Large diaphragm dynamic, punchy. Moderate proximity effect.
-      - md441 (MD441): Dynamic with presence/flat switch. Presence = upper-mid clarity. Flat = accurate/neutral.
-      - r10 (R10): Ribbon, smooth and warm.
-      - m88 (M88): Warm, great low-end punch.
-      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity effect.
-      - e906 (e906): Supercardioid with presence/flat switch. Presence = extra bite. Flat = balanced.
-      - m201 (M201): Very accurate dynamic.
-      - sm7b (SM7B): Smooth, thick.
-      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. MANUFACTURER RECOMMENDED: Start at 6" distance, centered directly on dust cap. Unlike typical dynamics, this mic is DESIGNED to be aimed at dead center of cap - no harshness due to its voiced capsule. Closer = more bass (predictable linear proximity effect), farther = tighter low end. Moving around cone gives tonal variation. Handles extreme SPL, mix-ready tones with minimal EQ needed.
+      Microphone Knowledge for Close-Miking (0-6" range, IR production focus):
+      - 57 (SM57): Classic dynamic, mid-forward with 5-6kHz presence peak. Craig Anderton: Start 1-2" back, half to two-thirds toward edge. Bobby Owsinski: Place 3/4 between edge and center. Moving toward center = brighter, toward edge = darker. 45° off-axis reduces harshness.
+      - 121 (R-121): Ribbon, smooth highs, thick low-mids, figure-8. For close-miking: 4-6" to manage proximity effect. 60° cross-axis technique gives "chewy" tone. Back side (logo away) is brighter. Handles 135-160dB SPL safely.
+      - 160 (M160): Hypercardioid ribbon, tighter pattern than figure-8. Jacquire King: 1" from grille, aimed at cap edge perimeter. Top-address (end-fire) - point the end at speaker. Brighter than most ribbons, great for close-miking.
+      - 421 (MD421): Large diaphragm dynamic, wider frequency range than SM57 (more highs/lows), scooped mids. Position 2-4" back to avoid excessive proximity. Bass switch: Start at 'M', reduce if boomy.
+      - md441 (MD441): Condenser-like transparency, full mids without SM57 scoop. For close-miking: 1-6" works well, slightly off-axis. Move in 1cm increments - small moves = big changes. Presence switch: +4dB at 4kHz.
+      - r10 (R10): Entry-level Royer ribbon, same principles as R-121. For close-miking: 4-6" to balance proximity effect.
+      - m88 (M88): Warm, great low-end punch. Hypercardioid pattern. 0.5-2" sweet spot. Good for taming bright speakers.
+      - pr30 (PR30): Large 1.5" diaphragm, very clear highs without presence peak. Less proximity effect. 0.5-1" sweet spot, halfway between cone center and edge.
+      - e906 (e906): Supercardioid side-address. Three-position switch at 4.2kHz: Bright (+7dB), Normal (+5dB), Dark (+2dB). Best at 0-2", just off-center of cone. High-gain tip: Position 3 (Dark) reduces fizz.
+      - m201 (M201): Very accurate dynamic, "dynamic condenser." Hypercardioid pattern. 1-2" sweet spot.
+      - sm7b (SM7B): Smooth, thick, broadcast-quality. Less presence peak than SM57. 1-2" for warmth.
+      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser (34mm) with ribbon-like voicing. Start at 6" centered on dust cap. DESIGNED for dead center cap - no harshness due to gentle 3kHz rolloff. Closer = more bass. Handles 125dB SPL.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       

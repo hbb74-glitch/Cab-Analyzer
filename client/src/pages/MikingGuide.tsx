@@ -75,19 +75,18 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     manufacturer: "Royer Labs",
     pattern: "Figure-8",
     character: "Warm, smooth top end with no harsh presence peak. Natural roll-off above 10kHz. Thick low-mids give weight to the sound. Handles 135-160dB SPL.",
-    closeMikingRange: { min: 4, max: 12, sweet: 6 },
+    closeMikingRange: { min: 4, max: 6, sweet: 6 },
     bestPositions: ["Cap Edge (midway to edge)", "Cone", "60° cross-axis"],
     avoidPositions: ["Under 4 inches (excessive proximity bass)"],
     tips: [
+      "For IR production: 4-6\" range manages proximity effect while staying close",
       "Royer official: Can go right up to grille if amp isn't creating plosives",
-      "Classic position: Few inches back, slightly off-center, angled toward cone center",
       "60° cross-axis technique (1940s-50s): Very 'chewy' tone, smooth highs",
       "Back side (logo away) is slightly brighter - great for adding air",
       "Flip polarity when using back side for proper phase alignment",
-      "Proximity effect starts ~6 feet, becomes noticeable within a few inches",
-      "Ross Hogarth dual-mic setup: R121 + SM57 equidistant, 6-8\" apart"
+      "Strong proximity effect - 4-6\" keeps it controlled for IRs"
     ],
-    cabinetNotes: "Known as 'the electric guitar mic.' Captures what you hear in the room. Don't baby it - many pros treat it like a dynamic. Takes EQ extremely well.",
+    cabinetNotes: "Known as 'the electric guitar mic.' For IR production, 4-6\" keeps proximity effect controlled. Takes EQ extremely well.",
     blendsWith: ["SM57", "MD421", "C414"],
     genres: ["Rock", "Blues", "Jazz", "Classic Rock", "Country"],
     sources: [
@@ -105,15 +104,15 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     manufacturer: "AEA",
     pattern: "Figure-8",
     character: "Designed specifically for close-miking. Front side is bright/crisp, rear side is smooth/dark. Minimized proximity effect.",
-    closeMikingRange: { min: 2, max: 12, sweet: 6 },
+    closeMikingRange: { min: 2, max: 6, sweet: 6 },
     bestPositions: ["Cap Edge", "Cone", "Cap-Cone Transition"],
     tips: [
-      "AEA designed this for 1-18 inches, flattest response at 6-12 inches",
+      "For IR production: 4-6\" provides balanced response with controlled proximity",
       "At 2-4 inches: Direct, maximum high-frequency content",
-      "At 6-12 inches: Flattest frequency response (AEA recommended)",
+      "At 4-6 inches: Balanced with minimized proximity effect",
       "Front side (logo) is 'Crisp' - bright, clean highs",
       "Rear side is 'Smooth' - darker, rolled-off highs for harsh amps",
-      "Minimized proximity effect compared to other ribbons"
+      "Minimized proximity effect compared to other ribbons - great for close work"
     ],
     cabinetNotes: "Ideal for vintage amp tones and classic rock sounds. May need EQ boost in high frequencies for modern tones.",
     blendsWith: ["SM57", "MD421", "e906"],
@@ -132,16 +131,16 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     manufacturer: "Royer Labs",
     pattern: "Figure-8",
     character: "Entry-level Royer ribbon with the signature smooth top end. Handles high SPL well. Warm, natural sound similar to the R-121.",
-    closeMikingRange: { min: 4, max: 12, sweet: 6 },
+    closeMikingRange: { min: 4, max: 6, sweet: 6 },
     bestPositions: ["Cap Edge", "Cone", "Cap-Cone Transition"],
     tips: [
-      "Same placement principles as R-121: start at 6-8 inches",
+      "For IR production: 4-6\" range balances proximity effect",
       "Under 4 inches: Strong proximity effect, very bass-heavy",
-      "At 6-8 inches: Balanced Royer sweet spot",
+      "At 6 inches: Balanced Royer sweet spot for IRs",
       "Handles 160dB SPL - built for loud sources like guitar cabs",
       "Figure-8 pattern provides excellent side rejection"
     ],
-    cabinetNotes: "Works beautifully on any cabinet. Shares the R-121's ability to tame harsh speakers. Great entry point into Royer ribbon sound.",
+    cabinetNotes: "Works beautifully on any cabinet. Shares the R-121's ability to tame harsh speakers. For IR work, stay at 4-6\" range.",
     blendsWith: ["SM57", "MD421", "e906"],
     genres: ["Rock", "Blues", "Classic Rock", "Jazz"],
     sources: [
@@ -157,18 +156,17 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     manufacturer: "Beyerdynamic",
     pattern: "Hypercardioid",
     character: "Unique hypercardioid ribbon with tighter pattern than figure-8. Warm, creamy midrange with detailed highs. Natural 'expensive' sound without harshness.",
-    closeMikingRange: { min: 0, max: 36, sweet: 12 },
-    bestPositions: ["Cap Edge (perimeter)", "12 inches back", "Anywhere 0-36 inches"],
+    closeMikingRange: { min: 0, max: 6, sweet: 1 },
+    bestPositions: ["Cap Edge (perimeter)", "1 inch from grille", "4-6 inches back"],
     tips: [
       "Jacquire King technique: 1\" from grille, aimed at dust cap perimeter",
-      "Extremely flexible: Works from inches to 1 meter with no harshness",
-      "Common starting point: 12 inches (1 foot) from speaker",
-      "Closer = more bass (strong proximity effect), farther = more balanced",
+      "At 1 inch: Maximum detail with controlled proximity bass - sweet spot",
+      "At 4-6 inches: More balanced, less proximity effect",
       "Top-address (end-fire) mic - point the end at the speaker",
       "Often used solo without EQ - natural, polished sound",
-      "Pairs well with SM57 for bite + warmth combination"
+      "Hypercardioid pattern excellent for isolation in close-miking"
     ],
-    cabinetNotes: "A secret weapon for many engineers. Brighter than most ribbons but never harsh. Handles high SPL. Works beautifully at 8-10 feet as room mic too.",
+    cabinetNotes: "A secret weapon for IR producers. Brighter than most ribbons but never harsh. Handles high SPL easily. Hypercardioid rejects room reflections.",
     blendsWith: ["SM57", "MD421", "e906", "R121"],
     genres: ["Rock", "Blues", "Jazz", "Fusion", "Progressive", "Metal"],
     sources: [
@@ -214,18 +212,17 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     manufacturer: "Sennheiser",
     pattern: "Supercardioid",
     character: "Extremely transparent dynamic - condenser-like detail with minimal coloration. Full midrange without SM57 scoop. Limited proximity effect.",
-    closeMikingRange: { min: 1, max: 12, sweet: 8 },
-    bestPositions: ["Cap Edge", "Slightly off-axis", "1 foot boxed-in"],
+    closeMikingRange: { min: 1, max: 6, sweet: 4 },
+    bestPositions: ["Cap Edge", "Slightly off-axis", "4-6 inches back"],
     tips: [
-      "Sweet spot: 6-12 inches, slightly off-axis for smoother highs",
-      "1-foot boxed technique: Use isolation panels around cab, mic at 12\"",
+      "For IR production: 4-6\" sweet spot, slightly off-axis for smoother highs",
+      "At 1-2 inches: Maximum detail, very direct sound",
       "Off-axis positioning reduces harshness for vintage/clean tones",
       "Presence switch: Flat for neutral, Presence for +4dB at 4kHz",
       "5-position bass switch: Start at 'M', reduce if boomy",
-      "Move in 1cm increments - small moves make big tonal changes",
-      "Works great solo without EQ - captures true amp character"
+      "Move in 1cm increments - small moves make big tonal changes"
     ],
-    cabinetNotes: "The 'reference' dynamic for critical listening. Transparent capture of exactly what amp produces. Fuller mids than SM57. Works with any preamp - doesn't need high-end gear.",
+    cabinetNotes: "The 'reference' dynamic for critical listening. Transparent capture of exactly what amp produces. For IR work, 4-6\" provides balanced detail.",
     blendsWith: ["R121", "SM57", "e906"],
     genres: ["All genres - especially where accuracy is key"],
     switchSettings: [
@@ -383,24 +380,24 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     fullName: "AKG C414",
     type: "condenser",
     manufacturer: "AKG",
-    pattern: "Multi-pattern (typically Cardioid for cabs)",
-    character: "Detailed, extended highs with accurate transient response. Slight presence peak. Multiple pattern options.",
-    closeMikingRange: { min: 6, max: 18, sweet: 12 },
-    bestPositions: ["Cap Edge (from distance)", "Cone (from distance)"],
+    pattern: "Multi-pattern (Cardioid for close-miking)",
+    character: "Detailed, extended highs with accurate transient response. Slight presence peak. Requires pad for close-miking loud sources.",
+    closeMikingRange: { min: 4, max: 6, sweet: 6 },
+    bestPositions: ["Cap Edge (4-6 inches)", "Cone (for darker tone)"],
     tips: [
-      "Use cardioid pattern for most guitar cab applications",
-      "At 6-12 inches: Captures cabinet and speaker interaction naturally",
-      "At 12-18 inches: More room, natural ambience included",
-      "Engage the pad (-10 or -20dB) for high-SPL sources",
-      "The extended highs capture pick attack and string detail"
+      "ALWAYS engage -10 or -20dB pad for close-miking loud amps",
+      "Use cardioid pattern to minimize room pickup",
+      "For IR production: 4-6\" with pad minimizes room",
+      "Craig Anderton: Condensers too sensitive for very close placement",
+      "Extended highs capture pick attack - great for clarity"
     ],
-    cabinetNotes: "Best used at distance to capture the full cabinet sound. Not typically a close-mic choice, but adds air and detail when blended with a close dynamic or ribbon.",
+    cabinetNotes: "Less common for IR production due to room sensitivity. When used, stay at 4-6\" with pad engaged. Adds air and definition when needed.",
     blendsWith: ["SM57", "R121", "MD421"],
-    genres: ["Rock", "Jazz", "Acoustic styles", "Ambient"],
+    genres: ["Rock", "Jazz", "Clean tones", "Fusion"],
     sources: [
       "AKG Professional Audio Guide",
-      "Recording Engineer's Handbook - Bobby Owsinski",
-      "Sweetwater Sound"
+      "Craig Anderton - Miking Guitar Amp Cabinets",
+      "Recording Engineer's Handbook - Bobby Owsinski"
     ]
   },
   {
@@ -583,8 +580,51 @@ function MicrophoneCard({ mic }: { mic: MicrophoneGuide }) {
 }
 
 function CheatSheet({ onClose }: { onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCopyToClipboard = async () => {
+    const textList = MICROPHONE_GUIDES.map(mic => {
+      const switchInfo = mic.switchSettings 
+        ? ` | Switch: ${mic.switchSettings.map(s => s.name).join(", ")}`
+        : "";
+      const topTip = mic.tips[0] || "";
+      return `${mic.name} (${mic.type})
+  Range: ${mic.closeMikingRange.min}"-${mic.closeMikingRange.max}" | Sweet: ${mic.closeMikingRange.sweet}"
+  Best: ${mic.bestPositions.slice(0, 2).join(", ")}${switchInfo}
+  Tip: ${topTip}`;
+    }).join("\n\n");
+
+    const fullText = `CLOSE-MIKING CHEAT SHEET (0-6" IR Production)
+==============================================
+Sourced from Craig Anderton, Bobby Owsinski, and pro engineers
+
+${textList}
+
+---
+POSITION GUIDE (Cap to Cone = Bright to Dark):
+Cap = dust cap center (brightest, most aggressive)
+Cap Edge = where cap meets cone (balanced - often the sweet spot)
+Cone = mid-cone area (darkest, warmest)
+
+CLOSE-MIKING DISTANCE EFFECTS (0-6" range):
+0-1" = Maximum proximity bass, very direct/punchy
+1-2" = Sweet spot for most dynamics
+2-4" = Reduced proximity, more natural balance
+4-6" = Minimal proximity, fuller speaker response
+
+Note: All distances optimized for IR production.`;
+
+    try {
+      await navigator.clipboard.writeText(fullText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
   };
 
   return (
@@ -593,6 +633,14 @@ function CheatSheet({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between mb-6 print:hidden">
           <h2 className="text-2xl font-bold">Miking Cheat Sheet</h2>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleCopyToClipboard} 
+              data-testid="button-copy-cheatsheet"
+            >
+              {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+              {copied ? "Copied!" : "Copy List"}
+            </Button>
             <Button onClick={handlePrint} data-testid="button-print-cheatsheet">
               <Printer className="w-4 h-4 mr-2" />
               Print
@@ -680,8 +728,8 @@ export default function MikingGuide() {
           <span className="text-primary">Miking</span> Guide
         </h1>
         <p className="text-muted-foreground">
-          Curated close-miking techniques for each microphone in your locker. 
-          Information sourced from professional recording engineering references.
+          Curated close-miking techniques optimized for IR production. 
+          Sourced from Craig Anderton, Bobby Owsinski, and professional recording engineers.
         </p>
         <Button 
           variant="outline" 
