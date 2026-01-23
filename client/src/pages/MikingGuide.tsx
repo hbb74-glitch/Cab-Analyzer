@@ -45,20 +45,23 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     pattern: "Cardioid",
     character: "Mid-forward, aggressive presence peak around 5-6kHz. Handles high SPL without distortion. The industry standard for guitar cabinets.",
     closeMikingRange: { min: 0.5, max: 4, sweet: 1 },
-    bestPositions: ["Cap Edge", "Cap (for aggression)", "Cap Off-Center"],
+    bestPositions: ["Cap Edge", "Cap (for aggression)", "Half to 2/3 toward edge"],
     avoidPositions: ["Surround edge (muddy)"],
     tips: [
-      "At 0.5-1 inch: Maximum proximity effect, punchy lows, aggressive highs",
-      "At 2-3 inches: More balanced, natural cabinet sound with room interaction",
-      "Angling 15-45° off-axis reduces harshness while maintaining presence",
-      "The presence peak can be tamed by moving toward the cone"
+      "Craig Anderton: Start 1-2\" back, perpendicular to speaker, half to two-thirds toward edge",
+      "Bobby Owsinski: Place 3/4 between edge and center for balanced body and definition",
+      "Moving toward center = brighter; moving toward edge = darker/warmer",
+      "At 45° off-axis: Warmer, less harsh - reduces presence peak",
+      "Fredman technique: Two SM57s at 55° angle for thick modern metal tone",
+      "Check phase alignment: ~1ms delay per foot of distance from speaker"
     ],
-    cabinetNotes: "Works on virtually any cabinet. Pairs exceptionally well with V30s and Greenbacks. Can sound thin on some speakers at dead-cap position.",
+    cabinetNotes: "Works on virtually any cabinet. Bobby Owsinski's favorite combo: SM57 + MD421 at 45° angle pointing toward voice coil. Pairs exceptionally with V30s and Greenbacks.",
     blendsWith: ["R121", "MD421", "e906"],
     genres: ["Rock", "Metal", "Blues", "Country", "Pop"],
     sources: [
       "Shure Application Notes",
       "Recording Engineer's Handbook - Bobby Owsinski",
+      "Craig Anderton - Miking Guitar Amp Cabinets",
       "Mixing with Your Mind - Michael Paul Stavrou"
     ]
   },
@@ -69,23 +72,25 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "ribbon",
     manufacturer: "Royer Labs",
     pattern: "Figure-8",
-    character: "Warm, smooth top end with no harsh presence peak. Natural roll-off above 10kHz. Thick low-mids give weight to the sound.",
+    character: "Warm, smooth top end with no harsh presence peak. Natural roll-off above 10kHz. Thick low-mids give weight to the sound. Handles 135-160dB SPL.",
     closeMikingRange: { min: 4, max: 12, sweet: 6 },
-    bestPositions: ["Cap Edge", "Cone", "Cap-Cone Transition"],
+    bestPositions: ["Cap Edge (midway to edge)", "Cone", "60° cross-axis"],
     avoidPositions: ["Under 4 inches (excessive proximity bass)"],
     tips: [
-      "Royer recommends 6-8 inches as the starting point for guitar cabs",
-      "Under 4 inches: Very bass-heavy due to strong proximity effect",
-      "At 6-8 inches: Balanced, official Royer sweet spot",
-      "Angle downward 20-30° to reduce proximity-effect bass buildup",
-      "The rear lobe is brighter than the front - experiment with flipping the mic",
-      "Handles high SPL well despite being a ribbon (max 135dB SPL)"
+      "Royer official: Can go right up to grille if amp isn't creating plosives",
+      "Classic position: Few inches back, slightly off-center, angled toward cone center",
+      "60° cross-axis technique (1940s-50s): Very 'chewy' tone, smooth highs",
+      "Back side (logo away) is slightly brighter - great for adding air",
+      "Flip polarity when using back side for proper phase alignment",
+      "Proximity effect starts ~6 feet, becomes noticeable within a few inches",
+      "Ross Hogarth dual-mic setup: R121 + SM57 equidistant, 6-8\" apart"
     ],
-    cabinetNotes: "Excellent for taming harsh speakers like some V30s. The smooth top end complements aggressive amps. Often used as the 'dark' mic in a blend.",
+    cabinetNotes: "Known as 'the electric guitar mic.' Captures what you hear in the room. Don't baby it - many pros treat it like a dynamic. Takes EQ extremely well.",
     blendsWith: ["SM57", "MD421", "C414"],
     genres: ["Rock", "Blues", "Jazz", "Classic Rock", "Country"],
     sources: [
       "Royer Labs Application Guide",
+      "Royer Labs Video Library - Ross Hogarth",
       "Recording Guitarist - Jon Chappell",
       "Sound on Sound Magazine"
     ]
@@ -149,24 +154,26 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "ribbon",
     manufacturer: "Beyerdynamic",
     pattern: "Hypercardioid",
-    character: "Unique hypercardioid ribbon with tighter pickup pattern than typical figure-8 ribbons. Clear, detailed highs for a ribbon. Rich, creamy 3D midrange.",
-    closeMikingRange: { min: 0, max: 8, sweet: 1 },
-    bestPositions: ["Cap Edge (perimeter)", "Cap Off-Center"],
+    character: "Unique hypercardioid ribbon with tighter pattern than figure-8. Warm, creamy midrange with detailed highs. Natural 'expensive' sound without harshness.",
+    closeMikingRange: { min: 0, max: 36, sweet: 12 },
+    bestPositions: ["Cap Edge (perimeter)", "12 inches back", "Anywhere 0-36 inches"],
     tips: [
-      "Jacquire King's go-to: 1 inch from grille, aimed at dust cap perimeter",
-      "Right on the grille: Most bass-heavy, tight and punchy",
-      "At 1 inch: Sweet spot - balanced tone with good air",
-      "At 8 inches: Opens up the sound, less proximity effect",
-      "Hypercardioid pattern provides excellent isolation",
-      "Brighter than most ribbons - can work solo without a bright mic"
+      "Jacquire King technique: 1\" from grille, aimed at dust cap perimeter",
+      "Extremely flexible: Works from inches to 1 meter with no harshness",
+      "Common starting point: 12 inches (1 foot) from speaker",
+      "Closer = more bass (strong proximity effect), farther = more balanced",
+      "Top-address (end-fire) mic - point the end at the speaker",
+      "Often used solo without EQ - natural, polished sound",
+      "Pairs well with SM57 for bite + warmth combination"
     ],
-    cabinetNotes: "Excellent all-around ribbon for guitar cabs. Works well on bright and dark speakers alike. A secret weapon for many studio engineers.",
-    blendsWith: ["SM57", "MD421", "R121"],
-    genres: ["Rock", "Blues", "Jazz", "Fusion", "Progressive"],
+    cabinetNotes: "A secret weapon for many engineers. Brighter than most ribbons but never harsh. Handles high SPL. Works beautifully at 8-10 feet as room mic too.",
+    blendsWith: ["SM57", "MD421", "e906", "R121"],
+    genres: ["Rock", "Blues", "Jazz", "Fusion", "Progressive", "Metal"],
     sources: [
       "Beyerdynamic Technical Documentation",
-      "Pro Sound Web",
-      "Gearslutz/Gearspace forums (professional threads)"
+      "Premier Guitar - On Track",
+      "TapeOp Magazine Review",
+      "Gearspace Professional Threads"
     ]
   },
   {
@@ -176,22 +183,24 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "dynamic",
     manufacturer: "Sennheiser",
     pattern: "Cardioid",
-    character: "Large-diaphragm dynamic with full-range response. Punchy low-end, clear mids, and smooth highs. 5-position bass roll-off switch.",
-    closeMikingRange: { min: 0.5, max: 4, sweet: 1.5 },
-    bestPositions: ["Cap Edge", "Cap", "Cap Off-Center"],
+    character: "Large-diaphragm dynamic with full-range response. Wider frequency range than SM57 - more highs, more lows. Scooped mids, brighter and less compressed.",
+    closeMikingRange: { min: 1, max: 4, sweet: 2 },
+    bestPositions: ["Cap Edge", "45° angled toward voice coil", "Halfway to edge"],
     tips: [
-      "Use the bass roll-off switch: 'M' (Music) for full bass, 'S' (Speech) for reduced proximity effect",
-      "At 0.5-1 inch: Full proximity effect, huge low-end - use 'S' setting if too boomy",
-      "At 2-3 inches: More natural balance, great for cleaner tones",
-      "Less aggressive presence peak than SM57 - smoother top end",
-      "Excellent for scooped metal tones when placed on-cap"
+      "Bobby Owsinski's favorite: Place 421 at 45° to SM57, pointing toward voice coil",
+      "Position 2-4\" back to avoid excessive proximity effect buildup",
+      "Bass switch: Start at 'M' (Music), move toward 'S' if too bass-heavy",
+      "Wider frequency response fills out low-end and treble that SM57 lacks",
+      "Mix typically 60:40 (SM57:MD421) or lower in mix to add body",
+      "Can sound thin on its own - really shines when paired with SM57"
     ],
-    cabinetNotes: "A studio staple alongside the SM57. Works on any cabinet. The fuller low-end compared to SM57 makes it great for thin-sounding speakers.",
+    cabinetNotes: "Bobby Owsinski's go-to pairing with SM57 at 45° angle. The 421 adds punch and body while SM57 provides mids. Phase-align by flipping phase, matching amp hiss, then flipping back.",
     blendsWith: ["SM57", "R121", "C414"],
     genres: ["Rock", "Metal", "Fusion", "Blues", "Pop"],
     sources: [
       "Sennheiser Application Engineering",
       "Recording Engineer's Handbook - Bobby Owsinski",
+      "Bobby Owsinski's Music Production Blog",
       "Mix Magazine"
     ]
   },
@@ -202,27 +211,28 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "dynamic",
     manufacturer: "Sennheiser",
     pattern: "Supercardioid",
-    character: "Extremely accurate dynamic microphone with flat response. Tight supercardioid pattern. Five-position bass switch and presence switch.",
+    character: "Extremely transparent dynamic - condenser-like detail with minimal coloration. Full midrange without SM57 scoop. Limited proximity effect.",
     closeMikingRange: { min: 1, max: 12, sweet: 8 },
-    bestPositions: ["Cap Edge", "Cap Off-Center", "Slight off-axis"],
+    bestPositions: ["Cap Edge", "Slightly off-axis", "1 foot boxed-in"],
     tips: [
-      "Sweet spot for many engineers: 6-12 inches, slightly off-axis",
-      "At 1-2 inches: Maximum detail, very direct sound",
-      "At 6-12 inches: Balanced detail without harshness - preferred by many",
-      "Presence switch: 'Flat' for neutral, 'Presence' for ~4dB boost at 4kHz",
-      "Bass switch: 'M' (Music/full) to 'S' positions for roll-off",
-      "More neutral than SM57 or MD421 - reveals true speaker character"
+      "Sweet spot: 6-12 inches, slightly off-axis for smoother highs",
+      "1-foot boxed technique: Use isolation panels around cab, mic at 12\"",
+      "Off-axis positioning reduces harshness for vintage/clean tones",
+      "Presence switch: Flat for neutral, Presence for +4dB at 4kHz",
+      "5-position bass switch: Start at 'M', reduce if boomy",
+      "Move in 1cm increments - small moves make big tonal changes",
+      "Works great solo without EQ - captures true amp character"
     ],
-    cabinetNotes: "The 'reference' dynamic for critical listening. Shows exactly what the speaker sounds like. May need the presence boost for mix-ready tones.",
+    cabinetNotes: "The 'reference' dynamic for critical listening. Transparent capture of exactly what amp produces. Fuller mids than SM57. Works with any preamp - doesn't need high-end gear.",
     blendsWith: ["R121", "SM57", "e906"],
     genres: ["All genres - especially where accuracy is key"],
     switchSettings: [
-      { name: "Flat", description: "Neutral frequency response - use for accurate capture" },
-      { name: "Presence", description: "4dB boost at 4kHz - adds cut and definition" }
+      { name: "Flat", description: "Neutral frequency response - accurate capture" },
+      { name: "Presence", description: "+4dB at 4kHz - adds cut and definition for mix" }
     ],
     sources: [
       "Sennheiser Pro Audio Documentation",
-      "Sound on Sound Magazine",
+      "HomeRecording.com Professional Threads",
       "TapeOp Magazine"
     ]
   },
@@ -286,25 +296,28 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     type: "dynamic",
     manufacturer: "Sennheiser",
     pattern: "Supercardioid",
-    character: "Flat-front design for easy placement. Three-position presence switch. Clear, defined sound with controlled proximity effect.",
-    closeMikingRange: { min: 0.5, max: 3, sweet: 1 },
-    bestPositions: ["Cap Edge", "Cap", "Cap Off-Center"],
+    character: "Flat-front side-address design for easy placement. Three-position presence switch at 4kHz. Peak at 4.2kHz with switch adjustments.",
+    closeMikingRange: { min: 0, max: 2, sweet: 1 },
+    bestPositions: ["Just off-center of cone", "Cap Edge", "15-45° off-axis (darker)"],
     tips: [
-      "Flat-front design allows hanging directly on cabinet grille",
-      "Three-position switch: Bright (presence boost), Normal (flat), Dark (high-frequency cut)",
-      "At 0.5-1 inch: Tight, focused sound - flat-front minimizes proximity issues",
-      "At 2-3 inches: More open, natural tone",
-      "Supercardioid pattern provides excellent isolation in live settings"
+      "Position 1 (Bright): +7dB at 4.2kHz - aggressive metal, cutting rhythm",
+      "Position 2 (Normal): +5dB at 4.2kHz - classic rock, natural amp tone",
+      "Position 3 (Dark): +2dB at 4kHz - jazz/blues, smooth warm sounds",
+      "Best position: Just off-center of cone (reduces harshness, adds warmth)",
+      "For recording: Use short stand, not draped, for stable positioning",
+      "Switch requires small screwdriver - tamper-resistant design",
+      "High-gain tip: Use Position 3 to reduce fizz and harshness"
     ],
-    cabinetNotes: "Designed specifically for guitar cabinets. The flat front makes positioning consistent and repeatable. A modern studio and live staple.",
-    blendsWith: ["R121", "SM57", "MD421"],
+    cabinetNotes: "Side-address - marked 'FRONT' for correct orientation. Most engineers start with Position 2 (Normal). Supercardioid pattern excellent for tight spaces and reducing bleed.",
+    blendsWith: ["R121", "SM57", "MD421", "M160"],
     genres: ["Rock", "Metal", "Pop", "Blues", "Live performance"],
     switchSettings: [
-      { name: "Bright", description: "Presence boost - adds cut and clarity" },
-      { name: "Normal", description: "Flat, neutral response" },
-      { name: "Dark", description: "High-frequency reduction - warmer, smoother" }
+      { name: "Bright (Pos 1)", description: "+7dB at 4.2kHz - aggressive, cutting through mix" },
+      { name: "Normal (Pos 2)", description: "+5dB at 4.2kHz - natural amp tone, most popular" },
+      { name: "Dark (Pos 3)", description: "+2dB at 4kHz - warm jazz/blues, tames brightness" }
     ],
     sources: [
+      "Sennheiser e906 Manual",
       "Sennheiser Application Notes",
       "Modern Recording Techniques - David Huber",
       "Premier Guitar Magazine"
