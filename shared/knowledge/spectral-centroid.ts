@@ -24,7 +24,7 @@ export const POSITION_OFFSETS: Record<string, { offset: number; description: str
   'capedge_br': { offset: 150, description: 'CapEdge favoring the cap side of the seam, brighter' },
   'capedge_dk': { offset: -150, description: 'CapEdge favoring the cone side of the seam, darker' },
   'cap_cone_tr': { offset: -250, description: 'Smooth cone immediately past the cap edge, transition zone' },
-  'cone': { offset: -500, description: 'True mid-cone position, ribs allowed, not near surround' },
+  'cone': { offset: -500, description: 'True mid-cone position (halfway from center to surround on most speakers), ribs allowed' },
 };
 
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -66,7 +66,7 @@ function normalizeMicName(mic: string): string {
 }
 
 function normalizePosition(position: string): string {
-  const lower = position.toLowerCase().replace(/[^a-z_]/g, '');
+  const lower = position.toLowerCase().replace(/[^a-z0-9_]/g, '');
   
   // New naming convention
   if (lower.includes('capedge_br') || lower.includes('capedgebr')) return 'capedge_br';
@@ -75,11 +75,18 @@ function normalizePosition(position: string): string {
   // Legacy mappings for backwards compatibility
   if (lower.includes('capedge') && lower.includes('favorcap')) return 'capedge_br';
   if (lower.includes('capedge') && lower.includes('favorcone')) return 'capedge_dk';
+  
+  // "Halfway from center to edge" = mid-cone position (cone)
+  // This refers to the geometric center of the entire speaker radius, not the dust cap
+  if (lower.includes('halfway') || lower.includes('midway') || lower.includes('halfedge') || lower.includes('midcone') || lower.includes('mid_cone')) return 'cone';
+  if (lower.includes('half') && lower.includes('edge')) return 'cone';
+  if (lower.includes('center') && lower.includes('edge')) return 'cone';
+  
   // Standard positions
   if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
   if (lower.includes('offcenter') || lower.includes('off_center')) return 'cap_offcenter';
   if (lower === 'cap') return 'cap';
-  if (lower === 'cone') return 'cone';
+  if (lower.includes('cone')) return 'cone';
   
   return 'capedge';
 }
