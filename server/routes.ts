@@ -449,7 +449,43 @@ function validateAndFixRecommendations(
     });
   }
   
-  // 6. Remove duplicate shots (same mic+position+distance)
+  // 6. Roswell Cab Mic special handling: single shot = 6" Cap, multiple = Cap at various distances
+  const roswellShots = validShots.filter(s => 
+    (s.mic || '').toLowerCase().includes('roswell')
+  );
+  if (roswellShots.length === 1) {
+    // Single Roswell shot: force to 6" Cap
+    validShots = validShots.map(shot => {
+      if ((shot.mic || '').toLowerCase().includes('roswell')) {
+        const changes: string[] = [];
+        let newShot = { ...shot };
+        if (shot.position !== 'Cap') {
+          changes.push(`${shot.position} → Cap`);
+          newShot.position = 'Cap';
+        }
+        if (shot.distance !== '6') {
+          changes.push(`${shot.distance}" → 6"`);
+          newShot.distance = '6';
+        }
+        if (changes.length > 0) {
+          fixes.push(`Fixed Roswell Cab Mic: ${changes.join(', ')} (single shot default)`);
+        }
+        return newShot;
+      }
+      return shot;
+    });
+  } else if (roswellShots.length > 1) {
+    // Multiple Roswell shots: force all to Cap position (keep varied distances)
+    validShots = validShots.map(shot => {
+      if ((shot.mic || '').toLowerCase().includes('roswell') && shot.position !== 'Cap') {
+        fixes.push(`Fixed Roswell Cab Mic: ${shot.position} → Cap (multi-shot Cap focus)`);
+        return { ...shot, position: 'Cap' };
+      }
+      return shot;
+    });
+  }
+  
+  // 7. Remove duplicate shots (same mic+position+distance)
   const seen = new Set<string>();
   const deduped: any[] = [];
   for (const shot of validShots) {
