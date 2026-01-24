@@ -803,7 +803,8 @@ CRITICAL INSTRUCTIONS:
 3. Target total: ${targetShotCount || 'not specified'} shots requested
 ${remainingSlots > 0 ? `4. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
    - PRIORITIZE unused mics first for variety
-   - BUT if you need to add more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
+   - However, you MAY return to recipe mics if needed for best practices, genre fit, or tonal balance
+   - When adding more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
      * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
      * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
    - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
@@ -1045,7 +1046,8 @@ CRITICAL INSTRUCTIONS:
 4. Target total: ${targetShotCount || 'not specified'} shots requested
 ${remainingSlots > 0 ? `5. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
    - PRIORITIZE unused mics first for variety
-   - BUT if you need to add more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
+   - However, you MAY return to recipe mics if needed for best practices, genre fit, or tonal balance
+   - When adding more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
      * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
      * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
    - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
