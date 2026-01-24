@@ -1044,7 +1044,7 @@ export default function Recommendations() {
       // Add new - defaults based on mic type
       // Ribbon/condenser mics (Roswell, R121, R10, R92, C414): single position ON, single distance OFF (vary distances)
       // Other mics (dynamics): single position OFF (vary positions), single distance ON (one distance)
-      const singlePositionMics = ['roswell-cab', 'r121', 'r10', 'r92', 'c414'];
+      const singlePositionMics = ['roswell-cab', '121', 'r10', 'r92', 'c414'];
       const defaultSinglePosition = singlePositionMics.includes(selectedMicForRecipe);
       const defaultSingleDistance = !defaultSinglePosition;
       setMicRecipe(prev => [...prev, { 
