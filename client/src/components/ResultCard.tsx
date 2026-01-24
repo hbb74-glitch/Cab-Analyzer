@@ -155,7 +155,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
               "p-4 rounded-xl border",
               spectralDeviation.isWithinRange 
                 ? "bg-emerald-500/10 border-emerald-500/20" 
-                : spectralDeviation.deviationPercent > 50 
+                : spectralDeviation.deviationPercent > 100 
                   ? "bg-red-500/10 border-red-500/20"
                   : "bg-amber-500/10 border-amber-500/20"
             )}>
@@ -164,7 +164,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                   "w-5 h-5 mt-0.5 flex-shrink-0",
                   spectralDeviation.isWithinRange 
                     ? "text-emerald-400" 
-                    : spectralDeviation.deviationPercent > 50 
+                    : spectralDeviation.deviationPercent > 100 
                       ? "text-red-400"
                       : "text-amber-400"
                 )} />
@@ -173,7 +173,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                     "text-sm font-semibold mb-2",
                     spectralDeviation.isWithinRange 
                       ? "text-emerald-400" 
-                      : spectralDeviation.deviationPercent > 50 
+                      : spectralDeviation.deviationPercent > 100 
                         ? "text-red-400"
                         : "text-amber-400"
                   )}>
@@ -194,7 +194,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                         "font-mono font-medium",
                         spectralDeviation.isWithinRange 
                           ? "text-emerald-400" 
-                          : spectralDeviation.deviationPercent > 50 
+                          : spectralDeviation.deviationPercent > 100 
                             ? "text-red-400"
                             : "text-amber-400"
                       )}>
@@ -209,15 +209,15 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                         "font-medium",
                         spectralDeviation.isWithinRange 
                           ? "text-emerald-400" 
-                          : spectralDeviation.deviationPercent > 50 
+                          : spectralDeviation.deviationPercent > 100 
                             ? "text-red-400"
                             : "text-amber-400"
                       )}>
                         {spectralDeviation.isWithinRange 
                           ? "On Target" 
-                          : spectralDeviation.deviationPercent > 100
+                          : spectralDeviation.deviationPercent > 200
                             ? "Consider reshoot"
-                            : spectralDeviation.deviationPercent > 50
+                            : spectralDeviation.deviationPercent > 100
                               ? "Review needed"
                               : "Acceptable"}
                       </span>
