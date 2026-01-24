@@ -1891,9 +1891,12 @@ Output JSON:
             )
           );
           
+          // Normalize mic key same way as validation (lowercase, alphanumeric only)
+          const normalizeMic = (mic: string) => (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          
           // Get mics already in recommendations (prioritize these)
           const existingMics = new Set(
-            result.micRecommendations.map((s: any) => s.mic?.toLowerCase())
+            result.micRecommendations.map((s: any) => normalizeMic(s.mic || ''))
           );
           
           // Sort mics: existing first, then new
@@ -1908,7 +1911,7 @@ Output JSON:
           // Build map of locked distances per mic (from existing shots)
           const micLockedDistance = new Map<string, string>();
           for (const shot of result.micRecommendations) {
-            const micKey = (shot.mic || '').toLowerCase();
+            const micKey = normalizeMic(shot.mic || '');
             if (!micLockedDistance.has(micKey) && shot.distance) {
               micLockedDistance.set(micKey, shot.distance);
             }
@@ -1920,8 +1923,9 @@ Output JSON:
             const micInfo = micDefaults[mic];
             if (!micInfo || micInfo.is1P) continue; // Skip 1P mics in this pass
             
+            const normalizedMic = normalizeMic(mic);
             const existingMicShots = result.micRecommendations.filter((s: any) => 
-              s.mic?.toLowerCase() === mic.toLowerCase()
+              normalizeMic(s.mic || '') === normalizedMic
             );
             
             // When singleDistancePerMic is enabled:
@@ -1929,11 +1933,11 @@ Output JSON:
             // - If no existing shots, assign first default distance and lock it
             let distance: string;
             if (singleDistancePerMic) {
-              if (micLockedDistance.has(mic)) {
-                distance = micLockedDistance.get(mic)!;
+              if (micLockedDistance.has(normalizedMic)) {
+                distance = micLockedDistance.get(normalizedMic)!;
               } else {
                 distance = micInfo.distances[0];
-                micLockedDistance.set(mic, distance);
+                micLockedDistance.set(normalizedMic, distance);
               }
             } else {
               distance = existingMicShots[0]?.distance || micInfo.distances[0];
@@ -1966,8 +1970,9 @@ Output JSON:
               const micInfo = micDefaults[mic];
               if (!micInfo || !micInfo.is1P) continue; // Only 1P mics in this pass
               
+              const normalizedMic = normalizeMic(mic);
               const existingMicShots = result.micRecommendations.filter((s: any) => 
-                s.mic?.toLowerCase() === mic.toLowerCase()
+                normalizeMic(s.mic || '') === normalizedMic
               );
               
               // Get the fixed position for this 1P mic (or default to CapEdge)
