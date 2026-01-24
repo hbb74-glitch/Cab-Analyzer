@@ -1545,29 +1545,38 @@ Output JSON:
         };
         
         // Apply 1P to each ribbon/condenser mic with appropriate position and distance range (4-6")
-        // Use case-insensitive matching for mic codes
-        const apply1PToMicCI = (micPatterns: string[], defaultPosition: string, distances: string[]) => {
-          const shots = result.micRecommendations.filter((s: any) => 
-            micPatterns.some(p => s.mic.toLowerCase() === p.toLowerCase())
-          );
-          if (shots.length > 0) {
-            let distanceIndex = 0;
-            result.micRecommendations = result.micRecommendations.map((shot: any) => {
-              if (micPatterns.some(p => shot.mic.toLowerCase() === p.toLowerCase())) {
-                shot.position = defaultPosition;
-                shot.distance = distances[distanceIndex % distances.length];
-                distanceIndex++;
-              }
-              return shot;
-            });
-          }
+        // Log all mic codes before processing
+        console.log('[1P Enforcement] All mic codes before:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
+        
+        // Force 1P for each ribbon/condenser mic
+        const ribbonCondenser1P: Record<string, string> = {
+          'roswell-cab': 'Cap',
+          'roswell': 'Cap',
+          'c414': 'CapEdge',
+          '121': 'CapEdge',
+          'r121': 'CapEdge',
+          'r10': 'CapEdge',
+          'r92': 'CapEdge'
         };
         
-        apply1PToMicCI(['roswell-cab', 'roswell'], 'Cap', ['4', '5', '6']);
-        apply1PToMicCI(['c414', 'C414'], 'CapEdge', ['4', '5', '6']);
-        apply1PToMicCI(['121', 'R121', 'r121'], 'CapEdge', ['4', '5', '6']);
-        apply1PToMicCI(['r10', 'R10'], 'CapEdge', ['4', '5', '6']);
-        apply1PToMicCI(['r92', 'R92'], 'CapEdge', ['4', '5', '6']);
+        const distances1P = ['4', '5', '6'];
+        const micDistanceIndex: Record<string, number> = {};
+        
+        result.micRecommendations = result.micRecommendations.map((shot: any) => {
+          const micLower = shot.mic.toLowerCase();
+          if (ribbonCondenser1P[micLower]) {
+            const forcedPosition = ribbonCondenser1P[micLower];
+            if (!micDistanceIndex[micLower]) micDistanceIndex[micLower] = 0;
+            const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
+            micDistanceIndex[micLower]++;
+            console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
+            shot.position = forcedPosition;
+            shot.distance = forcedDistance;
+          }
+          return shot;
+        });
+        
+        console.log('[1P Enforcement] All mic codes after:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
         
         // Deduplicate again after position/distance changes
         result.micRecommendations = deduplicateShots(result.micRecommendations);
