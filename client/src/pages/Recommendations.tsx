@@ -55,23 +55,36 @@ const SPEAKERS = [
 ];
 
 const GENRES = [
-  { value: "", label: "Any / General" },
   { value: "classic-rock", label: "Classic Rock" },
   { value: "hard-rock", label: "Hard Rock" },
-  { value: "alternative-rock", label: "Alternative Rock" },
+  { value: "alt-rock", label: "Alt Rock" },
   { value: "punk", label: "Punk" },
   { value: "grunge", label: "Grunge" },
-  { value: "classic-metal", label: "Classic Heavy Metal" },
-  { value: "thrash-metal", label: "Thrash Metal" },
-  { value: "funk-rock", label: "Funk Rock" },
-  { value: "indie-rock", label: "Indie Rock" },
+  { value: "metal", label: "Metal" },
+  { value: "thrash", label: "Thrash" },
+  { value: "doom-stoner", label: "Doom/Stoner" },
+  { value: "indie", label: "Indie" },
   { value: "blues", label: "Blues" },
   { value: "jazz", label: "Jazz" },
   { value: "country", label: "Country" },
-  { value: "doom-stoner", label: "Doom / Stoner" },
+  { value: "funk", label: "Funk" },
   { value: "shoegaze", label: "Shoegaze" },
   { value: "post-punk", label: "Post-Punk" },
-  { value: "custom", label: "Custom (type your own)" },
+];
+
+const TONALITIES = [
+  { value: "bright", label: "Bright" },
+  { value: "dark", label: "Dark" },
+  { value: "warm", label: "Warm" },
+  { value: "aggressive", label: "Aggressive" },
+  { value: "smooth", label: "Smooth" },
+  { value: "punchy", label: "Punchy" },
+  { value: "thick", label: "Thick" },
+  { value: "scooped", label: "Scooped" },
+  { value: "mid-forward", label: "Mid-Forward" },
+  { value: "clean-headroom", label: "Clean Headroom" },
+  { value: "crunchy", label: "Crunchy" },
+  { value: "saturated", label: "Saturated" },
 ];
 
 type Mode = 'by-speaker' | 'by-amp' | 'import-positions';
@@ -390,9 +403,9 @@ Also blend with professional best practices:
 export default function Recommendations() {
   const [micType, setMicType] = useState<string>("");
   const [speaker, setSpeaker] = useState<string>("");
-  const [genre, setGenre] = useState<string>("");
-  const [customGenre, setCustomGenre] = useState<string>("");
-  const [tonalText, setTonalText] = useState<string>("");
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedTonalities, setSelectedTonalities] = useState<string[]>([]);
+  const [otherToneNotes, setOtherToneNotes] = useState<string>("");
   const [preferredShots, setPreferredShots] = useState<string>("");
   const [showPreferences, setShowPreferences] = useState(false);
   const [ampDescription, setAmpDescription] = useState<string>("");
@@ -1162,22 +1175,35 @@ export default function Recommendations() {
     setImportResult(null);
     setMicType("");
     setSpeaker("");
-    setGenre("");
-    setCustomGenre("");
-    setTonalText("");
+    setSelectedGenres([]);
+    setSelectedTonalities([]);
+    setOtherToneNotes("");
     setAmpDescription("");
     setPositionList("");
     setImportSpeaker("");
   };
 
+  const toggleGenre = (value: string) => {
+    setSelectedGenres(prev => 
+      prev.includes(value) ? prev.filter(g => g !== value) : [...prev, value]
+    );
+  };
+
+  const toggleTonality = (value: string) => {
+    setSelectedTonalities(prev => 
+      prev.includes(value) ? prev.filter(t => t !== value) : [...prev, value]
+    );
+  };
+
   const buildEffectiveGenre = () => {
     const parts: string[] = [];
-    if (genre === 'custom') {
-      if (customGenre.trim()) parts.push(customGenre.trim());
-    } else if (genre) {
-      parts.push(genre);
+    if (selectedGenres.length > 0) {
+      parts.push(selectedGenres.map(g => GENRES.find(x => x.value === g)?.label || g).join(', '));
     }
-    if (tonalText.trim()) parts.push(tonalText.trim());
+    if (selectedTonalities.length > 0) {
+      parts.push(selectedTonalities.map(t => TONALITIES.find(x => x.value === t)?.label || t).join(', '));
+    }
+    if (otherToneNotes.trim()) parts.push(otherToneNotes.trim());
     return parts.join('; ') || undefined;
   };
 
@@ -1281,46 +1307,67 @@ export default function Recommendations() {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Music className="w-3 h-3" /> Genre (Optional)
+                <Music className="w-3 h-3" /> Genres (Optional)
               </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                data-testid="select-genre"
-              >
+              <div className="flex flex-wrap gap-2" data-testid="genre-checkboxes">
                 {GENRES.map((g) => (
-                  <option key={g.value} value={g.value}>{g.label}</option>
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => toggleGenre(g.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedGenres.includes(g.value)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`genre-${g.value}`}
+                  >
+                    {g.label}
+                  </button>
                 ))}
-              </select>
-              {genre === 'custom' && (
-                <input
-                  type="text"
-                  value={customGenre}
-                  onChange={(e) => setCustomGenre(e.target.value)}
-                  placeholder="Enter your genre (e.g., 'doom metal', 'shoegaze')"
-                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
-                  data-testid="input-custom-genre"
-                />
-              )}
+              </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Target className="w-3 h-3" /> Tonal Goals (Optional)
+                <Target className="w-3 h-3" /> Tonality (Optional)
+              </label>
+              <div className="flex flex-wrap gap-2" data-testid="tonality-checkboxes">
+                {TONALITIES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => toggleTonality(t.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedTonalities.includes(t.value)
+                        ? "bg-amber-500/80 text-white border-amber-500"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`tonality-${t.value}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Other Tone Notes (Optional)
               </label>
               <input
                 type="text"
-                value={tonalText}
-                onChange={(e) => setTonalText(e.target.value)}
-                placeholder="e.g., Green Day power pop, spanky cleans, thick rhythm..."
+                value={otherToneNotes}
+                onChange={(e) => setOtherToneNotes(e.target.value)}
+                placeholder="e.g., Green Day power pop, artist references, specific qualities..."
                 className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                data-testid="input-tonal-text"
+                data-testid="input-other-tone-notes"
               />
-              <p className="text-xs text-muted-foreground">Add specific tonal qualities or artist references</p>
             </div>
           </div>
 
@@ -1730,7 +1777,7 @@ export default function Recommendations() {
             </button>
             <button
               type="submit"
-              disabled={!speaker || isPending || (genre === 'custom' && !customGenre.trim())}
+              disabled={!speaker || isPending}
               className={cn(
                 "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
                 !speaker || isPending
@@ -1775,44 +1822,66 @@ export default function Recommendations() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Music className="w-3 h-3" /> Genre (Optional)
+                <Music className="w-3 h-3" /> Genres (Optional)
               </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                data-testid="select-genre-amp"
-              >
+              <div className="flex flex-wrap gap-2" data-testid="genre-checkboxes-amp">
                 {GENRES.map((g) => (
-                  <option key={g.value} value={g.value}>{g.label}</option>
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => toggleGenre(g.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedGenres.includes(g.value)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`genre-amp-${g.value}`}
+                  >
+                    {g.label}
+                  </button>
                 ))}
-              </select>
-              {genre === 'custom' && (
-                <input
-                  type="text"
-                  value={customGenre}
-                  onChange={(e) => setCustomGenre(e.target.value)}
-                  placeholder="Enter your genre"
-                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
-                  data-testid="input-custom-genre-amp"
-                />
-              )}
+              </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Target className="w-3 h-3" /> Tonal Goals (Optional)
+                <Target className="w-3 h-3" /> Tonality (Optional)
+              </label>
+              <div className="flex flex-wrap gap-2" data-testid="tonality-checkboxes-amp">
+                {TONALITIES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => toggleTonality(t.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedTonalities.includes(t.value)
+                        ? "bg-amber-500/80 text-white border-amber-500"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`tonality-amp-${t.value}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Other Tone Notes (Optional)
               </label>
               <input
                 type="text"
-                value={tonalText}
-                onChange={(e) => setTonalText(e.target.value)}
+                value={otherToneNotes}
+                onChange={(e) => setOtherToneNotes(e.target.value)}
                 placeholder="e.g., bright leads, thick rhythm, vintage warmth..."
                 className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                data-testid="input-tonal-text-amp"
+                data-testid="input-other-tone-notes-amp"
               />
             </div>
           </div>
@@ -1866,7 +1935,7 @@ export default function Recommendations() {
             </button>
             <button
               type="submit"
-              disabled={!ampDescription.trim() || isAmpPending || (genre === 'custom' && !customGenre.trim())}
+              disabled={!ampDescription.trim() || isAmpPending}
               className={cn(
                 "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
                 !ampDescription.trim() || isAmpPending
@@ -1934,45 +2003,70 @@ Or written out:
               <p className="text-xs text-muted-foreground">Optionally specify if all positions are for the same speaker</p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Music className="w-3 h-3" /> Genre (Optional)
-              </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                data-testid="select-genre-import"
-              >
-                {GENRES.map((g) => (
-                  <option key={g.value} value={g.value}>{g.label}</option>
-                ))}
-              </select>
-              {genre === 'custom' && (
-                <input
-                  type="text"
-                  value={customGenre}
-                  onChange={(e) => setCustomGenre(e.target.value)}
-                  placeholder="Enter your genre"
-                  className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mt-2"
-                  data-testid="input-custom-genre-import"
-                />
-              )}
-            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Target className="w-3 h-3" /> Tonal Goals (Optional)
-            </label>
-            <input
-              type="text"
-              value={tonalText}
-              onChange={(e) => setTonalText(e.target.value)}
-              placeholder="e.g., Green Day power pop, spanky cleans, thick rhythm..."
-              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              data-testid="input-tonal-text-import"
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Music className="w-3 h-3" /> Genres (Optional)
+              </label>
+              <div className="flex flex-wrap gap-2" data-testid="genre-checkboxes-import">
+                {GENRES.map((g) => (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => toggleGenre(g.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedGenres.includes(g.value)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`genre-import-${g.value}`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Tonality (Optional)
+              </label>
+              <div className="flex flex-wrap gap-2" data-testid="tonality-checkboxes-import">
+                {TONALITIES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => toggleTonality(t.value)}
+                    className={cn(
+                      "px-3 py-1.5 text-xs rounded-full border transition-all",
+                      selectedTonalities.includes(t.value)
+                        ? "bg-amber-500/80 text-white border-amber-500"
+                        : "bg-black/20 border-white/10 hover:border-white/30"
+                    )}
+                    data-testid={`tonality-import-${t.value}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Other Tone Notes (Optional)
+              </label>
+              <input
+                type="text"
+                value={otherToneNotes}
+                onChange={(e) => setOtherToneNotes(e.target.value)}
+                placeholder="e.g., Green Day power pop, spanky cleans, thick rhythm..."
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-other-tone-notes-import"
+              />
+            </div>
           </div>
 
           {/* Target Shot Count */}
