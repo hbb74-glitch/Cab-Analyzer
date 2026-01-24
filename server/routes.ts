@@ -1905,7 +1905,16 @@ Output JSON:
           
           let added = 0;
           
-          // First pass: add unused positions for non-1P mics (at their existing distance)
+          // Build map of locked distances per mic (from existing shots)
+          const micLockedDistance = new Map<string, string>();
+          for (const shot of result.micRecommendations) {
+            const micKey = (shot.mic || '').toLowerCase();
+            if (!micLockedDistance.has(micKey) && shot.distance) {
+              micLockedDistance.set(micKey, shot.distance);
+            }
+          }
+          
+          // First pass: add unused positions for non-1P mics (at their locked distance only)
           for (const mic of sortedMics) {
             if (added >= shortfall) break;
             const micInfo = micDefaults[mic];
@@ -1915,8 +1924,21 @@ Output JSON:
               s.mic?.toLowerCase() === mic.toLowerCase()
             );
             
-            // Use existing distance or first default
-            const distance = existingMicShots[0]?.distance || micInfo.distances[0];
+            // When singleDistancePerMic is enabled:
+            // - Use existing locked distance if this mic already has shots
+            // - If no existing shots, assign first default distance and lock it
+            let distance: string;
+            if (singleDistancePerMic) {
+              if (micLockedDistance.has(mic)) {
+                distance = micLockedDistance.get(mic)!;
+              } else {
+                distance = micInfo.distances[0];
+                micLockedDistance.set(mic, distance);
+              }
+            } else {
+              distance = existingMicShots[0]?.distance || micInfo.distances[0];
+            }
+            
             const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
             
             for (const pos of positions) {
@@ -1930,40 +1952,43 @@ Output JSON:
                   bestFor: genre || 'General use'
                 });
                 existingKeys.add(key);
-                console.log(`[Backfill] Added ${mic} at ${pos} ${distance}"`);
+                console.log(`[Backfill] Added ${mic} at ${pos} ${distance}" (locked distance: ${singleDistancePerMic})`);
                 added++;
               }
             }
           }
           
           // Second pass: add different distances for 1P mics (fixed position, vary distance)
-          for (const mic of sortedMics) {
-            if (added >= shortfall) break;
-            const micInfo = micDefaults[mic];
-            if (!micInfo || !micInfo.is1P) continue; // Only 1P mics in this pass
-            
-            const existingMicShots = result.micRecommendations.filter((s: any) => 
-              s.mic?.toLowerCase() === mic.toLowerCase()
-            );
-            
-            // Get the fixed position for this 1P mic (or default to CapEdge)
-            const position = existingMicShots[0]?.position || 'CapEdge';
-            const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
-            
-            // Try each available distance
-            for (const dist of micInfo.distances) {
+          // Only runs if singleDistancePerMic is NOT enabled (otherwise 1P mics are fully constrained)
+          if (!singleDistancePerMic) {
+            for (const mic of sortedMics) {
               if (added >= shortfall) break;
-              const key = makeKey(mic, position, dist);
-              if (!existingKeys.has(key)) {
-                result.micRecommendations.push({
-                  mic, micLabel, position, distance: dist,
-                  rationale: `Added at ${dist}" distance to reach target shot count.`,
-                  expectedTone: 'Varies with distance',
-                  bestFor: genre || 'General use'
-                });
-                existingKeys.add(key);
-                console.log(`[Backfill] Added ${mic} at ${position} ${dist}" (1P distance variation)`);
-                added++;
+              const micInfo = micDefaults[mic];
+              if (!micInfo || !micInfo.is1P) continue; // Only 1P mics in this pass
+              
+              const existingMicShots = result.micRecommendations.filter((s: any) => 
+                s.mic?.toLowerCase() === mic.toLowerCase()
+              );
+              
+              // Get the fixed position for this 1P mic (or default to CapEdge)
+              const position = existingMicShots[0]?.position || 'CapEdge';
+              const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
+              
+              // Try each available distance
+              for (const dist of micInfo.distances) {
+                if (added >= shortfall) break;
+                const key = makeKey(mic, position, dist);
+                if (!existingKeys.has(key)) {
+                  result.micRecommendations.push({
+                    mic, micLabel, position, distance: dist,
+                    rationale: `Added at ${dist}" distance to reach target shot count.`,
+                    expectedTone: 'Varies with distance',
+                    bestFor: genre || 'General use'
+                  });
+                  existingKeys.add(key);
+                  console.log(`[Backfill] Added ${mic} at ${position} ${dist}" (1P distance variation)`);
+                  added++;
+                }
               }
             }
           }
