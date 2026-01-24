@@ -998,22 +998,23 @@ export default function Recommendations() {
     const parts: string[] = [];
     if (micRecipe.length > 0) {
       // Include 1P (single position) and 1D (single distance) flags per mic
+      // Make instructions VERY explicit for AI to follow
       const micParts = micRecipe.map(r => {
         const countPart = `${r.label} x ${r.count}`;
         
         // Four combinations: 1P+1D, 1P only, 1D only, neither
         if (r.singlePosition && r.singleDistance) {
           // Both locked = effectively 1 shot regardless of count
-          return `${countPart} (SINGLE POSITION + SINGLE DISTANCE = 1 shot at one optimal position/distance)`;
+          return `${countPart} [STRICT: Output exactly 1 shot - pick ONE best position and ONE best distance for ${r.label}]`;
         } else if (r.singlePosition && !r.singleDistance) {
           // One position, vary distances
-          return `${countPart} (SINGLE POSITION - one position, ${r.count} different distances)`;
+          return `${countPart} [STRICT: Pick ONE position for all ${r.label} shots, but use ${r.count} DIFFERENT distances. Example: ${r.label}_Cap_1in, ${r.label}_Cap_2in, ${r.label}_Cap_3in - same position, different distances]`;
         } else if (!r.singlePosition && r.singleDistance) {
           // Vary positions, one distance
-          return `${countPart} (SINGLE DISTANCE - ${r.count} different positions, one optimal distance)`;
+          return `${countPart} [STRICT: Use ONE distance for all ${r.label} shots, but ${r.count} DIFFERENT positions. Example: ${r.label}_Cap_2in, ${r.label}_CapEdge_2in, ${r.label}_Cone_2in - different positions, same distance]`;
         } else {
           // Vary both
-          return `${countPart} (vary both positions and distances)`;
+          return `${countPart} [Vary both positions and distances freely]`;
         }
       });
       parts.push(micParts.join(", "));
