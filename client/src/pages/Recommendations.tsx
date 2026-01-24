@@ -1653,7 +1653,7 @@ export default function Recommendations() {
                         className={cn(
                           "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
                           r.singlePosition 
-                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                            ? "bg-cyan-500/25 text-cyan-300 border border-cyan-400/40" 
                             : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
                         )}
                         title={r.singlePosition ? "Single position: ON - one position" : "Single position: OFF - vary positions"}
@@ -2108,7 +2108,7 @@ Or written out:
                         className={cn(
                           "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
                           r.singlePosition 
-                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                            ? "bg-cyan-500/25 text-cyan-300 border border-cyan-400/40" 
                             : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
                         )}
                         title={r.singlePosition ? "Single position: ON - one position" : "Single position: OFF - vary positions"}
