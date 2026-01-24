@@ -414,6 +414,11 @@ export default function Recommendations() {
   const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
   const [basicPositionsOnly, setBasicPositionsOnly] = useState(false);
   const [singleDistancePerMic, setSingleDistancePerMic] = useState(false);
+  const [singlePositionForRibbons, setSinglePositionForRibbons] = useState(false);
+  
+  // Mic categories for global constraint checkboxes
+  const dynamicCloseMics = ['57', 'm201', 'md421', 'md421k', '160', 'e906'];
+  const ribbonCondensorMics = ['roswell-cab', '121', 'r10', 'r92', 'c414'];
   const [micRecipe, setMicRecipe] = useState<MicRecipeEntry[]>([]);
   const [selectedMicForRecipe, setSelectedMicForRecipe] = useState<string>("");
   const [selectedMicCount, setSelectedMicCount] = useState<number>(2);
@@ -1017,25 +1022,33 @@ export default function Recommendations() {
       const micParts = micRecipe.map(r => {
         const countPart = `${r.label} x ${r.count}`;
         
-        // Four combinations: 1P+1D, 1P only, 1D only, neither
+        // Apply global constraints based on mic category
+        // singleDistancePerMic → 1D for dynamics (SM57, M201, MD421, MD421K, M160, e906)
+        // singlePositionForRibbons → 1P for ribbons/condensers (Roswell, R121, R10, R92, C414)
+        const isDynamic = dynamicCloseMics.includes(r.mic);
+        const isRibbonCondenser = ribbonCondensorMics.includes(r.mic);
+        
+        // Determine effective constraints (per-mic override OR global)
+        const effectiveSingleDistance = r.singleDistance || (singleDistancePerMic && isDynamic);
+        const effectiveSinglePosition = r.singlePosition || (singlePositionForRibbons && isRibbonCondenser);
+        
         // Special handling for Roswell - always Cap position
         const isRoswell = r.mic === 'roswell-cab';
-        const positionExample = isRoswell ? 'Cap' : 'Cap';
         
-        if (r.singlePosition && r.singleDistance) {
+        if (effectiveSinglePosition && effectiveSingleDistance) {
           // Both locked = effectively 1 shot regardless of count
           if (isRoswell) {
             return `${countPart} [STRICT: Output exactly 1 Roswell shot at Cap position with one distance, e.g., Roswell_Cap_6in]`;
           }
           return `${countPart} [STRICT: Output exactly 1 shot - pick ONE best position and ONE best distance for ${r.label}]`;
-        } else if (r.singlePosition && !r.singleDistance) {
-          // One position, vary distances
+        } else if (effectiveSinglePosition && !effectiveSingleDistance) {
+          // One position, vary distances (1P)
           if (isRoswell) {
             return `${countPart} [STRICT: ALL Roswell shots MUST be at Cap position. Vary ONLY the distance. Output ${r.count} shots like: Roswell_Cap_4in, Roswell_Cap_6in, Roswell_Cap_8in. NEVER use any position other than Cap for Roswell.]`;
           }
           return `${countPart} [STRICT: Pick ONE position for all ${r.label} shots, but use ${r.count} DIFFERENT distances. Example: ${r.label}_Cap_1in, ${r.label}_Cap_2in, ${r.label}_Cap_3in - same position, different distances]`;
-        } else if (!r.singlePosition && r.singleDistance) {
-          // Vary positions, one distance
+        } else if (!effectiveSinglePosition && effectiveSingleDistance) {
+          // Vary positions, one distance (1D)
           return `${countPart} [STRICT: Use ONE distance for all ${r.label} shots, but ${r.count} DIFFERENT positions. Example: ${r.label}_Cap_2in, ${r.label}_CapEdge_2in, ${r.label}_Cone_2in - different positions, same distance]`;
         } else {
           // Vary both
@@ -1608,7 +1621,7 @@ export default function Recommendations() {
             </p>
           </div>
 
-          {/* Single Distance Per Mic */}
+          {/* Single Distance for Dynamics (1D) */}
           <div className="space-y-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -1618,10 +1631,29 @@ export default function Recommendations() {
                 className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
                 data-testid="checkbox-single-distance-per-mic-speaker"
               />
-              <span className="text-sm font-medium text-foreground">Single Distance Per Mic</span>
+              <span className="text-sm font-medium text-foreground">Same Distance for Dynamics</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">1D</span>
             </label>
             <p className="text-xs text-muted-foreground pl-7">
-              For workflow efficiency: each mic uses ONE optimal distance. Vary position for tonal variety, not distance.
+              SM57, M201, MD421, MD421K, M160, e906: same distance, vary position. Quick workflow for close mics.
+            </p>
+          </div>
+          
+          {/* Single Position for Ribbons/Condensers (1P) */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={singlePositionForRibbons}
+                onChange={(e) => setSinglePositionForRibbons(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-single-position-for-ribbons"
+              />
+              <span className="text-sm font-medium text-foreground">Same Position for Ribbons/Condensers</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-medium">1P</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              Roswell, R121, R10, R92, C414: same position, vary distance. Ribbons sound best at their sweet spot.
             </p>
           </div>
 
@@ -2109,7 +2141,7 @@ Or written out:
             </p>
           </div>
 
-          {/* Single Distance Per Mic */}
+          {/* Single Distance for Dynamics (1D) */}
           <div className="space-y-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -2119,10 +2151,29 @@ Or written out:
                 className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
                 data-testid="checkbox-single-distance-per-mic"
               />
-              <span className="text-sm font-medium text-foreground">Single Distance Per Mic</span>
+              <span className="text-sm font-medium text-foreground">Same Distance for Dynamics</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">1D</span>
             </label>
             <p className="text-xs text-muted-foreground pl-7">
-              For workflow efficiency: each mic uses ONE optimal distance. Vary position for tonal variety, not distance.
+              SM57, M201, MD421, MD421K, M160, e906: same distance, vary position.
+            </p>
+          </div>
+          
+          {/* Single Position for Ribbons/Condensers (1P) */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={singlePositionForRibbons}
+                onChange={(e) => setSinglePositionForRibbons(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-single-position-for-ribbons-import"
+              />
+              <span className="text-sm font-medium text-foreground">Same Position for Ribbons/Condensers</span>
+              <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-medium">1P</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              Roswell, R121, R10, R92, C414: same position, vary distance.
             </p>
           </div>
 
