@@ -998,12 +998,24 @@ export default function Recommendations() {
     const parts: string[] = [];
     if (micRecipe.length > 0) {
       // Include single-distance flag per mic
+      // Roswell Cab Mic is special: it stays at Cap position and varies distance (opposite of other mics)
       const micParts = micRecipe.map(r => {
         const countPart = `${r.label} x ${r.count}`;
-        if (r.singleDistance) {
-          return `${countPart} (SINGLE DISTANCE - all ${r.label} shots must use one optimal distance, vary position only)`;
+        const isRoswell = r.mic === 'roswell-cab';
+        
+        if (isRoswell) {
+          // Roswell: always Cap position, vary distance (unless 1D is toggled ON which would mean single distance too)
+          if (r.singleDistance) {
+            return `${countPart} (Roswell Cab Mic: CAP POSITION ONLY, SINGLE DISTANCE - one fixed position and distance)`;
+          }
+          return `${countPart} (Roswell Cab Mic: CAP POSITION ONLY - keep at Cap, vary distance only)`;
+        } else {
+          // Other mics: 1D means single distance, vary positions
+          if (r.singleDistance) {
+            return `${countPart} (SINGLE DISTANCE - all ${r.label} shots must use one optimal distance, vary position only)`;
+          }
+          return countPart;
         }
-        return countPart;
       });
       parts.push(micParts.join(", "));
     }
