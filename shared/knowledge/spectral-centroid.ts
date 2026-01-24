@@ -3,7 +3,7 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'r121': { min: 1500, max: 2200, description: 'Ribbon, smooth highs, big low-mid' },
   'r10': { min: 1500, max: 2200, description: 'Ribbon, smooth and warm' },
   'r92': { min: 1400, max: 2100, description: 'Ribbon, similar to R121, slightly darker' },
-  'm160': { min: 1800, max: 2600, description: 'Hypercardioid ribbon, tighter and focused' },
+  'm160': { min: 3200, max: 3700, description: 'Hypercardioid ribbon, tighter and focused - empirically measured' },
   'md421': { min: 2000, max: 2800, description: 'Large diaphragm dynamic, punchy' },
   'md441': { min: 2300, max: 3200, description: 'Dynamic, very accurate (flat mode)' },
   'md441_presence': { min: 2600, max: 3500, description: 'MD441 with presence boost' },
