@@ -1557,8 +1557,25 @@ Output JSON:
               const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
               micDistanceIndex[micLower]++;
               console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
+              const oldPosition = shot.position;
+              const oldDistance = shot.distance;
               shot.position = forcedPosition;
               shot.distance = forcedDistance;
+              // Update rationale to reflect the forced position/distance
+              if (shot.rationale) {
+                // Replace position references (handle "at the X" and "at X" patterns)
+                shot.rationale = shot.rationale
+                  .replace(new RegExp(`at (the )?${oldPosition}\\b`, 'gi'), `at ${forcedPosition}`)
+                  .replace(new RegExp(`\\b${oldPosition} position`, 'gi'), `${forcedPosition} position`)
+                  .replace(new RegExp(`\\b${oldPosition}( with| and)`, 'gi'), `${forcedPosition}$1`);
+                // Replace distance references (handle various formats: 4.5", 4.5-inch, 4.5 inches, at 4.5 inches)
+                const escapedOldDist = oldDistance.replace('.', '\\.');
+                shot.rationale = shot.rationale
+                  .replace(new RegExp(`${escapedOldDist}"`, 'g'), `${forcedDistance}"`)
+                  .replace(new RegExp(`${escapedOldDist}-inch`, 'gi'), `${forcedDistance}-inch`)
+                  .replace(new RegExp(`${escapedOldDist} inch`, 'gi'), `${forcedDistance} inch`)
+                  .replace(new RegExp(`at ${escapedOldDist} `, 'gi'), `at ${forcedDistance} `);
+              }
             }
             return shot;
           });
