@@ -1857,16 +1857,20 @@ Output JSON:
           const shortfall = targetShotCount - result.micRecommendations.length;
           console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
           
-          // Full mic list with default distances (prioritize mics already in list, then add new ones)
-          const micDefaults: Record<string, { label: string, distance: string }> = {
-            '57': { label: 'SM57', distance: '1.5' },
-            'md421k': { label: 'MD421K', distance: '2' },
-            'md441': { label: 'MD441_Presence', distance: '3' },
-            'm160': { label: 'M160', distance: '3' },
-            'm201': { label: 'M201', distance: '2' },
-            'e906': { label: 'e906_Presence', distance: '1' },
-            'pr30': { label: 'PR30', distance: '1' },
-            'r10': { label: 'R10', distance: '4' },
+          // Full mic list with default distances and available distance options
+          // 1P mics (ribbons/condensers) have fixed position but can vary distance
+          const micDefaults: Record<string, { label: string, distances: string[], is1P: boolean }> = {
+            '57': { label: 'SM57', distances: ['1', '1.5', '2', '3'], is1P: false },
+            'md421k': { label: 'MD421K', distances: ['1', '1.5', '2', '3'], is1P: false },
+            'md441': { label: 'MD441_Presence', distances: ['2', '3', '4', '5'], is1P: false },
+            'm160': { label: 'M160', distances: ['1', '2', '3', '4'], is1P: false },
+            'm201': { label: 'M201', distances: ['1', '1.5', '2', '3'], is1P: false },
+            'e906': { label: 'e906_Presence', distances: ['1', '1.5', '2'], is1P: false },
+            'pr30': { label: 'PR30', distances: ['1', '1.5', '2'], is1P: false },
+            'r121': { label: 'R121', distances: ['4', '5', '6', '7', '8'], is1P: true },
+            'r10': { label: 'R10', distances: ['4', '5', '6', '7'], is1P: true },
+            'c414': { label: 'C414', distances: ['4', '5', '6', '7', '8'], is1P: true },
+            'roswell-cab': { label: 'Roswell Cab Mic', distances: ['4', '5', '6', '7', '8'], is1P: true },
           };
           
           const positions = basicPositionsOnly 
@@ -1893,38 +1897,65 @@ Output JSON:
           ];
           
           let added = 0;
+          
+          // First pass: add unused positions for non-1P mics (at their existing distance)
           for (const mic of sortedMics) {
             if (added >= shortfall) break;
+            const micInfo = micDefaults[mic];
+            if (!micInfo || micInfo.is1P) continue; // Skip 1P mics in this pass
             
-            // Get distance from existing shots or use default
             const existingMicShots = result.micRecommendations.filter((s: any) => 
               s.mic?.toLowerCase() === mic.toLowerCase()
             );
             
-            let distance = micDefaults[mic]?.distance || '2';
-            let micLabel = micDefaults[mic]?.label || mic.toUpperCase();
+            // Use existing distance or first default
+            const distance = existingMicShots[0]?.distance || micInfo.distances[0];
+            const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
             
-            if (existingMicShots.length > 0) {
-              distance = existingMicShots[0]?.distance || distance;
-              micLabel = existingMicShots[0]?.micLabel || micLabel;
-            }
-            
-            // Find unused positions for this mic
             for (const pos of positions) {
               if (added >= shortfall) break;
               const key = `${mic.toLowerCase()}:${pos}:${distance}`;
               if (!existingKeys.has(key)) {
                 result.micRecommendations.push({
-                  mic,
-                  micLabel,
-                  position: pos,
-                  distance,
+                  mic, micLabel, position: pos, distance,
                   rationale: `Added to reach target shot count.`,
                   expectedTone: 'Varies with position',
                   bestFor: genre || 'General use'
                 });
                 existingKeys.add(key);
-                console.log(`[Post-Validation Backfill] Added ${mic} at ${pos} ${distance}"`);
+                console.log(`[Backfill] Added ${mic} at ${pos} ${distance}"`);
+                added++;
+              }
+            }
+          }
+          
+          // Second pass: add different distances for 1P mics (fixed position, vary distance)
+          for (const mic of sortedMics) {
+            if (added >= shortfall) break;
+            const micInfo = micDefaults[mic];
+            if (!micInfo || !micInfo.is1P) continue; // Only 1P mics in this pass
+            
+            const existingMicShots = result.micRecommendations.filter((s: any) => 
+              s.mic?.toLowerCase() === mic.toLowerCase()
+            );
+            
+            // Get the fixed position for this 1P mic (or default to CapEdge)
+            const position = existingMicShots[0]?.position || 'CapEdge';
+            const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
+            
+            // Try each available distance
+            for (const dist of micInfo.distances) {
+              if (added >= shortfall) break;
+              const key = `${mic.toLowerCase()}:${position}:${dist}`;
+              if (!existingKeys.has(key)) {
+                result.micRecommendations.push({
+                  mic, micLabel, position, distance: dist,
+                  rationale: `Added at ${dist}" distance to reach target shot count.`,
+                  expectedTone: 'Varies with distance',
+                  bestFor: genre || 'General use'
+                });
+                existingKeys.add(key);
+                console.log(`[Backfill] Added ${mic} at ${position} ${dist}" (1P distance variation)`);
                 added++;
               }
             }
