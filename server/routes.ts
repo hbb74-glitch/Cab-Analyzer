@@ -829,6 +829,7 @@ ${micShotCounts}
       - 121 (R-121): Ribbon, smooth highs, thick low-mids, figure-8. MINIMUM 4" required. Sweet spot 4-6".
       - 160 (M160): Hypercardioid ribbon, less proximity effect. Jacquire King: 1" from grille. Sweet spot 1-4".
       - 421 (MD421): Large diaphragm dynamic, scooped mids. Sweet spot 2-4".
+      - 421k (MD421K / MD421 Kompakt): Compact version of MD421, same character but smaller form factor. Sweet spot 2-4". THIS IS A DIFFERENT MIC FROM MD421 - do not substitute.
       - md441 (MD441): Condenser-like transparency. Sweet spot 4-6", slightly off-axis.
       - r10 (R10): Entry-level Royer ribbon. MINIMUM 4" required. Sweet spot 4-6".
       - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" required. Sweet spot 4-6".
@@ -1088,6 +1089,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - 121 (R-121): Ribbon, smooth highs, big low-mid. MINIMUM 4" distance required.
       - 160 (M160): Hypercardioid ribbon, less proximity. Can go to 1".
       - 421 (MD421): Large diaphragm dynamic, punchy. Sweet spot 2-4".
+      - 421k (MD421K / MD421 Kompakt): Compact version of MD421, same tonal character. Sweet spot 2-4". THIS IS A DIFFERENT MIC FROM MD421 - do not substitute one for the other.
       - md441 (MD441): Dynamic with presence/flat switch. Treat EACH setting as a separate mic option. Sweet spot 4-6".
       - r10 (R10): Ribbon, smooth and warm. MINIMUM 4" distance required.
       - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" distance required.
