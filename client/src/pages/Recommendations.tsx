@@ -76,6 +76,8 @@ const TONALITIES = [
   { value: "bright", label: "Bright" },
   { value: "dark", label: "Dark" },
   { value: "warm", label: "Warm" },
+  { value: "natural", label: "Natural" },
+  { value: "clear", label: "Clear" },
   { value: "aggressive", label: "Aggressive" },
   { value: "smooth", label: "Smooth" },
   { value: "punchy", label: "Punchy" },

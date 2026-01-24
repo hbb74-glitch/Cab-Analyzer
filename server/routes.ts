@@ -1377,6 +1377,32 @@ Output JSON:
         }
       }
       
+      // Deduplicate shots (normalize mic codes, positions, distances)
+      if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        const seen = new Set<string>();
+        result.micRecommendations = result.micRecommendations.filter((shot: any) => {
+          // Normalize mic code
+          let mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          // Normalize position - convert verbose descriptions to codes
+          let pos = (shot.position || '').toLowerCase()
+            .replace(/off-axis.*|on-axis.*/i, '')
+            .replace(/center of cone/i, 'cone')
+            .replace(/edge of cone/i, 'capedge')
+            .replace(/cap edge/i, 'capedge')
+            .replace(/[^a-z_]/g, '');
+          // Normalize distance - extract just the number
+          let dist = (shot.distance || '').toString().replace(/[^0-9.]/g, '');
+          
+          const key = `${mic}|${pos}|${dist}`;
+          if (seen.has(key)) {
+            console.log('[By-Speaker] Removing duplicate:', shot.micLabel, shot.position, shot.distance);
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
+      }
+      
       // Enforce exact shot count if specified
       if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
         if (result.micRecommendations.length > targetShotCount) {
