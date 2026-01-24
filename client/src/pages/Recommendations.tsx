@@ -1042,11 +1042,11 @@ export default function Recommendations() {
       ));
     } else {
       // Add new - defaults based on mic type
-      // Roswell: single position ON (always Cap), single distance OFF (vary distances)
-      // Other mics: single position OFF (vary positions), single distance ON (one distance)
-      const isRoswell = selectedMicForRecipe === 'roswell-cab';
-      const defaultSingleDistance = !isRoswell;
-      const defaultSinglePosition = isRoswell;
+      // Ribbon/condenser mics (Roswell, R121, R10, R92, C414): single position ON, single distance OFF (vary distances)
+      // Other mics (dynamics): single position OFF (vary positions), single distance ON (one distance)
+      const singlePositionMics = ['roswell-cab', 'r121', 'r10', 'r92', 'c414'];
+      const defaultSinglePosition = singlePositionMics.includes(selectedMicForRecipe);
+      const defaultSingleDistance = !defaultSinglePosition;
       setMicRecipe(prev => [...prev, { 
         mic: selectedMicForRecipe, 
         label: mic.label, 
