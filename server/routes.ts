@@ -1263,8 +1263,11 @@ Use these curated recipes as the foundation of your recommendations. You may add
           if (match) {
             const micName = match[1].trim();
             const count = parseInt(match[2]);
-            const has1D = line.includes('[1D]') || line.includes('1D');
-            const has1P = line.includes('[1P]') || line.includes('1P');
+            // Parse constraint markers from STRICT format
+            // 1D = same distance for all, vary position -> "Use ONE distance"
+            // 1P = same position for all, vary distance -> "Pick ONE position" 
+            const has1D = line.includes('Use ONE distance') || line.includes('different positions, same distance') || line.includes('[1D]');
+            const has1P = line.includes('Pick ONE position') || line.includes('same position, different distances') || line.includes('[1P]') || line.includes('ALL Roswell shots MUST be at Cap');
             // Map display names to mic codes
             let micCode = micName.toLowerCase()
               .replace('sm57', '57')
