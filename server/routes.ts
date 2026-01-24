@@ -791,12 +791,18 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       // Build mic shot counts instruction
       let micShotInstruction = '';
       if (micShotCounts && micShotCounts.trim()) {
-        micShotInstruction = `\n\nMIC RECIPE (MUST INCLUDE):
+        const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
+        const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
+        
+        micShotInstruction = `\n\nMIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
-- These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
-- If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations using other mics for maximum variety
-- Prioritize mics NOT already in the recipe for the additional slots
-- All recipe shots MUST still respect genre/tonality goals - choose positions and distances that serve the requested sound`;
+
+CRITICAL INSTRUCTIONS:
+1. You MUST include ALL shots specified in the recipe above - these are non-negotiable minimums
+2. Recipe total: approximately ${recipeTotal} shots from the recipe
+3. Target total: ${targetShotCount || 'not specified'} shots requested
+${remainingSlots > 0 ? `4. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed! Add ${remainingSlots} more curated recommendations using mics NOT in the recipe for variety. DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots.` : ''}
+5. All shots must respect genre/tonality goals`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -1021,13 +1027,19 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       // Build mic shot counts instruction
       let micShotInstruction = '';
       if (micShotCounts && micShotCounts.trim()) {
-        micShotInstruction = `\n\nMIC RECIPE (MUST INCLUDE):
+        const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
+        const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
+        
+        micShotInstruction = `\n\nMIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
-- These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
-- MD421 and MD421K (Kompakt) are DIFFERENT mics - respect which one is specified
-- If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations
-- For the additional slots, prioritize mics NOT already in the recipe to maximize variety across mic types
-- All recipe shots MUST still respect genre/tonality goals - choose positions and distances that serve the requested sound`;
+
+CRITICAL INSTRUCTIONS:
+1. You MUST include ALL shots specified in the recipe above - these are non-negotiable minimums
+2. MD421 and MD421K (Kompakt) are DIFFERENT mics - NEVER substitute one for the other
+3. Recipe total: approximately ${recipeTotal} shots from the recipe
+4. Target total: ${targetShotCount || 'not specified'} shots requested
+${remainingSlots > 0 ? `5. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed! Add ${remainingSlots} more curated recommendations using mics NOT in the recipe for maximum variety. DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots.` : ''}
+6. All shots must respect genre/tonality goals`;
       }
       
       // Build hierarchy instruction - all options work together
