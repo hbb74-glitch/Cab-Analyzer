@@ -1,5 +1,5 @@
 export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number; description: string }> = {
-  'sm57': { min: 2200, max: 3000, description: 'Classic dynamic, mid-forward, aggressive' },
+  'sm57': { min: 3550, max: 3950, description: 'Classic dynamic, mid-forward, aggressive - empirically measured' },
   'r121': { min: 1500, max: 2200, description: 'Ribbon, smooth highs, big low-mid' },
   'r10': { min: 1500, max: 2200, description: 'Ribbon, smooth and warm' },
   'r92': { min: 1400, max: 2100, description: 'Ribbon, similar to R121, slightly darker' },
