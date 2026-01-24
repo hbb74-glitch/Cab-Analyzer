@@ -887,11 +887,17 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
       - g10-sc64 (G10-SC64): 10" version, more focused.
       
-      Distance Effects (general principles):
-      - 0-0.5": Maximum proximity effect (bass boost), very direct/aggressive, potential for bass buildup
-      - 1-2": Sweet spot for most dynamics, balanced proximity, punchy attack
-      - 2.5-4": Reduced proximity, more natural tonal balance, some room interaction
-      - 4.5-6": Minimal proximity, roomier sound, more natural but less direct
+      Distance Effects (general principles) - CRITICAL ACOUSTIC TRUTH:
+      DISTANCE AFFECTS BASS (proximity effect), NOT brightness/darkness:
+      - CLOSER = MORE BASS (proximity effect boost) = warmer/fuller/thicker
+      - FURTHER = LESS BASS (reduced proximity) = leaner/tighter/relatively brighter
+      
+      Do NOT confuse with position (Cap=bright, Cone=dark). Distance changes LOW END, not high end.
+      
+      - 0-0.5": Maximum proximity effect = most bass boost, very thick/warm
+      - 1-2": Sweet spot for most dynamics, good bass balance, punchy
+      - 2.5-4": Reduced proximity = less bass, more natural/tighter
+      - 4.5-6": Minimal proximity = leanest bass, tightest low end, relatively brighter due to less bass
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
@@ -1184,6 +1190,17 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
+      
+      Distance Effects - CRITICAL ACOUSTIC TRUTH:
+      DISTANCE AFFECTS BASS (proximity effect), NOT brightness/darkness:
+      - CLOSER = MORE BASS (proximity effect boost) = warmer/fuller/thicker
+      - FURTHER = LESS BASS (reduced proximity) = leaner/tighter/relatively brighter due to less low end
+      
+      Do NOT confuse with position (Cap=bright, Cone=dark). Distance changes LOW END only.
+      - 0-0.5": Maximum proximity = most bass boost
+      - 1-2": Good bass balance, punchy
+      - 2.5-4": Less bass, more natural/tighter
+      - 4.5-6": Leanest bass, tightest low end
       
       === ${genre ? "USER'S TONAL GOAL" : "VERSATILITY FOCUS"} (HIGHEST PRIORITY) ===
       ${genre ? `The user wants: ${expandGenreToTonalGuidance(genre)}` : `No specific genre requested - prioritize VERSATILE, MIX-READY combinations.
@@ -1557,25 +1574,12 @@ Output JSON:
               const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
               micDistanceIndex[micLower]++;
               console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
-              const oldPosition = shot.position;
-              const oldDistance = shot.distance;
               shot.position = forcedPosition;
               shot.distance = forcedDistance;
-              // Update rationale to reflect the forced position/distance
-              if (shot.rationale) {
-                // Replace position references (handle "at the X" and "at X" patterns)
-                shot.rationale = shot.rationale
-                  .replace(new RegExp(`at (the )?${oldPosition}\\b`, 'gi'), `at ${forcedPosition}`)
-                  .replace(new RegExp(`\\b${oldPosition} position`, 'gi'), `${forcedPosition} position`)
-                  .replace(new RegExp(`\\b${oldPosition}( with| and)`, 'gi'), `${forcedPosition}$1`);
-                // Replace distance references (handle various formats: 4.5", 4.5-inch, 4.5 inches, at 4.5 inches)
-                const escapedOldDist = oldDistance.replace('.', '\\.');
-                shot.rationale = shot.rationale
-                  .replace(new RegExp(`${escapedOldDist}"`, 'g'), `${forcedDistance}"`)
-                  .replace(new RegExp(`${escapedOldDist}-inch`, 'gi'), `${forcedDistance}-inch`)
-                  .replace(new RegExp(`${escapedOldDist} inch`, 'gi'), `${forcedDistance} inch`)
-                  .replace(new RegExp(`at ${escapedOldDist} `, 'gi'), `at ${forcedDistance} `);
-              }
+              // Note: We intentionally do NOT update rationale text when 1P forces position/distance changes.
+              // The AI's original rationale was written for a specific position (e.g., Cone = "darker tone").
+              // Simply replacing position names would create misleading acoustic advice (e.g., "CapEdge = darker tone" is wrong).
+              // The position/distance values shown to user are correct; rationale may reference the original AI suggestion.
             }
             return shot;
           });
