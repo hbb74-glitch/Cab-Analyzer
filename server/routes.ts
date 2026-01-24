@@ -917,10 +917,13 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       }
       
       // Build shot count instruction
+      // Overshoot by ~35% to account for validation filtering, then trim to exact target
+      const aiRequestCount = targetShotCount ? Math.ceil(targetShotCount * 1.35) : null;
+      
       let shotCountInstruction = 'Provide 6-8 COMPLETE SHOT recommendations';
       let includeSelectionRationale = false;
-      if (targetShotCount) {
-        shotCountInstruction = `Provide EXACTLY ${targetShotCount} COMPLETE SHOT recommendations - no more, no less`;
+      if (aiRequestCount && targetShotCount) {
+        shotCountInstruction = `Provide EXACTLY ${aiRequestCount} COMPLETE SHOT recommendations - no more, no less`;
         if (targetShotCount === 1) {
           includeSelectionRationale = true;
           shotCountInstruction += `. CRITICAL: Return EXACTLY 1 shot in the shots array - not 2, not 3, just ONE. For switchable mics (MD441, e906), pick THE SINGLE BEST voicing mode (Presence OR Flat, not both). Include a "selectionRationale" field using SINGULAR language (never "these shots", "variety", or "curated set"). Write 2-3 sentences explaining: 1) Why THIS position+distance captures the essential character, 2) If applicable, why this voicing mode (Presence or Flat) is the better choice for this speaker, 3) What makes THIS the definitive single shot. Start with "This shot..."`;
@@ -966,7 +969,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         console.log('[By-Mic] Recipe math:', { recipeTotal, targetShotCount, remainingSlots, micChecklist });
         
         micShotInstruction = `\n\n╔══════════════════════════════════════════════════════════════╗
-║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS  ║
+║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${aiRequestCount} SHOTS  ║
 ╚══════════════════════════════════════════════════════════════╝
 
 REQUIRED MIC CHECKLIST (you must include ALL of these):
@@ -978,7 +981,7 @@ CRITICAL RULES:
 1. MD421 and MD421K are DIFFERENT mics. If checklist says "MD421K" output "MD421K", NOT "MD421"
 2. Every mic in the checklist MUST appear in your output with AT LEAST that many shots
 3. No duplicates - each shot must have a UNIQUE position+distance combination
-4. Target is ${targetShotCount} total shots${remainingSlots > 0 ? ` (add ${remainingSlots} more beyond the checklist)` : ''}
+4. Generate ${aiRequestCount} total shots (we'll validate and trim to ${targetShotCount})${remainingSlots > 0 ? ` - include ${remainingSlots} more beyond the checklist` : ''}
 
 CONSTRAINT DETAILS:
 ${micShotCounts}
@@ -1199,10 +1202,13 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       }
       
       // Build shot count instruction
+      // Overshoot by ~35% to account for validation filtering, then trim to exact target
+      const aiRequestCount = targetShotCount ? Math.ceil(targetShotCount * 1.35) : null;
+      
       let shotCountInstruction = 'Provide 6-10 specific mic/position/distance recommendations';
       let includeSelectionRationale = false;
-      if (targetShotCount) {
-        shotCountInstruction = `Provide EXACTLY ${targetShotCount} specific mic/position/distance recommendations - no more, no less`;
+      if (aiRequestCount && targetShotCount) {
+        shotCountInstruction = `Provide EXACTLY ${aiRequestCount} specific mic/position/distance recommendations - no more, no less`;
         if (targetShotCount === 1) {
           includeSelectionRationale = true;
           shotCountInstruction += `. CRITICAL: You are choosing THE SINGLE BEST mic/position/distance combination to represent this speaker${genre ? ` for ${genre}` : ''}. Include a "selectionRationale" field using SINGULAR language only (never say "these shots" or "variety" - there is only ONE recommendation). Write 2-3 sentences explaining: 1) Why THIS specific mic best captures this speaker's character, 2) Why THIS position and distance is optimal, 3) What makes THIS the definitive single shot. Start with "This combination..." not "These shots..."`;
@@ -1248,7 +1254,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         console.log('[By-Speaker] Recipe math:', { recipeTotal, targetShotCount, remainingSlots, micChecklist });
         
         micShotInstruction = `\n\n╔══════════════════════════════════════════════════════════════╗
-║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS  ║
+║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${aiRequestCount} SHOTS  ║
 ╚══════════════════════════════════════════════════════════════╝
 
 REQUIRED MIC CHECKLIST (you must include ALL of these):
@@ -1260,7 +1266,7 @@ CRITICAL RULES:
 1. MD421 and MD421K are DIFFERENT mics. If checklist says "MD421K" you MUST output "MD421K", NOT "MD421"
 2. Every mic in the checklist MUST appear in your output with AT LEAST that many shots
 3. No duplicates - each shot must have a UNIQUE position+distance combination
-4. Target is ${targetShotCount} total shots${remainingSlots > 0 ? ` (add ${remainingSlots} more beyond the checklist)` : ''}
+4. Generate ${aiRequestCount} total shots (we'll validate and trim to ${targetShotCount})${remainingSlots > 0 ? ` - include ${remainingSlots} more beyond the checklist` : ''}
 
 CONSTRAINT DETAILS:
 ${micShotCounts}
@@ -1844,6 +1850,12 @@ Output JSON:
         result.micRecommendations = validation.shots;
         if (validation.fixes.length > 0) {
           console.log('[By-Speaker API] Validation fixes applied:', validation.fixes.length);
+        }
+        
+        // Trim to exact target after validation
+        if (targetShotCount && result.micRecommendations.length > targetShotCount) {
+          console.log(`[By-Speaker API] Trimming from ${result.micRecommendations.length} to ${targetShotCount}`);
+          result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
         }
       }
       
