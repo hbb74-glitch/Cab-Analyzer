@@ -13,7 +13,7 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'e906_presence': { min: 3800, max: 4400, description: 'e906 with presence boost - empirically measured' },
   'm201': { min: 3400, max: 4100, description: 'Very accurate dynamic - empirically measured' },
   'sm7b': { min: 1700, max: 2400, description: 'Smooth, thick dynamic' },
-  'c414': { min: 2600, max: 3600, description: 'Condenser, detailed highs' },
+  'c414': { min: 3750, max: 4600, description: 'Condenser, detailed highs - empirically measured' },
   'roswell': { min: 1600, max: 2300, description: 'Cab mic condenser, ribbon-like rolloff above 3kHz, -3dB at 7kHz' },
 };
 
