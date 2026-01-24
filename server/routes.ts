@@ -801,7 +801,12 @@ CRITICAL INSTRUCTIONS:
 1. You MUST include ALL shots specified in the recipe above - these are non-negotiable minimums
 2. Recipe total: approximately ${recipeTotal} shots from the recipe
 3. Target total: ${targetShotCount || 'not specified'} shots requested
-${remainingSlots > 0 ? `4. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed! Add ${remainingSlots} more curated recommendations using mics NOT in the recipe for variety. DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots.` : ''}
+${remainingSlots > 0 ? `4. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
+   - PRIORITIZE unused mics first for variety
+   - BUT if you need to add more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
+     * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
+     * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
+   - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
 5. All shots must respect genre/tonality goals`;
       }
 
@@ -1038,7 +1043,12 @@ CRITICAL INSTRUCTIONS:
 2. MD421 and MD421K (Kompakt) are DIFFERENT mics - NEVER substitute one for the other
 3. Recipe total: approximately ${recipeTotal} shots from the recipe
 4. Target total: ${targetShotCount || 'not specified'} shots requested
-${remainingSlots > 0 ? `5. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed! Add ${remainingSlots} more curated recommendations using mics NOT in the recipe for maximum variety. DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots.` : ''}
+${remainingSlots > 0 ? `5. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
+   - PRIORITIZE unused mics first for variety
+   - BUT if you need to add more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
+     * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
+     * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
+   - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
 6. All shots must respect genre/tonality goals`;
       }
       
