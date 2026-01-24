@@ -1334,63 +1334,17 @@ Output JSON:
         }
       }
       
-      // Check if we still need more shots to hit target
-      if (targetShotCount && result.micRecommendations && result.micRecommendations.length < targetShotCount) {
-        const shortfall = targetShotCount - result.micRecommendations.length;
-        console.log('[By-Speaker] Still short by', shortfall, 'shots, adding extras');
-        
-        const extraPrompt = `Generate ${shortfall} additional mic shots for ${speakerModel} speaker.
-Genre: ${genre || 'versatile'}
-
-Use any good mics for this speaker. Valid options include: SM57, R121, M160, MD421K, MD441, e906, M201, C414, PR30, Roswell Cab Mic.
-
-CRITICAL FORMAT RULES:
-- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
-- distance MUST be a number as string: "1", "2.5", "4"
-- For MD441/e906: include switch setting in micLabel like "MD441 (Presence)"
-
-Output JSON:
-{
-  "extras": [
-    { "mic": "57", "micLabel": "SM57", "position": "CapEdge", "distance": "1.5", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
-  ]
-}`;
-
-        try {
-          const extraResponse = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-              { role: "system", content: "Generate additional mic shots to fill the target count." },
-              { role: "user", content: extraPrompt }
-            ],
-            response_format: { type: "json_object" },
-            temperature: 0.3,
-          });
-          
-          const extraResult = JSON.parse(extraResponse.choices[0].message.content || "{}");
-          if (extraResult.extras && Array.isArray(extraResult.extras)) {
-            console.log('[By-Speaker] Adding', extraResult.extras.length, 'extra shots');
-            result.micRecommendations.push(...extraResult.extras);
-          }
-        } catch (extraErr) {
-          console.error('[By-Speaker] Failed to add extra shots:', extraErr);
-        }
-      }
-      
-      // Deduplicate shots (normalize mic codes, positions, distances)
-      if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
+      // Helper to deduplicate shots
+      const deduplicateShots = (shots: any[]) => {
         const seen = new Set<string>();
-        result.micRecommendations = result.micRecommendations.filter((shot: any) => {
-          // Normalize mic code
+        return shots.filter((shot: any) => {
           let mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          // Normalize position - convert verbose descriptions to codes
           let pos = (shot.position || '').toLowerCase()
             .replace(/off-axis.*|on-axis.*/i, '')
             .replace(/center of cone/i, 'cone')
             .replace(/edge of cone/i, 'capedge')
             .replace(/cap edge/i, 'capedge')
             .replace(/[^a-z_]/g, '');
-          // Normalize distance - extract just the number
           let dist = (shot.distance || '').toString().replace(/[^0-9.]/g, '');
           
           const key = `${mic}|${pos}|${dist}`;
@@ -1401,7 +1355,63 @@ Output JSON:
           seen.add(key);
           return true;
         });
+      };
+      
+      // Deduplicate after main + missing mics
+      if (result.micRecommendations) {
+        result.micRecommendations = deduplicateShots(result.micRecommendations);
       }
+      
+      // Loop to fill extras until we hit target (max 3 attempts to avoid infinite loop)
+      let attempts = 0;
+      while (targetShotCount && result.micRecommendations && result.micRecommendations.length < targetShotCount && attempts < 3) {
+        attempts++;
+        const shortfall = targetShotCount - result.micRecommendations.length;
+        console.log('[By-Speaker] Attempt', attempts, '- short by', shortfall, 'shots, adding extras');
+        
+        const extraPrompt = `Generate exactly ${shortfall} UNIQUE mic shots for ${speakerModel} speaker.
+Genre: ${genre || 'versatile'}
+
+Use any good mics: SM57, R121, M160, MD421K, MD441, e906, M201, C414, PR30, Roswell Cab Mic.
+Each shot must have a DIFFERENT mic+position+distance combination.
+
+CRITICAL FORMAT RULES:
+- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+- distance MUST be a number as string: "1", "2.5", "4"
+- For MD441/e906: include switch setting in micLabel like "MD441 (Presence)"
+
+Output JSON:
+{
+  "extras": [
+    { "mic": "57", "micLabel": "SM57", "position": "Cap", "distance": "2", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
+  ]
+}`;
+
+        try {
+          const extraResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: "Generate unique mic shots. Each must have different mic+position+distance." },
+              { role: "user", content: extraPrompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.5 + (attempts * 0.2), // Increase randomness on retries
+          });
+          
+          const extraResult = JSON.parse(extraResponse.choices[0].message.content || "{}");
+          if (extraResult.extras && Array.isArray(extraResult.extras)) {
+            console.log('[By-Speaker] Adding', extraResult.extras.length, 'extra shots');
+            result.micRecommendations.push(...extraResult.extras);
+            // Deduplicate after adding
+            result.micRecommendations = deduplicateShots(result.micRecommendations);
+          }
+        } catch (extraErr) {
+          console.error('[By-Speaker] Failed to add extra shots:', extraErr);
+          break;
+        }
+      }
+      
+      console.log('[By-Speaker] Final count:', result.micRecommendations?.length, 'target:', targetShotCount);
       
       // Enforce exact shot count if specified
       if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
