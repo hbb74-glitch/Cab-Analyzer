@@ -14,7 +14,7 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'm201': { min: 3400, max: 4100, description: 'Very accurate dynamic - empirically measured' },
   'sm7b': { min: 2700, max: 3600, description: 'Smooth, thick dynamic - empirically measured' },
   'c414': { min: 3750, max: 4600, description: 'Condenser, detailed highs - empirically measured' },
-  'roswell': { min: 1600, max: 2300, description: 'Cab mic condenser, ribbon-like rolloff above 3kHz, -3dB at 7kHz' },
+  'roswell': { min: 2650, max: 3100, description: 'Cab mic condenser, ribbon-like rolloff above 3kHz - empirically measured' },
 };
 
 export const POSITION_OFFSETS: Record<string, { offset: number; description: string }> = {
