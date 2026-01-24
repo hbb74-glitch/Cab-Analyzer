@@ -1292,16 +1292,27 @@ Use these curated recipes as the foundation of your recommendations. You may add
         if (missingMics.length > 0) {
           console.log('[By-Speaker] Missing mics detected:', missingMics.map(m => `${m.name} (need ${m.count}, got ${gotMics[m.micCode] || 0})`));
           
-          // Make follow-up call to get missing mics
+          // Make follow-up call to get missing mics with full knowledge
           const missingPrompt = `Generate shots for these SPECIFIC mics:
 ${missingMics.map(m => `- ${m.name}: ${m.count} shots`).join('\n')}
 
 Speaker: ${speakerModel}
 Genre: ${genre || 'versatile'}
 
+MIC KNOWLEDGE (use this for positioning decisions):
+- R121: Ribbon mic, smooth/warm, works 3-8" back, sounds great at CapEdge or CapEdge_Cone_Tr
+- M160: Hypercardioid ribbon, tight pattern, works 1-4" close, CapEdge is sweet spot
+- MD421K: Dynamic, punchy mids, works 1-4" close, CapEdge or Cap positions
+- MD441: Dynamic with switches - Presence (brighter) or Flat (natural), works 2-6", CapEdge ideal
+- e906: Dynamic with switches - Bright/Presence/Flat, works 0.5-2" very close, Cap or CapEdge
+- SM57: Classic dynamic, works 0.5-2" close, any position works
+- M201: Smooth dynamic, works 1-3" close, CapEdge or CapEdge_Cone_Tr
+- C414: Condenser, detailed, works 4-8" back, CapEdge or Cap positions
+- PR30: Ribbon, bright for a ribbon, works 0.5-2" close, Cap or CapEdge
+
 CRITICAL FORMAT RULES:
-- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone (NO "off-axis", NO "center of cone")
-- distance MUST be a number as string: "1", "2.5", "4" (NO "inches", NO "6 inches")
+- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+- distance MUST be a number as string: "1", "2.5", "4"
 - mic codes: 121 (R121), 160 (M160), md421k (MD421K), md441 (MD441), e906, 57, etc.
 - For MD441/e906: include switch setting in micLabel like "MD441 (Presence)" or "e906 (Flat)"
 
@@ -1316,7 +1327,7 @@ Output JSON:
             const fixResponse = await openai.chat.completions.create({
               model: "gpt-4o",
               messages: [
-                { role: "system", content: "You generate microphone shot recommendations. Use ONLY valid position codes (Cap, CapEdge, CapEdge_Cone_Tr, Cone) and numeric distances as strings." },
+                { role: "system", content: "You are an expert audio engineer. Generate mic shots using the provided knowledge. Use ONLY valid position codes and numeric distances." },
                 { role: "user", content: missingPrompt }
               ],
               response_format: { type: "json_object" },
@@ -1372,7 +1383,18 @@ Output JSON:
         const extraPrompt = `Generate exactly ${shortfall} UNIQUE mic shots for ${speakerModel} speaker.
 Genre: ${genre || 'versatile'}
 
-Use any good mics: SM57, R121, M160, MD421K, MD441, e906, M201, C414, PR30, Roswell Cab Mic.
+MIC KNOWLEDGE (use appropriate distances for each mic type):
+- R121: Ribbon, smooth/warm, works 3-8" back, CapEdge or CapEdge_Cone_Tr
+- M160: Hypercardioid ribbon, works 1-4" close, CapEdge is sweet spot
+- MD421K: Dynamic, punchy mids, works 1-4" close, CapEdge or Cap
+- MD441: Dynamic with Presence/Flat switch, works 2-6", CapEdge ideal
+- e906: Dynamic with Bright/Presence/Flat switch, works 0.5-2" very close
+- SM57: Classic dynamic, works 0.5-2" close, any position
+- M201: Smooth dynamic, works 1-3" close, CapEdge or CapEdge_Cone_Tr
+- C414: Condenser, detailed, works 4-8" back, CapEdge or Cap
+- PR30: Ribbon, bright, works 0.5-2" close, Cap or CapEdge
+- Roswell: Large diaphragm condenser, works 4-6", Cap position, vary distance
+
 Each shot must have a DIFFERENT mic+position+distance combination.
 
 CRITICAL FORMAT RULES:
@@ -1391,7 +1413,7 @@ Output JSON:
           const extraResponse = await openai.chat.completions.create({
             model: "gpt-4o",
             messages: [
-              { role: "system", content: "Generate unique mic shots. Each must have different mic+position+distance." },
+              { role: "system", content: "You are an expert audio engineer. Generate unique mic shots using appropriate distances from the knowledge provided." },
               { role: "user", content: extraPrompt }
             ],
             response_format: { type: "json_object" },
