@@ -795,11 +795,23 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
 ${micShotCounts}
 - These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
 - If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations using other mics for maximum variety
-- Prioritize mics NOT already in the recipe for the additional slots`;
+- Prioritize mics NOT already in the recipe for the additional slots
+- All recipe shots MUST still respect genre/tonality goals - choose positions and distances that serve the requested sound`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to recommend IDEAL DISTANCES for a specific microphone and speaker combination.
+      
+      === INSTRUCTION HIERARCHY (ALL apply together, none negate others) ===
+      You are like a professional recording engineer taking notes from an artist/producer. Consider ALL inputs:
+      1. TARGET SHOT COUNT: If specified, generate exactly this many shots total
+      2. SINGLE DISTANCE PER MIC: If enabled, all shots for each mic use ONE optimal distance
+      3. MIC RECIPE: If specified, these are MINIMUM requirements that MUST be included
+      4. GENRE/TONALITY: Influences position, distance, and mic voicing choices for ALL shots
+      5. FREE TEXT NOTES: Additional preferences to consider and incorporate
+      
+      These work TOGETHER - a mic recipe doesn't ignore genre, single-distance doesn't ignore tonality.
+      Every shot should serve the user's complete vision.
       Distance is the primary variable - position on the speaker is less important for this analysis.
       Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
@@ -1013,8 +1025,22 @@ ${micShotCounts}
 - These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
 - MD421 and MD421K (Kompakt) are DIFFERENT mics - respect which one is specified
 - If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations
-- For the additional slots, prioritize mics NOT already in the recipe to maximize variety across mic types`;
+- For the additional slots, prioritize mics NOT already in the recipe to maximize variety across mic types
+- All recipe shots MUST still respect genre/tonality goals - choose positions and distances that serve the requested sound`;
       }
+      
+      // Build hierarchy instruction - all options work together
+      const hierarchyInstruction = `
+      === INSTRUCTION HIERARCHY (ALL apply together, none negate others) ===
+      You are like a professional recording engineer taking notes from an artist/producer. Consider ALL inputs:
+      1. TARGET SHOT COUNT: If specified, generate exactly this many shots total
+      2. SINGLE DISTANCE PER MIC: If enabled, all shots for each mic use ONE optimal distance
+      3. MIC RECIPE: If specified, these are MINIMUM requirements that MUST be included
+      4. GENRE/TONALITY: Influences position, distance, and mic voicing choices for ALL shots
+      5. FREE TEXT NOTES/PREFERENCES: Additional guidance to consider and incorporate
+      
+      These work TOGETHER - a mic recipe doesn't ignore genre, single-distance doesn't ignore tonality.
+      Every shot should serve the user's complete vision.`;
 
       // Get curated recipes for this speaker from IR producer knowledge base
       const curatedRecipes = getRecipesForSpeaker(speakerModel);
@@ -1034,6 +1060,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
       Your task is to recommend the BEST MICROPHONES, POSITIONS, and DISTANCES for a specific speaker.
+      ${hierarchyInstruction}
       
       IMPORTANT: Your recommendations should be based on REAL IR production techniques and proven recipes.
       When curated recipes are provided, PRIORITIZE them over generic suggestions.
