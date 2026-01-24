@@ -318,6 +318,161 @@ ${profile.avoid}`;
   return analyzeCustomTonalGoal(genre);
 }
 
+// Mic type detection for rule enforcement
+const RIBBON_MICS = ['r121', 'r10', 'r92', '121', '10', '92'];
+const CONDENSER_MICS = ['roswell', 'c414', '414'];
+const BASIC_POSITIONS = ['cap', 'capedge', 'capedge_cone_tr', 'cone'];
+
+// Post-processing validation to enforce rules the AI might violate
+function validateAndFixRecommendations(
+  shots: any[],
+  options: {
+    enforceRibbonMinDistance?: boolean;
+    enforceCondenserMinDistance?: boolean;
+    basicPositionsOnly?: boolean;
+    singleDistancePerMic?: boolean;
+    singlePositionForRibbons?: boolean;
+  } = {}
+): { shots: any[]; fixes: string[] } {
+  const fixes: string[] = [];
+  let validShots = [...shots];
+  
+  // 1. Enforce ribbon mic minimum 4" distance
+  if (options.enforceRibbonMinDistance !== false) {
+    validShots = validShots.map(shot => {
+      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isRibbon = RIBBON_MICS.some(r => micLower.includes(r)) && !micLower.includes('m160');
+      
+      if (isRibbon) {
+        const dist = parseFloat((shot.distance || '0').toString().replace(/[^0-9.]/g, ''));
+        if (dist < 4) {
+          fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${dist}" → 4" (ribbon minimum)`);
+          return { ...shot, distance: '4' };
+        }
+      }
+      return shot;
+    });
+  }
+  
+  // 2. Enforce condenser mic minimum 4" distance
+  if (options.enforceCondenserMinDistance !== false) {
+    validShots = validShots.map(shot => {
+      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isCondenser = CONDENSER_MICS.some(c => micLower.includes(c));
+      
+      if (isCondenser) {
+        const dist = parseFloat((shot.distance || '0').toString().replace(/[^0-9.]/g, ''));
+        if (dist < 4) {
+          fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${dist}" → 4" (condenser minimum)`);
+          return { ...shot, distance: '4' };
+        }
+      }
+      return shot;
+    });
+  }
+  
+  // 3. Enforce basic positions only (filter out non-basic positions)
+  if (options.basicPositionsOnly) {
+    const beforeCount = validShots.length;
+    validShots = validShots.filter(shot => {
+      const posLower = (shot.position || '').toLowerCase()
+        .replace(/[^a-z_]/g, '')
+        .replace(/capedgeconetr/g, 'capedge_cone_tr');
+      const isBasic = BASIC_POSITIONS.some(bp => posLower === bp || posLower.startsWith(bp + '_'));
+      if (!isBasic) {
+        fixes.push(`Removed ${shot.micLabel || shot.mic} at ${shot.position} (non-basic position)`);
+      }
+      return isBasic;
+    });
+    if (beforeCount !== validShots.length) {
+      fixes.push(`Filtered ${beforeCount - validShots.length} non-basic positions`);
+    }
+  }
+  
+  // 4. Enforce single distance per mic
+  if (options.singleDistancePerMic) {
+    const micDistances = new Map<string, string>();
+    
+    // First pass: find existing distances per mic
+    for (const shot of validShots) {
+      const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (micKey && !micDistances.has(micKey)) {
+        micDistances.set(micKey, (shot.distance || '').toString());
+      }
+    }
+    
+    // Second pass: force all shots for each mic to use the first distance found
+    validShots = validShots.map(shot => {
+      const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const expectedDist = micDistances.get(micKey);
+      const currentDist = (shot.distance || '').toString();
+      
+      if (expectedDist && currentDist !== expectedDist) {
+        fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${currentDist}" → ${expectedDist}" (single distance per mic)`);
+        return { ...shot, distance: expectedDist };
+      }
+      return shot;
+    });
+  }
+  
+  // 5. Enforce single position for ribbons/condensers (1P mode)
+  if (options.singlePositionForRibbons) {
+    const ribbonCondenserPositions = new Map<string, string>();
+    
+    // First pass: find first position for each ribbon/condenser
+    for (const shot of validShots) {
+      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const isRibbonOrCondenser = RIBBON_MICS.some(r => micLower.includes(r)) || 
+                                   CONDENSER_MICS.some(c => micLower.includes(c));
+      
+      if (isRibbonOrCondenser && !ribbonCondenserPositions.has(micLower)) {
+        // Force to CapEdge if not already Cap/CapEdge
+        const pos = (shot.position || '').toLowerCase();
+        if (pos.includes('cap') || pos.includes('capedge')) {
+          ribbonCondenserPositions.set(micLower, shot.position);
+        } else {
+          ribbonCondenserPositions.set(micLower, 'CapEdge');
+        }
+      }
+    }
+    
+    // Second pass: force all ribbon/condenser shots to same position
+    validShots = validShots.map(shot => {
+      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const expectedPos = ribbonCondenserPositions.get(micLower);
+      
+      if (expectedPos && shot.position !== expectedPos) {
+        fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${shot.position} → ${expectedPos} (1P mode)`);
+        return { ...shot, position: expectedPos };
+      }
+      return shot;
+    });
+  }
+  
+  // 6. Remove duplicate shots (same mic+position+distance)
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+  for (const shot of validShots) {
+    const mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const pos = (shot.position || '').toLowerCase().replace(/[^a-z_]/g, '');
+    const dist = (shot.distance || '').toString().replace(/[^0-9.]/g, '');
+    const key = `${mic}|${pos}|${dist}`;
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(shot);
+    } else {
+      fixes.push(`Removed duplicate: ${shot.micLabel || shot.mic} ${shot.position} ${dist}"`);
+    }
+  }
+  
+  if (fixes.length > 0) {
+    console.log('[Validation] Applied fixes:', fixes);
+  }
+  
+  return { shots: deduped, fixes };
+}
+
 // Initialize OpenAI client
 const openai = new OpenAI({ 
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -984,6 +1139,20 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       const result = JSON.parse(response.choices[0].message.content || "{}");
       // Debug: log shots to see if micLabel is present
       console.log('[By-Mic API] Shots returned:', JSON.stringify(result.shots?.slice(0, 2), null, 2));
+      
+      // Validate and fix recommendations (enforce rules AI might violate)
+      if (result.shots && Array.isArray(result.shots)) {
+        const validation = validateAndFixRecommendations(result.shots, {
+          enforceRibbonMinDistance: true,
+          enforceCondenserMinDistance: true,
+          basicPositionsOnly: basicPositionsOnly,
+          singleDistancePerMic: singleDistancePerMic,
+        });
+        result.shots = validation.shots;
+        if (validation.fixes.length > 0) {
+          console.log('[By-Mic API] Validation fixes applied:', validation.fixes.length);
+        }
+      }
       
       // Enforce exact shot count if specified
       if (targetShotCount && result.shots && Array.isArray(result.shots)) {
@@ -1661,6 +1830,21 @@ Output JSON:
         }
         
         console.log(`[Final] Shot count: ${result.micRecommendations.length} target: ${targetShotCount}`);
+      }
+      
+      // Final validation pass to enforce all rules deterministically
+      if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        const validation = validateAndFixRecommendations(result.micRecommendations, {
+          enforceRibbonMinDistance: true,
+          enforceCondenserMinDistance: true,
+          basicPositionsOnly: basicPositionsOnly,
+          singleDistancePerMic: singleDistancePerMic,
+          singlePositionForRibbons: singlePositionForRibbons,
+        });
+        result.micRecommendations = validation.shots;
+        if (validation.fixes.length > 0) {
+          console.log('[By-Speaker API] Validation fixes applied:', validation.fixes.length);
+        }
       }
       
       res.json(result);
