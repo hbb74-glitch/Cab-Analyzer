@@ -794,21 +794,24 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
         const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
         
-        micShotInstruction = `\n\nMIC RECIPE (MANDATORY MINIMUMS):
+        micShotInstruction = `\n\n*** SHOT COUNT REQUIREMENT: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS ***
+
+MIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
 
-CRITICAL INSTRUCTIONS:
-1. You MUST include ALL shots specified in the recipe above - these are non-negotiable minimums
-2. Recipe total: approximately ${recipeTotal} shots from the recipe
-3. Target total: ${targetShotCount || 'not specified'} shots requested
-${remainingSlots > 0 ? `4. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
-   - PRIORITIZE unused mics first for variety
-   - However, you MAY return to recipe mics if needed for best practices, genre fit, or tonal balance
-   - When adding more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
-     * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
-     * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
-   - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
-5. All shots must respect genre/tonality goals`;
+MATH CHECK:
+- Recipe shots: ${recipeTotal}
+- Target total: ${targetShotCount}
+- ADDITIONAL SHOTS YOU MUST ADD: ${remainingSlots}
+
+${remainingSlots > 0 ? `CRITICAL: After including all recipe shots, you have ${remainingSlots} MORE slots to fill!
+- PRIORITIZE unused mics for variety
+- You MAY also add more shots of recipe mics if it makes sense
+- When adding more of a recipe mic, respect its 1P/1D constraints
+
+DO NOT OUTPUT ONLY ${recipeTotal} SHOTS. YOU MUST OUTPUT ${targetShotCount} TOTAL SHOTS.` : ''}
+
+FINAL CHECK: Count your shots array. It MUST have exactly ${targetShotCount} items.`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -1036,22 +1039,26 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
         const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
         
-        micShotInstruction = `\n\nMIC RECIPE (MANDATORY MINIMUMS):
+        micShotInstruction = `\n\n*** SHOT COUNT REQUIREMENT: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS ***
+
+MIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
 
-CRITICAL INSTRUCTIONS:
-1. You MUST include ALL shots specified in the recipe above - these are non-negotiable minimums
-2. MD421 and MD421K (Kompakt) are DIFFERENT mics - NEVER substitute one for the other
-3. Recipe total: approximately ${recipeTotal} shots from the recipe
-4. Target total: ${targetShotCount || 'not specified'} shots requested
-${remainingSlots > 0 ? `5. REMAINING SLOTS TO FILL: ${remainingSlots} additional shots needed!
-   - PRIORITIZE unused mics first for variety
-   - However, you MAY return to recipe mics if needed for best practices, genre fit, or tonal balance
-   - When adding more shots of a recipe mic, you MUST respect that mic's 1P/1D constraints:
-     * If a mic has "SINGLE DISTANCE" - any additional shots of that mic must use the SAME distance
-     * If a mic has "SINGLE POSITION" - any additional shots of that mic must use the SAME position
-   - DO NOT stop at just the recipe - you must reach the target of ${targetShotCount} total shots` : ''}
-6. All shots must respect genre/tonality goals`;
+MATH CHECK:
+- Recipe shots: ${recipeTotal}
+- Target total: ${targetShotCount}
+- ADDITIONAL SHOTS YOU MUST ADD: ${remainingSlots}
+
+IMPORTANT: MD421 and MD421K (Kompakt) are DIFFERENT mics - NEVER substitute one for the other.
+
+${remainingSlots > 0 ? `CRITICAL: After including all recipe shots, you have ${remainingSlots} MORE slots to fill!
+- PRIORITIZE unused mics for variety
+- You MAY also add more shots of recipe mics if it makes sense
+- When adding more of a recipe mic, respect its 1P/1D constraints
+
+DO NOT OUTPUT ONLY ${recipeTotal} SHOTS. YOU MUST OUTPUT ${targetShotCount} TOTAL SHOTS.` : ''}
+
+FINAL CHECK: Count your shots array. It MUST have exactly ${targetShotCount} items.`;
       }
       
       // Build hierarchy instruction - all options work together
