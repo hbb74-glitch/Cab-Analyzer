@@ -1256,13 +1256,15 @@ Use these curated recipes as the foundation of your recommendations. You may add
       // Check for missing mics and fix if needed
       if (micShotCounts && result.micRecommendations && Array.isArray(result.micRecommendations)) {
         const micLines = micShotCounts.split(', ').filter(l => l.trim());
-        const requiredMics: { name: string; count: number; micCode: string }[] = [];
+        const requiredMics: { name: string; count: number; micCode: string; has1D: boolean; has1P: boolean }[] = [];
         
         for (const line of micLines) {
           const match = line.match(/^(.+?)\s*x\s*(\d+)/);
           if (match) {
             const micName = match[1].trim();
             const count = parseInt(match[2]);
+            const has1D = line.includes('[1D]') || line.includes('1D');
+            const has1P = line.includes('[1P]') || line.includes('1P');
             // Map display names to mic codes
             let micCode = micName.toLowerCase()
               .replace('sm57', '57')
@@ -1272,7 +1274,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
               .replace(' ', '');
             if (micName.includes('160')) micCode = '160';
             if (micName.includes('906')) micCode = 'e906';
-            requiredMics.push({ name: micName, count, micCode });
+            requiredMics.push({ name: micName, count, micCode, has1D, has1P });
           }
         }
         
@@ -1293,11 +1295,23 @@ Use these curated recipes as the foundation of your recommendations. You may add
           console.log('[By-Speaker] Missing mics detected:', missingMics.map(m => `${m.name} (need ${m.count}, got ${gotMics[m.micCode] || 0})`));
           
           // Make follow-up call to get missing mics with full knowledge
+          const missingMicInstructions = missingMics.map(m => {
+            let constraint = '';
+            if (m.has1D) constraint = ' [1D = SAME DISTANCE for all shots, vary POSITION]';
+            else if (m.has1P) constraint = ' [1P = SAME POSITION for all shots, vary DISTANCE]';
+            return `- ${m.name}: ${m.count} shots${constraint}`;
+          }).join('\n');
+          
           const missingPrompt = `Generate shots for these SPECIFIC mics:
-${missingMics.map(m => `- ${m.name}: ${m.count} shots`).join('\n')}
+${missingMicInstructions}
 
 Speaker: ${speakerModel}
 Genre: ${genre || 'versatile'}
+
+CONSTRAINT RULES (MUST FOLLOW):
+- [1D] = Use the SAME distance for all shots of that mic, but VARY the position (e.g., CapEdge at 4", CapEdge_Cone_Tr at 4")
+- [1P] = Use the SAME position for all shots of that mic, but VARY the distance (e.g., Cap at 4", Cap at 6")
+- If no constraint is listed, you can vary both position and distance
 
 MIC KNOWLEDGE (use this for positioning decisions):
 - R121: Ribbon mic, smooth/warm, works 3-8" back, sounds great at CapEdge or CapEdge_Cone_Tr
