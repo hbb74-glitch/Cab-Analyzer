@@ -1045,21 +1045,36 @@ export default function Analyzer() {
                     Find Redundancies ({validBatchCount} IRs)
                   </button>
                   
-                  {/* Culler Button */}
-                  <button
-                    onClick={() => setShowCuller(!showCuller)}
-                    disabled={validBatchCount < 2 || analyzingBatchCount > 0}
-                    className={cn(
-                      "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
-                      validBatchCount >= 2 && analyzingBatchCount === 0
-                        ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30"
-                        : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
-                    )}
-                    data-testid="button-open-culler"
-                  >
-                    <Scissors className="w-4 h-4" />
-                    Cull to Target ({validBatchCount} IRs)
-                  </button>
+                  {/* Culler Section with inline target input */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Cull to:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={validBatchCount - 1}
+                        value={targetCullCount}
+                        onChange={(e) => setTargetCullCount(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-16 px-2 py-1 rounded bg-black/30 border border-white/10 text-center text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        data-testid="input-cull-target-inline"
+                      />
+                      <span className="text-sm text-muted-foreground">of {validBatchCount} IRs</span>
+                    </div>
+                    <button
+                      onClick={handleCullIRs}
+                      disabled={validBatchCount < 2 || analyzingBatchCount > 0 || targetCullCount >= validBatchCount}
+                      className={cn(
+                        "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                        validBatchCount >= 2 && analyzingBatchCount === 0 && targetCullCount < validBatchCount
+                          ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30"
+                          : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                      )}
+                      data-testid="button-cull-now"
+                    >
+                      <Scissors className="w-4 h-4" />
+                      Cull Now
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
