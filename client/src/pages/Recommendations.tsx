@@ -1004,8 +1004,11 @@ export default function Recommendations() {
         const isRoswell = r.mic === 'roswell-cab';
         
         if (isRoswell) {
-          // Roswell: always at Cap, no variations unless user adds notes in free text
-          return `${countPart} (Roswell Cab Mic: CAP POSITION ONLY - each shot is at Cap position)`;
+          // Roswell: always at Cap position, shots = distance variations (unless 1D checked = single distance)
+          if (r.singleDistance) {
+            return `${countPart} (Roswell Cab Mic: CAP POSITION, SINGLE DISTANCE - all shots at Cap with one distance)`;
+          }
+          return `${countPart} (Roswell Cab Mic: CAP POSITION, VARY DISTANCE - ${r.count} different distances at Cap)`;
         } else {
           // Other mics: 1D means single distance, vary positions
           if (r.singleDistance) {
@@ -1628,22 +1631,22 @@ export default function Recommendations() {
                           +
                         </button>
                       </div>
-                      {/* Hide 1D toggle for Roswell - it's always Cap position */}
-                      {r.mic !== 'roswell-cab' && (
-                        <button
-                          type="button"
-                          onClick={() => toggleMicSingleDistance(r.mic)}
-                          className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
-                            r.singleDistance 
-                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
-                              : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
-                          )}
-                          title={r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances"}
-                        >
-                          1D
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleMicSingleDistance(r.mic)}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
+                          r.singleDistance 
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                            : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
+                        )}
+                        title={r.mic === 'roswell-cab' 
+                          ? (r.singleDistance ? "Single distance: ON - one distance at Cap" : "Single distance: OFF - vary distances at Cap")
+                          : (r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances")
+                        }
+                      >
+                        1D
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeMicFromRecipe(r.mic)}
@@ -2073,23 +2076,23 @@ Or written out:
                           +
                         </button>
                       </div>
-                      {/* Hide 1D toggle for Roswell - it's always Cap position */}
-                      {r.mic !== 'roswell-cab' && (
-                        <button
-                          type="button"
-                          onClick={() => toggleMicSingleDistance(r.mic)}
-                          className={cn(
-                            "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
-                            r.singleDistance 
-                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
-                              : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
-                          )}
-                          title={r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances"}
-                          data-testid={`button-toggle-single-distance-${r.mic}`}
-                        >
-                          1D
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleMicSingleDistance(r.mic)}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
+                          r.singleDistance 
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                            : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
+                        )}
+                        title={r.mic === 'roswell-cab' 
+                          ? (r.singleDistance ? "Single distance: ON - one distance at Cap" : "Single distance: OFF - vary distances at Cap")
+                          : (r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances")
+                        }
+                        data-testid={`button-toggle-single-distance-${r.mic}`}
+                      >
+                        1D
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeMicFromRecipe(r.mic)}
