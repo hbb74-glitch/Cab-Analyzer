@@ -1014,7 +1014,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts } = input;
+      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -1527,56 +1527,46 @@ Output JSON:
           return shot;
         });
         
-        // Apply 1P behavior (same position, vary distance) for ribbons/condensers
-        // Roswell -> Cap position, C414 -> CapEdge position, R121 -> CapEdge position
-        const apply1PToMic = (micCode: string, defaultPosition: string, distances: string[]) => {
-          const shots = result.micRecommendations.filter((s: any) => s.mic === micCode);
-          if (shots.length > 0) {
-            let distanceIndex = 0;
-            result.micRecommendations = result.micRecommendations.map((shot: any) => {
-              if (shot.mic === micCode) {
-                shot.position = defaultPosition;
-                shot.distance = distances[distanceIndex % distances.length];
-                distanceIndex++;
-              }
-              return shot;
-            });
-          }
-        };
-        
-        // Apply 1P to each ribbon/condenser mic with appropriate position and distance range (4-6")
-        // Log all mic codes before processing
-        console.log('[1P Enforcement] All mic codes before:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
-        
-        // Force 1P for each ribbon/condenser mic
-        const ribbonCondenser1P: Record<string, string> = {
-          'roswell-cab': 'Cap',
-          'roswell': 'Cap',
-          'c414': 'CapEdge',
-          '121': 'CapEdge',
-          'r121': 'CapEdge',
-          'r10': 'CapEdge',
-          'r92': 'CapEdge'
-        };
-        
-        const distances1P = ['4', '5', '6'];
-        const micDistanceIndex: Record<string, number> = {};
-        
-        result.micRecommendations = result.micRecommendations.map((shot: any) => {
-          const micLower = shot.mic.toLowerCase();
-          if (ribbonCondenser1P[micLower]) {
-            const forcedPosition = ribbonCondenser1P[micLower];
-            if (!micDistanceIndex[micLower]) micDistanceIndex[micLower] = 0;
-            const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
-            micDistanceIndex[micLower]++;
-            console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
-            shot.position = forcedPosition;
-            shot.distance = forcedDistance;
-          }
-          return shot;
-        });
-        
-        console.log('[1P Enforcement] All mic codes after:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
+        // Apply 1P behavior (same position, vary distance) for ribbons/condensers - ONLY if singlePositionForRibbons is enabled
+        if (singlePositionForRibbons) {
+          console.log('[1P Enforcement] singlePositionForRibbons is ENABLED');
+          
+          // Log all mic codes before processing
+          console.log('[1P Enforcement] All mic codes before:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
+          
+          // Force 1P for each ribbon/condenser mic
+          // Roswell -> Cap position, C414/R121/R10/R92 -> CapEdge position
+          const ribbonCondenser1P: Record<string, string> = {
+            'roswell-cab': 'Cap',
+            'roswell': 'Cap',
+            'c414': 'CapEdge',
+            '121': 'CapEdge',
+            'r121': 'CapEdge',
+            'r10': 'CapEdge',
+            'r92': 'CapEdge'
+          };
+          
+          const distances1P = ['4', '5', '6'];
+          const micDistanceIndex: Record<string, number> = {};
+          
+          result.micRecommendations = result.micRecommendations.map((shot: any) => {
+            const micLower = shot.mic.toLowerCase();
+            if (ribbonCondenser1P[micLower]) {
+              const forcedPosition = ribbonCondenser1P[micLower];
+              if (!micDistanceIndex[micLower]) micDistanceIndex[micLower] = 0;
+              const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
+              micDistanceIndex[micLower]++;
+              console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
+              shot.position = forcedPosition;
+              shot.distance = forcedDistance;
+            }
+            return shot;
+          });
+          
+          console.log('[1P Enforcement] All mic codes after:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
+        } else {
+          console.log('[1P Enforcement] singlePositionForRibbons is DISABLED - skipping 1P enforcement');
+        }
         
         // Normalize mic codes for consistency (lowercase except special cases)
         const micCodeNormalization: Record<string, string> = {

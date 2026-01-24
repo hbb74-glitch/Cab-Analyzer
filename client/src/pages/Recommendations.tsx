@@ -848,15 +848,16 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; singlePositionForRibbons?: boolean; micShotCounts?: string }) => {
       if (micType) {
         // Mic + Speaker mode
-        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string } = { micType, speakerModel };
+        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; singlePositionForRibbons?: boolean; micShotCounts?: string } = { micType, speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
         if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
         if (singleDistancePerMic) payload.singleDistancePerMic = singleDistancePerMic;
+        if (singlePositionForRibbons) payload.singlePositionForRibbons = singlePositionForRibbons;
         if (micShotCounts) payload.micShotCounts = micShotCounts;
         const validated = api.recommendations.get.input.parse(payload);
         const res = await fetch(api.recommendations.get.path, {
@@ -868,12 +869,13 @@ export default function Recommendations() {
         return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
       } else {
         // Speaker-only mode
-        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string } = { speakerModel };
+        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; singlePositionForRibbons?: boolean; micShotCounts?: string } = { speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
         if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
         if (singleDistancePerMic) payload.singleDistancePerMic = singleDistancePerMic;
+        if (singlePositionForRibbons) payload.singlePositionForRibbons = singlePositionForRibbons;
         if (micShotCounts) payload.micShotCounts = micShotCounts;
         const validated = api.recommendations.bySpeaker.input.parse(payload);
         const res = await fetch(api.recommendations.bySpeaker.path, {
@@ -974,6 +976,7 @@ export default function Recommendations() {
       targetShotCount: targetShotCount || undefined,
       basicPositionsOnly: basicPositionsOnly || undefined,
       singleDistancePerMic: singleDistancePerMic || undefined,
+      singlePositionForRibbons: singlePositionForRibbons || undefined,
       micShotCounts: getMicShotCountsString()
     });
   };
