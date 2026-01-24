@@ -1060,6 +1060,19 @@ export default function Recommendations() {
     if (specificShots.trim()) {
       parts.push(`Specific shots: ${specificShots.trim()}`);
     }
+    
+    // Add global constraint instructions even without a mic recipe
+    const globalConstraints: string[] = [];
+    if (singleDistancePerMic) {
+      globalConstraints.push(`[GLOBAL 1D RULE] For dynamics (SM57, M201, MD421K, M160, e906): Use ONE distance per mic, vary POSITIONS. Example: SM57_Cap_1.5in, SM57_CapEdge_1.5in, SM57_Cone_1.5in`);
+    }
+    if (singlePositionForRibbons) {
+      globalConstraints.push(`[GLOBAL 1P RULE] For ribbons/condensers (Roswell, R121, R10, R92, C414): Use ONE position per mic, vary DISTANCES. Roswell MUST always be at Cap position. Example: R121_CapEdge_4in, R121_CapEdge_6in, R121_CapEdge_8in`);
+    }
+    if (globalConstraints.length > 0) {
+      parts.push(globalConstraints.join(". "));
+    }
+    
     return parts.length > 0 ? parts.join(". ") : undefined;
   };
   
