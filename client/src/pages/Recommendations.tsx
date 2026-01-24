@@ -945,12 +945,16 @@ export default function Recommendations() {
       combinedPrefs = combinedPrefs ? `${combinedPrefs}\n\n${learnedText}` : learnedText;
     }
     
+    // When mic recipe is specified, use its total as the target shot count
+    const recipeTotal = getTotalRecipeShots();
+    const effectiveTargetCount = recipeTotal > 0 ? recipeTotal : targetShotCount;
+    
     getRecommendations({ 
       micType: micType || undefined, 
       speakerModel: speaker, 
       genre: effectiveGenre,
       preferredShots: combinedPrefs || undefined,
-      targetShotCount: targetShotCount || undefined,
+      targetShotCount: effectiveTargetCount || undefined,
       basicPositionsOnly: basicPositionsOnly || undefined,
       singleDistancePerMic: singleDistancePerMic || undefined,
       micShotCounts: getMicShotCountsString()
