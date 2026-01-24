@@ -828,14 +828,16 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string }) => {
       if (micType) {
         // Mic + Speaker mode
-        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { micType, speakerModel };
+        const payload: { micType: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string } = { micType, speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
         if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
+        if (singleDistancePerMic) payload.singleDistancePerMic = singleDistancePerMic;
+        if (micShotCounts) payload.micShotCounts = micShotCounts;
         const validated = api.recommendations.get.input.parse(payload);
         const res = await fetch(api.recommendations.get.path, {
           method: "POST",
@@ -846,11 +848,13 @@ export default function Recommendations() {
         return { type: 'micSpeaker' as const, data: api.recommendations.get.responses[200].parse(await res.json()) };
       } else {
         // Speaker-only mode
-        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { speakerModel };
+        const payload: { speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string } = { speakerModel };
         if (genre) payload.genre = genre;
         if (preferredShots) payload.preferredShots = preferredShots;
         if (targetShotCount) payload.targetShotCount = targetShotCount;
         if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
+        if (singleDistancePerMic) payload.singleDistancePerMic = singleDistancePerMic;
+        if (micShotCounts) payload.micShotCounts = micShotCounts;
         const validated = api.recommendations.bySpeaker.input.parse(payload);
         const res = await fetch(api.recommendations.bySpeaker.path, {
           method: "POST",
@@ -947,7 +951,9 @@ export default function Recommendations() {
       genre: effectiveGenre,
       preferredShots: combinedPrefs || undefined,
       targetShotCount: targetShotCount || undefined,
-      basicPositionsOnly: basicPositionsOnly || undefined
+      basicPositionsOnly: basicPositionsOnly || undefined,
+      singleDistancePerMic: singleDistancePerMic || undefined,
+      micShotCounts: getMicShotCountsString()
     });
   };
 
@@ -1495,6 +1501,140 @@ export default function Recommendations() {
             <p className="text-xs text-muted-foreground pl-7">
               Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
             </p>
+          </div>
+
+          {/* Single Distance Per Mic */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={singleDistancePerMic}
+                onChange={(e) => setSingleDistancePerMic(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-single-distance-per-mic-speaker"
+              />
+              <span className="text-sm font-medium text-foreground">Single Distance Per Mic</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              For workflow efficiency: each mic uses ONE optimal distance. Vary position for tonal variety, not distance.
+            </p>
+          </div>
+
+          {/* Mic Recipe Builder */}
+          <div className="space-y-3 border-t border-white/10 pt-4">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Mic2 className="w-3 h-3" /> Mic Recipe (Optional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Specify exactly how many shots per mic. Leave empty for AI to decide.
+            </p>
+            
+            {/* Add mic row */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedMicForRecipe}
+                onChange={(e) => setSelectedMicForRecipe(e.target.value)}
+                className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-mic-recipe-speaker"
+              >
+                <option value="">Select mic...</option>
+                {MICS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMicCount(Math.max(1, selectedMicCount - 1))}
+                  className="w-7 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center text-sm font-medium">{selectedMicCount}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMicCount(selectedMicCount + 1)}
+                  className="w-7 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={addMicToRecipe}
+                disabled={!selectedMicForRecipe}
+                className={cn(
+                  "px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  selectedMicForRecipe
+                    ? "bg-primary/20 text-primary hover:bg-primary/30"
+                    : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                )}
+                data-testid="button-add-mic-speaker"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Recipe list */}
+            {micRecipe.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {micRecipe.map((r) => (
+                    <div 
+                      key={r.mic}
+                      className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
+                    >
+                      <span className="text-sm font-medium text-primary">{r.label}</span>
+                      <div className="flex items-center gap-0.5 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => updateMicCount(r.mic, -1)}
+                          className="w-5 h-5 flex items-center justify-center text-primary/60 hover:text-primary text-xs"
+                        >
+                          -
+                        </button>
+                        <span className="w-4 text-center text-sm text-primary">{r.count}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateMicCount(r.mic, 1)}
+                          className="w-5 h-5 flex items-center justify-center text-primary/60 hover:text-primary text-xs"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeMicFromRecipe(r.mic)}
+                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400 ml-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total: {getTotalRecipeShots()} shots
+                </p>
+              </div>
+            )}
+
+            {/* Specific Shots (free text) */}
+            <div className="space-y-2 pt-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Specific Shots (Optional)
+              </label>
+              <input
+                type="text"
+                value={specificShots}
+                onChange={(e) => setSpecificShots(e.target.value)}
+                placeholder="e.g., SM57 CapEdge @ 3in, R121 Cap @ 4in..."
+                className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="input-specific-shots-speaker"
+              />
+              <p className="text-xs text-muted-foreground">
+                Request specific mic/position/distance combinations to include.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3">

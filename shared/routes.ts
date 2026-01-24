@@ -23,6 +23,8 @@ export const recommendationInputSchema = z.object({
   preferredShots: z.string().optional(), // User's preferred distances, positions, or existing shots to consider
   targetShotCount: z.number().min(1).max(50).optional(), // Target number of shots to generate (1-50)
   basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+  singleDistancePerMic: z.boolean().optional(), // Use one optimal distance per mic type
+  micShotCounts: z.string().optional(), // User's mic recipe e.g. "SM57 x 3, MD421K x 2"
 });
 
 export const distanceRecommendationSchema = z.object({
@@ -304,6 +306,8 @@ export const api = {
         preferredShots: z.string().optional(),
         targetShotCount: z.number().min(1).max(50).optional(),
         basicPositionsOnly: z.boolean().optional(),
+        singleDistancePerMic: z.boolean().optional(),
+        micShotCounts: z.string().optional(),
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,

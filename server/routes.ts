@@ -752,7 +752,7 @@ export async function registerRoutes(
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly } = input;
+      const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -776,6 +776,24 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may overlap in character. Prioritize variety in position, distance, and tonal goals to minimize redundancy`;
         }
+      }
+      
+      // Build single distance per mic instruction
+      let distanceInstruction = '';
+      if (singleDistancePerMic) {
+        distanceInstruction = `\n\nSINGLE DISTANCE PER MIC (CRITICAL):
+- ALL shots for this mic MUST use the SAME distance
+- Pick ONE optimal distance based on the mic's sweet spot for this speaker
+- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) for tonal variety, NOT distance
+- This is MANDATORY for workflow efficiency`;
+      }
+      
+      // Build mic shot counts instruction
+      let micShotInstruction = '';
+      if (micShotCounts && micShotCounts.trim()) {
+        micShotInstruction = `\n\nMIC SHOT COUNTS (CRITICAL - FOLLOW EXACTLY):
+${micShotCounts}
+- Generate EXACTLY the number of shots specified - no more, no less`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -847,7 +865,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       - The bestFor MUST reference the tonal goal or closely related sounds
       - EXCLUDE generic recommendations that don't serve this tonal goal` : ''}
       
-      ${shotCountInstruction} - each shot is a specific POSITION + DISTANCE combination.
+      ${shotCountInstruction} - each shot is a specific POSITION + DISTANCE combination.${distanceInstruction}${micShotInstruction}
       IMPORTANT: These are NOT interchangeable. Certain distances work better at certain positions.
       For example: Cap at 1" is very different from Cap at 4". CapEdge at 2" is different from Cone at 2".
       
@@ -949,7 +967,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly } = input;
+      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -973,6 +991,26 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         if (targetShotCount > 25) {
           shotCountInstruction += `. NOTE: With ${targetShotCount} shots requested, some recommendations may have similar tonal characteristics. Prioritize variety across mic types, positions, and distances to minimize redundancy`;
         }
+      }
+      
+      // Build single distance per mic instruction
+      let distanceInstruction = '';
+      if (singleDistancePerMic) {
+        distanceInstruction = `\n\nSINGLE DISTANCE PER MIC (CRITICAL):
+- For each mic type, ALL shots with that mic MUST use the SAME distance
+- Pick ONE optimal distance per mic based on its sweet spot for this speaker
+- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) for tonal variety, NOT distance
+- This is MANDATORY for workflow efficiency`;
+      }
+      
+      // Build mic shot counts instruction
+      let micShotInstruction = '';
+      if (micShotCounts && micShotCounts.trim()) {
+        micShotInstruction = `\n\nMIC SHOT COUNTS (CRITICAL - FOLLOW EXACTLY):
+${micShotCounts}
+- Generate EXACTLY the number of shots specified for each mic - no more, no less
+- MD421 and MD421K (Kompakt) are DIFFERENT mics - respect which one is specified
+- Do NOT substitute or add mics not in this list`;
       }
 
       // Get curated recipes for this speaker from IR producer knowledge base
@@ -1053,7 +1091,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - The expectedTone MUST describe how this ${genre ? 'achieves the requested sound' : 'works across different contexts'}
       - The bestFor MUST reference ${genre ? 'the tonal goal or closely related sounds' : 'multiple genres/styles this works for'}
       
-      ${shotCountInstruction}.
+      ${shotCountInstruction}.${distanceInstruction}${micShotInstruction}
       CRITICAL: Each recommendation is a COMPLETE COMBO - one specific mic at one specific position at one specific distance.
       Example: "MD441 (Presence) at CapEdge, 2 inches" - not separate lists of mics, positions, distances.
       ${genre ? `FILTER all recommendations through the user's tonal goal: "${genre}". Only include combinations that achieve this sound.` : 'FILTER all recommendations through VERSATILITY - prioritize proven, balanced combinations that work across rock, blues, country, and other genres. Avoid extreme or niche choices.'}
