@@ -1501,9 +1501,58 @@ Output JSON:
               
               shot.micLabel = `${micName}_${setting}`;
             }
+            
+            // MD421 -> MD421K (user's default is always Kompakt version)
+            if (shot.micLabel === 'MD421' || shot.micLabel === 'md421') {
+              shot.micLabel = 'MD421K';
+              shot.mic = 'md421k';
+            }
           }
+          
+          // Fix mic code for MD421 -> md421k
+          if (shot.mic === '421' || shot.mic === 'md421') {
+            shot.mic = 'md421k';
+            if (!shot.micLabel?.includes('421K')) {
+              shot.micLabel = 'MD421K';
+            }
+          }
+          
+          // Force Roswell to Cap position only
+          if (shot.mic === 'roswell-cab' || shot.mic === 'roswell' || shot.micLabel?.toLowerCase().includes('roswell')) {
+            shot.position = 'Cap';
+            shot.mic = 'roswell-cab';
+            shot.micLabel = 'Roswell Cab Mic';
+          }
+          
           return shot;
         });
+        
+        // Apply 1P behavior (same position, vary distance) for ribbons/condensers
+        // Roswell -> Cap position, C414 -> CapEdge position, R121 -> CapEdge position
+        const apply1PToMic = (micCode: string, defaultPosition: string, distances: string[]) => {
+          const shots = result.micRecommendations.filter((s: any) => s.mic === micCode);
+          if (shots.length > 0) {
+            let distanceIndex = 0;
+            result.micRecommendations = result.micRecommendations.map((shot: any) => {
+              if (shot.mic === micCode) {
+                shot.position = defaultPosition;
+                shot.distance = distances[distanceIndex % distances.length];
+                distanceIndex++;
+              }
+              return shot;
+            });
+          }
+        };
+        
+        // Apply 1P to each ribbon/condenser mic with appropriate position and distance range
+        apply1PToMic('roswell-cab', 'Cap', ['4', '5', '6', '7', '8']);
+        apply1PToMic('c414', 'CapEdge', ['4', '5', '6', '7', '8']);
+        apply1PToMic('121', 'CapEdge', ['4', '5', '6', '7', '8']);
+        apply1PToMic('r10', 'CapEdge', ['4', '5', '6', '7', '8']);
+        apply1PToMic('r92', 'CapEdge', ['4', '5', '6', '7', '8']);
+        
+        // Deduplicate again after position/distance changes
+        result.micRecommendations = deduplicateShots(result.micRecommendations);
       }
       
       res.json(result);
