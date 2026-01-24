@@ -1877,10 +1877,17 @@ Output JSON:
             ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
             : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
           
-          // Build set of existing shot keys
+          // Build set of existing shot keys (MUST match validation's key format)
+          const makeKey = (mic: string, pos: string, dist: string) => {
+            const m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const p = (pos || '').toLowerCase().replace(/[^a-z_]/g, '');
+            const d = (dist || '').toString().replace(/[^0-9.]/g, '');
+            return `${m}|${p}|${d}`;
+          };
+          
           const existingKeys = new Set(
             result.micRecommendations.map((s: any) => 
-              `${s.mic?.toLowerCase()}:${s.position}:${s.distance}`
+              makeKey(s.mic || '', s.position || '', s.distance || '')
             )
           );
           
@@ -1914,7 +1921,7 @@ Output JSON:
             
             for (const pos of positions) {
               if (added >= shortfall) break;
-              const key = `${mic.toLowerCase()}:${pos}:${distance}`;
+              const key = makeKey(mic, pos, distance);
               if (!existingKeys.has(key)) {
                 result.micRecommendations.push({
                   mic, micLabel, position: pos, distance,
@@ -1946,7 +1953,7 @@ Output JSON:
             // Try each available distance
             for (const dist of micInfo.distances) {
               if (added >= shortfall) break;
-              const key = `${mic.toLowerCase()}:${position}:${dist}`;
+              const key = makeKey(mic, position, dist);
               if (!existingKeys.has(key)) {
                 result.micRecommendations.push({
                   mic, micLabel, position, distance: dist,
@@ -1962,6 +1969,20 @@ Output JSON:
           }
           
           console.log(`[Post-Validation Backfill] Added ${added}/${shortfall} shots`);
+          
+          // Final dedup pass after backfill to catch any edge cases
+          const finalSeen = new Set<string>();
+          const finalDeduped: any[] = [];
+          for (const shot of result.micRecommendations) {
+            const key = makeKey(shot.mic || '', shot.position || '', shot.distance || '');
+            if (!finalSeen.has(key)) {
+              finalSeen.add(key);
+              finalDeduped.push(shot);
+            } else {
+              console.log(`[Final Dedup] Removed duplicate: ${shot.micLabel} ${shot.position} ${shot.distance}"`);
+            }
+          }
+          result.micRecommendations = finalDeduped;
         }
         
         // Trim to exact target after backfill
