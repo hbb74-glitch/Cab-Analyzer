@@ -1857,8 +1857,18 @@ Output JSON:
           const shortfall = targetShotCount - result.micRecommendations.length;
           console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
           
-          // Get available mics and positions to backfill
-          const allMics = ['57', 'md421k', 'md441', 'm160', 'm201', 'e906', 'pr30'];
+          // Full mic list with default distances (prioritize mics already in list, then add new ones)
+          const micDefaults: Record<string, { label: string, distance: string }> = {
+            '57': { label: 'SM57', distance: '1.5' },
+            'md421k': { label: 'MD421K', distance: '2' },
+            'md441': { label: 'MD441_Presence', distance: '3' },
+            'm160': { label: 'M160', distance: '3' },
+            'm201': { label: 'M201', distance: '2' },
+            'e906': { label: 'e906_Presence', distance: '1' },
+            'pr30': { label: 'PR30', distance: '1' },
+            'r10': { label: 'R10', distance: '4' },
+          };
+          
           const positions = basicPositionsOnly 
             ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
             : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
@@ -1870,25 +1880,34 @@ Output JSON:
             )
           );
           
+          // Get mics already in recommendations (prioritize these)
+          const existingMics = new Set(
+            result.micRecommendations.map((s: any) => s.mic?.toLowerCase())
+          );
+          
+          // Sort mics: existing first, then new
+          const allMics = Object.keys(micDefaults);
+          const sortedMics = [
+            ...allMics.filter(m => existingMics.has(m)),
+            ...allMics.filter(m => !existingMics.has(m))
+          ];
+          
           let added = 0;
-          for (const mic of allMics) {
+          for (const mic of sortedMics) {
             if (added >= shortfall) break;
             
-            // Find existing shots for this mic to get its distance
+            // Get distance from existing shots or use default
             const existingMicShots = result.micRecommendations.filter((s: any) => 
               s.mic?.toLowerCase() === mic.toLowerCase()
             );
             
-            // If mic not in list yet, use a default distance
-            let distance = '2';
-            if (existingMicShots.length > 0) {
-              distance = existingMicShots[0]?.distance || '2';
-            } else {
-              // Skip mics not already in the recommendation set
-              continue;
-            }
+            let distance = micDefaults[mic]?.distance || '2';
+            let micLabel = micDefaults[mic]?.label || mic.toUpperCase();
             
-            const micLabel = existingMicShots[0]?.micLabel || mic.toUpperCase();
+            if (existingMicShots.length > 0) {
+              distance = existingMicShots[0]?.distance || distance;
+              micLabel = existingMicShots[0]?.micLabel || micLabel;
+            }
             
             // Find unused positions for this mic
             for (const pos of positions) {
@@ -1911,9 +1930,7 @@ Output JSON:
             }
           }
           
-          if (added < shortfall) {
-            console.log(`[Post-Validation Backfill] Could only add ${added}/${shortfall} shots`);
-          }
+          console.log(`[Post-Validation Backfill] Added ${added}/${shortfall} shots`);
         }
         
         // Trim to exact target after backfill
