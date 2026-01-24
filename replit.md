@@ -42,6 +42,7 @@ Preferred communication style: Simple, everyday language.
 - **IR Naming Convention**: Supports a structured shorthand for IR filenames (`Speaker_Mic_Position_distance_variant`) for efficient batch processing.
 - **Genre-Specific Guidance**: Offers detailed tonal goals, studio contexts, and "avoid" rules for 16 predefined genres plus custom options.
 - **Miking Guide**: A curated reference of close-miking techniques for 14 microphones, sourced from professional recording engineering references, including distance ranges, best positions, switch settings, and blending recommendations.
+- **IR Culling**: A batch tool that reduces an IR collection to a target count while maximizing variety (mic types, positions) and quality. Uses spectral similarity analysis and greedy selection algorithm to recommend which IRs to keep vs cut.
 
 ## External Dependencies
 

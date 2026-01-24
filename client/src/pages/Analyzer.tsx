@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -280,6 +280,200 @@ function findRedundantPairs(
   return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
+// Culling result type
+interface CullResult {
+  keep: { filename: string; reason: string; score: number; diversityContribution: number }[];
+  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number }[];
+}
+
+// Cull IRs to a target count, maximizing variety and quality
+function cullIRs(
+  irs: { filename: string; metrics: AudioMetrics; score?: number }[],
+  targetCount: number
+): CullResult {
+  if (irs.length <= targetCount) {
+    return {
+      keep: irs.map(ir => ({ 
+        filename: ir.filename, 
+        reason: "All IRs kept - count already at or below target",
+        score: ir.score || 85,
+        diversityContribution: 1
+      })),
+      cut: []
+    };
+  }
+
+  // Build similarity matrix
+  const n = irs.length;
+  const similarityMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
+  
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+      similarityMatrix[i][j] = similarity;
+      similarityMatrix[j][i] = similarity;
+    }
+  }
+
+  // Parse filenames for mic/position/speaker info to boost diversity
+  const getMicType = (filename: string): string => {
+    const lower = filename.toLowerCase();
+    const mics = ['sm57', 'r121', 'm160', 'md421', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    for (const mic of mics) {
+      if (lower.includes(mic)) return mic;
+    }
+    return 'unknown';
+  };
+
+  const getPosition = (filename: string): string => {
+    const lower = filename.toLowerCase();
+    if (lower.includes('cone_tr') || lower.includes('conetr')) return 'cone_tr';
+    if (lower.includes('capedge_br') || lower.includes('capedgebr')) return 'capedge_br';
+    if (lower.includes('capedge_dk') || lower.includes('capedgedk')) return 'capedge_dk';
+    if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
+    if (lower.includes('cap_offcenter') || lower.includes('offcenter')) return 'cap_offcenter';
+    if (lower.includes('cap')) return 'cap';
+    if (lower.includes('cone')) return 'cone';
+    return 'unknown';
+  };
+
+  // Greedy selection: prioritize diversity and quality
+  const selected: number[] = [];
+  const remaining = new Set<number>(irs.map((_, i) => i));
+
+  // Start with highest quality IR
+  let bestIdx = 0;
+  let bestScore = irs[0].score || 85;
+  for (let i = 1; i < n; i++) {
+    const score = irs[i].score || 85;
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+    }
+  }
+  selected.push(bestIdx);
+  remaining.delete(bestIdx);
+
+  // Select remaining IRs to maximize diversity
+  while (selected.length < targetCount && remaining.size > 0) {
+    let bestCandidate = -1;
+    let bestDiversityScore = -Infinity;
+
+    // Track which mic types and positions are already covered
+    const coveredMics = new Set(selected.map(i => getMicType(irs[i].filename)));
+    const coveredPositions = new Set(selected.map(i => getPosition(irs[i].filename)));
+
+    for (const candidateIdx of Array.from(remaining)) {
+      // Calculate minimum similarity to already selected (lower = more diverse)
+      let maxSimToSelected = 0;
+      for (const selectedIdx of selected) {
+        maxSimToSelected = Math.max(maxSimToSelected, similarityMatrix[candidateIdx][selectedIdx]);
+      }
+      
+      // Diversity score: inversely proportional to max similarity
+      let diversityScore = 1 - maxSimToSelected;
+      
+      // Bonus for new mic types
+      const candidateMic = getMicType(irs[candidateIdx].filename);
+      if (!coveredMics.has(candidateMic)) {
+        diversityScore += 0.15;
+      }
+      
+      // Bonus for new positions
+      const candidatePosition = getPosition(irs[candidateIdx].filename);
+      if (!coveredPositions.has(candidatePosition)) {
+        diversityScore += 0.1;
+      }
+      
+      // Small bonus for quality
+      const qualityBonus = ((irs[candidateIdx].score || 85) - 80) / 100;
+      diversityScore += qualityBonus * 0.1;
+
+      if (diversityScore > bestDiversityScore) {
+        bestDiversityScore = diversityScore;
+        bestCandidate = candidateIdx;
+      }
+    }
+
+    if (bestCandidate >= 0) {
+      selected.push(bestCandidate);
+      remaining.delete(bestCandidate);
+    }
+  }
+
+  // Build result with explanations
+  const keep: CullResult['keep'] = [];
+  const cut: CullResult['cut'] = [];
+
+  for (const idx of selected) {
+    const ir = irs[idx];
+    const mic = getMicType(ir.filename);
+    const pos = getPosition(ir.filename);
+    
+    // Calculate this IR's diversity contribution
+    let minSimToOthers = 1;
+    for (const otherIdx of selected) {
+      if (otherIdx !== idx) {
+        minSimToOthers = Math.min(minSimToOthers, similarityMatrix[idx][otherIdx]);
+      }
+    }
+    const diversityContribution = 1 - minSimToOthers;
+    
+    let reason = "";
+    if (idx === selected[0]) {
+      reason = "Highest quality IR - anchor for the collection";
+    } else if (mic !== 'unknown' || pos !== 'unknown') {
+      const parts = [];
+      if (mic !== 'unknown') parts.push(`${mic.toUpperCase()} character`);
+      if (pos !== 'unknown') parts.push(`${pos} position`);
+      reason = `Unique ${parts.join(' at ')}`;
+    } else {
+      reason = "Adds spectral variety to the collection";
+    }
+    
+    keep.push({
+      filename: ir.filename,
+      reason,
+      score: ir.score || 85,
+      diversityContribution
+    });
+  }
+
+  for (const idx of Array.from(remaining)) {
+    const ir = irs[idx];
+    
+    // Find most similar to kept IRs
+    let maxSim = 0;
+    let mostSimilarIdx = selected[0];
+    for (const selectedIdx of selected) {
+      if (similarityMatrix[idx][selectedIdx] > maxSim) {
+        maxSim = similarityMatrix[idx][selectedIdx];
+        mostSimilarIdx = selectedIdx;
+      }
+    }
+    
+    const reason = maxSim >= 0.9 
+      ? `Very similar (${Math.round(maxSim * 100)}%) to kept IR`
+      : maxSim >= 0.8
+        ? `Similar (${Math.round(maxSim * 100)}%) to kept IR`
+        : "Less diverse than kept alternatives";
+    
+    cut.push({
+      filename: ir.filename,
+      reason,
+      score: ir.score || 85,
+      mostSimilarTo: irs[mostSimilarIdx].filename,
+      similarity: maxSim
+    });
+  }
+
+  // Sort keep by diversity contribution (descending), cut by similarity (descending)
+  keep.sort((a, b) => b.diversityContribution - a.diversityContribution);
+  cut.sort((a, b) => b.similarity - a.similarity);
+
+  return { keep, cut };
+}
+
 export default function Analyzer() {
   // Use context for mode and results persistence
   const { 
@@ -306,6 +500,11 @@ export default function Analyzer() {
   const [redundantPairs, setRedundantPairs] = useState<RedundantPair[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.95);
   const [showRedundancies, setShowRedundancies] = useState(false);
+  
+  // Culling state
+  const [cullResult, setCullResult] = useState<CullResult | null>(null);
+  const [targetCullCount, setTargetCullCount] = useState(10);
+  const [showCuller, setShowCuller] = useState(false);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -407,6 +606,8 @@ export default function Analyzer() {
     setBatchResult(null);
     setRedundantPairs([]);
     setShowRedundancies(false);
+    setCullResult(null);
+    setShowCuller(false);
   };
   
   // Find redundant IR pairs
@@ -431,6 +632,43 @@ export default function Analyzer() {
     } else {
       toast({ title: `Found ${pairs.length} redundant pair${pairs.length > 1 ? 's' : ''}`, description: "Review below to identify removable IRs" });
     }
+  };
+  
+  // Cull IRs to target count
+  const handleCullIRs = () => {
+    const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
+    if (validIRs.length < 2) {
+      toast({ title: "Need more IRs", description: "Upload at least 2 IRs to cull", variant: "destructive" });
+      return;
+    }
+    
+    if (targetCullCount >= validIRs.length) {
+      toast({ title: "Target too high", description: `You have ${validIRs.length} IRs. Set a target lower than that to cull.`, variant: "destructive" });
+      return;
+    }
+    
+    // Get scores from batch result if available
+    const scoreMap = new Map<string, number>();
+    if (batchResult) {
+      for (const r of batchResult.results) {
+        scoreMap.set(r.filename, r.score);
+      }
+    }
+    
+    const irsWithMetrics = validIRs.map(ir => ({
+      filename: ir.file.name,
+      metrics: ir.metrics!,
+      score: scoreMap.get(ir.file.name)
+    }));
+    
+    const result = cullIRs(irsWithMetrics, targetCullCount);
+    setCullResult(result);
+    setShowCuller(true);
+    
+    toast({ 
+      title: `Culling complete`, 
+      description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs` 
+    });
   };
 
   const copyBatchResults = () => {
@@ -806,6 +1044,22 @@ export default function Analyzer() {
                     <Target className="w-4 h-4" />
                     Find Redundancies ({validBatchCount} IRs)
                   </button>
+                  
+                  {/* Culler Button */}
+                  <button
+                    onClick={() => setShowCuller(!showCuller)}
+                    disabled={validBatchCount < 2 || analyzingBatchCount > 0}
+                    className={cn(
+                      "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                      validBatchCount >= 2 && analyzingBatchCount === 0
+                        ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30"
+                        : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                    )}
+                    data-testid="button-open-culler"
+                  >
+                    <Scissors className="w-4 h-4" />
+                    Cull to Target ({validBatchCount} IRs)
+                  </button>
                 </div>
               </div>
             )}
@@ -1167,6 +1421,129 @@ export default function Analyzer() {
                       <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
                       <p>No redundant IRs detected at the current threshold.</p>
                       <p className="text-xs mt-2">Try lowering the threshold to find more similar pairs.</p>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Culler Panel */}
+            <AnimatePresence>
+              {showCuller && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-4"
+                  data-testid="panel-culler"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <Scissors className="w-5 h-5 text-purple-400" />
+                      <h3 className="text-lg font-semibold">IR Culler</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowCuller(false)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid="button-close-culler"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Reduce your collection to a target size while maximizing variety and quality.
+                  </p>
+                  
+                  {/* Target Count Input */}
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <label className="text-sm font-medium">Target count:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={batchIRs.filter(ir => ir.metrics && !ir.error).length - 1}
+                      value={targetCullCount}
+                      onChange={(e) => setTargetCullCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 px-3 py-1.5 rounded-lg bg-black/30 border border-white/10 text-center text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                      data-testid="input-target-cull-count"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      of {batchIRs.filter(ir => ir.metrics && !ir.error).length} IRs
+                    </span>
+                    <button
+                      onClick={handleCullIRs}
+                      className="px-4 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-sm font-medium transition-all border border-purple-500/30"
+                      data-testid="button-run-cull"
+                    >
+                      Cull Now
+                    </button>
+                  </div>
+                  
+                  {/* Cull Results */}
+                  {cullResult && (
+                    <div className="space-y-4 mt-4">
+                      {/* Keep Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-400" />
+                          <h4 className="font-medium text-green-400">Keep ({cullResult.keep.length})</h4>
+                        </div>
+                        <div className="grid gap-2">
+                          {cullResult.keep.map((ir, idx) => (
+                            <div 
+                              key={ir.filename} 
+                              className="p-3 rounded-lg bg-green-500/10 border border-green-500/20"
+                            >
+                              <div className="flex items-start justify-between gap-2 flex-wrap">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-mono text-sm truncate text-green-300" title={ir.filename}>
+                                    {ir.filename}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">{ir.reason}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs text-muted-foreground">Score</div>
+                                  <div className="text-sm font-bold text-green-400">{ir.score}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Cut Section */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-400" />
+                          <h4 className="font-medium text-red-400">Cut ({cullResult.cut.length})</h4>
+                        </div>
+                        <div className="grid gap-2">
+                          {cullResult.cut.map((ir, idx) => (
+                            <div 
+                              key={ir.filename} 
+                              className="p-3 rounded-lg bg-red-500/10 border border-red-500/20"
+                            >
+                              <div className="flex items-start justify-between gap-2 flex-wrap">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-mono text-sm truncate text-red-300" title={ir.filename}>
+                                    {ir.filename}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {ir.reason}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Similar to: <span className="text-foreground/70">{ir.mostSimilarTo}</span> ({Math.round(ir.similarity * 100)}%)
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs text-muted-foreground">Score</div>
+                                  <div className="text-sm font-bold text-red-400">{ir.score}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </motion.div>
