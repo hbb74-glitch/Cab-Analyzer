@@ -1334,6 +1334,49 @@ Output JSON:
         }
       }
       
+      // Check if we still need more shots to hit target
+      if (targetShotCount && result.micRecommendations && result.micRecommendations.length < targetShotCount) {
+        const shortfall = targetShotCount - result.micRecommendations.length;
+        console.log('[By-Speaker] Still short by', shortfall, 'shots, adding extras');
+        
+        const extraPrompt = `Generate ${shortfall} additional mic shots for ${speakerModel} speaker.
+Genre: ${genre || 'versatile'}
+
+Use any good mics for this speaker. Valid options include: SM57, R121, M160, MD421K, MD441, e906, M201, C414, PR30, Roswell Cab Mic.
+
+CRITICAL FORMAT RULES:
+- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+- distance MUST be a number as string: "1", "2.5", "4"
+- For MD441/e906: include switch setting in micLabel like "MD441 (Presence)"
+
+Output JSON:
+{
+  "extras": [
+    { "mic": "57", "micLabel": "SM57", "position": "CapEdge", "distance": "1.5", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
+  ]
+}`;
+
+        try {
+          const extraResponse = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: "Generate additional mic shots to fill the target count." },
+              { role: "user", content: extraPrompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.3,
+          });
+          
+          const extraResult = JSON.parse(extraResponse.choices[0].message.content || "{}");
+          if (extraResult.extras && Array.isArray(extraResult.extras)) {
+            console.log('[By-Speaker] Adding', extraResult.extras.length, 'extra shots');
+            result.micRecommendations.push(...extraResult.extras);
+          }
+        } catch (extraErr) {
+          console.error('[By-Speaker] Failed to add extra shots:', extraErr);
+        }
+      }
+      
       // Enforce exact shot count if specified
       if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
         if (result.micRecommendations.length > targetShotCount) {
