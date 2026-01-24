@@ -794,24 +794,29 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
         const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
         
-        micShotInstruction = `\n\n*** SHOT COUNT REQUIREMENT: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS ***
+        console.log('[By-Mic] Recipe math:', { micShotCounts, recipeTotal, targetShotCount, remainingSlots });
+        
+        micShotInstruction = `\n\n╔══════════════════════════════════════════════════════════════╗
+║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS  ║
+╚══════════════════════════════════════════════════════════════╝
 
 MIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
 
-MATH CHECK:
-- Recipe shots: ${recipeTotal}
-- Target total: ${targetShotCount}
-- ADDITIONAL SHOTS YOU MUST ADD: ${remainingSlots}
+MATH YOU MUST FOLLOW:
+- Recipe minimum: ${recipeTotal} shots
+- Target TOTAL: ${targetShotCount} shots
+- EXTRA SHOTS REQUIRED: ${remainingSlots} more beyond the recipe
 
-${remainingSlots > 0 ? `CRITICAL: After including all recipe shots, you have ${remainingSlots} MORE slots to fill!
-- PRIORITIZE unused mics for variety
-- You MAY also add more shots of recipe mics if it makes sense
-- When adding more of a recipe mic, respect its 1P/1D constraints
+${remainingSlots > 0 ? `YOU ARE SHORT ${remainingSlots} SHOTS IF YOU ONLY DO THE RECIPE!
 
-DO NOT OUTPUT ONLY ${recipeTotal} SHOTS. YOU MUST OUTPUT ${targetShotCount} TOTAL SHOTS.` : ''}
+Add ${remainingSlots} more shots using:
+1. Unused mics (for variety)
+2. OR more shots of recipe mics (respecting their 1P/1D constraints)
 
-FINAL CHECK: Count your shots array. It MUST have exactly ${targetShotCount} items.`;
+IF YOUR SHOTS ARRAY HAS ONLY ${recipeTotal} ITEMS, YOU FAILED. ADD ${remainingSlots} MORE.` : ''}
+
+BEFORE YOU OUTPUT: Count your shots. If count != ${targetShotCount}, add more shots until count == ${targetShotCount}.`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -1039,26 +1044,31 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         const recipeTotal = (micShotCounts.match(/x (\d+)/g) || []).reduce((sum, match) => sum + parseInt(match.replace('x ', '')), 0);
         const remainingSlots = targetShotCount ? targetShotCount - recipeTotal : 0;
         
-        micShotInstruction = `\n\n*** SHOT COUNT REQUIREMENT: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS ***
+        console.log('[By-Speaker] Recipe math:', { micShotCounts, recipeTotal, targetShotCount, remainingSlots });
+        
+        micShotInstruction = `\n\n╔══════════════════════════════════════════════════════════════╗
+║  MANDATORY: YOUR OUTPUT MUST CONTAIN EXACTLY ${targetShotCount} SHOTS  ║
+╚══════════════════════════════════════════════════════════════╝
 
 MIC RECIPE (MANDATORY MINIMUMS):
 ${micShotCounts}
 
-MATH CHECK:
-- Recipe shots: ${recipeTotal}
-- Target total: ${targetShotCount}
-- ADDITIONAL SHOTS YOU MUST ADD: ${remainingSlots}
+MATH YOU MUST FOLLOW:
+- Recipe minimum: ${recipeTotal} shots
+- Target TOTAL: ${targetShotCount} shots
+- EXTRA SHOTS REQUIRED: ${remainingSlots} more beyond the recipe
 
 IMPORTANT: MD421 and MD421K (Kompakt) are DIFFERENT mics - NEVER substitute one for the other.
 
-${remainingSlots > 0 ? `CRITICAL: After including all recipe shots, you have ${remainingSlots} MORE slots to fill!
-- PRIORITIZE unused mics for variety
-- You MAY also add more shots of recipe mics if it makes sense
-- When adding more of a recipe mic, respect its 1P/1D constraints
+${remainingSlots > 0 ? `YOU ARE SHORT ${remainingSlots} SHOTS IF YOU ONLY DO THE RECIPE!
 
-DO NOT OUTPUT ONLY ${recipeTotal} SHOTS. YOU MUST OUTPUT ${targetShotCount} TOTAL SHOTS.` : ''}
+Add ${remainingSlots} more shots using:
+1. Unused mics (for variety)
+2. OR more shots of recipe mics (respecting their 1P/1D constraints)
 
-FINAL CHECK: Count your shots array. It MUST have exactly ${targetShotCount} items.`;
+IF YOUR SHOTS ARRAY HAS ONLY ${recipeTotal} ITEMS, YOU FAILED. ADD ${remainingSlots} MORE.` : ''}
+
+BEFORE YOU OUTPUT: Count your shots. If count != ${targetShotCount}, add more shots until count == ${targetShotCount}.`;
       }
       
       // Build hierarchy instruction - all options work together
