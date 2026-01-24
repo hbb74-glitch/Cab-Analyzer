@@ -327,8 +327,6 @@ const BASIC_POSITIONS = ['cap', 'capedge', 'capedge_cone_tr', 'cone'];
 function validateAndFixRecommendations(
   shots: any[],
   options: {
-    enforceRibbonMinDistance?: boolean;
-    enforceCondenserMinDistance?: boolean;
     basicPositionsOnly?: boolean;
     singleDistancePerMic?: boolean;
     singlePositionForRibbons?: boolean;
@@ -337,39 +335,53 @@ function validateAndFixRecommendations(
   const fixes: string[] = [];
   let validShots = [...shots];
   
-  // 1. Enforce ribbon mic minimum 4" distance
-  if (options.enforceRibbonMinDistance !== false) {
-    validShots = validShots.map(shot => {
-      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const isRibbon = RIBBON_MICS.some(r => micLower.includes(r)) && !micLower.includes('m160');
-      
-      if (isRibbon) {
-        const dist = parseFloat((shot.distance || '0').toString().replace(/[^0-9.]/g, ''));
-        if (dist < 4) {
-          fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${dist}" → 4" (ribbon minimum)`);
-          return { ...shot, distance: '4' };
-        }
-      }
-      return shot;
-    });
-  }
+  // Per-mic minimum distances based on best practices guide
+  // Dynamic mics: 0.5" (on-grille is fine)
+  // Ribbons (figure-8): 2" minimum (proximity effect, delicate elements)
+  // M160 (hypercardioid ribbon): 1" (tighter pattern, less proximity)
+  // Condensers: 4" minimum (sensitivity, proximity)
+  // Roswell: 4" minimum (manufacturer spec)
+  const MIC_MIN_DISTANCES: Record<string, number> = {
+    // Dynamic mics - can go very close
+    '57': 0.5, 'sm57': 0.5,
+    '421': 0.5, 'md421': 0.5,
+    'e906': 0.5,
+    'm88': 0.5,
+    'pr30': 1,
+    'sm7b': 1, 'sm7': 1,
+    'md441': 1,
+    // Figure-8 ribbons - need distance for proximity control
+    '121': 2, 'r121': 2,
+    'r10': 2,
+    'r92': 2,
+    // M160 hypercardioid ribbon - can go closer
+    '160': 1, 'm160': 1,
+    // Condensers
+    'c414': 4,
+    // Roswell - manufacturer spec
+    'roswell': 4, 'roswellcab': 4, 'roswellcabmic': 4,
+  };
   
-  // 2. Enforce condenser mic minimum 4" distance
-  if (options.enforceCondenserMinDistance !== false) {
-    validShots = validShots.map(shot => {
-      const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const isCondenser = CONDENSER_MICS.some(c => micLower.includes(c));
-      
-      if (isCondenser) {
-        const dist = parseFloat((shot.distance || '0').toString().replace(/[^0-9.]/g, ''));
-        if (dist < 4) {
-          fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${dist}" → 4" (condenser minimum)`);
-          return { ...shot, distance: '4' };
-        }
+  // 1. Enforce per-mic minimum distances based on guide data
+  validShots = validShots.map(shot => {
+    const micLower = (shot.mic || shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    // Find matching mic minimum
+    let minDist = 0.5; // Default for dynamics
+    for (const [micKey, min] of Object.entries(MIC_MIN_DISTANCES)) {
+      if (micLower.includes(micKey)) {
+        minDist = min;
+        break;
       }
-      return shot;
-    });
-  }
+    }
+    
+    const dist = parseFloat((shot.distance || '0').toString().replace(/[^0-9.]/g, ''));
+    if (dist < minDist) {
+      fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${dist}" → ${minDist}" (mic minimum)`);
+      return { ...shot, distance: String(minDist) };
+    }
+    return shot;
+  });
   
   // 3. Enforce basic positions only (filter out non-basic positions)
   if (options.basicPositionsOnly) {
@@ -1059,31 +1071,31 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       Distance is the primary variable - position on the speaker is less important for this analysis.
       Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
-      === CRITICAL DISTANCE RULES (0-6" IR production) ===
-      RIBBON MICS (R-121, R10, R92) - MINIMUM 4" distance required!
-      - These have significant proximity effect. Under 4" = excessive bass, unbalanced IRs.
-      - NEVER recommend 0", 0.5", 1", 1.5", 2", 2.5", or 3" for R-121, R10, or R92.
-      - Recommended range: 4-6" for controlled, balanced capture.
+      === DISTANCE GUIDELINES (0-6" IR production) ===
+      Per-mic minimum distances based on best practices:
       
-      M160 is an EXCEPTION - hypercardioid ribbon with less proximity effect.
-      - M160 can go as close as 1" (Jacquire King technique).
-      
-      Microphone Knowledge for Close-Miking (0-6" range, IR production focus):
-      - 57 (SM57): Classic dynamic, mid-forward with 5-6kHz presence peak. Craig Anderton: Start 1-2" back. Sweet spot 1-2".
-      - 121 (R-121): Ribbon, smooth highs, thick low-mids, figure-8. MINIMUM 4" required. Sweet spot 4-6".
-      - 160 (M160): Hypercardioid ribbon, less proximity effect. Jacquire King: 1" from grille. Sweet spot 1-4".
-      - 421 (MD421): Large diaphragm dynamic, scooped mids. Sweet spot 2-4".
-      - 421k (MD421K / MD421 Kompakt): Compact version of MD421, same character but smaller form factor. Sweet spot 2-4". THIS IS A DIFFERENT MIC FROM MD421 - do not substitute.
-      - md441 (MD441): Condenser-like transparency. Sweet spot 4-6", slightly off-axis.
-      - r10 (R10): Entry-level Royer ribbon. MINIMUM 4" required. Sweet spot 4-6".
-      - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" required. Sweet spot 4-6".
+      DYNAMICS (can go very close, 0.5"+ ok):
+      - 57 (SM57): Mid-forward, 5-6kHz presence. Sweet spot 0.5-2".
+      - 421 (MD421): Large diaphragm dynamic, scooped mids. Sweet spot 0.5-2".
+      - 421k (MD421K / MD421 Kompakt): Compact MD421, same character. Sweet spot 0.5-2". DIFFERENT MIC FROM MD421.
+      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0.5-2".
       - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
-      - pr30 (PR30): Large diaphragm, clear highs, less proximity. Sweet spot 0.5-1".
-      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0-2".
+      - pr30 (PR30): Large diaphragm, clear highs. Sweet spot 1-2".
       - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
       - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
-      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. Recommended 6", centered on cap.
-      - c414 (C414): AKG condenser, detailed highs. Keep at 4-6" with pad.
+      - md441 (MD441): Condenser-like transparency. Sweet spot 1-4".
+      
+      RIBBONS (figure-8 pattern, 2"+ minimum for proximity control):
+      - 121 (R-121): Smooth highs, thick low-mids. Sweet spot 2-4".
+      - r10 (R10): Entry-level Royer ribbon. Sweet spot 2-4".
+      - r92 (R92): AEA ribbon, warm, figure-8. Sweet spot 2-4".
+      
+      M160 EXCEPTION (hypercardioid ribbon, tighter pattern = less proximity):
+      - 160 (M160): Can go as close as 1". Sweet spot 1-3".
+      
+      CONDENSERS (4"+ minimum, sensitivity requires distance):
+      - c414 (C414): AKG condenser, detailed highs. Sweet spot 4-6" with pad.
+      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. 4-6", Cap position ONLY.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -1200,8 +1212,6 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       // Validate and fix recommendations (enforce rules AI might violate)
       if (result.shots && Array.isArray(result.shots)) {
         const validation = validateAndFixRecommendations(result.shots, {
-          enforceRibbonMinDistance: true,
-          enforceCondenserMinDistance: true,
           basicPositionsOnly: basicPositionsOnly,
           singleDistancePerMic: singleDistancePerMic,
         });
@@ -1375,39 +1385,31 @@ Use these curated recipes as the foundation of your recommendations. You may add
       When curated recipes are provided, PRIORITIZE them over generic suggestions.
       ${curatedSection}
       
-      === CRITICAL DISTANCE RULES (0-6" IR production) ===
-      RIBBON MICS (R-121, R10, R92) - MINIMUM 4" distance required!
-      - These have significant proximity effect. Under 4" = excessive bass, unbalanced IRs.
-      - Recommended range: 4-6" for controlled, balanced capture.
-      - NEVER recommend 0", 0.5", 1", 1.5", 2", 2.5", or 3" for R-121, R10, or R92.
+      === DISTANCE GUIDELINES (0-6" IR production) ===
+      Per-mic minimum distances based on best practices:
       
-      M160 is an EXCEPTION - hypercardioid ribbon with less proximity effect.
-      - M160 can go as close as 1" (Jacquire King technique).
-      
-      DYNAMIC MICS (SM57, MD421, MD441, M88, PR30, e906, M201, SM7B):
-      - Most work well at 0.5-4" range.
-      - PR30 has less proximity effect, sweet spot at 0.5-1".
-      
-      CONDENSER (C414): Keep at 4-6" with pad for close-miking.
-      
-      ROSWELL CAB MIC: Manufacturer recommends 6", centered on cap.
-      
-      Available Microphones:
-      - 57 (SM57): Classic dynamic, mid-forward, aggressive. Sweet spot 1-2".
-      - 121 (R-121): Ribbon, smooth highs, big low-mid. MINIMUM 4" distance required.
-      - 160 (M160): Hypercardioid ribbon, less proximity. Can go to 1".
-      - 421 (MD421): Large diaphragm dynamic, punchy. Sweet spot 2-4".
-      - 421k (MD421K / MD421 Kompakt): Compact version of MD421, same tonal character. Sweet spot 2-4". THIS IS A DIFFERENT MIC FROM MD421 - do not substitute one for the other.
-      - md441 (MD441): Dynamic with presence/flat switch. Treat EACH setting as a separate mic option. Sweet spot 4-6".
-      - r10 (R10): Ribbon, smooth and warm. MINIMUM 4" distance required.
-      - r92 (R92): AEA ribbon, warm, figure-8. MINIMUM 4" distance required.
+      DYNAMICS (can go very close, 0.5"+ ok):
+      - 57 (SM57): Mid-forward, 5-6kHz presence. Sweet spot 0.5-2".
+      - 421 (MD421): Large diaphragm dynamic, punchy. Sweet spot 0.5-2".
+      - 421k (MD421K / MD421 Kompakt): Compact MD421, same character. Sweet spot 0.5-2". DIFFERENT MIC FROM MD421.
+      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0.5-2".
       - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
-      - pr30 (PR30): Large diaphragm dynamic, very clear highs, less proximity. Sweet spot 0.5-1".
-      - e906 (e906): Supercardioid with presence/flat switch. Sweet spot 0-2".
+      - pr30 (PR30): Large diaphragm, clear highs. Sweet spot 1-2".
       - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
       - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
-      - c414 (C414): AKG condenser, detailed highs. Keep at 4-6" with pad.
-      - roswell-cab (Roswell Cab Mic): Specialized condenser for loud cabs. RECOMMENDED: 6", centered on cap.
+      - md441 (MD441): Condenser-like transparency, presence/flat switch. Sweet spot 1-4".
+      
+      RIBBONS (figure-8 pattern, 2"+ minimum for proximity control):
+      - 121 (R-121): Smooth highs, thick low-mids. Sweet spot 2-4".
+      - r10 (R10): Entry-level Royer ribbon. Sweet spot 2-4".
+      - r92 (R92): AEA ribbon, warm, figure-8. Sweet spot 2-4".
+      
+      M160 EXCEPTION (hypercardioid ribbon, tighter pattern = less proximity):
+      - 160 (M160): Can go as close as 1". Sweet spot 1-3".
+      
+      CONDENSERS (4"+ minimum, sensitivity requires distance):
+      - c414 (C414): AKG condenser, detailed highs. Sweet spot 4-6" with pad.
+      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. 4-6", Cap position ONLY.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
@@ -1895,8 +1897,6 @@ Output JSON:
       // Final validation pass to enforce all rules deterministically
       if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
         const validation = validateAndFixRecommendations(result.micRecommendations, {
-          enforceRibbonMinDistance: true,
-          enforceCondenserMinDistance: true,
           basicPositionsOnly: basicPositionsOnly,
           singleDistancePerMic: singleDistancePerMic,
           singlePositionForRibbons: singlePositionForRibbons,
