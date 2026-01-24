@@ -26,6 +26,7 @@ const MICS = [
   { value: "r92", label: "R92" },
   { value: "160", label: "M160" },
   { value: "421", label: "MD421" },
+  { value: "421k", label: "MD421K (Kompakt)" },
   { value: "md441", label: "MD441" },
   { value: "r10", label: "R10" },
   { value: "m88", label: "M88" },
@@ -36,6 +37,9 @@ const MICS = [
   { value: "c414", label: "C414" },
   { value: "roswell-cab", label: "Roswell Cab Mic" },
 ];
+
+// Mic recipe type for structured input
+type MicRecipeEntry = { mic: string; label: string; count: number };
 
 const SPEAKERS = [
   { value: "g12m25", label: "G12M (Greenback)" },
@@ -395,7 +399,10 @@ export default function Recommendations() {
   const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
   const [basicPositionsOnly, setBasicPositionsOnly] = useState(false);
   const [singleDistancePerMic, setSingleDistancePerMic] = useState(false);
-  const [micShotCounts, setMicShotCounts] = useState<string>("");
+  const [micRecipe, setMicRecipe] = useState<MicRecipeEntry[]>([]);
+  const [selectedMicForRecipe, setSelectedMicForRecipe] = useState<string>("");
+  const [selectedMicCount, setSelectedMicCount] = useState<number>(2);
+  const [specificShots, setSpecificShots] = useState<string>("");
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -979,6 +986,58 @@ export default function Recommendations() {
     processImport(positionList.trim());
   };
 
+  // Convert mic recipe array to string format for API
+  const getMicShotCountsString = () => {
+    const parts: string[] = [];
+    if (micRecipe.length > 0) {
+      parts.push(micRecipe.map(r => `${r.label} x ${r.count}`).join(", "));
+    }
+    if (specificShots.trim()) {
+      parts.push(`Specific shots: ${specificShots.trim()}`);
+    }
+    return parts.length > 0 ? parts.join(". ") : undefined;
+  };
+  
+  // Calculate total shots from recipe
+  const getTotalRecipeShots = () => micRecipe.reduce((sum, r) => sum + r.count, 0);
+
+  // Add mic to recipe
+  const addMicToRecipe = () => {
+    if (!selectedMicForRecipe) return;
+    const mic = MICS.find(m => m.value === selectedMicForRecipe);
+    if (!mic) return;
+    
+    // Check if already in recipe
+    const existing = micRecipe.find(r => r.mic === selectedMicForRecipe);
+    if (existing) {
+      // Update count
+      setMicRecipe(prev => prev.map(r => 
+        r.mic === selectedMicForRecipe ? { ...r, count: r.count + selectedMicCount } : r
+      ));
+    } else {
+      // Add new
+      setMicRecipe(prev => [...prev, { mic: selectedMicForRecipe, label: mic.label, count: selectedMicCount }]);
+    }
+    setSelectedMicForRecipe("");
+    setSelectedMicCount(2);
+  };
+
+  // Remove mic from recipe
+  const removeMicFromRecipe = (mic: string) => {
+    setMicRecipe(prev => prev.filter(r => r.mic !== mic));
+  };
+
+  // Update mic count in recipe
+  const updateMicCount = (mic: string, delta: number) => {
+    setMicRecipe(prev => prev.map(r => {
+      if (r.mic === mic) {
+        const newCount = Math.max(1, r.count + delta);
+        return { ...r, count: newCount };
+      }
+      return r;
+    }));
+  };
+
   const processImport = (positions: string) => {
     const effectiveGenre = buildEffectiveGenre();
     refinePositions({ 
@@ -988,7 +1047,7 @@ export default function Recommendations() {
       targetShotCount: targetShotCount || undefined,
       basicPositionsOnly: basicPositionsOnly || undefined,
       singleDistancePerMic: singleDistancePerMic || undefined,
-      micShotCounts: micShotCounts.trim() || undefined
+      micShotCounts: getMicShotCountsString()
     });
   };
 
@@ -1749,21 +1808,122 @@ Or written out:
             </p>
           </div>
 
-          {/* Mic Shot Counts */}
+          {/* Mic Recipe Builder */}
+          <div className="space-y-3">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Mic2 className="w-3 h-3" /> Mic Recipe (Optional)
+            </label>
+            
+            {/* Add mic row */}
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedMicForRecipe}
+                onChange={(e) => setSelectedMicForRecipe(e.target.value)}
+                className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                data-testid="select-mic-recipe"
+              >
+                <option value="">Select mic...</option>
+                {MICS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMicCount(Math.max(1, selectedMicCount - 1))}
+                  className="w-7 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="button-mic-count-minus"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center text-sm font-medium">{selectedMicCount}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMicCount(selectedMicCount + 1)}
+                  className="w-7 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="button-mic-count-plus"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={addMicToRecipe}
+                disabled={!selectedMicForRecipe}
+                className={cn(
+                  "px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                  selectedMicForRecipe
+                    ? "bg-primary/20 text-primary hover:bg-primary/30"
+                    : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                )}
+                data-testid="button-add-mic"
+              >
+                <PlusCircle className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Recipe list */}
+            {micRecipe.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {micRecipe.map((r) => (
+                    <div 
+                      key={r.mic}
+                      className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
+                    >
+                      <span className="text-sm font-medium text-primary">{r.label}</span>
+                      <div className="flex items-center gap-0.5 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => updateMicCount(r.mic, -1)}
+                          className="w-5 h-5 flex items-center justify-center text-primary/60 hover:text-primary text-xs"
+                          data-testid={`button-decrease-${r.mic}`}
+                        >
+                          -
+                        </button>
+                        <span className="w-4 text-center text-sm text-primary">{r.count}</span>
+                        <button
+                          type="button"
+                          onClick={() => updateMicCount(r.mic, 1)}
+                          className="w-5 h-5 flex items-center justify-center text-primary/60 hover:text-primary text-xs"
+                          data-testid={`button-increase-${r.mic}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeMicFromRecipe(r.mic)}
+                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400 ml-1"
+                        data-testid={`button-remove-${r.mic}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total: {getTotalRecipeShots()} shots
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Specific Shots (free text) */}
           <div className="space-y-2">
             <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Target className="w-3 h-3" /> Shots Per Mic (Optional)
+              <Target className="w-3 h-3" /> Specific Shots (Optional)
             </label>
             <input
               type="text"
-              value={micShotCounts}
-              onChange={(e) => setMicShotCounts(e.target.value)}
-              placeholder="e.g., SM57 x 3, MD421K x 2, R121 x 2, M88 x 2..."
+              value={specificShots}
+              onChange={(e) => setSpecificShots(e.target.value)}
+              placeholder="e.g., SM57 CapEdge @ 3in, R121 Cap @ 4in..."
               className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              data-testid="input-mic-shot-counts"
+              data-testid="input-specific-shots"
             />
             <p className="text-xs text-muted-foreground">
-              Specify exactly how many shots per mic. The AI will follow this recipe precisely.
+              Request specific mic/position/distance combinations to include in the output.
             </p>
           </div>
 
