@@ -389,15 +389,21 @@ function validateAndFixRecommendations(
     }
   }
   
+  // Helper to normalize distance to consistent numeric string format
+  const normDist = (dist: any) => {
+    const num = parseFloat(String(dist).replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? String(dist) : String(num);
+  };
+  
   // 4. Enforce single distance per mic
   if (options.singleDistancePerMic) {
     const micDistances = new Map<string, string>();
     
-    // First pass: find existing distances per mic
+    // First pass: find existing distances per mic (normalized)
     for (const shot of validShots) {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (micKey && !micDistances.has(micKey)) {
-        micDistances.set(micKey, (shot.distance || '').toString());
+        micDistances.set(micKey, normDist(shot.distance));
       }
     }
     
@@ -405,10 +411,10 @@ function validateAndFixRecommendations(
     validShots = validShots.map(shot => {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const expectedDist = micDistances.get(micKey);
-      const currentDist = (shot.distance || '').toString();
+      const currentNormDist = normDist(shot.distance);
       
-      if (expectedDist && currentDist !== expectedDist) {
-        fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${currentDist}" → ${expectedDist}" (single distance per mic)`);
+      if (expectedDist && currentNormDist !== expectedDist) {
+        fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${shot.distance}" → ${expectedDist}" (single distance per mic)`);
         return { ...shot, distance: expectedDist };
       }
       return shot;
@@ -450,20 +456,32 @@ function validateAndFixRecommendations(
   }
   
   // 6. Roswell Cab Mic special handling: single shot = 6" Cap, multiple = Cap at various distances
-  const roswellShots = validShots.filter(s => 
-    (s.mic || '').toLowerCase().includes('roswell')
-  );
+  // Helper to check if shot is Roswell (check both mic and micLabel with normalization)
+  const isRoswell = (shot: any) => {
+    const mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const label = (shot.micLabel || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return mic.includes('roswell') || label.includes('roswell');
+  };
+  
+  // Helper to normalize distance to consistent format (strip quotes, trailing zeros)
+  const normalizeDistance = (dist: any) => {
+    const num = parseFloat(String(dist).replace(/[^0-9.]/g, ''));
+    return isNaN(num) ? String(dist) : String(num);
+  };
+  
+  const roswellShots = validShots.filter(isRoswell);
   if (roswellShots.length === 1) {
     // Single Roswell shot: force to 6" Cap
     validShots = validShots.map(shot => {
-      if ((shot.mic || '').toLowerCase().includes('roswell')) {
+      if (isRoswell(shot)) {
         const changes: string[] = [];
         let newShot = { ...shot };
         if (shot.position !== 'Cap') {
           changes.push(`${shot.position} → Cap`);
           newShot.position = 'Cap';
         }
-        if (shot.distance !== '6') {
+        const normDist = normalizeDistance(shot.distance);
+        if (normDist !== '6') {
           changes.push(`${shot.distance}" → 6"`);
           newShot.distance = '6';
         }
@@ -477,7 +495,7 @@ function validateAndFixRecommendations(
   } else if (roswellShots.length > 1) {
     // Multiple Roswell shots: force all to Cap position (keep varied distances)
     validShots = validShots.map(shot => {
-      if ((shot.mic || '').toLowerCase().includes('roswell') && shot.position !== 'Cap') {
+      if (isRoswell(shot) && shot.position !== 'Cap') {
         fixes.push(`Fixed Roswell Cab Mic: ${shot.position} → Cap (multi-shot Cap focus)`);
         return { ...shot, position: 'Cap' };
       }
@@ -485,13 +503,13 @@ function validateAndFixRecommendations(
     });
   }
   
-  // 7. Remove duplicate shots (same mic+position+distance)
+  // 7. Remove duplicate shots (same mic+position+distance with normalized distance)
   const seen = new Set<string>();
   const deduped: any[] = [];
   for (const shot of validShots) {
     const mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const pos = (shot.position || '').toLowerCase().replace(/[^a-z_]/g, '');
-    const dist = (shot.distance || '').toString().replace(/[^0-9.]/g, '');
+    const dist = normDist(shot.distance); // Use normalized distance for consistent dedup
     const key = `${mic}|${pos}|${dist}`;
     
     if (!seen.has(key)) {
@@ -1981,7 +1999,11 @@ Output JSON:
             
             const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
             
-            for (const pos of positions) {
+            // Roswell special handling: only use Cap position
+            const isRoswellMic = normalizedMic.includes('roswell');
+            const allowedPositions = isRoswellMic ? ['Cap'] : positions;
+            
+            for (const pos of allowedPositions) {
               if (added >= shortfall) break;
               const key = makeKey(mic, pos, distance);
               if (!existingKeys.has(key)) {
