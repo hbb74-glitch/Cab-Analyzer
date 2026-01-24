@@ -1481,17 +1481,25 @@ Output JSON:
       
       if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
         result.micRecommendations = result.micRecommendations.map((shot: any) => {
-          // Check if this mic has a switch setting in the label
-          const switchMatch = shot.micLabel?.match(/^(MD441|e906)\s*\(([^)]+)\)$/i);
-          if (switchMatch) {
-            const micName = switchMatch[1].toLowerCase();
-            const setting = switchMatch[2].toLowerCase();
-            const key = `${micName}-${setting}`;
-            
-            // Only keep switch setting if it was explicitly requested
-            if (!requestedSwitchSettings.has(key) && requestedSwitchSettings.size === 0) {
-              // No explicit switch settings requested - strip them all
-              shot.micLabel = switchMatch[1].toUpperCase() === 'MD441' ? 'MD441' : 'e906';
+          // Normalize mic labels to underscore format: "e906 (Bright)" -> "e906_Bright"
+          // Valid switch settings: e906 = Presence/Flat/Dark, MD441 = Presence/Flat
+          if (shot.micLabel) {
+            // Convert parentheses format to underscore format
+            const switchMatch = shot.micLabel.match(/^(MD441|e906)\s*\(([^)]+)\)$/i);
+            if (switchMatch) {
+              const micName = switchMatch[1];
+              let setting = switchMatch[2].trim();
+              
+              // Normalize setting names
+              // e906: Bright -> Presence (they're the same switch position)
+              if (micName.toLowerCase() === 'e906' && setting.toLowerCase() === 'bright') {
+                setting = 'Presence';
+              }
+              
+              // Capitalize first letter
+              setting = setting.charAt(0).toUpperCase() + setting.slice(1).toLowerCase();
+              
+              shot.micLabel = `${micName}_${setting}`;
             }
           }
           return shot;
