@@ -1253,6 +1253,81 @@ Use these curated recipes as the foundation of your recommendations. You may add
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
       
+      // Check for missing mics and fix if needed
+      if (micShotCounts && result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        const micLines = micShotCounts.split(', ').filter(l => l.trim());
+        const requiredMics: { name: string; count: number; micCode: string }[] = [];
+        
+        for (const line of micLines) {
+          const match = line.match(/^(.+?)\s*x\s*(\d+)/);
+          if (match) {
+            const micName = match[1].trim();
+            const count = parseInt(match[2]);
+            // Map display names to mic codes
+            let micCode = micName.toLowerCase()
+              .replace('sm57', '57')
+              .replace('r121', '121')
+              .replace('md421k (kompakt)', 'md421k')
+              .replace('roswell cab mic', 'roswell-cab')
+              .replace(' ', '');
+            if (micName.includes('160')) micCode = '160';
+            if (micName.includes('906')) micCode = 'e906';
+            requiredMics.push({ name: micName, count, micCode });
+          }
+        }
+        
+        // Count what we got
+        const gotMics: Record<string, number> = {};
+        for (const shot of result.micRecommendations) {
+          const mic = shot.mic?.toLowerCase() || '';
+          gotMics[mic] = (gotMics[mic] || 0) + 1;
+        }
+        
+        // Find missing mics
+        const missingMics = requiredMics.filter(req => {
+          const got = gotMics[req.micCode] || 0;
+          return got < req.count;
+        });
+        
+        if (missingMics.length > 0) {
+          console.log('[By-Speaker] Missing mics detected:', missingMics.map(m => `${m.name} (need ${m.count}, got ${gotMics[m.micCode] || 0})`));
+          
+          // Make follow-up call to get missing mics
+          const missingPrompt = `You MUST generate shots for these SPECIFIC mics that were missed:
+${missingMics.map(m => `- ${m.name}: ${m.count} shots needed`).join('\n')}
+
+Speaker: ${speakerModel}
+Genre: ${genre || 'versatile'}
+
+Output JSON with ONLY these mics:
+{
+  "additions": [
+    { "mic": "mic_code", "micLabel": "Display Name", "position": "position", "distance": "X", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
+  ]
+}`;
+
+          try {
+            const fixResponse = await openai.chat.completions.create({
+              model: "gpt-4o",
+              messages: [
+                { role: "system", content: "You are filling in MISSING microphone shots. Output ONLY the requested mics." },
+                { role: "user", content: missingPrompt }
+              ],
+              response_format: { type: "json_object" },
+              temperature: 0,
+            });
+            
+            const fixResult = JSON.parse(fixResponse.choices[0].message.content || "{}");
+            if (fixResult.additions && Array.isArray(fixResult.additions)) {
+              console.log('[By-Speaker] Adding', fixResult.additions.length, 'missing shots');
+              result.micRecommendations.push(...fixResult.additions);
+            }
+          } catch (fixErr) {
+            console.error('[By-Speaker] Failed to fix missing mics:', fixErr);
+          }
+        }
+      }
+      
       // Enforce exact shot count if specified
       if (targetShotCount && result.micRecommendations && Array.isArray(result.micRecommendations)) {
         if (result.micRecommendations.length > targetShotCount) {
