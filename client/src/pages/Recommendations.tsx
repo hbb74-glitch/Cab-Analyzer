@@ -39,7 +39,7 @@ const MICS = [
 ];
 
 // Mic recipe type for structured input
-type MicRecipeEntry = { mic: string; label: string; count: number };
+type MicRecipeEntry = { mic: string; label: string; count: number; singleDistance: boolean };
 
 const SPEAKERS = [
   { value: "g12m25", label: "G12M (Greenback)" },
@@ -997,7 +997,15 @@ export default function Recommendations() {
   const getMicShotCountsString = () => {
     const parts: string[] = [];
     if (micRecipe.length > 0) {
-      parts.push(micRecipe.map(r => `${r.label} x ${r.count}`).join(", "));
+      // Include single-distance flag per mic
+      const micParts = micRecipe.map(r => {
+        const countPart = `${r.label} x ${r.count}`;
+        if (r.singleDistance) {
+          return `${countPart} (SINGLE DISTANCE - all ${r.label} shots must use one optimal distance, vary position only)`;
+        }
+        return countPart;
+      });
+      parts.push(micParts.join(", "));
     }
     if (specificShots.trim()) {
       parts.push(`Specific shots: ${specificShots.trim()}`);
@@ -1022,8 +1030,9 @@ export default function Recommendations() {
         r.mic === selectedMicForRecipe ? { ...r, count: r.count + selectedMicCount } : r
       ));
     } else {
-      // Add new
-      setMicRecipe(prev => [...prev, { mic: selectedMicForRecipe, label: mic.label, count: selectedMicCount }]);
+      // Add new - default singleDistance based on mic type (Roswell defaults to false since you typically vary distance)
+      const defaultSingleDistance = selectedMicForRecipe !== 'roswell-cab';
+      setMicRecipe(prev => [...prev, { mic: selectedMicForRecipe, label: mic.label, count: selectedMicCount, singleDistance: defaultSingleDistance }]);
     }
     setSelectedMicForRecipe("");
     setSelectedMicCount(2);
@@ -1043,6 +1052,13 @@ export default function Recommendations() {
       }
       return r;
     }));
+  };
+  
+  // Toggle single distance for a specific mic in recipe
+  const toggleMicSingleDistance = (mic: string) => {
+    setMicRecipe(prev => prev.map(r => 
+      r.mic === mic ? { ...r, singleDistance: !r.singleDistance } : r
+    ));
   };
 
   const processImport = (positions: string) => {
@@ -1583,10 +1599,10 @@ export default function Recommendations() {
                   {micRecipe.map((r) => (
                     <div 
                       key={r.mic}
-                      className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
+                      className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
                     >
                       <span className="text-sm font-medium text-primary">{r.label}</span>
-                      <div className="flex items-center gap-0.5 ml-1">
+                      <div className="flex items-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => updateMicCount(r.mic, -1)}
@@ -1605,8 +1621,21 @@ export default function Recommendations() {
                       </div>
                       <button
                         type="button"
+                        onClick={() => toggleMicSingleDistance(r.mic)}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
+                          r.singleDistance 
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                            : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
+                        )}
+                        title={r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances"}
+                      >
+                        1D
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => removeMicFromRecipe(r.mic)}
-                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400 ml-1"
+                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -2010,10 +2039,10 @@ Or written out:
                   {micRecipe.map((r) => (
                     <div 
                       key={r.mic}
-                      className="flex items-center gap-1 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
+                      className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1.5"
                     >
                       <span className="text-sm font-medium text-primary">{r.label}</span>
-                      <div className="flex items-center gap-0.5 ml-1">
+                      <div className="flex items-center gap-0.5">
                         <button
                           type="button"
                           onClick={() => updateMicCount(r.mic, -1)}
@@ -2034,8 +2063,22 @@ Or written out:
                       </div>
                       <button
                         type="button"
+                        onClick={() => toggleMicSingleDistance(r.mic)}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-medium transition-all",
+                          r.singleDistance 
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                            : "bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20"
+                        )}
+                        title={r.singleDistance ? "Single distance: ON - all shots use one distance" : "Single distance: OFF - vary distances"}
+                        data-testid={`button-toggle-single-distance-${r.mic}`}
+                      >
+                        1D
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => removeMicFromRecipe(r.mic)}
-                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400 ml-1"
+                        className="w-5 h-5 flex items-center justify-center text-primary/40 hover:text-red-400"
                         data-testid={`button-remove-${r.mic}`}
                       >
                         <X className="w-3 h-3" />
