@@ -1003,11 +1003,21 @@ export default function Recommendations() {
         const countPart = `${r.label} x ${r.count}`;
         
         // Four combinations: 1P+1D, 1P only, 1D only, neither
+        // Special handling for Roswell - always Cap position
+        const isRoswell = r.mic === 'roswell-cab';
+        const positionExample = isRoswell ? 'Cap' : 'Cap';
+        
         if (r.singlePosition && r.singleDistance) {
           // Both locked = effectively 1 shot regardless of count
+          if (isRoswell) {
+            return `${countPart} [STRICT: Output exactly 1 Roswell shot at Cap position with one distance, e.g., Roswell_Cap_6in]`;
+          }
           return `${countPart} [STRICT: Output exactly 1 shot - pick ONE best position and ONE best distance for ${r.label}]`;
         } else if (r.singlePosition && !r.singleDistance) {
           // One position, vary distances
+          if (isRoswell) {
+            return `${countPart} [STRICT: ALL Roswell shots MUST be at Cap position. Vary ONLY the distance. Output ${r.count} shots like: Roswell_Cap_4in, Roswell_Cap_6in, Roswell_Cap_8in. NEVER use any position other than Cap for Roswell.]`;
+          }
           return `${countPart} [STRICT: Pick ONE position for all ${r.label} shots, but use ${r.count} DIFFERENT distances. Example: ${r.label}_Cap_1in, ${r.label}_Cap_2in, ${r.label}_Cap_3in - same position, different distances]`;
         } else if (!r.singlePosition && r.singleDistance) {
           // Vary positions, one distance
