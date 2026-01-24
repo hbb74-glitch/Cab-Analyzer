@@ -1293,16 +1293,22 @@ Use these curated recipes as the foundation of your recommendations. You may add
           console.log('[By-Speaker] Missing mics detected:', missingMics.map(m => `${m.name} (need ${m.count}, got ${gotMics[m.micCode] || 0})`));
           
           // Make follow-up call to get missing mics
-          const missingPrompt = `You MUST generate shots for these SPECIFIC mics that were missed:
-${missingMics.map(m => `- ${m.name}: ${m.count} shots needed`).join('\n')}
+          const missingPrompt = `Generate shots for these SPECIFIC mics:
+${missingMics.map(m => `- ${m.name}: ${m.count} shots`).join('\n')}
 
 Speaker: ${speakerModel}
 Genre: ${genre || 'versatile'}
 
-Output JSON with ONLY these mics:
+CRITICAL FORMAT RULES:
+- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone (NO "off-axis", NO "center of cone")
+- distance MUST be a number as string: "1", "2.5", "4" (NO "inches", NO "6 inches")
+- mic codes: 121 (R121), 160 (M160), md421k (MD421K), md441 (MD441), e906, 57, etc.
+- For MD441/e906: include switch setting in micLabel like "MD441 (Presence)" or "e906 (Flat)"
+
+Output JSON:
 {
   "additions": [
-    { "mic": "mic_code", "micLabel": "Display Name", "position": "position", "distance": "X", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
+    { "mic": "121", "micLabel": "R121", "position": "CapEdge", "distance": "4", "rationale": "...", "expectedTone": "...", "bestFor": "..." }
   ]
 }`;
 
@@ -1310,7 +1316,7 @@ Output JSON with ONLY these mics:
             const fixResponse = await openai.chat.completions.create({
               model: "gpt-4o",
               messages: [
-                { role: "system", content: "You are filling in MISSING microphone shots. Output ONLY the requested mics." },
+                { role: "system", content: "You generate microphone shot recommendations. Use ONLY valid position codes (Cap, CapEdge, CapEdge_Cone_Tr, Cone) and numeric distances as strings." },
                 { role: "user", content: missingPrompt }
               ],
               response_format: { type: "json_object" },
