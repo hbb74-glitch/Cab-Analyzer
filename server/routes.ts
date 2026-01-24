@@ -1544,12 +1544,12 @@ Output JSON:
           }
         };
         
-        // Apply 1P to each ribbon/condenser mic with appropriate position and distance range
-        apply1PToMic('roswell-cab', 'Cap', ['4', '5', '6', '7', '8']);
-        apply1PToMic('c414', 'CapEdge', ['4', '5', '6', '7', '8']);
-        apply1PToMic('121', 'CapEdge', ['4', '5', '6', '7', '8']);
-        apply1PToMic('r10', 'CapEdge', ['4', '5', '6', '7', '8']);
-        apply1PToMic('r92', 'CapEdge', ['4', '5', '6', '7', '8']);
+        // Apply 1P to each ribbon/condenser mic with appropriate position and distance range (4-6")
+        apply1PToMic('roswell-cab', 'Cap', ['4', '5', '6']);
+        apply1PToMic('c414', 'CapEdge', ['4', '5', '6']);
+        apply1PToMic('121', 'CapEdge', ['4', '5', '6']);
+        apply1PToMic('r10', 'CapEdge', ['4', '5', '6']);
+        apply1PToMic('r92', 'CapEdge', ['4', '5', '6']);
         
         // Deduplicate again after position/distance changes
         result.micRecommendations = deduplicateShots(result.micRecommendations);
