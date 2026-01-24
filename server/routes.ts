@@ -335,31 +335,27 @@ function validateAndFixRecommendations(
   const fixes: string[] = [];
   let validShots = [...shots];
   
-  // Per-mic minimum distances based on best practices guide
-  // Dynamic mics: 0.5" (on-grille is fine)
-  // Ribbons (figure-8): 2" minimum (proximity effect, delicate elements)
-  // M160 (hypercardioid ribbon): 1" (tighter pattern, less proximity)
-  // Condensers: 4" minimum (sensitivity, proximity)
-  // Roswell: 4" minimum (manufacturer spec)
+  // Per-mic minimum distances from MikingGuide.tsx (closeMikingRange.min)
   const MIC_MIN_DISTANCES: Record<string, number> = {
-    // Dynamic mics - can go very close
-    '57': 0.5, 'sm57': 0.5,
-    '421': 0.5, 'md421': 0.5,
-    'e906': 0.5,
-    'm88': 0.5,
-    'pr30': 1,
-    'sm7b': 1, 'sm7': 1,
-    'md441': 1,
-    // Figure-8 ribbons - need distance for proximity control
-    '121': 2, 'r121': 2,
-    'r10': 2,
-    'r92': 2,
-    // M160 hypercardioid ribbon - can go closer
-    '160': 1, 'm160': 1,
+    // Dynamics - from guide data
+    '57': 0.5, 'sm57': 0.5,           // SM57: 0.5-4", sweet 1"
+    '421': 1, 'md421': 1,              // MD421: 1-4", sweet 2"
+    'e906': 0,                         // e906: 0-2", sweet 1"
+    'm88': 0.5,                        // M88: 0.5-4", sweet 1.5"
+    'pr30': 0.5,                       // PR30: 0.5-4", sweet 1"
+    'm201': 1,                         // M201: 1-4", sweet 2"
+    'sm7b': 1, 'sm7': 1,               // SM7B: 1-6", sweet 2"
+    'md441': 1,                        // MD441: 1-6", sweet 4"
+    // Ribbons - figure-8 have intense proximity
+    '121': 4, 'r121': 4,               // R-121: 4-6", sweet 6" - intense proximity
+    'r10': 4,                          // R10: 4-6", sweet 6" - same as R-121
+    'r92': 2,                          // R92: 2-6", sweet 6" - AEA "minimized proximity" design
+    // M160 hypercardioid ribbon - can go very close
+    '160': 0, 'm160': 0,               // M160: 0-6", sweet 1" - hypercardioid
     // Condensers
-    'c414': 4,
-    // Roswell - manufacturer spec
-    'roswell': 4, 'roswellcab': 4, 'roswellcabmic': 4,
+    'c414': 4,                         // C414: 4-6", sweet 6"
+    // Roswell - purpose-built for cabs
+    'roswell': 2, 'roswellcab': 2, 'roswellcabmic': 2,  // Roswell: 2-12", sweet 6"
   };
   
   // 1. Enforce per-mic minimum distances based on guide data
@@ -1071,31 +1067,30 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       Distance is the primary variable - position on the speaker is less important for this analysis.
       Focus on how distance affects the tonal characteristics of this specific mic+speaker pairing.
       
-      === DISTANCE GUIDELINES (0-6" IR production) ===
-      Per-mic minimum distances based on best practices:
+      === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      DYNAMICS (can go very close, 0.5"+ ok):
-      - 57 (SM57): Mid-forward, 5-6kHz presence. Sweet spot 0.5-2".
-      - 421 (MD421): Large diaphragm dynamic, scooped mids. Sweet spot 0.5-2".
-      - 421k (MD421K / MD421 Kompakt): Compact MD421, same character. Sweet spot 0.5-2". DIFFERENT MIC FROM MD421.
-      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0.5-2".
-      - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
-      - pr30 (PR30): Large diaphragm, clear highs. Sweet spot 1-2".
-      - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
-      - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
-      - md441 (MD441): Condenser-like transparency. Sweet spot 1-4".
+      DYNAMICS:
+      - 57 (SM57): 0.5-4", sweet 1". Classic mid-forward presence.
+      - 421 (MD421): 1-4", sweet 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): 1-4", sweet 2". Compact MD421. DIFFERENT MIC - don't substitute.
+      - e906 (e906): 0-2", sweet 1". Supercardioid, three-position switch.
+      - m88 (M88): 0.5-4", sweet 1.5". Warm, great low-end punch.
+      - pr30 (PR30): 0.5-4", sweet 1". Large diaphragm, clear highs.
+      - m201 (M201): 1-4", sweet 2". Very accurate dynamic.
+      - sm7b (SM7B): 1-6", sweet 2". Smooth, broadcast-quality.
+      - md441 (MD441): 1-6", sweet 4". Condenser-like transparency.
       
-      RIBBONS (figure-8 pattern, 2"+ minimum for proximity control):
-      - 121 (R-121): Smooth highs, thick low-mids. Sweet spot 2-4".
-      - r10 (R10): Entry-level Royer ribbon. Sweet spot 2-4".
-      - r92 (R92): AEA ribbon, warm, figure-8. Sweet spot 2-4".
+      FIGURE-8 RIBBONS (intense proximity effect):
+      - 121 (R-121): 4-6", sweet 6". MINIMUM 4" - intense proximity effect.
+      - r10 (R10): 4-6", sweet 6". MINIMUM 4" - same as R-121.
+      - r92 (R92): 2-6", sweet 6". AEA "minimized proximity" design, can go closer than Royer.
       
-      M160 EXCEPTION (hypercardioid ribbon, tighter pattern = less proximity):
-      - 160 (M160): Can go as close as 1". Sweet spot 1-3".
+      HYPERCARDIOID RIBBON (tighter pattern = less proximity):
+      - 160 (M160): 0-6", sweet 1". Can go right to grille - Jacquire King technique.
       
-      CONDENSERS (4"+ minimum, sensitivity requires distance):
-      - c414 (C414): AKG condenser, detailed highs. Sweet spot 4-6" with pad.
-      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. 4-6", Cap position ONLY.
+      CONDENSERS:
+      - c414 (C414): 4-6", sweet 6". Always use pad for close-miking.
+      - roswell-cab (Roswell Cab Mic): 2-12", sweet 6". Cap position ONLY.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -1385,31 +1380,30 @@ Use these curated recipes as the foundation of your recommendations. You may add
       When curated recipes are provided, PRIORITIZE them over generic suggestions.
       ${curatedSection}
       
-      === DISTANCE GUIDELINES (0-6" IR production) ===
-      Per-mic minimum distances based on best practices:
+      === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      DYNAMICS (can go very close, 0.5"+ ok):
-      - 57 (SM57): Mid-forward, 5-6kHz presence. Sweet spot 0.5-2".
-      - 421 (MD421): Large diaphragm dynamic, punchy. Sweet spot 0.5-2".
-      - 421k (MD421K / MD421 Kompakt): Compact MD421, same character. Sweet spot 0.5-2". DIFFERENT MIC FROM MD421.
-      - e906 (e906): Supercardioid. Three-position switch. Sweet spot 0.5-2".
-      - m88 (M88): Warm, great low-end punch. Sweet spot 0.5-2".
-      - pr30 (PR30): Large diaphragm, clear highs. Sweet spot 1-2".
-      - m201 (M201): Very accurate dynamic. Sweet spot 1-2".
-      - sm7b (SM7B): Smooth, thick, broadcast-quality. Sweet spot 1-2".
-      - md441 (MD441): Condenser-like transparency, presence/flat switch. Sweet spot 1-4".
+      DYNAMICS:
+      - 57 (SM57): 0.5-4", sweet 1". Classic mid-forward presence.
+      - 421 (MD421): 1-4", sweet 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): 1-4", sweet 2". Compact MD421. DIFFERENT MIC - don't substitute.
+      - e906 (e906): 0-2", sweet 1". Supercardioid, three-position switch.
+      - m88 (M88): 0.5-4", sweet 1.5". Warm, great low-end punch.
+      - pr30 (PR30): 0.5-4", sweet 1". Large diaphragm, clear highs.
+      - m201 (M201): 1-4", sweet 2". Very accurate dynamic.
+      - sm7b (SM7B): 1-6", sweet 2". Smooth, broadcast-quality.
+      - md441 (MD441): 1-6", sweet 4". Condenser-like transparency.
       
-      RIBBONS (figure-8 pattern, 2"+ minimum for proximity control):
-      - 121 (R-121): Smooth highs, thick low-mids. Sweet spot 2-4".
-      - r10 (R10): Entry-level Royer ribbon. Sweet spot 2-4".
-      - r92 (R92): AEA ribbon, warm, figure-8. Sweet spot 2-4".
+      FIGURE-8 RIBBONS (intense proximity effect):
+      - 121 (R-121): 4-6", sweet 6". MINIMUM 4" - intense proximity effect.
+      - r10 (R10): 4-6", sweet 6". MINIMUM 4" - same as R-121.
+      - r92 (R92): 2-6", sweet 6". AEA "minimized proximity" design, can go closer than Royer.
       
-      M160 EXCEPTION (hypercardioid ribbon, tighter pattern = less proximity):
-      - 160 (M160): Can go as close as 1". Sweet spot 1-3".
+      HYPERCARDIOID RIBBON (tighter pattern = less proximity):
+      - 160 (M160): 0-6", sweet 1". Can go right to grille - Jacquire King technique.
       
-      CONDENSERS (4"+ minimum, sensitivity requires distance):
-      - c414 (C414): AKG condenser, detailed highs. Sweet spot 4-6" with pad.
-      - roswell-cab (Roswell Cab Mic): Large-diaphragm condenser. 4-6", Cap position ONLY.
+      CONDENSERS:
+      - c414 (C414): 4-6", sweet 6". Always use pad for close-miking.
+      - roswell-cab (Roswell Cab Mic): 2-12", sweet 6". Cap position ONLY.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
