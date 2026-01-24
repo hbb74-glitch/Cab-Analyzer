@@ -1468,6 +1468,36 @@ Output JSON:
         }
       }
       
+      // Normalize mic labels - strip switch settings unless explicitly requested in recipe
+      // Parse which mics have explicit switch settings in the recipe
+      const requestedSwitchSettings = new Set<string>();
+      if (micShotCounts) {
+        // Look for patterns like "MD441 (Presence)" or "e906 (Bright)" in recipe
+        const switchMatches = Array.from(micShotCounts.matchAll(/(MD441|e906)\s*\(([^)]+)\)/gi));
+        for (const match of switchMatches) {
+          requestedSwitchSettings.add(`${match[1].toLowerCase()}-${match[2].toLowerCase()}`);
+        }
+      }
+      
+      if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        result.micRecommendations = result.micRecommendations.map((shot: any) => {
+          // Check if this mic has a switch setting in the label
+          const switchMatch = shot.micLabel?.match(/^(MD441|e906)\s*\(([^)]+)\)$/i);
+          if (switchMatch) {
+            const micName = switchMatch[1].toLowerCase();
+            const setting = switchMatch[2].toLowerCase();
+            const key = `${micName}-${setting}`;
+            
+            // Only keep switch setting if it was explicitly requested
+            if (!requestedSwitchSettings.has(key) && requestedSwitchSettings.size === 0) {
+              // No explicit switch settings requested - strip them all
+              shot.micLabel = switchMatch[1].toUpperCase() === 'MD441' ? 'MD441' : 'e906';
+            }
+          }
+          return shot;
+        });
+      }
+      
       res.json(result);
     } catch (err) {
       console.error('Speaker recommendations error:', err);
