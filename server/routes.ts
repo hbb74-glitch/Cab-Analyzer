@@ -1578,8 +1578,78 @@ Output JSON:
         
         console.log('[1P Enforcement] All mic codes after:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
         
+        // Normalize mic codes for consistency (lowercase except special cases)
+        const micCodeNormalization: Record<string, string> = {
+          'r121': '121',
+          'R121': '121',
+          'r10': 'r10',
+          'R10': 'r10',
+          'r92': 'r92',
+          'R92': 'r92',
+          'C414': 'c414',
+          'M160': 'm160'
+        };
+        result.micRecommendations = result.micRecommendations.map((shot: any) => {
+          if (micCodeNormalization[shot.mic]) {
+            shot.mic = micCodeNormalization[shot.mic];
+          }
+          return shot;
+        });
+        
         // Deduplicate again after position/distance changes
+        const beforeDedup = result.micRecommendations.length;
         result.micRecommendations = deduplicateShots(result.micRecommendations);
+        const afterDedup = result.micRecommendations.length;
+        const lost = beforeDedup - afterDedup;
+        
+        // If we lost shots to dedup, we need to fill them back
+        if (lost > 0 && targetShotCount) {
+          console.log(`[1P Post-Fix] Lost ${lost} shots to dedup, need to add back`);
+          
+          // Get available non-1P mics that can have more shots
+          const non1PMics = ['57', 'md421k', 'md441', 'm160', 'm201', 'e906'];
+          const positions = basicPositionsOnly 
+            ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
+            : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+          
+          let added = 0;
+          for (const mic of non1PMics) {
+            if (added >= lost) break;
+            
+            // Find existing shots for this mic
+            const existingShots = result.micRecommendations.filter((s: any) => s.mic === mic);
+            if (existingShots.length === 0) continue;
+            
+            // Get existing positions for this mic
+            const existingPositions = new Set(existingShots.map((s: any) => s.position));
+            const existingDistance = existingShots[0]?.distance || '2';
+            
+            // Find unused positions
+            for (const pos of positions) {
+              if (added >= lost) break;
+              if (!existingPositions.has(pos)) {
+                // Use existing shot's label as reference
+                const existingLabel = existingShots[0]?.micLabel || mic.toUpperCase();
+                result.micRecommendations.push({
+                  mic,
+                  micLabel: existingLabel,
+                  position: pos,
+                  distance: existingDistance,
+                  rationale: `Additional ${pos} position to complete target shot count.`,
+                  expectedTone: 'Varies with position',
+                  bestFor: genre || 'General use'
+                });
+                console.log(`[1P Post-Fix] Added ${mic} at ${pos} ${existingDistance}"`);
+                added++;
+              }
+            }
+          }
+          
+          // Final dedup just in case
+          result.micRecommendations = deduplicateShots(result.micRecommendations);
+        }
+        
+        console.log(`[Final] Shot count: ${result.micRecommendations.length} target: ${targetShotCount}`);
       }
       
       res.json(result);
