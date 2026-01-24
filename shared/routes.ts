@@ -157,6 +157,8 @@ export const positionImportInputSchema = z.object({
   genre: z.string().optional(),
   targetShotCount: z.number().min(1).max(50).optional(), // Target number of refined shots (1-50)
   basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+  singleDistancePerMic: z.boolean().optional(), // Use one optimal distance per mic type for workflow efficiency
+  micShotCounts: z.string().optional(), // User's mic recipe e.g. "SM57 x 3, MD421K x 2, R121 x 2"
 });
 
 export const parsedPositionSchema = z.object({

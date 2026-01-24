@@ -1432,7 +1432,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
   app.post(api.positionImport.refine.path, async (req, res) => {
     try {
       const input = api.positionImport.refine.input.parse(req.body);
-      const { positionList, speaker, genre, targetShotCount, basicPositionsOnly } = input;
+      const { positionList, speaker, genre, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -1440,6 +1440,39 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
         positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
 DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.
 If the user's imported list contains non-basic positions, mark those as "remove" with rationale explaining the basic positions restriction.`;
+      }
+      
+      // Build single distance per mic instruction
+      let distanceInstruction = '';
+      if (singleDistancePerMic) {
+        distanceInstruction = `\n\nSINGLE DISTANCE PER MIC (CRITICAL WORKFLOW REQUIREMENT):
+- For each microphone type, ALL shots with that mic MUST use the SAME distance
+- This is for workflow efficiency - the user doesn't want to move the mic stand between shots of the same mic
+- Choose the SINGLE BEST distance for each mic based on its optimal placement range
+- Example: If you have 3 SM57 shots, all 3 must be at the same distance (e.g., all at 1.5in)
+- Example: If you have 2 R121 shots, both must be at the same distance (e.g., both at 4in)
+- For each mic, pick the distance that captures its best characteristics for this speaker/genre
+- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) to create tonal variety, NOT distance
+- This is MANDATORY - do not output different distances for the same mic type`;
+      }
+      
+      // Build mic shot counts instruction
+      let micShotInstruction = '';
+      if (micShotCounts && micShotCounts.trim()) {
+        micShotInstruction = `\n\nMIC SHOT COUNTS (CRITICAL - FOLLOW EXACTLY):
+The user has specified EXACTLY how many shots they want per mic:
+${micShotCounts}
+
+MANDATORY RULES:
+- Generate EXACTLY the number of shots specified for each mic - no more, no less
+- If user says "SM57 x 3", output exactly 3 SM57 shots
+- If user says "MD421K x 2" or "MD421Kompakt x 2", output exactly 2 MD421K shots (NOT regular MD421)
+- MD421 and MD421K (Kompakt) are DIFFERENT mics - respect which one the user specified
+- The total shot count is the sum of all mic shot counts
+- Do NOT substitute mics - if user didn't list a mic, don't add it
+- Do NOT exceed the specified count for any mic
+- Mark extra positions from user's list as "remove" if they exceed the mic's shot count
+- Add positions as needed to reach the exact count for each mic`;
       }
       
       // Build shot count instruction for refinements
@@ -1475,7 +1508,8 @@ If the user's imported list contains non-basic positions, mark those as "remove"
       - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75)
       
       Mic Shorthand:
-      - SM57, R121, R10, MD421, M201, M88, Roswell, M160, e906, C414, R92, PR30
+      - SM57, R121, R10, MD421, MD421K (or MD421Kompakt), M201, M88, Roswell, M160, e906, C414, R92, PR30
+      - IMPORTANT: MD421 and MD421K (Kompakt) are DIFFERENT mics - do NOT substitute one for the other
       - Variants: MD441 and e906 have _Presence or _Flat suffixes
       
       Position Format:
@@ -1540,7 +1574,7 @@ If the user's imported list contains non-basic positions, mark those as "remove"
          - Technically dangerous (e.g., ribbon mic at 0" could damage mic)
          - Completely redundant with a nearly identical position already in the list
          - Known broken/problematic combination that never works
-         If in doubt, KEEP IT - the user's ears approved it${shotCountInstruction}${speaker ? `
+         If in doubt, KEEP IT - the user's ears approved it${shotCountInstruction}${distanceInstruction}${micShotInstruction}${speaker ? `
       
       Speaker Context: ${speaker} - tailor suggestions for this speaker's characteristics.` : ''}${genre ? `
       

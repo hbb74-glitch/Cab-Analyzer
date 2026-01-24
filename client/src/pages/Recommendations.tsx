@@ -394,6 +394,8 @@ export default function Recommendations() {
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
   const [basicPositionsOnly, setBasicPositionsOnly] = useState(false);
+  const [singleDistancePerMic, setSingleDistancePerMic] = useState(false);
+  const [micShotCounts, setMicShotCounts] = useState<string>("");
   const [positionList, setPositionList] = useState<string>("");
   const [importSpeaker, setImportSpeaker] = useState<string>("");
   const [copied, setCopied] = useState(false);
@@ -892,12 +894,14 @@ export default function Recommendations() {
   });
 
   const { mutate: refinePositions, isPending: isImportPending } = useMutation({
-    mutationFn: async ({ positionList, speaker, genre, targetShotCount, basicPositionsOnly }: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean }) => {
-      const payload: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean } = { positionList };
+    mutationFn: async ({ positionList, speaker, genre, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts }: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string }) => {
+      const payload: { positionList: string; speaker?: string; genre?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; micShotCounts?: string } = { positionList };
       if (speaker) payload.speaker = speaker;
       if (genre) payload.genre = genre;
       if (targetShotCount) payload.targetShotCount = targetShotCount;
       if (basicPositionsOnly) payload.basicPositionsOnly = basicPositionsOnly;
+      if (singleDistancePerMic) payload.singleDistancePerMic = singleDistancePerMic;
+      if (micShotCounts) payload.micShotCounts = micShotCounts;
       const validated = api.positionImport.refine.input.parse(payload);
       const res = await fetch(api.positionImport.refine.path, {
         method: "POST",
@@ -982,7 +986,9 @@ export default function Recommendations() {
       speaker: importSpeaker || undefined, 
       genre: effectiveGenre,
       targetShotCount: targetShotCount || undefined,
-      basicPositionsOnly: basicPositionsOnly || undefined
+      basicPositionsOnly: basicPositionsOnly || undefined,
+      singleDistancePerMic: singleDistancePerMic || undefined,
+      micShotCounts: micShotCounts.trim() || undefined
     });
   };
 
@@ -1723,6 +1729,41 @@ Or written out:
             </label>
             <p className="text-xs text-muted-foreground pl-7">
               Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+            </p>
+          </div>
+
+          {/* Single Distance Per Mic */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={singleDistancePerMic}
+                onChange={(e) => setSingleDistancePerMic(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/20 text-primary focus:ring-primary focus:ring-offset-0"
+                data-testid="checkbox-single-distance-per-mic"
+              />
+              <span className="text-sm font-medium text-foreground">Single Distance Per Mic</span>
+            </label>
+            <p className="text-xs text-muted-foreground pl-7">
+              For workflow efficiency: each mic uses ONE optimal distance. Vary position for tonal variety, not distance.
+            </p>
+          </div>
+
+          {/* Mic Shot Counts */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Target className="w-3 h-3" /> Shots Per Mic (Optional)
+            </label>
+            <input
+              type="text"
+              value={micShotCounts}
+              onChange={(e) => setMicShotCounts(e.target.value)}
+              placeholder="e.g., SM57 x 3, MD421K x 2, R121 x 2, M88 x 2..."
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="input-mic-shot-counts"
+            />
+            <p className="text-xs text-muted-foreground">
+              Specify exactly how many shots per mic. The AI will follow this recipe precisely.
             </p>
           </div>
 
