@@ -1852,7 +1852,71 @@ Output JSON:
           console.log('[By-Speaker API] Validation fixes applied:', validation.fixes.length);
         }
         
-        // Trim to exact target after validation
+        // After validation, backfill if we're short of target
+        if (targetShotCount && result.micRecommendations.length < targetShotCount) {
+          const shortfall = targetShotCount - result.micRecommendations.length;
+          console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
+          
+          // Get available mics and positions to backfill
+          const allMics = ['57', 'md421k', 'md441', 'm160', 'm201', 'e906', 'pr30'];
+          const positions = basicPositionsOnly 
+            ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
+            : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+          
+          // Build set of existing shot keys
+          const existingKeys = new Set(
+            result.micRecommendations.map((s: any) => 
+              `${s.mic?.toLowerCase()}:${s.position}:${s.distance}`
+            )
+          );
+          
+          let added = 0;
+          for (const mic of allMics) {
+            if (added >= shortfall) break;
+            
+            // Find existing shots for this mic to get its distance
+            const existingMicShots = result.micRecommendations.filter((s: any) => 
+              s.mic?.toLowerCase() === mic.toLowerCase()
+            );
+            
+            // If mic not in list yet, use a default distance
+            let distance = '2';
+            if (existingMicShots.length > 0) {
+              distance = existingMicShots[0]?.distance || '2';
+            } else {
+              // Skip mics not already in the recommendation set
+              continue;
+            }
+            
+            const micLabel = existingMicShots[0]?.micLabel || mic.toUpperCase();
+            
+            // Find unused positions for this mic
+            for (const pos of positions) {
+              if (added >= shortfall) break;
+              const key = `${mic.toLowerCase()}:${pos}:${distance}`;
+              if (!existingKeys.has(key)) {
+                result.micRecommendations.push({
+                  mic,
+                  micLabel,
+                  position: pos,
+                  distance,
+                  rationale: `Added to reach target shot count.`,
+                  expectedTone: 'Varies with position',
+                  bestFor: genre || 'General use'
+                });
+                existingKeys.add(key);
+                console.log(`[Post-Validation Backfill] Added ${mic} at ${pos} ${distance}"`);
+                added++;
+              }
+            }
+          }
+          
+          if (added < shortfall) {
+            console.log(`[Post-Validation Backfill] Could only add ${added}/${shortfall} shots`);
+          }
+        }
+        
+        // Trim to exact target after backfill
         if (targetShotCount && result.micRecommendations.length > targetShotCount) {
           console.log(`[By-Speaker API] Trimming from ${result.micRecommendations.length} to ${targetShotCount}`);
           result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
