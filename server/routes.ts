@@ -1545,11 +1545,29 @@ Output JSON:
         };
         
         // Apply 1P to each ribbon/condenser mic with appropriate position and distance range (4-6")
-        apply1PToMic('roswell-cab', 'Cap', ['4', '5', '6']);
-        apply1PToMic('c414', 'CapEdge', ['4', '5', '6']);
-        apply1PToMic('121', 'CapEdge', ['4', '5', '6']);
-        apply1PToMic('r10', 'CapEdge', ['4', '5', '6']);
-        apply1PToMic('r92', 'CapEdge', ['4', '5', '6']);
+        // Use case-insensitive matching for mic codes
+        const apply1PToMicCI = (micPatterns: string[], defaultPosition: string, distances: string[]) => {
+          const shots = result.micRecommendations.filter((s: any) => 
+            micPatterns.some(p => s.mic.toLowerCase() === p.toLowerCase())
+          );
+          if (shots.length > 0) {
+            let distanceIndex = 0;
+            result.micRecommendations = result.micRecommendations.map((shot: any) => {
+              if (micPatterns.some(p => shot.mic.toLowerCase() === p.toLowerCase())) {
+                shot.position = defaultPosition;
+                shot.distance = distances[distanceIndex % distances.length];
+                distanceIndex++;
+              }
+              return shot;
+            });
+          }
+        };
+        
+        apply1PToMicCI(['roswell-cab', 'roswell'], 'Cap', ['4', '5', '6']);
+        apply1PToMicCI(['c414', 'C414'], 'CapEdge', ['4', '5', '6']);
+        apply1PToMicCI(['121', 'R121', 'r121'], 'CapEdge', ['4', '5', '6']);
+        apply1PToMicCI(['r10', 'R10'], 'CapEdge', ['4', '5', '6']);
+        apply1PToMicCI(['r92', 'R92'], 'CapEdge', ['4', '5', '6']);
         
         // Deduplicate again after position/distance changes
         result.micRecommendations = deduplicateShots(result.micRecommendations);
