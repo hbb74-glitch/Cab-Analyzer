@@ -791,9 +791,11 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       // Build mic shot counts instruction
       let micShotInstruction = '';
       if (micShotCounts && micShotCounts.trim()) {
-        micShotInstruction = `\n\nMIC SHOT COUNTS (CRITICAL - FOLLOW EXACTLY):
+        micShotInstruction = `\n\nMIC RECIPE (MUST INCLUDE):
 ${micShotCounts}
-- Generate EXACTLY the number of shots specified - no more, no less`;
+- These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
+- If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations using other mics for maximum variety
+- Prioritize mics NOT already in the recipe for the additional slots`;
       }
 
       const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -1006,11 +1008,12 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
       // Build mic shot counts instruction
       let micShotInstruction = '';
       if (micShotCounts && micShotCounts.trim()) {
-        micShotInstruction = `\n\nMIC SHOT COUNTS (CRITICAL - FOLLOW EXACTLY):
+        micShotInstruction = `\n\nMIC RECIPE (MUST INCLUDE):
 ${micShotCounts}
-- Generate EXACTLY the number of shots specified for each mic - no more, no less
+- These are MINIMUM requirements - you MUST include at least this many shots for each specified mic
 - MD421 and MD421K (Kompakt) are DIFFERENT mics - respect which one is specified
-- Do NOT substitute or add mics not in this list`;
+- If targetShotCount is higher than the recipe total, fill the remaining slots with additional curated AI recommendations
+- For the additional slots, prioritize mics NOT already in the recipe to maximize variety across mic types`;
       }
 
       // Get curated recipes for this speaker from IR producer knowledge base
