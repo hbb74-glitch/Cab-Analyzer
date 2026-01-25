@@ -1971,7 +1971,7 @@ Output JSON:
                   'm160': 'focused hypercardioid ribbon tone',
                   'm201': 'smooth natural midrange',
                   'e906': 'aggressive attack with switchable voicing',
-                  'pr30': 'bright ribbon with extended highs',
+                  'pr30': 'bright dynamic with extended highs',
                 };
                 const posTraits: Record<string, string> = {
                   'Cap': 'bright focused attack',
@@ -2034,7 +2034,7 @@ Output JSON:
               'm160': { type: 'ribbon', character: 'focused hypercardioid', strength: 'tight pattern rejects room' },
               'm201': { type: 'dynamic', character: 'smooth and balanced', strength: 'natural midrange' },
               'e906': { type: 'dynamic', character: 'aggressive attack', strength: 'switchable voicings' },
-              'pr30': { type: 'ribbon', character: 'bright ribbon tone', strength: 'extended highs for ribbon' },
+              'pr30': { type: 'dynamic', character: 'bright and clear', strength: 'extended highs for a dynamic' },
               'r121': { type: 'ribbon', character: 'smooth and warm', strength: 'tames harsh highs naturally' },
               'r10': { type: 'ribbon', character: 'vintage ribbon warmth', strength: 'classic smooth tone' },
               'r92': { type: 'ribbon', character: 'full-range ribbon', strength: 'extended lows and highs' },
