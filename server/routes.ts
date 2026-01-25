@@ -2414,7 +2414,9 @@ Output JSON:
           
           // Parse requested counts
           const requestedCounts = new Map<string, number>();
+          console.log('[Per-Mic] Raw micShotCounts:', micShotCounts?.substring(0, 500));
           const micLines = micShotCounts.split(', ').filter((l: string) => l.trim());
+          console.log('[Per-Mic] Parsed lines:', micLines.slice(0, 15).map(l => l.substring(0, 50)));
           
           for (const line of micLines) {
             const match = line.match(/^(.+?)\s*x\s*(\d+)/);
@@ -2445,9 +2447,12 @@ Output JSON:
               if (micName.toLowerCase().includes('pr30')) micCode = 'pr30';
               if (micName.toLowerCase().includes('roswell')) micCode = 'roswellcab';
               
+              console.log(`[Per-Mic] Parsed: "${micName}" → micCode="${micCode}" count=${count}`);
               requestedCounts.set(micCode, count);
             }
           }
+          
+          console.log('[Per-Mic] Final requestedCounts:', Array.from(requestedCounts.entries()));
           
           if (requestedCounts.size > 0) {
             // Get current counts per mic - comprehensive aliases
