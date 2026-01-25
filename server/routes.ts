@@ -2621,7 +2621,7 @@ Output JSON:
             { code: 'r121', label: 'R121', distance: '6', is1P: true },
             { code: 'r92', label: 'R92', distance: '6', is1P: true },
             { code: 'c414', label: 'C414', distance: '6', is1P: true },
-            { code: 'roswell-cab', label: 'Roswell Cab Mic', distance: '6', is1P: true },
+            { code: 'roswellcab', label: 'Roswell Cab Mic', distance: '6', is1P: true },
           ];
           
           // Find mics not already specified by user
@@ -2642,12 +2642,14 @@ Output JSON:
               else if (name.includes('r121') || name.includes('121')) specifiedMicsList.push('r121');
               else if (name.includes('r92') || name.includes('92')) specifiedMicsList.push('r92');
               else if (name.includes('414')) specifiedMicsList.push('c414');
-              else if (name.includes('roswell')) specifiedMicsList.push('roswell-cab');
+              else if (name.includes('roswell')) specifiedMicsList.push('roswellcab');
             });
           }
           const specifiedMics = new Set(specifiedMicsList);
+          console.log(`[Fill Remaining] User specified mics: ${Array.from(specifiedMics).join(', ') || 'none'}`);
           
           const unspecifiedMics = allMics.filter(m => !specifiedMics.has(m.code));
+          console.log(`[Fill Remaining] Unspecified mics available: ${unspecifiedMics.map(m => m.code).join(', ') || 'none'}`);
           
           if (unspecifiedMics.length === 0) {
             // All mics specified but still short - try to add extra positions from non-1P/1D mics
