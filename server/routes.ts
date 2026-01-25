@@ -1650,15 +1650,15 @@ Output JSON:
         const micMap: Record<string, string> = {
           'sm57': '57', 'shuresm57': '57',
           'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',  // MD421 and MD421K are DIFFERENT mics
-          'sennheisermd441': 'md441',
-          'beyerm160': 'm160', 'beyerdynamicm160': 'm160',
-          'beyerm201': 'm201', 'beyerdynamicm201': 'm201',
-          'sennheisere906': 'e906',
+          '441': 'md441', 'sennheisermd441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
+          'beyerm160': 'm160', 'beyerdynamicm160': 'm160', '160': 'm160',
+          'beyerm201': 'm201', 'beyerdynamicm201': 'm201', '201': 'm201',
+          'sennheisere906': 'e906', '906': 'e906',
           'heilpr30': 'pr30',
           'royerr121': 'r121', '121': 'r121',
           'royerr10': 'r10',
           'aear92': 'r92',
-          'akgc414': 'c414',
+          'akgc414': 'c414', '414': 'c414',
           'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
         };
         return micMap[m] || m;
