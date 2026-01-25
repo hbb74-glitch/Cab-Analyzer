@@ -2650,9 +2650,45 @@ Output JSON:
           const unspecifiedMics = allMics.filter(m => !specifiedMics.has(m.code));
           
           if (unspecifiedMics.length === 0) {
-            // All mics specified but still short - add warning message
-            console.log(`[Fill Remaining] All mics specified - no additional mics available`);
-            result.noAdditionalMicsWarning = `Requested ${targetShotCount} shots but all available mics have been specified. No additional mics available for this shoot.`;
+            // All mics specified but still short - try to add extra positions from non-1P/1D mics
+            console.log(`[Fill Remaining] All mics specified - trying extra positions from existing mics`);
+            
+            const existingKeys = new Set(
+              result.micRecommendations.map((s: any) => 
+                `${(s.mic || '').toLowerCase()}|${(s.position || '').toLowerCase()}|${s.distance}`
+              )
+            );
+            
+            // Try adding Cone_Edge position for non-1P/1D mics already in the list
+            const extraPositions = ['Cone_Edge', 'Cone'];
+            const nonRibbonMics = allMics.filter(m => !m.is1P);
+            let added = 0;
+            
+            for (const extraPos of extraPositions) {
+              if (added >= remaining) break;
+              for (const mic of nonRibbonMics) {
+                if (added >= remaining) break;
+                const key = `${mic.code}|${extraPos.toLowerCase()}|${mic.distance}`;
+                if (!existingKeys.has(key)) {
+                  result.micRecommendations.push({
+                    mic: mic.code,
+                    micLabel: mic.label,
+                    position: extraPos,
+                    distance: mic.distance,
+                    rationale: `Added ${extraPos} position to reach target shot count.`,
+                    expectedTone: `${mic.label} tone with ${extraPos} coloration`,
+                    bestFor: genre || 'versatile',
+                  });
+                  existingKeys.add(key);
+                  added++;
+                  console.log(`[Fill Remaining] Added extra position: ${mic.label} at ${extraPos} ${mic.distance}"`);
+                }
+              }
+            }
+            
+            if (added < remaining) {
+              result.noAdditionalMicsWarning = `Requested ${targetShotCount} shots but only ${result.micRecommendations.length} unique positions available. All mics specified and positions exhausted.`;
+            }
           } else if (unspecifiedMics.length > 0) {
             const positions = basicPositionsOnly 
               ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
