@@ -1632,6 +1632,68 @@ Output JSON:
         result.micRecommendations = deduplicateShots(result.micRecommendations);
       }
       
+      // Enforce per-mic 1D (same distance for all shots of that mic)
+      // Build set of mic codes that have 1D enabled from requiredMics
+      if (micShotCounts && result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        const micsWith1D = new Set<string>();
+        const micLines = micShotCounts.split(', ').filter((l: string) => l.trim());
+        
+        for (const line of micLines) {
+          const match = line.match(/^(.+?)\s*x\s*(\d+)/);
+          if (match) {
+            const micName = match[1].trim();
+            const has1D = line.includes('Use ONE distance') || line.includes('different positions, same distance') || line.includes('[1D]');
+            if (has1D) {
+              // Map display names to mic codes
+              let micCode = micName.toLowerCase()
+                .replace('sm57', '57')
+                .replace('r121', '121')
+                .replace('md421k (kompakt)', 'md421k')
+                .replace('roswell cab mic', 'roswell-cab')
+                .replace(' ', '');
+              if (micName.includes('160')) micCode = '160';
+              if (micName.includes('906')) micCode = 'e906';
+              if (micName.includes('441')) micCode = 'md441';
+              if (micName.includes('421') && !micName.includes('441')) micCode = 'md421k';
+              if (micName.includes('201')) micCode = 'm201';
+              micsWith1D.add(micCode);
+            }
+          }
+        }
+        
+        if (micsWith1D.size > 0) {
+          console.log('[1D Enforcement] Mics with 1D flag:', Array.from(micsWith1D));
+          
+          // For each 1D mic, find the first distance and force all shots to use it
+          const micLockedDistance = new Map<string, string>();
+          
+          // First pass: find existing distance per mic
+          for (const shot of result.micRecommendations) {
+            const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (micsWith1D.has(micLower) && !micLockedDistance.has(micLower)) {
+              micLockedDistance.set(micLower, String(shot.distance).replace(/[^0-9.]/g, ''));
+            }
+          }
+          
+          // Second pass: force all shots for each 1D mic to use the locked distance
+          result.micRecommendations = result.micRecommendations.map((shot: any) => {
+            const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (micsWith1D.has(micLower)) {
+              const lockedDist = micLockedDistance.get(micLower);
+              const currentDist = String(shot.distance).replace(/[^0-9.]/g, '');
+              if (lockedDist && currentDist !== lockedDist) {
+                console.log(`[1D Enforcement] Fixing ${shot.micLabel || shot.mic}: ${shot.distance}" → ${lockedDist}"`);
+                return { ...shot, distance: lockedDist };
+              }
+            }
+            return shot;
+          });
+          
+          // Dedup again after distance fixes
+          result.micRecommendations = deduplicateShots(result.micRecommendations);
+        }
+      }
+      
       // Loop to fill extras until we hit target (max 3 attempts to avoid infinite loop)
       let attempts = 0;
       while (targetShotCount && result.micRecommendations && result.micRecommendations.length < targetShotCount && attempts < 3) {
