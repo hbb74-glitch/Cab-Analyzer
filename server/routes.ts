@@ -1643,10 +1643,31 @@ Output JSON:
       }
       
       // Helper to deduplicate shots
+      // Normalize mic codes to catch duplicates like SM57 vs 57
+      const normalizeMicCode = (mic: string): string => {
+        let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        // Map common variations to canonical form
+        const micMap: Record<string, string> = {
+          'sm57': '57', 'shuresm57': '57',
+          'md421': 'md421k', 'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k',
+          'md441': 'md441', 'sennheisermd441': 'md441',
+          'beyerm160': 'm160', 'beyerdynamicm160': 'm160',
+          'beyerm201': 'm201', 'beyerdynamicm201': 'm201',
+          'sennheisere906': 'e906',
+          'heilpr30': 'pr30',
+          'royerr121': 'r121', '121': 'r121',
+          'royerr10': 'r10',
+          'aear92': 'r92',
+          'akgc414': 'c414',
+          'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
+        };
+        return micMap[m] || m;
+      };
+      
       const deduplicateShots = (shots: any[]) => {
         const seen = new Set<string>();
         return shots.filter((shot: any) => {
-          let mic = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          let mic = normalizeMicCode(shot.mic || '');
           let pos = (shot.position || '').toLowerCase()
             .replace(/off-axis.*|on-axis.*/i, '')
             .replace(/center of cone/i, 'cone')
