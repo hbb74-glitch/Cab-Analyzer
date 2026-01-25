@@ -2710,28 +2710,61 @@ Output JSON:
               )
             );
             
+            // Smart prioritization: choose mics that complement what user selected
+            // Mic categories for complementary selection
+            const micCategories: Record<string, string> = {
+              '57': 'dynamic-bright', 'md421': 'dynamic-full', 'md421k': 'dynamic-full',
+              'md441': 'dynamic-detailed', 'm201': 'dynamic-balanced', 'e906': 'dynamic-bright',
+              'pr30': 'dynamic-warm', 'm88': 'dynamic-warm', 'm160': 'ribbon-warm',
+              'r121': 'ribbon-warm', 'r10': 'ribbon-warm', 'r92': 'ribbon-warm',
+              'c414': 'condenser-detailed', 'roswellcab': 'condenser-warm'
+            };
+            
+            // Count categories user already has
+            const userCategories = new Map<string, number>();
+            for (const mic of specifiedMicsList) {
+              const cat = micCategories[mic] || 'unknown';
+              userCategories.set(cat, (userCategories.get(cat) || 0) + 1);
+            }
+            
+            // Prioritize unspecified mics from categories user has LESS of
+            const sortedUnspecified = [...unspecifiedMics].sort((a, b) => {
+              const catA = micCategories[a.code] || 'unknown';
+              const catB = micCategories[b.code] || 'unknown';
+              const countA = userCategories.get(catA) || 0;
+              const countB = userCategories.get(catB) || 0;
+              return countA - countB; // Lower count = higher priority
+            });
+            
+            console.log(`[Fill Remaining] Prioritized unspecified mics: ${sortedUnspecified.map(m => m.code).join(', ')}`);
+            
             let added = 0;
             let micIndex = 0;
             let posIndex = 0;
             
-            while (added < remaining && micIndex < unspecifiedMics.length) {
-              const mic = unspecifiedMics[micIndex];
+            while (added < remaining && micIndex < sortedUnspecified.length) {
+              const mic = sortedUnspecified[micIndex];
               const pos = mic.is1P ? 'Cap' : positions[posIndex % positions.length];
               const key = `${mic.code}|${pos.toLowerCase()}|${mic.distance}`;
               
               if (!existingKeys.has(key)) {
+                const category = micCategories[mic.code] || 'versatile';
+                const complement = userCategories.size > 0 
+                  ? `Complements your ${Array.from(userCategories.keys()).join('/')} selection with ${category} character.`
+                  : `Adds ${category} character to your collection.`;
+                
                 result.micRecommendations.push({
                   mic: mic.code,
                   micLabel: mic.label,
                   position: pos,
                   distance: mic.distance,
-                  rationale: `Added to fill remaining slots with variety.`,
+                  rationale: complement,
                   expectedTone: `Characteristic ${mic.label} tone at ${pos}`,
                   bestFor: genre || 'versatile',
                 });
                 existingKeys.add(key);
                 added++;
-                console.log(`[Fill Remaining] Added ${mic.label} at ${pos} ${mic.distance}"`);
+                console.log(`[Fill Remaining] Added complementary ${mic.label} at ${pos} ${mic.distance}"`);
               }
               
               posIndex++;
@@ -2741,7 +2774,7 @@ Output JSON:
               }
             }
             
-            console.log(`[Fill Remaining] Added ${added}/${remaining} shots from unspecified mics`);
+            console.log(`[Fill Remaining] Added ${added}/${remaining} complementary shots`);
           }
         }
       }
