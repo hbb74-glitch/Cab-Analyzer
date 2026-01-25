@@ -403,19 +403,46 @@ function validateAndFixRecommendations(
     return isNaN(num) ? String(dist) : String(num);
   };
   
-  // 4. Enforce single distance per mic
+  // Sweet spot distances from MikingGuide.tsx (closeMikingRange.sweet)
+  const MIC_SWEET_SPOTS: Record<string, string> = {
+    '57': '1', 'sm57': '1',
+    '421': '2', 'md421': '2', 'md421k': '2',
+    'e906': '1',
+    'm88': '1.5',
+    'pr30': '1',
+    'm201': '2',
+    'sm7b': '2', 'sm7': '2',
+    'md441': '4',
+    '121': '6', 'r121': '6',
+    'r10': '6',
+    'r92': '6',
+    '160': '1', 'm160': '1',
+    'c414': '6',
+    'roswell': '6', 'roswellcab': '6',
+  };
+  
+  // 4. Enforce single distance per mic - PREFER SWEET SPOT if any shot uses it
   if (options.singleDistancePerMic) {
     const micDistances = new Map<string, string>();
     
-    // First pass: find existing distances per mic (normalized)
+    // First pass: find best distance per mic (prefer sweet spot, else first found)
     for (const shot of validShots) {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (micKey && !micDistances.has(micKey)) {
-        micDistances.set(micKey, normDist(shot.distance));
+      if (!micKey) continue;
+      
+      const shotDist = normDist(shot.distance);
+      const sweetSpot = MIC_SWEET_SPOTS[micKey];
+      
+      if (!micDistances.has(micKey)) {
+        // First shot for this mic - use its distance
+        micDistances.set(micKey, shotDist);
+      } else if (sweetSpot && shotDist === sweetSpot && micDistances.get(micKey) !== sweetSpot) {
+        // Found a shot using the sweet spot - prefer it over first found
+        micDistances.set(micKey, sweetSpot);
       }
     }
     
-    // Second pass: force all shots for each mic to use the first distance found
+    // Second pass: force all shots for each mic to use the chosen distance
     validShots = validShots.map(shot => {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const expectedDist = micDistances.get(micKey);
@@ -1674,18 +1701,38 @@ Output JSON:
         if (micsWith1D.size > 0) {
           console.log('[1D Enforcement] Mics with 1D flag:', Array.from(micsWith1D));
           
-          // For each 1D mic, find the first distance and force all shots to use it
+          // Sweet spot distances from MikingGuide.tsx
+          const sweetSpots: Record<string, string> = {
+            '57': '1', 'sm57': '1',
+            '421': '2', 'md421': '2', 'md421k': '2',
+            'e906': '1', 'm88': '1.5', 'pr30': '1', 'm201': '2',
+            'sm7b': '2', 'md441': '4',
+            '121': '6', 'r121': '6', 'r10': '6', 'r92': '6',
+            '160': '1', 'm160': '1',
+            'c414': '6', 'roswell': '6', 'roswellcab': '6',
+          };
+          
+          // For each 1D mic, find best distance (prefer sweet spot if any shot uses it)
           const micLockedDistance = new Map<string, string>();
           
-          // First pass: find existing distance per mic
+          // First pass: find best distance per mic (prefer sweet spot)
           for (const shot of result.micRecommendations) {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (micsWith1D.has(micLower) && !micLockedDistance.has(micLower)) {
-              micLockedDistance.set(micLower, String(shot.distance).replace(/[^0-9.]/g, ''));
+            if (!micsWith1D.has(micLower)) continue;
+            
+            const shotDist = String(shot.distance).replace(/[^0-9.]/g, '');
+            const sweetSpot = sweetSpots[micLower];
+            
+            if (!micLockedDistance.has(micLower)) {
+              micLockedDistance.set(micLower, shotDist);
+            } else if (sweetSpot && shotDist === sweetSpot && micLockedDistance.get(micLower) !== sweetSpot) {
+              // Found a shot using sweet spot - prefer it
+              console.log(`[1D Enforcement] Preferring sweet spot ${sweetSpot}" for ${micLower}`);
+              micLockedDistance.set(micLower, sweetSpot);
             }
           }
           
-          // Second pass: force all shots for each 1D mic to use the locked distance
+          // Second pass: force all shots for each 1D mic to use the chosen distance
           result.micRecommendations = result.micRecommendations.map((shot: any) => {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (micsWith1D.has(micLower)) {
