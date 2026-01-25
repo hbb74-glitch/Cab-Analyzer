@@ -2715,7 +2715,7 @@ Output JSON:
             const micCategories: Record<string, string> = {
               '57': 'dynamic-bright', 'md421': 'dynamic-full', 'md421k': 'dynamic-full',
               'md441': 'dynamic-detailed', 'm201': 'dynamic-balanced', 'e906': 'dynamic-bright',
-              'pr30': 'dynamic-warm', 'm88': 'dynamic-warm', 'm160': 'ribbon-warm',
+              'pr30': 'dynamic-bright', 'm88': 'dynamic-warm', 'm160': 'ribbon-warm',
               'r121': 'ribbon-warm', 'r10': 'ribbon-warm', 'r92': 'ribbon-warm',
               'c414': 'condenser-detailed', 'roswellcab': 'condenser-warm'
             };
