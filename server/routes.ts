@@ -1848,7 +1848,7 @@ Output JSON:
           // Log all mic codes before processing
           console.log('[1P Enforcement] All mic codes before:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
           
-          // Force 1P for each ribbon/condenser mic
+          // Force 1P for each ribbon/condenser mic - ONLY enforce position, PRESERVE distance
           // Roswell -> Cap position, C414/R121/R10/R92 -> CapEdge position
           const ribbonCondenser1P: Record<string, string> = {
             'roswell-cab': 'Cap',
@@ -1860,23 +1860,17 @@ Output JSON:
             'r92': 'CapEdge'
           };
           
-          const distances1P = ['4', '5', '6'];
-          const micDistanceIndex: Record<string, number> = {};
-          
+          // 1P = same position, vary distance - so ONLY force position, keep AI's distance
           result.micRecommendations = result.micRecommendations.map((shot: any) => {
             const micLower = shot.mic.toLowerCase();
             if (ribbonCondenser1P[micLower]) {
               const forcedPosition = ribbonCondenser1P[micLower];
-              if (!micDistanceIndex[micLower]) micDistanceIndex[micLower] = 0;
-              const forcedDistance = distances1P[micDistanceIndex[micLower] % distances1P.length];
-              micDistanceIndex[micLower]++;
-              console.log(`[1P] Forcing ${shot.mic} from ${shot.position}/${shot.distance} to ${forcedPosition}/${forcedDistance}`);
-              shot.position = forcedPosition;
-              shot.distance = forcedDistance;
-              // Note: We intentionally do NOT update rationale text when 1P forces position/distance changes.
-              // The AI's original rationale was written for a specific position (e.g., Cone = "darker tone").
-              // Simply replacing position names would create misleading acoustic advice (e.g., "CapEdge = darker tone" is wrong).
-              // The position/distance values shown to user are correct; rationale may reference the original AI suggestion.
+              if (shot.position !== forcedPosition) {
+                console.log(`[1P] Forcing ${shot.mic} position from ${shot.position} to ${forcedPosition} (keeping distance ${shot.distance}")`);
+                shot.position = forcedPosition;
+              }
+              // PRESERVE the AI's distance - don't override it!
+              // This respects the sweet spot distances the AI was instructed to use
             }
             return shot;
           });
