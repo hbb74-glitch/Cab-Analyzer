@@ -2535,6 +2535,103 @@ Output JSON:
           console.log(`[By-Speaker API] Trimming from ${result.micRecommendations.length} to ${targetShotCount}`);
           result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
         }
+        
+        // Fill remaining slots with other mics if we're under target
+        if (targetShotCount && result.micRecommendations.length < targetShotCount) {
+          const remaining = targetShotCount - result.micRecommendations.length;
+          console.log(`[Fill Remaining] Need ${remaining} more shots from other mics`);
+          
+          // All available mics with their defaults
+          const allMics: { code: string, label: string, distance: string, is1P: boolean }[] = [
+            { code: '57', label: 'SM57', distance: '1', is1P: false },
+            { code: 'md421k', label: 'MD421K', distance: '2', is1P: false },
+            { code: 'md441', label: 'MD441_Presence', distance: '4', is1P: false },
+            { code: 'm160', label: 'M160', distance: '1', is1P: false },
+            { code: 'm201', label: 'M201', distance: '2', is1P: false },
+            { code: 'e906', label: 'e906_Presence', distance: '1', is1P: false },
+            { code: 'pr30', label: 'PR30', distance: '1', is1P: false },
+            { code: 'm88', label: 'M88', distance: '1.5', is1P: false },
+            { code: 'r121', label: 'R121', distance: '6', is1P: true },
+            { code: 'r92', label: 'R92', distance: '6', is1P: true },
+            { code: 'c414', label: 'C414', distance: '6', is1P: true },
+            { code: 'roswell-cab', label: 'Roswell Cab Mic', distance: '6', is1P: true },
+          ];
+          
+          // Find mics not already specified by user
+          const specifiedMicsList: string[] = [];
+          if (micShotCounts) {
+            micShotCounts.split(', ').forEach((l: string) => {
+              const match = l.match(/^(.+?)\s*x\s*\d+/);
+              if (!match) return;
+              const name = match[1].toLowerCase();
+              if (name.includes('57')) specifiedMicsList.push('57');
+              else if (name.includes('421')) specifiedMicsList.push('md421k');
+              else if (name.includes('441')) specifiedMicsList.push('md441');
+              else if (name.includes('160')) specifiedMicsList.push('m160');
+              else if (name.includes('201')) specifiedMicsList.push('m201');
+              else if (name.includes('906')) specifiedMicsList.push('e906');
+              else if (name.includes('pr30')) specifiedMicsList.push('pr30');
+              else if (name.includes('m88') || name.includes('88')) specifiedMicsList.push('m88');
+              else if (name.includes('r121') || name.includes('121')) specifiedMicsList.push('r121');
+              else if (name.includes('r92') || name.includes('92')) specifiedMicsList.push('r92');
+              else if (name.includes('414')) specifiedMicsList.push('c414');
+              else if (name.includes('roswell')) specifiedMicsList.push('roswell-cab');
+            });
+          }
+          const specifiedMics = new Set(specifiedMicsList);
+          
+          const unspecifiedMics = allMics.filter(m => !specifiedMics.has(m.code));
+          
+          if (unspecifiedMics.length === 0) {
+            // All mics specified but still short - add warning message
+            console.log(`[Fill Remaining] All mics specified - no additional mics available`);
+            result.noAdditionalMicsWarning = `Requested ${targetShotCount} shots but all available mics have been specified. No additional mics available for this shoot.`;
+          } else if (unspecifiedMics.length > 0) {
+            const positions = basicPositionsOnly 
+              ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
+              : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone'];
+            
+            // Build existing shot keys to avoid duplicates
+            const existingKeys = new Set(
+              result.micRecommendations.map((s: any) => 
+                `${(s.mic || '').toLowerCase()}|${(s.position || '').toLowerCase()}|${s.distance}`
+              )
+            );
+            
+            let added = 0;
+            let micIndex = 0;
+            let posIndex = 0;
+            
+            while (added < remaining && micIndex < unspecifiedMics.length) {
+              const mic = unspecifiedMics[micIndex];
+              const pos = mic.is1P ? 'Cap' : positions[posIndex % positions.length];
+              const key = `${mic.code}|${pos.toLowerCase()}|${mic.distance}`;
+              
+              if (!existingKeys.has(key)) {
+                result.micRecommendations.push({
+                  mic: mic.code,
+                  micLabel: mic.label,
+                  position: pos,
+                  distance: mic.distance,
+                  rationale: `Added to fill remaining slots with variety.`,
+                  expectedTone: `Characteristic ${mic.label} tone at ${pos}`,
+                  bestFor: genre || 'versatile',
+                });
+                existingKeys.add(key);
+                added++;
+                console.log(`[Fill Remaining] Added ${mic.label} at ${pos} ${mic.distance}"`);
+              }
+              
+              posIndex++;
+              if (posIndex >= positions.length || mic.is1P) {
+                micIndex++;
+                posIndex = 0;
+              }
+            }
+            
+            console.log(`[Fill Remaining] Added ${added}/${remaining} shots from unspecified mics`);
+          }
+        }
       }
       
       res.json(result);

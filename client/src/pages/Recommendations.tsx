@@ -2638,6 +2638,15 @@ Or written out:
                 <p className="text-sm text-muted-foreground italic">{speakerResult.summary}</p>
               </div>
 
+              {/* Show warning if no additional mics available */}
+              {(speakerResult as any).noAdditionalMicsWarning && (
+                <div className="glass-panel p-4 rounded-xl border-l-4 border-l-yellow-500/70 bg-yellow-500/10" data-testid="text-no-additional-mics-warning">
+                  <p className="text-sm text-yellow-200">
+                    <span className="font-medium">Note:</span> {(speakerResult as any).noAdditionalMicsWarning}
+                  </p>
+                </div>
+              )}
+
               {/* Show selection rationale for small shot counts (1-4) */}
               {speakerResult.selectionRationale && speakerResult.micRecommendations.length <= 4 && (() => {
                 const count = speakerResult.micRecommendations.length;
