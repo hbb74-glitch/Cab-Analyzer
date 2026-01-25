@@ -2370,7 +2370,167 @@ Output JSON:
           result.micRecommendations = finalDeduped;
         }
         
-        // Trim to exact target after backfill
+        // STRICT per-mic count enforcement - must match user's requested counts exactly
+        if (micShotCounts && micShotCounts.trim()) {
+          console.log('[Per-Mic Enforcement] Enforcing exact mic counts from user request');
+          
+          // Parse requested counts
+          const requestedCounts = new Map<string, number>();
+          const micLines = micShotCounts.split(', ').filter((l: string) => l.trim());
+          
+          for (const line of micLines) {
+            const match = line.match(/^(.+?)\s*x\s*(\d+)/);
+            if (match) {
+              const micName = match[1].trim();
+              const count = parseInt(match[2], 10);
+              
+              // Normalize mic name to code
+              let micCode = micName.toLowerCase()
+                .replace(/\s+/g, '')
+                .replace('sm57', '57')
+                .replace('r121', '121')
+                .replace('md421k (kompakt)', 'md421k')
+                .replace('md421k(kompakt)', 'md421k')
+                .replace('roswell cab mic', 'roswell-cab')
+                .replace('roswellcabmic', 'roswell-cab');
+              if (micName.toLowerCase().includes('160')) micCode = 'm160';
+              if (micName.toLowerCase().includes('906')) micCode = 'e906';
+              if (micName.toLowerCase().includes('441')) micCode = 'md441';
+              if (micName.toLowerCase().includes('421') && !micName.toLowerCase().includes('441')) micCode = 'md421k';
+              if (micName.toLowerCase().includes('201')) micCode = 'm201';
+              if (micName.toLowerCase().includes('88') && micName.toLowerCase().includes('m')) micCode = 'm88';
+              if (micName.toLowerCase().includes('r92') || micName.toLowerCase().includes('92')) micCode = 'r92';
+              if (micName.toLowerCase().includes('r10') && !micName.toLowerCase().includes('r121')) micCode = 'r10';
+              if (micName.toLowerCase().includes('414')) micCode = 'c414';
+              if (micName.toLowerCase().includes('pr30')) micCode = 'pr30';
+              
+              requestedCounts.set(micCode, count);
+            }
+          }
+          
+          if (requestedCounts.size > 0) {
+            // Get current counts per mic
+            const normalizeMicCode = (mic: string): string => {
+              let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const normMap: Record<string, string> = {
+                'sm57': '57', 'shuresm57': '57',
+                '441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
+                '160': 'm160', 'beyerdynamicm160': 'm160',
+                '201': 'm201', 'beyerdynamicm201': 'm201',
+                '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+                '121': 'r121', 'royerr121': 'r121',
+                '414': 'c414', 'akgc414': 'c414',
+                'roswellcabmic': 'roswell-cab', 'roswell': 'roswell-cab',
+              };
+              return normMap[m] || m;
+            };
+            
+            const currentCounts = new Map<string, number>();
+            for (const shot of result.micRecommendations) {
+              const micCode = normalizeMicCode(shot.mic || '');
+              currentCounts.set(micCode, (currentCounts.get(micCode) || 0) + 1);
+            }
+            
+            // Check for mismatches
+            Array.from(requestedCounts.entries()).forEach(([mic, requested]) => {
+              const current = currentCounts.get(mic) || 0;
+              if (current !== requested) {
+                console.log(`[Per-Mic Enforcement] ${mic}: have ${current}, want ${requested}`);
+              }
+            });
+            
+            // Enforce counts: trim excess shots per mic
+            const micShotsSeen = new Map<string, number>();
+            const trimmedShots: any[] = [];
+            
+            for (const shot of result.micRecommendations) {
+              const micCode = normalizeMicCode(shot.mic || '');
+              const currentCount = micShotsSeen.get(micCode) || 0;
+              const maxCount = requestedCounts.get(micCode);
+              
+              // If this mic has a requested count, enforce it
+              if (maxCount !== undefined) {
+                if (currentCount < maxCount) {
+                  trimmedShots.push(shot);
+                  micShotsSeen.set(micCode, currentCount + 1);
+                } else {
+                  console.log(`[Per-Mic Enforcement] Trimmed excess ${shot.micLabel || shot.mic} shot (have ${currentCount + 1}, want ${maxCount})`);
+                }
+              } else {
+                // Mic not in user's list - keep it (it's extra)
+                trimmedShots.push(shot);
+              }
+            }
+            
+            result.micRecommendations = trimmedShots;
+            
+            // Now check if we're short on any mic and need to add more
+            Array.from(requestedCounts.entries()).forEach(([mic, requested]) => {
+              const current = micShotsSeen.get(mic) || 0;
+              if (current < requested) {
+                const needed = requested - current;
+                console.log(`[Per-Mic Enforcement] Need ${needed} more ${mic} shots`);
+                
+                // Get existing positions for this mic to avoid duplicates
+                const existingPositions = new Set(
+                  result.micRecommendations
+                    .filter((s: any) => normalizeMicCode(s.mic || '') === mic)
+                    .map((s: any) => (s.position || '').toLowerCase())
+                );
+                
+                const availablePositions = basicPositionsOnly 
+                  ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
+                  : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+                
+                // Get mic defaults
+                const micDefaults: Record<string, { label: string, distance: string }> = {
+                  '57': { label: 'SM57', distance: '1' },
+                  'md421k': { label: 'MD421K', distance: '2' },
+                  'md441': { label: 'MD441_Presence', distance: '4' },
+                  'm160': { label: 'M160', distance: '1' },
+                  'm201': { label: 'M201', distance: '2' },
+                  'e906': { label: 'e906_Presence', distance: '1' },
+                  'pr30': { label: 'PR30', distance: '1' },
+                  'r121': { label: 'R121', distance: '6' },
+                  'r10': { label: 'R10', distance: '6' },
+                  'r92': { label: 'R92', distance: '6' },
+                  'c414': { label: 'C414', distance: '6' },
+                  'm88': { label: 'M88', distance: '1.5' },
+                  'roswell-cab': { label: 'Roswell Cab Mic', distance: '6' },
+                };
+                
+                const defaults = micDefaults[mic] || { label: mic.toUpperCase(), distance: '2' };
+                
+                for (let i = 0; i < needed; i++) {
+                  // Find an unused position
+                  let position = 'Cap';
+                  for (const pos of availablePositions) {
+                    if (!existingPositions.has(pos.toLowerCase())) {
+                      position = pos;
+                      break;
+                    }
+                  }
+                  existingPositions.add(position.toLowerCase());
+                  
+                  const newShot = {
+                    mic: mic,
+                    micLabel: defaults.label,
+                    position: position,
+                    distance: defaults.distance,
+                    rationale: `Added to meet requested ${defaults.label} count.`,
+                    expectedTone: `Characteristic ${defaults.label} tone at ${position}`,
+                    bestFor: genre || 'versatile',
+                  };
+                  
+                  result.micRecommendations.push(newShot);
+                  console.log(`[Per-Mic Enforcement] Added ${defaults.label} at ${position} ${defaults.distance}"`);
+                }
+              }
+            });
+          }
+        }
+        
+        // Trim to exact target after all enforcement
         if (targetShotCount && result.micRecommendations.length > targetShotCount) {
           console.log(`[By-Speaker API] Trimming from ${result.micRecommendations.length} to ${targetShotCount}`);
           result.micRecommendations = result.micRecommendations.slice(0, targetShotCount);
