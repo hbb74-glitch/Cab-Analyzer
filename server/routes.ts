@@ -421,28 +421,26 @@ function validateAndFixRecommendations(
     'roswell': '6', 'roswellcab': '6',
   };
   
-  // 4. Enforce single distance per mic - PREFER SWEET SPOT if any shot uses it
+  // 4. Enforce single distance per mic - USE SWEET SPOT (force if available)
   if (options.singleDistancePerMic) {
     const micDistances = new Map<string, string>();
     
-    // First pass: find best distance per mic (prefer sweet spot, else first found)
+    // For each mic, use sweet spot if known, otherwise first found
     for (const shot of validShots) {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      if (!micKey) continue;
+      if (!micKey || micDistances.has(micKey)) continue;
       
-      const shotDist = normDist(shot.distance);
       const sweetSpot = MIC_SWEET_SPOTS[micKey];
-      
-      if (!micDistances.has(micKey)) {
-        // First shot for this mic - use its distance
-        micDistances.set(micKey, shotDist);
-      } else if (sweetSpot && shotDist === sweetSpot && micDistances.get(micKey) !== sweetSpot) {
-        // Found a shot using the sweet spot - prefer it over first found
+      if (sweetSpot) {
+        // Use sweet spot regardless of what AI returned
         micDistances.set(micKey, sweetSpot);
+      } else {
+        // No sweet spot defined - use first found
+        micDistances.set(micKey, normDist(shot.distance));
       }
     }
     
-    // Second pass: force all shots for each mic to use the chosen distance
+    // Second pass: force all shots for each mic to use the chosen distance (sweet spot or first)
     validShots = validShots.map(shot => {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const expectedDist = micDistances.get(micKey);
@@ -1701,7 +1699,7 @@ Output JSON:
         if (micsWith1D.size > 0) {
           console.log('[1D Enforcement] Mics with 1D flag:', Array.from(micsWith1D));
           
-          // Sweet spot distances from MikingGuide.tsx
+          // Sweet spot distances from MikingGuide.tsx - FORCE these
           const sweetSpots: Record<string, string> = {
             '57': '1', 'sm57': '1',
             '421': '2', 'md421': '2', 'md421k': '2',
@@ -1712,27 +1710,22 @@ Output JSON:
             'c414': '6', 'roswell': '6', 'roswellcab': '6',
           };
           
-          // For each 1D mic, find best distance (prefer sweet spot if any shot uses it)
+          // For each 1D mic, use sweet spot if known, otherwise first found
           const micLockedDistance = new Map<string, string>();
           
-          // First pass: find best distance per mic (prefer sweet spot)
           for (const shot of result.micRecommendations) {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (!micsWith1D.has(micLower)) continue;
+            if (!micsWith1D.has(micLower) || micLockedDistance.has(micLower)) continue;
             
-            const shotDist = String(shot.distance).replace(/[^0-9.]/g, '');
             const sweetSpot = sweetSpots[micLower];
-            
-            if (!micLockedDistance.has(micLower)) {
-              micLockedDistance.set(micLower, shotDist);
-            } else if (sweetSpot && shotDist === sweetSpot && micLockedDistance.get(micLower) !== sweetSpot) {
-              // Found a shot using sweet spot - prefer it
-              console.log(`[1D Enforcement] Preferring sweet spot ${sweetSpot}" for ${micLower}`);
+            if (sweetSpot) {
               micLockedDistance.set(micLower, sweetSpot);
+            } else {
+              micLockedDistance.set(micLower, String(shot.distance).replace(/[^0-9.]/g, ''));
             }
           }
           
-          // Second pass: force all shots for each 1D mic to use the chosen distance
+          // Second pass: force all shots for each 1D mic to use the chosen distance (sweet spot)
           result.micRecommendations = result.micRecommendations.map((shot: any) => {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (micsWith1D.has(micLower)) {
@@ -2018,6 +2011,54 @@ Output JSON:
           const shortfall = targetShotCount - result.micRecommendations.length;
           console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
           
+          // Generate meaningful rationales for backfill shots based on mic and position knowledge
+          const generateBackfillRationale = (mic: string, micLabel: string, position: string, distance: string, genre: string) => {
+            const micLower = mic.toLowerCase();
+            
+            // Mic characteristics
+            const micTraits: Record<string, { type: string, character: string, strength: string }> = {
+              '57': { type: 'dynamic', character: 'punchy midrange', strength: 'cuts through mixes' },
+              'sm57': { type: 'dynamic', character: 'punchy midrange', strength: 'cuts through mixes' },
+              'md421k': { type: 'dynamic', character: 'full-bodied mids', strength: 'articulate and punchy' },
+              'md441': { type: 'dynamic', character: 'detailed and present', strength: 'flexible EQ switches' },
+              'm160': { type: 'ribbon', character: 'focused hypercardioid', strength: 'tight pattern rejects room' },
+              'm201': { type: 'dynamic', character: 'smooth and balanced', strength: 'natural midrange' },
+              'e906': { type: 'dynamic', character: 'aggressive attack', strength: 'switchable voicings' },
+              'pr30': { type: 'ribbon', character: 'bright ribbon tone', strength: 'extended highs for ribbon' },
+              'r121': { type: 'ribbon', character: 'smooth and warm', strength: 'tames harsh highs naturally' },
+              'r10': { type: 'ribbon', character: 'vintage ribbon warmth', strength: 'classic smooth tone' },
+              'r92': { type: 'ribbon', character: 'full-range ribbon', strength: 'extended lows and highs' },
+              'c414': { type: 'condenser', character: 'detailed and airy', strength: 'captures room and shimmer' },
+              'roswell': { type: 'condenser', character: 'speaker-optimized', strength: 'designed for cab capture' },
+              'roswell-cab': { type: 'condenser', character: 'speaker-optimized', strength: 'designed for cab capture' },
+            };
+            
+            // Position characteristics
+            const posTraits: Record<string, { tone: string, use: string }> = {
+              'Cap': { tone: 'bright and focused', use: 'maximum presence and clarity' },
+              'CapEdge': { tone: 'balanced bright/warm', use: 'most versatile starting point' },
+              'CapEdge_Cone_Tr': { tone: 'warmer with body', use: 'fills out thin tones' },
+              'Cone': { tone: 'warm and smooth', use: 'reduces harshness, adds depth' },
+              'Cone_Edge': { tone: 'darkest and fullest', use: 'maximum warmth and body' },
+            };
+            
+            const micInfo = micTraits[micLower] || { type: 'mic', character: 'balanced', strength: 'versatile' };
+            const posInfo = posTraits[position] || { tone: 'balanced', use: 'general purpose' };
+            
+            // Distance context
+            const distNum = parseFloat(distance);
+            const distContext = distNum <= 1 ? 'close-miked for tight response' :
+                               distNum <= 2 ? 'near-field for controlled proximity' :
+                               distNum <= 4 ? 'moderate distance for balanced capture' :
+                               'backed off for smoother, more open sound';
+            
+            const rationale = `The ${micLabel}'s ${micInfo.character} at ${position} (${posInfo.tone}) at ${distance}" provides ${posInfo.use}. This ${micInfo.type} ${micInfo.strength}, ${distContext}.`;
+            
+            const expectedTone = `${posInfo.tone} with ${micInfo.character}, ${distContext}`;
+            
+            return { rationale, expectedTone };
+          };
+          
           // Full mic list with default distances (SWEET SPOT FIRST) and available distance options
           // 1P mics (ribbons/condensers) have fixed position but can vary distance
           const micDefaults: Record<string, { label: string, distances: string[], is1P: boolean }> = {
@@ -2115,10 +2156,11 @@ Output JSON:
               if (added >= shortfall) break;
               const key = makeKey(mic, pos, distance);
               if (!existingKeys.has(key)) {
+                const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, pos, distance, genre);
                 result.micRecommendations.push({
                   mic, micLabel, position: pos, distance,
-                  rationale: `Added to reach target shot count.`,
-                  expectedTone: 'Varies with position',
+                  rationale,
+                  expectedTone,
                   bestFor: genre || 'General use'
                 });
                 existingKeys.add(key);
@@ -2150,10 +2192,11 @@ Output JSON:
                 if (added >= shortfall) break;
                 const key = makeKey(mic, position, dist);
                 if (!existingKeys.has(key)) {
+                  const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, position, dist, genre);
                   result.micRecommendations.push({
                     mic, micLabel, position, distance: dist,
-                    rationale: `Added at ${dist}" distance to reach target shot count.`,
-                    expectedTone: 'Varies with distance',
+                    rationale,
+                    expectedTone,
                     bestFor: genre || 'General use'
                   });
                   existingKeys.add(key);
