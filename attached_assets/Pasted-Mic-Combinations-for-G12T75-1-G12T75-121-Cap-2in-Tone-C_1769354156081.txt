@@ -1,0 +1,74 @@
+Mic Combinations for G12T75
+
+1. G12T75_121_Cap_2in
+   Tone: Characteristic 121 tone at Cap
+
+2. G12T75_C414_CapEdge_6in
+   Tone: Natural and open with detailed highs, suitable for hard rock and metal.
+
+3. G12T75_e906__Presence_Cap_1in
+   Tone: Bright and clear with enhanced high-end detail, perfect for technical metal and lead tones.
+
+4. G12T75_e906__Presence_CapEdge_1in
+   Tone: Clear and defined with a touch of warmth, suitable for progressive and modern metal.
+
+5. G12T75_M160_CapEdge_1in
+   Tone: Tight, focused, with a smooth midrange.
+
+6. G12T75_M160_CapEdge_Cone_Tr_1in
+   Tone: Smooth, detailed, with a touch of brightness.
+
+7. G12T75_M160_Cone_1in
+   Tone: Midrange-forward, aggressive, with tight low-end.
+
+8. G12T75_M201_Cap_2in
+   Tone: Bright and aggressive with tight lows, ideal for thrash and hard rock.
+
+9. G12T75_M201_CapEdge_2in
+   Tone: Clear mids and controlled highs, great for punk and grunge.
+
+10. G12T75_M201_CapEdge_Cone_Tr_2in
+   Tone: Controlled aggression with a slightly warmer high end, great for grunge and hard rock.
+
+11. G12T75_MD421K_Cap_2in
+   Tone: Punchy and full-bodied with clear highs, ideal for modern metal and djent.
+
+12. G12T75_MD421K_CapEdge_2in
+   Tone: Balanced tone with added low-end weight, great for progressive metal and hard rock.
+
+13. G12T75_MD421K_CapEdge_Cone_Tr_2in
+   Tone: Warm and controlled with tight lows, perfect for grunge and punk.
+
+14. G12T75_MD441__Presence_Cap_4in
+   Tone: Characteristic MD441_Presence tone at Cap
+
+15. G12T75_PR30_Cap_1in
+   Tone: Bright and aggressive with tight lows, ideal for thrash and hard rock.
+
+16. G12T75_PR30_CapEdge_1in
+   Tone: Clear mids and controlled highs, great for punk and grunge.
+
+17. G12T75_PR30_CapEdge_Cone_Tr_1in
+   Tone: Controlled aggression with a slightly warmer high end, great for grunge and hard rock.
+
+18. G12T75_R121_Cap_6in
+   Tone: Smooth, warm, with a balanced low-mid response.
+
+19. G12T75_Roswell_Cap_6in
+   Tone: Clear and detailed with a natural low end, ideal for modern metal and progressive tones.
+
+20. G12T75_Roswell_Cap_6in
+   Tone: Characteristic Roswell Cab Mic tone at Cap
+
+21. G12T75_SM57_Cap_1in
+   Tone: Bright, aggressive, and cutting with tight low-end punch, perfect for hard rock and thrash rhythm tones.
+
+22. G12T75_SM57_CapEdge_1in
+   Tone: A balanced mix of brightness and warmth, ideal for punk and grunge rhythm tones.
+
+23. G12T75_SM57_CapEdge_Cone_Tr_1in
+   Tone: Controlled aggression with a slightly warmer high end, great for grunge and hard rock.
+
+24. G12T75_SM57_Cone_1in
+   Tone: Smooth warmth with reduced harshness, full low end from proximity, punchy midrange character
+

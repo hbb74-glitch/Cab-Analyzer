@@ -336,23 +336,42 @@ function validateAndFixRecommendations(
   let validShots = [...shots];
   
   // Normalize mic codes to catch variations like SM57 vs 57
+  // Comprehensive mic normalization - all aliases map to canonical codes
+  const MIC_NORM_MAP: Record<string, string> = {
+    // SM57
+    '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
+    // MD421K
+    'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
+    'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+    // MD441
+    'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
+    'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
+    // M160
+    'm160': 'm160', '160': 'm160', 'beyerm160': 'm160', 'beyerdynamicm160': 'm160', 'beyer160': 'm160',
+    // M201
+    'm201': 'm201', '201': 'm201', 'beyerm201': 'm201', 'beyerdynamicm201': 'm201', 'beyer201': 'm201',
+    // e906
+    'e906': 'e906', '906': 'e906', 'sennheisere906': 'e906', 'sennheiser906': 'e906',
+    'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+    // PR30
+    'pr30': 'pr30', 'heilpr30': 'pr30', 'heil30': 'pr30',
+    // M88
+    'm88': 'm88', '88': 'm88', 'beyerm88': 'm88', 'beyerdynamicm88': 'm88', 'beyer88': 'm88',
+    // R121
+    'r121': 'r121', '121': 'r121', 'royerr121': 'r121', 'royer121': 'r121',
+    // R10
+    'r10': 'r10', 'royerr10': 'r10', 'royer10': 'r10',
+    // R92
+    'r92': 'r92', '92': 'r92', 'aear92': 'r92', 'aea92': 'r92',
+    // C414
+    'c414': 'c414', '414': 'c414', 'akgc414': 'c414', 'akg414': 'c414',
+    // Roswell
+    'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
+  };
+  
   const normalizeMicKey = (mic: string): string => {
     let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const micMap: Record<string, string> = {
-      'sm57': '57', 'shuresm57': '57',
-      'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',
-      '441': 'md441', 'sennheisermd441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
-      'beyerm160': 'm160', 'beyerdynamicm160': 'm160', '160': 'm160',
-      'beyerm201': 'm201', 'beyerdynamicm201': 'm201', '201': 'm201',
-      'sennheisere906': 'e906', '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
-      'heilpr30': 'pr30',
-      'royerr121': 'r121', '121': 'r121',
-      'royerr10': 'r10',
-      'aear92': 'r92',
-      'akgc414': 'c414', '414': 'c414',
-      'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
-    };
-    return micMap[m] || m;
+    return MIC_NORM_MAP[m] || m;
   };
   
   // Per-mic minimum distances from MikingGuide.tsx (closeMikingRange.min)
@@ -2180,20 +2199,37 @@ Output JSON:
             : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
           
           // Build set of existing shot keys (MUST match validation's key format)
-          // Mic normalization map - must match validation
+          // Comprehensive mic normalization - all aliases map to canonical codes
           const micNormMap: Record<string, string> = {
-            'sm57': '57', 'shuresm57': '57',
-            'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',
-            '441': 'md441', 'sennheisermd441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
-            'beyerm160': 'm160', 'beyerdynamicm160': 'm160', '160': 'm160',
-            'beyerm201': 'm201', 'beyerdynamicm201': 'm201', '201': 'm201',
-            'sennheisere906': 'e906', '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
-            'heilpr30': 'pr30',
-            'royerr121': 'r121', '121': 'r121',
-            'royerr10': 'r10',
-            'aear92': 'r92',
-            'akgc414': 'c414', '414': 'c414',
-            'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
+            // SM57
+            '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
+            // MD421K
+            'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
+            'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+            // MD441
+            'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
+            'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
+            // M160
+            'm160': 'm160', '160': 'm160', 'beyerm160': 'm160', 'beyerdynamicm160': 'm160', 'beyer160': 'm160',
+            // M201
+            'm201': 'm201', '201': 'm201', 'beyerm201': 'm201', 'beyerdynamicm201': 'm201', 'beyer201': 'm201',
+            // e906
+            'e906': 'e906', '906': 'e906', 'sennheisere906': 'e906', 'sennheiser906': 'e906',
+            'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+            // PR30
+            'pr30': 'pr30', 'heilpr30': 'pr30', 'heil30': 'pr30',
+            // M88
+            'm88': 'm88', '88': 'm88', 'beyerm88': 'm88', 'beyerdynamicm88': 'm88', 'beyer88': 'm88',
+            // R121
+            'r121': 'r121', '121': 'r121', 'royerr121': 'r121', 'royer121': 'r121',
+            // R10
+            'r10': 'r10', 'royerr10': 'r10', 'royer10': 'r10',
+            // R92
+            'r92': 'r92', '92': 'r92', 'aear92': 'r92', 'aea92': 'r92',
+            // C414
+            'c414': 'c414', '414': 'c414', 'akgc414': 'c414', 'akg414': 'c414',
+            // Roswell
+            'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
           };
           const makeKey = (mic: string, pos: string, dist: string) => {
             let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2409,18 +2445,39 @@ Output JSON:
           }
           
           if (requestedCounts.size > 0) {
-            // Get current counts per mic
+            // Get current counts per mic - comprehensive aliases
             const normalizeMicCode = (mic: string): string => {
               let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
               const normMap: Record<string, string> = {
-                'sm57': '57', 'shuresm57': '57',
-                '441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
-                '160': 'm160', 'beyerdynamicm160': 'm160',
-                '201': 'm201', 'beyerdynamicm201': 'm201',
-                '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
-                '121': 'r121', 'royerr121': 'r121',
-                '414': 'c414', 'akgc414': 'c414',
-                'roswellcabmic': 'roswell-cab', 'roswell': 'roswell-cab',
+                // SM57
+                '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
+                // MD421K
+                'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
+                'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+                // MD441
+                'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
+                'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
+                // M160
+                'm160': 'm160', '160': 'm160', 'beyerm160': 'm160', 'beyerdynamicm160': 'm160', 'beyer160': 'm160',
+                // M201
+                'm201': 'm201', '201': 'm201', 'beyerm201': 'm201', 'beyerdynamicm201': 'm201', 'beyer201': 'm201',
+                // e906
+                'e906': 'e906', '906': 'e906', 'sennheisere906': 'e906', 'sennheiser906': 'e906',
+                'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+                // PR30
+                'pr30': 'pr30', 'heilpr30': 'pr30', 'heil30': 'pr30',
+                // M88
+                'm88': 'm88', '88': 'm88', 'beyerm88': 'm88', 'beyerdynamicm88': 'm88', 'beyer88': 'm88',
+                // R121
+                'r121': 'r121', '121': 'r121', 'royerr121': 'r121', 'royer121': 'r121',
+                // R10
+                'r10': 'r10', 'royerr10': 'r10', 'royer10': 'r10',
+                // R92
+                'r92': 'r92', '92': 'r92', 'aear92': 'r92', 'aea92': 'r92',
+                // C414
+                'c414': 'c414', '414': 'c414', 'akgc414': 'c414', 'akg414': 'c414',
+                // Roswell
+                'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
               };
               return normMap[m] || m;
             };
@@ -2482,21 +2539,31 @@ Output JSON:
                   ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
                   : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
                 
-                // Get mic defaults
+                // Get mic defaults (include aliases for normalization variations)
                 const micDefaults: Record<string, { label: string, distance: string }> = {
                   '57': { label: 'SM57', distance: '1' },
+                  'sm57': { label: 'SM57', distance: '1' },
                   'md421k': { label: 'MD421K', distance: '2' },
                   'md441': { label: 'MD441_Presence', distance: '4' },
+                  '441': { label: 'MD441_Presence', distance: '4' },
                   'm160': { label: 'M160', distance: '1' },
+                  '160': { label: 'M160', distance: '1' },
                   'm201': { label: 'M201', distance: '2' },
+                  '201': { label: 'M201', distance: '2' },
                   'e906': { label: 'e906_Presence', distance: '1' },
+                  '906': { label: 'e906_Presence', distance: '1' },
                   'pr30': { label: 'PR30', distance: '1' },
                   'r121': { label: 'R121', distance: '6' },
+                  '121': { label: 'R121', distance: '6' },
                   'r10': { label: 'R10', distance: '6' },
                   'r92': { label: 'R92', distance: '6' },
+                  '92': { label: 'R92', distance: '6' },
                   'c414': { label: 'C414', distance: '6' },
+                  '414': { label: 'C414', distance: '6' },
                   'm88': { label: 'M88', distance: '1.5' },
                   'roswell-cab': { label: 'Roswell Cab Mic', distance: '6' },
+                  'roswell': { label: 'Roswell Cab Mic', distance: '6' },
+                  'roswellcab': { label: 'Roswell Cab Mic', distance: '6' },
                 };
                 
                 const defaults = micDefaults[mic] || { label: mic.toUpperCase(), distance: '2' };
@@ -2631,6 +2698,42 @@ Output JSON:
             
             console.log(`[Fill Remaining] Added ${added}/${remaining} shots from unspecified mics`);
           }
+        }
+      }
+      
+      // Final dedup pass to catch any duplicates after all operations
+      if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
+        const finalNormMap: Record<string, string> = {
+          '57': '57', 'sm57': '57', 'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k',
+          'md441': 'md441', '441': 'md441', 'm160': 'm160', '160': 'm160',
+          'm201': 'm201', '201': 'm201', 'e906': 'e906', '906': 'e906',
+          'pr30': 'pr30', 'm88': 'm88', 'r121': 'r121', '121': 'r121',
+          'r10': 'r10', 'r92': 'r92', '92': 'r92', 'c414': 'c414', '414': 'c414',
+          'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
+        };
+        const finalMakeKey = (mic: string, pos: string, dist: string) => {
+          let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          m = finalNormMap[m] || m;
+          const p = (pos || '').toLowerCase().replace(/[^a-z_]/g, '');
+          const d = (dist || '').toString().replace(/[^0-9.]/g, '');
+          return `${m}|${p}|${d}`;
+        };
+        
+        const finalSeenKeys = new Set<string>();
+        const finalDeduped: any[] = [];
+        for (const shot of result.micRecommendations) {
+          const key = finalMakeKey(shot.mic || '', shot.position || '', shot.distance || '');
+          if (!finalSeenKeys.has(key)) {
+            finalSeenKeys.add(key);
+            finalDeduped.push(shot);
+          } else {
+            console.log(`[Final Dedup Pass] Removed duplicate: ${shot.micLabel} ${shot.position} ${shot.distance}"`);
+          }
+        }
+        
+        if (finalDeduped.length < result.micRecommendations.length) {
+          console.log(`[Final Dedup Pass] Removed ${result.micRecommendations.length - finalDeduped.length} duplicates`);
+          result.micRecommendations = finalDeduped;
         }
       }
       
