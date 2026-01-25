@@ -461,7 +461,15 @@ function validateAndFixRecommendations(
       
       if (expectedDist && currentNormDist !== expectedDist) {
         fixes.push(`Fixed ${shot.micLabel || shot.mic}: ${shot.distance}" → ${expectedDist}" (single distance per mic)`);
-        return { ...shot, distance: expectedDist };
+        // Also fix rationale text to match new distance
+        let updatedRationale = shot.rationale || '';
+        const oldDist = currentNormDist;
+        // Replace distance references in rationale (e.g., "3 inches" -> "4 inches", "at 3"" -> "at 4"")
+        updatedRationale = updatedRationale
+          .replace(new RegExp(`\\b${oldDist}\\s*(inch|inches|in|")`, 'gi'), `${expectedDist} inches`)
+          .replace(new RegExp(`at ${oldDist}"`, 'gi'), `at ${expectedDist}"`)
+          .replace(new RegExp(`${oldDist}"\\s*(from|away|distance)`, 'gi'), `${expectedDist}" $1`);
+        return { ...shot, distance: expectedDist, rationale: updatedRationale };
       }
       return shot;
     });
