@@ -1961,13 +1961,34 @@ Output JSON:
               if (!existingPositions.has(pos)) {
                 // Use existing shot's label as reference
                 const existingLabel = existingShots[0]?.micLabel || mic.toUpperCase();
+                
+                // Generate proper rationale based on mic/position characteristics
+                const micTraits: Record<string, string> = {
+                  '57': 'punchy midrange character',
+                  'sm57': 'punchy midrange character',
+                  'md421k': 'full-bodied articulate mids',
+                  'md441': 'detailed presence with EQ flexibility',
+                  'm160': 'focused hypercardioid ribbon tone',
+                  'm201': 'smooth natural midrange',
+                  'e906': 'aggressive attack with switchable voicing',
+                  'pr30': 'bright ribbon with extended highs',
+                };
+                const posTraits: Record<string, string> = {
+                  'Cap': 'bright focused attack',
+                  'CapEdge': 'balanced tone with clarity',
+                  'CapEdge_Cone_Tr': 'warmer with added body',
+                  'Cone': 'smooth warmth with reduced harshness',
+                };
+                const micTrait = micTraits[mic.toLowerCase()] || 'versatile tonal character';
+                const posTrait = posTraits[pos] || 'balanced response';
+                
                 result.micRecommendations.push({
                   mic,
                   micLabel: existingLabel,
                   position: pos,
                   distance: existingDistance,
-                  rationale: `Additional ${pos} position to complete target shot count.`,
-                  expectedTone: 'Varies with position',
+                  rationale: `The ${existingLabel}'s ${micTrait} at ${pos} provides ${posTrait} at ${existingDistance}" for consistent tonal exploration.`,
+                  expectedTone: `${posTrait} with ${micTrait}`,
                   bestFor: genre || 'General use'
                 });
                 console.log(`[1P Post-Fix] Added ${mic} at ${pos} ${existingDistance}"`);
