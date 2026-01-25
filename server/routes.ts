@@ -1649,8 +1649,8 @@ Output JSON:
         // Map common variations to canonical form
         const micMap: Record<string, string> = {
           'sm57': '57', 'shuresm57': '57',
-          'md421': 'md421k', 'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k',
-          'md441': 'md441', 'sennheisermd441': 'md441',
+          'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',  // MD421 and MD421K are DIFFERENT mics
+          'sennheisermd441': 'md441',
           'beyerm160': 'm160', 'beyerdynamicm160': 'm160',
           'beyerm201': 'm201', 'beyerdynamicm201': 'm201',
           'sennheisere906': 'e906',
