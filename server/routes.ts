@@ -421,26 +421,19 @@ function validateAndFixRecommendations(
     'roswell': '6', 'roswellcab': '6',
   };
   
-  // 4. Enforce single distance per mic - USE SWEET SPOT (force if available)
+  // 4. Enforce single distance per mic - use AI's chosen distance (first found for each mic)
+  // AI is instructed to default to sweet spots unless there's a tonal reason to deviate
   if (options.singleDistancePerMic) {
     const micDistances = new Map<string, string>();
     
-    // For each mic, use sweet spot if known, otherwise first found
+    // First pass: find first distance used per mic (AI should have chosen wisely)
     for (const shot of validShots) {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!micKey || micDistances.has(micKey)) continue;
-      
-      const sweetSpot = MIC_SWEET_SPOTS[micKey];
-      if (sweetSpot) {
-        // Use sweet spot regardless of what AI returned
-        micDistances.set(micKey, sweetSpot);
-      } else {
-        // No sweet spot defined - use first found
-        micDistances.set(micKey, normDist(shot.distance));
-      }
+      micDistances.set(micKey, normDist(shot.distance));
     }
     
-    // Second pass: force all shots for each mic to use the chosen distance (sweet spot or first)
+    // Second pass: force all shots for each mic to use the first distance found
     validShots = validShots.map(shot => {
       const micKey = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const expectedDist = micDistances.get(micKey);
@@ -1094,33 +1087,38 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       
       === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      CRITICAL: DEFAULT TO SWEET SPOT DISTANCE for each mic unless:
-      - User specifically requests brighter/darker tone (then adjust closer/further)
-      - Genre demands extreme proximity (e.g., doom metal = closer for massive bass)
-      - You need tonal variety across multiple shots of the same mic
+      MANDATORY: USE THE SWEET SPOT DISTANCE for the FIRST shot of each mic.
       
-      DYNAMICS (DEFAULT to sweet spot):
-      - 57 (SM57): range 0.5-4", DEFAULT 1". Classic mid-forward presence.
-      - 421 (MD421): range 1-4", DEFAULT 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): range 1-4", DEFAULT 2". Compact MD421. DIFFERENT MIC.
-      - e906 (e906): range 0-2", DEFAULT 1". Supercardioid, three-position switch.
-      - m88 (M88): range 0.5-4", DEFAULT 1.5". Warm, great low-end punch.
-      - pr30 (PR30): range 0.5-4", DEFAULT 1". Large diaphragm, clear highs.
-      - m201 (M201): range 1-4", DEFAULT 2". Very accurate dynamic.
-      - sm7b (SM7B): range 1-6", DEFAULT 2". Smooth, broadcast-quality.
-      - md441 (MD441): range 1-6", DEFAULT 4". Condenser-like transparency.
+      You MAY deviate from sweet spot ONLY IF you provide PROFESSIONAL JUSTIFICATION:
+      - Explain the acoustic/engineering reason (e.g., "Pulled back to 4" to reduce proximity effect bass buildup for a tighter, more defined low end suitable for fast palm-muted passages")
+      - Reference the tonal goal and how distance achieves it
+      - Cite professional technique if applicable (e.g., "Per Andy Wallace technique for less boomy rhythm tones")
       
-      FIGURE-8 RIBBONS (DEFAULT to 6" sweet spot):
-      - 121 (R-121): range 4-6", DEFAULT 6". Sweet spot controls proximity.
-      - r10 (R10): range 4-6", DEFAULT 6". Same as R-121.
-      - r92 (R92): range 2-6", DEFAULT 6". AEA minimized proximity design.
+      If you deviate, your rationale MUST explain WHY that distance serves the tonal goal better than the sweet spot.
+      Generic explanations like "for variety" are NOT acceptable.
+      
+      DYNAMICS (SWEET SPOTS):
+      - 57 (SM57): range 0.5-4", SWEET SPOT 1". Classic mid-forward presence.
+      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact MD421. DIFFERENT MIC.
+      - e906 (e906): range 0-2", SWEET SPOT 1". Supercardioid, three-position switch.
+      - m88 (M88): range 0.5-4", SWEET SPOT 1.5". Warm, great low-end punch.
+      - pr30 (PR30): range 0.5-4", SWEET SPOT 1". Large diaphragm, clear highs.
+      - m201 (M201): range 1-4", SWEET SPOT 2". Very accurate dynamic.
+      - sm7b (SM7B): range 1-6", SWEET SPOT 2". Smooth, broadcast-quality.
+      - md441 (MD441): range 1-6", SWEET SPOT 4". Condenser-like transparency.
+      
+      FIGURE-8 RIBBONS (SWEET SPOT 6" - controls proximity effect):
+      - 121 (R-121): range 4-6", SWEET SPOT 6". Pulling closer adds bass weight.
+      - r10 (R10): range 4-6", SWEET SPOT 6". Same as R-121.
+      - r92 (R92): range 2-6", SWEET SPOT 6". AEA minimized proximity design.
       
       HYPERCARDIOID RIBBON:
-      - 160 (M160): range 0-6", DEFAULT 1". Jacquire King technique.
+      - 160 (M160): range 0-6", SWEET SPOT 1". Jacquire King close-mic technique.
       
-      CONDENSERS (DEFAULT to 6" sweet spot):
-      - c414 (C414): range 4-6", DEFAULT 6". Always use pad.
-      - roswell-cab (Roswell Cab Mic): range 2-12", DEFAULT 6". Cap position ONLY.
+      CONDENSERS (SWEET SPOT 6"):
+      - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
+      - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -1412,33 +1410,38 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      CRITICAL: DEFAULT TO SWEET SPOT DISTANCE for each mic unless:
-      - User specifically requests brighter/darker tone (then adjust closer/further)
-      - Genre demands extreme proximity (e.g., doom metal = closer for massive bass)
-      - You need tonal variety across multiple shots of the same mic
+      MANDATORY: USE THE SWEET SPOT DISTANCE for the FIRST shot of each mic.
       
-      DYNAMICS (DEFAULT to sweet spot):
-      - 57 (SM57): range 0.5-4", DEFAULT 1". Classic mid-forward presence.
-      - 421 (MD421): range 1-4", DEFAULT 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): range 1-4", DEFAULT 2". Compact MD421. DIFFERENT MIC.
-      - e906 (e906): range 0-2", DEFAULT 1". Supercardioid, three-position switch.
-      - m88 (M88): range 0.5-4", DEFAULT 1.5". Warm, great low-end punch.
-      - pr30 (PR30): range 0.5-4", DEFAULT 1". Large diaphragm, clear highs.
-      - m201 (M201): range 1-4", DEFAULT 2". Very accurate dynamic.
-      - sm7b (SM7B): range 1-6", DEFAULT 2". Smooth, broadcast-quality.
-      - md441 (MD441): range 1-6", DEFAULT 4". Condenser-like transparency.
+      You MAY deviate from sweet spot ONLY IF you provide PROFESSIONAL JUSTIFICATION in rationale:
+      - Explain the acoustic/engineering reason (e.g., "Pulled back to 4" to reduce proximity effect bass buildup for a tighter, more defined low end suitable for fast palm-muted passages")
+      - Reference the tonal goal and how distance achieves it
+      - Cite professional technique if applicable (e.g., "Per Andy Wallace technique for less boomy rhythm tones")
       
-      FIGURE-8 RIBBONS (DEFAULT to 6" sweet spot):
-      - 121 (R-121): range 4-6", DEFAULT 6". Sweet spot controls proximity.
-      - r10 (R10): range 4-6", DEFAULT 6". Same as R-121.
-      - r92 (R92): range 2-6", DEFAULT 6". AEA minimized proximity design.
+      If you deviate, your rationale MUST explain WHY that distance serves the tonal goal better than the sweet spot.
+      Generic explanations like "for variety" are NOT acceptable.
+      
+      DYNAMICS (SWEET SPOTS):
+      - 57 (SM57): range 0.5-4", SWEET SPOT 1". Classic mid-forward presence.
+      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact MD421. DIFFERENT MIC.
+      - e906 (e906): range 0-2", SWEET SPOT 1". Supercardioid, three-position switch.
+      - m88 (M88): range 0.5-4", SWEET SPOT 1.5". Warm, great low-end punch.
+      - pr30 (PR30): range 0.5-4", SWEET SPOT 1". Large diaphragm, clear highs.
+      - m201 (M201): range 1-4", SWEET SPOT 2". Very accurate dynamic.
+      - sm7b (SM7B): range 1-6", SWEET SPOT 2". Smooth, broadcast-quality.
+      - md441 (MD441): range 1-6", SWEET SPOT 4". Condenser-like transparency.
+      
+      FIGURE-8 RIBBONS (SWEET SPOT 6" - controls proximity effect):
+      - 121 (R-121): range 4-6", SWEET SPOT 6". Pulling closer adds bass weight.
+      - r10 (R10): range 4-6", SWEET SPOT 6". Same as R-121.
+      - r92 (R92): range 2-6", SWEET SPOT 6". AEA minimized proximity design.
       
       HYPERCARDIOID RIBBON:
-      - 160 (M160): range 0-6", DEFAULT 1". Jacquire King technique.
+      - 160 (M160): range 0-6", SWEET SPOT 1". Jacquire King close-mic technique.
       
-      CONDENSERS (DEFAULT to 6" sweet spot):
-      - c414 (C414): range 4-6", DEFAULT 6". Always use pad.
-      - roswell-cab (Roswell Cab Mic): range 2-12", DEFAULT 6". Cap position ONLY.
+      CONDENSERS (SWEET SPOT 6"):
+      - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
+      - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
@@ -1699,33 +1702,16 @@ Output JSON:
         if (micsWith1D.size > 0) {
           console.log('[1D Enforcement] Mics with 1D flag:', Array.from(micsWith1D));
           
-          // Sweet spot distances from MikingGuide.tsx - FORCE these
-          const sweetSpots: Record<string, string> = {
-            '57': '1', 'sm57': '1',
-            '421': '2', 'md421': '2', 'md421k': '2',
-            'e906': '1', 'm88': '1.5', 'pr30': '1', 'm201': '2',
-            'sm7b': '2', 'md441': '4',
-            '121': '6', 'r121': '6', 'r10': '6', 'r92': '6',
-            '160': '1', 'm160': '1',
-            'c414': '6', 'roswell': '6', 'roswellcab': '6',
-          };
-          
-          // For each 1D mic, use sweet spot if known, otherwise first found
+          // For each 1D mic, lock to the FIRST distance AI chose (AI should default to sweet spot with justification for deviation)
           const micLockedDistance = new Map<string, string>();
           
           for (const shot of result.micRecommendations) {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (!micsWith1D.has(micLower) || micLockedDistance.has(micLower)) continue;
-            
-            const sweetSpot = sweetSpots[micLower];
-            if (sweetSpot) {
-              micLockedDistance.set(micLower, sweetSpot);
-            } else {
-              micLockedDistance.set(micLower, String(shot.distance).replace(/[^0-9.]/g, ''));
-            }
+            micLockedDistance.set(micLower, String(shot.distance).replace(/[^0-9.]/g, ''));
           }
           
-          // Second pass: force all shots for each 1D mic to use the chosen distance (sweet spot)
+          // Second pass: force all shots for each 1D mic to use the first distance AI chose
           result.micRecommendations = result.micRecommendations.map((shot: any) => {
             const micLower = (shot.mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             if (micsWith1D.has(micLower)) {
@@ -2156,7 +2142,7 @@ Output JSON:
               if (added >= shortfall) break;
               const key = makeKey(mic, pos, distance);
               if (!existingKeys.has(key)) {
-                const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, pos, distance, genre);
+                const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, pos, distance, genre || 'General');
                 result.micRecommendations.push({
                   mic, micLabel, position: pos, distance,
                   rationale,
@@ -2192,7 +2178,7 @@ Output JSON:
                 if (added >= shortfall) break;
                 const key = makeKey(mic, position, dist);
                 if (!existingKeys.has(key)) {
-                  const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, position, dist, genre);
+                  const { rationale, expectedTone } = generateBackfillRationale(mic, micLabel, position, dist, genre || 'General');
                   result.micRecommendations.push({
                     mic, micLabel, position, distance: dist,
                     rationale,
