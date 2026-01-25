@@ -2624,7 +2624,14 @@ Output JSON:
           console.log(`[Fill Remaining] Need ${remaining} more shots from other mics`);
           
           // All available mics with their defaults
+          // Order prioritizes underused mics (M88, R92, R10) first to increase variety
           const allMics: { code: string, label: string, distance: string, is1P: boolean }[] = [
+            // Underused mics first - prioritize for fill slots
+            { code: 'm88', label: 'M88', distance: '1.5', is1P: false },
+            { code: 'r92', label: 'R92', distance: '6', is1P: true },
+            { code: 'r10', label: 'R10', distance: '6', is1P: true },
+            { code: 'pr30', label: 'PR30', distance: '1', is1P: false },
+            // Common mics
             { code: '57', label: 'SM57', distance: '1', is1P: false },
             { code: 'md421', label: 'MD421', distance: '2', is1P: false },
             { code: 'md421k', label: 'MD421K', distance: '2', is1P: false },
@@ -2632,11 +2639,7 @@ Output JSON:
             { code: 'm160', label: 'M160', distance: '1', is1P: false },
             { code: 'm201', label: 'M201', distance: '2', is1P: false },
             { code: 'e906', label: 'e906_Presence', distance: '1', is1P: false },
-            { code: 'pr30', label: 'PR30', distance: '1', is1P: false },
-            { code: 'm88', label: 'M88', distance: '1.5', is1P: false },
             { code: 'r121', label: 'R121', distance: '6', is1P: true },
-            { code: 'r10', label: 'R10', distance: '6', is1P: true },
-            { code: 'r92', label: 'R92', distance: '6', is1P: true },
             { code: 'c414', label: 'C414', distance: '6', is1P: true },
             { code: 'roswellcab', label: 'Roswell Cab Mic', distance: '6', is1P: true },
           ];
@@ -2644,7 +2647,8 @@ Output JSON:
           // Find mics not already specified by user
           const specifiedMicsList: string[] = [];
           if (micShotCounts) {
-            micShotCounts.split(', ').forEach((l: string) => {
+            // Use || delimiter to match the new format
+            micShotCounts.split(' || ').forEach((l: string) => {
               const match = l.match(/^(.+?)\s*x\s*\d+/);
               if (!match) return;
               const name = match[1].toLowerCase();
@@ -3239,19 +3243,21 @@ MANDATORY RULES:
       Available Microphones:
       - SM57: Classic dynamic, mid-forward
       - R121: Ribbon, smooth highs, big low-mid
-      - R92: Ribbon, warm, figure-8
+      - R92: Ribbon, warm, figure-8 (UNDERUSED - consider for warmth variety)
       - M160: Hypercardioid ribbon, focused
       - MD421: Large diaphragm dynamic, punchy
       - MD421 Kompakt: Compact version
       - MD441: Dynamic with presence/flat switch (AI chooses which)
       - R10: Ribbon, smooth
-      - M88: Warm, great low-end
+      - M88: Warm, great low-end (UNDERUSED - excellent alternative to MD421 for warmth)
       - PR30: Clear highs, less proximity
       - e906: Supercardioid with presence/flat switch (AI chooses which)
       - M201: Accurate dynamic
       - SM7B: Smooth, thick
       - C414: Condenser, detailed
       - Roswell Cab Mic: Specialized condenser for loud cabs
+      
+      DIVERSITY TIP: Include M88 and R92 when recipes allow - they offer unique tonal character often overlooked.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest
