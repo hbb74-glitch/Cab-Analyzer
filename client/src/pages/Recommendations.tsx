@@ -1058,7 +1058,7 @@ export default function Recommendations() {
           return `${countPart} [Vary both positions and distances freely]`;
         }
       });
-      parts.push(micParts.join(", "));
+      parts.push(micParts.join(" || "));
     }
     if (specificShots.trim()) {
       parts.push(`Specific shots: ${specificShots.trim()}`);

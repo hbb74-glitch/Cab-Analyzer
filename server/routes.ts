@@ -2415,7 +2415,8 @@ Output JSON:
           // Parse requested counts
           const requestedCounts = new Map<string, number>();
           console.log('[Per-Mic] Raw micShotCounts:', micShotCounts?.substring(0, 500));
-          const micLines = micShotCounts.split(', ').filter((l: string) => l.trim());
+          // Use || as delimiter to avoid splitting on commas inside [STRICT: ...] instructions
+          const micLines = micShotCounts.split(' || ').filter((l: string) => l.trim());
           console.log('[Per-Mic] Parsed lines:', micLines.slice(0, 15).map(l => l.substring(0, 50)));
           
           for (const line of micLines) {
