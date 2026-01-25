@@ -2132,8 +2132,24 @@ Output JSON:
             : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
           
           // Build set of existing shot keys (MUST match validation's key format)
+          // Mic normalization map - must match validation
+          const micNormMap: Record<string, string> = {
+            'sm57': '57', 'shuresm57': '57',
+            'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',
+            '441': 'md441', 'sennheisermd441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
+            'beyerm160': 'm160', 'beyerdynamicm160': 'm160', '160': 'm160',
+            'beyerm201': 'm201', 'beyerdynamicm201': 'm201', '201': 'm201',
+            'sennheisere906': 'e906', '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+            'heilpr30': 'pr30',
+            'royerr121': 'r121', '121': 'r121',
+            'royerr10': 'r10',
+            'aear92': 'r92',
+            'akgc414': 'c414', '414': 'c414',
+            'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
+          };
           const makeKey = (mic: string, pos: string, dist: string) => {
-            const m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            m = micNormMap[m] || m;
             const p = (pos || '').toLowerCase().replace(/[^a-z_]/g, '');
             const d = (dist || '').toString().replace(/[^0-9.]/g, '');
             return `${m}|${p}|${d}`;
@@ -2145,8 +2161,25 @@ Output JSON:
             )
           );
           
-          // Normalize mic key same way as validation (lowercase, alphanumeric only)
-          const normalizeMic = (mic: string) => (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          // Normalize mic key with mapping (same as validation)
+          const normalizeMic = (mic: string): string => {
+            let m = (mic || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const micMap: Record<string, string> = {
+              'sm57': '57', 'shuresm57': '57',
+              'sennheisermd421': 'md421', 'sennheisermd421k': 'md421k',
+              '441': 'md441', 'sennheisermd441': 'md441', 'md441presence': 'md441', 'md441flat': 'md441',
+              'beyerm160': 'm160', 'beyerdynamicm160': 'm160', '160': 'm160',
+              'beyerm201': 'm201', 'beyerdynamicm201': 'm201', '201': 'm201',
+              'sennheisere906': 'e906', '906': 'e906', 'e906presence': 'e906', 'e906flat': 'e906', 'e906bright': 'e906',
+              'heilpr30': 'pr30',
+              'royerr121': 'r121', '121': 'r121',
+              'royerr10': 'r10',
+              'aear92': 'r92',
+              'akgc414': 'c414', '414': 'c414',
+              'roswellcabmic': 'roswellcab', 'roswell': 'roswellcab',
+            };
+            return micMap[m] || m;
+          };
           
           // Get mics already in recommendations (prioritize these)
           const existingMics = new Set(
