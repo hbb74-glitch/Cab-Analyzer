@@ -340,9 +340,10 @@ function validateAndFixRecommendations(
   const MIC_NORM_MAP: Record<string, string> = {
     // SM57
     '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
-    // MD421K
-    'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
-    'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+    // MD421 (full size) - keep separate from MD421K
+    'md421': 'md421', '421': 'md421', 'sennheisermd421': 'md421', 'sennheiser421': 'md421',
+    // MD421K (Kompakt) - distinct from full size
+    'md421k': 'md421k', '421k': 'md421k', 'sennheisermd421k': 'md421k', 'kompakt': 'md421k',
     // MD441
     'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
     'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
@@ -2203,9 +2204,10 @@ Output JSON:
           const micNormMap: Record<string, string> = {
             // SM57
             '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
-            // MD421K
-            'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
-            'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+            // MD421 (full size) - keep separate from MD421K
+            'md421': 'md421', '421': 'md421', 'sennheisermd421': 'md421', 'sennheiser421': 'md421',
+            // MD421K (Kompakt) - distinct from full size
+            'md421k': 'md421k', '421k': 'md421k', 'sennheisermd421k': 'md421k', 'kompakt': 'md421k',
             // MD441
             'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
             'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
@@ -2451,9 +2453,10 @@ Output JSON:
               const normMap: Record<string, string> = {
                 // SM57
                 '57': '57', 'sm57': '57', 'shuresm57': '57', 'shure57': '57',
-                // MD421K
-                'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k', '421k': 'md421k', 
-                'sennheisermd421': 'md421k', 'sennheisermd421k': 'md421k', 'sennheiser421': 'md421k',
+                // MD421 (full size) - keep separate from MD421K
+                'md421': 'md421', '421': 'md421', 'sennheisermd421': 'md421', 'sennheiser421': 'md421',
+                // MD421K (Kompakt) - distinct from full size
+                'md421k': 'md421k', '421k': 'md421k', 'sennheisermd421k': 'md421k', 'kompakt': 'md421k',
                 // MD441
                 'md441': 'md441', '441': 'md441', 'sennheisermd441': 'md441', 'sennheiser441': 'md441',
                 'md441presence': 'md441', 'md441flat': 'md441', 'md441u': 'md441',
