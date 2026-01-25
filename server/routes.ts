@@ -2434,13 +2434,16 @@ Output JSON:
               if (micName.toLowerCase().includes('160')) micCode = 'm160';
               if (micName.toLowerCase().includes('906')) micCode = 'e906';
               if (micName.toLowerCase().includes('441')) micCode = 'md441';
-              if (micName.toLowerCase().includes('421') && !micName.toLowerCase().includes('441')) micCode = 'md421k';
+              // MD421K (Kompakt) must be checked before MD421 (full size)
+              if (micName.toLowerCase().includes('421k') || micName.toLowerCase().includes('kompakt')) micCode = 'md421k';
+              else if (micName.toLowerCase().includes('421') && !micName.toLowerCase().includes('441')) micCode = 'md421';
               if (micName.toLowerCase().includes('201')) micCode = 'm201';
               if (micName.toLowerCase().includes('88') && micName.toLowerCase().includes('m')) micCode = 'm88';
-              if (micName.toLowerCase().includes('r92') || micName.toLowerCase().includes('92')) micCode = 'r92';
+              if (micName.toLowerCase().includes('r92') || (micName.toLowerCase().includes('92') && !micName.toLowerCase().includes('r121'))) micCode = 'r92';
               if (micName.toLowerCase().includes('r10') && !micName.toLowerCase().includes('r121')) micCode = 'r10';
               if (micName.toLowerCase().includes('414')) micCode = 'c414';
               if (micName.toLowerCase().includes('pr30')) micCode = 'pr30';
+              if (micName.toLowerCase().includes('roswell')) micCode = 'roswellcab';
               
               requestedCounts.set(micCode, count);
             }
