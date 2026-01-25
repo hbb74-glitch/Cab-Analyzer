@@ -441,16 +441,24 @@ function validateAndFixRecommendations(
     'roswell': '6', 'roswellcab': '6',
   };
   
-  // 4. Enforce single distance per mic - use AI's chosen distance (first found for each mic)
-  // AI is instructed to default to sweet spots unless there's a tonal reason to deviate
+  // 4. Enforce single distance per mic - PREFER SWEET SPOT, fall back to AI's choice
   if (options.singleDistancePerMic) {
     const micDistances = new Map<string, string>();
     
-    // First pass: find first distance used per mic (AI should have chosen wisely)
+    // First pass: for each mic, use SWEET SPOT if available, otherwise first found
     for (const shot of validShots) {
       const micKey = normalizeMicKey(shot.mic || '');
       if (!micKey || micDistances.has(micKey)) continue;
-      micDistances.set(micKey, normDist(shot.distance));
+      
+      // Check if this mic has a sweet spot defined
+      const sweetSpot = MIC_SWEET_SPOTS[micKey];
+      if (sweetSpot) {
+        // Use sweet spot distance
+        micDistances.set(micKey, sweetSpot);
+      } else {
+        // No sweet spot defined, use AI's choice
+        micDistances.set(micKey, normDist(shot.distance));
+      }
     }
     
     // Second pass: force all shots for each mic to use the first distance found
