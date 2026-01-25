@@ -1069,28 +1069,33 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       
       === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      DYNAMICS:
-      - 57 (SM57): 0.5-4", sweet 1". Classic mid-forward presence.
-      - 421 (MD421): 1-4", sweet 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): 1-4", sweet 2". Compact MD421. DIFFERENT MIC - don't substitute.
-      - e906 (e906): 0-2", sweet 1". Supercardioid, three-position switch.
-      - m88 (M88): 0.5-4", sweet 1.5". Warm, great low-end punch.
-      - pr30 (PR30): 0.5-4", sweet 1". Large diaphragm, clear highs.
-      - m201 (M201): 1-4", sweet 2". Very accurate dynamic.
-      - sm7b (SM7B): 1-6", sweet 2". Smooth, broadcast-quality.
-      - md441 (MD441): 1-6", sweet 4". Condenser-like transparency.
+      CRITICAL: DEFAULT TO SWEET SPOT DISTANCE for each mic unless:
+      - User specifically requests brighter/darker tone (then adjust closer/further)
+      - Genre demands extreme proximity (e.g., doom metal = closer for massive bass)
+      - You need tonal variety across multiple shots of the same mic
       
-      FIGURE-8 RIBBONS (intense proximity effect):
-      - 121 (R-121): 4-6", sweet 6". MINIMUM 4" - intense proximity effect.
-      - r10 (R10): 4-6", sweet 6". MINIMUM 4" - same as R-121.
-      - r92 (R92): 2-6", sweet 6". AEA "minimized proximity" design, can go closer than Royer.
+      DYNAMICS (DEFAULT to sweet spot):
+      - 57 (SM57): range 0.5-4", DEFAULT 1". Classic mid-forward presence.
+      - 421 (MD421): range 1-4", DEFAULT 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): range 1-4", DEFAULT 2". Compact MD421. DIFFERENT MIC.
+      - e906 (e906): range 0-2", DEFAULT 1". Supercardioid, three-position switch.
+      - m88 (M88): range 0.5-4", DEFAULT 1.5". Warm, great low-end punch.
+      - pr30 (PR30): range 0.5-4", DEFAULT 1". Large diaphragm, clear highs.
+      - m201 (M201): range 1-4", DEFAULT 2". Very accurate dynamic.
+      - sm7b (SM7B): range 1-6", DEFAULT 2". Smooth, broadcast-quality.
+      - md441 (MD441): range 1-6", DEFAULT 4". Condenser-like transparency.
       
-      HYPERCARDIOID RIBBON (tighter pattern = less proximity):
-      - 160 (M160): 0-6", sweet 1". Can go right to grille - Jacquire King technique.
+      FIGURE-8 RIBBONS (DEFAULT to 6" sweet spot):
+      - 121 (R-121): range 4-6", DEFAULT 6". Sweet spot controls proximity.
+      - r10 (R10): range 4-6", DEFAULT 6". Same as R-121.
+      - r92 (R92): range 2-6", DEFAULT 6". AEA minimized proximity design.
       
-      CONDENSERS:
-      - c414 (C414): 4-6", sweet 6". Always use pad for close-miking.
-      - roswell-cab (Roswell Cab Mic): 2-12", sweet 6". Cap position ONLY.
+      HYPERCARDIOID RIBBON:
+      - 160 (M160): range 0-6", DEFAULT 1". Jacquire King technique.
+      
+      CONDENSERS (DEFAULT to 6" sweet spot):
+      - c414 (C414): range 4-6", DEFAULT 6". Always use pad.
+      - roswell-cab (Roswell Cab Mic): range 2-12", DEFAULT 6". Cap position ONLY.
       
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -1382,28 +1387,33 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       === DISTANCE GUIDELINES (from MikingGuide - closeMikingRange data) ===
       
-      DYNAMICS:
-      - 57 (SM57): 0.5-4", sweet 1". Classic mid-forward presence.
-      - 421 (MD421): 1-4", sweet 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): 1-4", sweet 2". Compact MD421. DIFFERENT MIC - don't substitute.
-      - e906 (e906): 0-2", sweet 1". Supercardioid, three-position switch.
-      - m88 (M88): 0.5-4", sweet 1.5". Warm, great low-end punch.
-      - pr30 (PR30): 0.5-4", sweet 1". Large diaphragm, clear highs.
-      - m201 (M201): 1-4", sweet 2". Very accurate dynamic.
-      - sm7b (SM7B): 1-6", sweet 2". Smooth, broadcast-quality.
-      - md441 (MD441): 1-6", sweet 4". Condenser-like transparency.
+      CRITICAL: DEFAULT TO SWEET SPOT DISTANCE for each mic unless:
+      - User specifically requests brighter/darker tone (then adjust closer/further)
+      - Genre demands extreme proximity (e.g., doom metal = closer for massive bass)
+      - You need tonal variety across multiple shots of the same mic
       
-      FIGURE-8 RIBBONS (intense proximity effect):
-      - 121 (R-121): 4-6", sweet 6". MINIMUM 4" - intense proximity effect.
-      - r10 (R10): 4-6", sweet 6". MINIMUM 4" - same as R-121.
-      - r92 (R92): 2-6", sweet 6". AEA "minimized proximity" design, can go closer than Royer.
+      DYNAMICS (DEFAULT to sweet spot):
+      - 57 (SM57): range 0.5-4", DEFAULT 1". Classic mid-forward presence.
+      - 421 (MD421): range 1-4", DEFAULT 2". Large diaphragm, scooped mids.
+      - 421k (MD421K): range 1-4", DEFAULT 2". Compact MD421. DIFFERENT MIC.
+      - e906 (e906): range 0-2", DEFAULT 1". Supercardioid, three-position switch.
+      - m88 (M88): range 0.5-4", DEFAULT 1.5". Warm, great low-end punch.
+      - pr30 (PR30): range 0.5-4", DEFAULT 1". Large diaphragm, clear highs.
+      - m201 (M201): range 1-4", DEFAULT 2". Very accurate dynamic.
+      - sm7b (SM7B): range 1-6", DEFAULT 2". Smooth, broadcast-quality.
+      - md441 (MD441): range 1-6", DEFAULT 4". Condenser-like transparency.
       
-      HYPERCARDIOID RIBBON (tighter pattern = less proximity):
-      - 160 (M160): 0-6", sweet 1". Can go right to grille - Jacquire King technique.
+      FIGURE-8 RIBBONS (DEFAULT to 6" sweet spot):
+      - 121 (R-121): range 4-6", DEFAULT 6". Sweet spot controls proximity.
+      - r10 (R10): range 4-6", DEFAULT 6". Same as R-121.
+      - r92 (R92): range 2-6", DEFAULT 6". AEA minimized proximity design.
       
-      CONDENSERS:
-      - c414 (C414): 4-6", sweet 6". Always use pad for close-miking.
-      - roswell-cab (Roswell Cab Mic): 2-12", sweet 6". Cap position ONLY.
+      HYPERCARDIOID RIBBON:
+      - 160 (M160): range 0-6", DEFAULT 1". Jacquire King technique.
+      
+      CONDENSERS (DEFAULT to 6" sweet spot):
+      - c414 (C414): range 4-6", DEFAULT 6". Always use pad.
+      - roswell-cab (Roswell Cab Mic): range 2-12", DEFAULT 6". Cap position ONLY.
       
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
@@ -1967,20 +1977,21 @@ Output JSON:
           const shortfall = targetShotCount - result.micRecommendations.length;
           console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
           
-          // Full mic list with default distances and available distance options
+          // Full mic list with default distances (SWEET SPOT FIRST) and available distance options
           // 1P mics (ribbons/condensers) have fixed position but can vary distance
           const micDefaults: Record<string, { label: string, distances: string[], is1P: boolean }> = {
-            '57': { label: 'SM57', distances: ['1', '1.5', '2', '3'], is1P: false },
-            'md421k': { label: 'MD421K', distances: ['1', '1.5', '2', '3'], is1P: false },
-            'md441': { label: 'MD441_Presence', distances: ['2', '3', '4', '5'], is1P: false },
-            'm160': { label: 'M160', distances: ['1', '2', '3', '4'], is1P: false },
-            'm201': { label: 'M201', distances: ['1', '1.5', '2', '3'], is1P: false },
-            'e906': { label: 'e906_Presence', distances: ['1', '1.5', '2'], is1P: false },
-            'pr30': { label: 'PR30', distances: ['1', '1.5', '2'], is1P: false },
-            'r121': { label: 'R121', distances: ['4', '5', '6', '7', '8'], is1P: true },
-            'r10': { label: 'R10', distances: ['4', '5', '6', '7'], is1P: true },
-            'c414': { label: 'C414', distances: ['4', '5', '6', '7', '8'], is1P: true },
-            'roswell-cab': { label: 'Roswell Cab Mic', distances: ['4', '5', '6', '7', '8'], is1P: true },
+            '57': { label: 'SM57', distances: ['1', '1.5', '2', '0.5'], is1P: false },           // sweet 1"
+            'md421k': { label: 'MD421K', distances: ['2', '1.5', '1', '3'], is1P: false },      // sweet 2"
+            'md441': { label: 'MD441_Presence', distances: ['4', '3', '5', '2'], is1P: false }, // sweet 4"
+            'm160': { label: 'M160', distances: ['1', '2', '0.5', '3'], is1P: false },          // sweet 1"
+            'm201': { label: 'M201', distances: ['2', '1.5', '1', '3'], is1P: false },          // sweet 2"
+            'e906': { label: 'e906_Presence', distances: ['1', '0.5', '1.5', '2'], is1P: false }, // sweet 1"
+            'pr30': { label: 'PR30', distances: ['1', '0.5', '1.5', '2'], is1P: false },        // sweet 1"
+            'r121': { label: 'R121', distances: ['6', '5', '4'], is1P: true },                  // sweet 6"
+            'r10': { label: 'R10', distances: ['6', '5', '4'], is1P: true },                    // sweet 6"
+            'r92': { label: 'R92', distances: ['6', '5', '4', '3'], is1P: true },               // sweet 6"
+            'c414': { label: 'C414', distances: ['6', '5', '4'], is1P: true },                  // sweet 6"
+            'roswell-cab': { label: 'Roswell Cab Mic', distances: ['6', '5', '4', '8'], is1P: true }, // sweet 6"
           };
           
           const positions = basicPositionsOnly 
