@@ -1,0 +1,71 @@
+Mic Combinations for G12T75
+
+1. G12T75_AKGC414_CapEdge_5in
+   Tone: Detailed, clear, and natural with balanced highs and mids.
+
+2. G12T75_BeyerdynamicM160_CapEdge_2in
+   Tone: Tight, focused, with warm midrange detail.
+
+3. G12T75_e906__Presence_Cap_1in
+   Tone: Bright and clear with tight low end, perfect for technical metal and lead tones.
+
+4. G12T75_e906__Presence_CapEdge_1in
+   Tone: Clear highs with added warmth, suitable for punk and grunge.
+
+5. G12T75_e906__Presence_CapEdge_Cone_Tr_1in
+   Tone: Full low end with controlled highs, ideal for grunge and metal rhythm tones.
+
+6. G12T75_M201_CapEdge_3in
+   Tone: Smooth, detailed, with balanced warmth.
+
+7. G12T75_MD421K_Cap_1in
+   Tone: Punchy, aggressive, with a sharp midrange attack.
+
+8. G12T75_MD421K_CapEdge_Cone_Tr_1in
+   Tone: Punchy, balanced, with a touch of warmth.
+
+9. G12T75_MD421K_Cap_2in
+   Tone: Punchy low end with clear mids and aggressive highs, perfect for modern metal and djent.
+
+10. G12T75_MD421K_CapEdge_2in
+   Tone: Defined low end with clear highs, suitable for hard rock and punk.
+
+11. G12T75_MD421K_CapEdge_Cone_Tr_2in
+   Tone: Warm low mids with controlled highs, great for grunge and heavy rock.
+
+12. G12T75_MD421K_Cone_2in
+   Tone: warm and smooth with full-bodied mids, near-field for controlled proximity
+
+13. G12T75_MD441__Flat_Cap_3in
+   Tone: Smooth and natural, with a slightly scooped midrange.
+
+14. G12T75_MD441__Presence_CapEdge_3in
+   Tone: Detailed, articulate, with a presence boost and controlled low-end.
+
+15. G12T75_MD441__Presence_CapEdge_Cone_Tr_3in
+   Tone: warmer with body with detailed and present, moderate distance for balanced capture
+
+16. G12T75_MD441__Presence_Cone_3in
+   Tone: warm and smooth with detailed and present, moderate distance for balanced capture
+
+17. G12T75_PR30_Cap_1in
+   Tone: Bright, detailed, with high-end focus and attack.
+
+18. G12T75_Roswell_Cap_6in
+   Tone: Detailed, balanced, with natural low-end and smooth highs.
+
+19. G12T75_RoyerR121_Cap_4in
+   Tone: Smooth, warm, with balanced clarity and low-mid richness.
+
+20. G12T75_SM57_Cap_1in
+   Tone: Bright, aggressive, and mid-forward with tight low-end punch, perfect for hard rock and thrash rhythm tones.
+
+21. G12T75_SM57_CapEdge_1in
+   Tone: Slightly warmer than Cap, with a balanced attack and tight low end, suitable for punk and grunge.
+
+22. G12T75_SM57_CapEdge_Cone_Tr_1in
+   Tone: Fuller low end with slightly subdued highs, ideal for grunge and metal rhythm tones.
+
+23. G12T75_SM57_Cone_1in
+   Tone: warm and smooth with punchy midrange, close-miked for tight response
+

@@ -2050,13 +2050,19 @@ Output JSON:
                 const micTrait = micTraits[mic.toLowerCase()] || 'versatile tonal character';
                 const posTrait = posTraits[pos] || 'balanced response';
                 
+                const posEffect = pos === 'Cap' ? '3-5kHz presence emphasis' :
+                                 pos === 'CapEdge' ? 'balanced 2-4kHz midrange' :
+                                 pos === 'CapEdge_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
+                                 pos === 'Cone' ? 'rolled-off highs above 6kHz' : 'maximum low-mid content';
+                const distNum = parseFloat(existingDistance);
+                const bassEffect = distNum <= 2 ? 'full low end from proximity' : 'tight low end';
                 result.micRecommendations.push({
                   mic,
                   micLabel: existingLabel,
                   position: pos,
                   distance: existingDistance,
-                  rationale: `The ${existingLabel}'s ${micTrait} at ${pos} provides ${posTrait} at ${existingDistance}" for consistent tonal exploration.`,
-                  expectedTone: `${posTrait} with ${micTrait}`,
+                  rationale: `${pos} position provides ${posEffect}; at ${existingDistance}" delivers ${bassEffect}. The ${existingLabel}'s ${micTrait} complements this placement.`,
+                  expectedTone: `${posTrait.charAt(0).toUpperCase() + posTrait.slice(1)}, ${bassEffect}, ${micTrait}`,
                   bestFor: genre || 'General use'
                 });
                 console.log(`[1P Post-Fix] Added ${mic} at ${pos} ${existingDistance}"`);
@@ -2102,7 +2108,7 @@ Output JSON:
               'm160': { type: 'ribbon', character: 'focused hypercardioid', strength: 'tight pattern rejects room' },
               'm201': { type: 'dynamic', character: 'smooth and balanced', strength: 'natural midrange' },
               'e906': { type: 'dynamic', character: 'aggressive attack', strength: 'switchable voicings' },
-              'pr30': { type: 'dynamic', character: 'bright and clear', strength: 'extended highs for a dynamic' },
+              'pr30': { type: 'dynamic', character: 'bright with extended highs', strength: 'wide frequency response for a dynamic' },
               'r121': { type: 'ribbon', character: 'smooth and warm', strength: 'tames harsh highs naturally' },
               'r10': { type: 'ribbon', character: 'vintage ribbon warmth', strength: 'classic smooth tone' },
               'r92': { type: 'ribbon', character: 'full-range ribbon', strength: 'extended lows and highs' },
@@ -2123,16 +2129,23 @@ Output JSON:
             const micInfo = micTraits[micLower] || { type: 'mic', character: 'balanced', strength: 'versatile' };
             const posInfo = posTraits[position] || { tone: 'balanced', use: 'general purpose' };
             
-            // Distance context
+            // Distance effects on bass (proximity effect)
             const distNum = parseFloat(distance);
-            const distContext = distNum <= 1 ? 'close-miked for tight response' :
-                               distNum <= 2 ? 'near-field for controlled proximity' :
-                               distNum <= 4 ? 'moderate distance for balanced capture' :
-                               'backed off for smoother, more open sound';
+            const proximityEffect = distNum <= 1 ? 'maximum proximity bass boost' :
+                                   distNum <= 2 ? 'moderate proximity warmth' :
+                                   distNum <= 4 ? 'reduced proximity for tighter lows' :
+                                   'minimal proximity for leanest low end';
             
-            const rationale = `The ${micLabel}'s ${micInfo.character} at ${position} (${posInfo.tone}) at ${distance}" provides ${posInfo.use}. This ${micInfo.type} ${micInfo.strength}, ${distContext}.`;
+            // Build specific rationale mentioning frequencies and interactions
+            const posEffect = position === 'Cap' ? '3-5kHz presence emphasis' :
+                             position === 'CapEdge' ? 'balanced 2-4kHz midrange' :
+                             position === 'CapEdge_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
+                             position === 'Cone' ? 'rolled-off highs above 6kHz, boosted low-mids' :
+                             'darkest response with maximum low-mid content';
             
-            const expectedTone = `${posInfo.tone} with ${micInfo.character}, ${distContext}`;
+            const rationale = `${position} position provides ${posEffect}; at ${distance}" the ${micInfo.type}'s ${proximityEffect} shapes the low end. The ${micLabel} ${micInfo.strength}.`;
+            
+            const expectedTone = `${posInfo.tone.charAt(0).toUpperCase() + posInfo.tone.slice(1)}, ${distNum <= 2 ? 'full low end' : 'tight low end'}, ${micInfo.character}`;
             
             return { rationale, expectedTone };
           };
@@ -2320,6 +2333,19 @@ Output JSON:
           }
           
           console.log(`[Post-Validation Backfill] Added ${added}/${shortfall} shots`);
+          
+          // SECOND validation pass after backfill to enforce single distance
+          if (singleDistancePerMic) {
+            const postBackfillValidation = validateAndFixRecommendations(result.micRecommendations, {
+              basicPositionsOnly: false, // Already done
+              singleDistancePerMic: true,
+              singlePositionForRibbons: false, // Already done
+            });
+            result.micRecommendations = postBackfillValidation.shots;
+            if (postBackfillValidation.fixes.length > 0) {
+              console.log('[Post-Backfill Validation] Fixes:', postBackfillValidation.fixes.length);
+            }
+          }
           
           // Final dedup pass after backfill to catch any edge cases
           const finalSeen = new Set<string>();
