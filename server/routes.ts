@@ -1504,6 +1504,25 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - The expectedTone MUST describe how this ${genre ? 'achieves the requested sound' : 'works across different contexts'}
       - The bestFor MUST reference ${genre ? 'the tonal goal or closely related sounds' : 'multiple genres/styles this works for'}
       
+      === RATIONALE WRITING RULES (ANTI-SLOP) ===
+      BANNED VAGUE PHRASES - NEVER use these in rationale/expectedTone:
+      - "balanced" (meaningless without specifics)
+      - "warm tone" or "smooth" without explaining what frequencies/why
+      - "room interaction" or "room ambiance" (this is CLOSE-MIKING, no room)
+      - "avoiding proximity effect from being too close" (contradictory - proximity IS from being close)
+      - "detailed" or "articulate" without specifics
+      - "ideal for capturing" (empty filler)
+      
+      GOOD rationale examples:
+      - "The R121's figure-8 pattern rolls off above 10kHz, taming the G12T75's ice-pick highs while the 4" distance reduces the proximity bass boost that would otherwise muddy palm mutes."
+      - "Cap position emphasizes 3-5kHz presence peak; at 1" the proximity effect adds low-mid weight that fills out thin single-coil tones."
+      - "The MD441's presence switch adds a 4dB bump at 5kHz; CapEdge position backs off the speaker's native 3kHz peak to prevent harshness."
+      
+      EVERY rationale must reference:
+      1. A SPECIFIC frequency range or tonal characteristic
+      2. HOW the position/distance/mic interact acoustically
+      3. The end result for the player (cuts through mix, sits well with bass, etc.)
+      
       ${shotCountInstruction}.${distanceInstruction}${micShotInstruction}
       CRITICAL: Each recommendation is a COMPLETE COMBO - one specific mic at one specific position at one specific distance.
       Example: "MD441 (Presence) at CapEdge, 2 inches" - not separate lists of mics, positions, distances.
