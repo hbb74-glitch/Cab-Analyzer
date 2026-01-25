@@ -1875,15 +1875,18 @@ Output JSON:
           console.log('[1P Enforcement] All mic codes before:', result.micRecommendations.map((s: any) => `${s.mic}:${s.position}:${s.distance}`));
           
           // Force 1P for each ribbon/condenser mic - ONLY enforce position, PRESERVE distance
-          // Roswell -> Cap position, C414/R121/R10/R92 -> CapEdge position
+          // Figure-8 ribbons (R121/R10/R92) -> Cap position (smooth, avoids edge harshness)
+          // C414 -> CapEdge position (bright but controlled)
+          // Roswell -> Cap position only
+          // M160 is hypercardioid ribbon - NOT restricted to Cap, can use multiple positions
           const ribbonCondenser1P: Record<string, string> = {
             'roswell-cab': 'Cap',
             'roswell': 'Cap',
             'c414': 'CapEdge',
-            '121': 'CapEdge',
-            'r121': 'CapEdge',
-            'r10': 'CapEdge',
-            'r92': 'CapEdge'
+            '121': 'Cap',
+            'r121': 'Cap',
+            'r10': 'Cap',
+            'r92': 'Cap'
           };
           
           // 1P = same position, vary distance - so ONLY force position, keep AI's distance
@@ -2134,9 +2137,10 @@ Output JSON:
             
             const micLabel = existingMicShots[0]?.micLabel || micInfo.label;
             
-            // Roswell special handling: only use Cap position
+            // Figure-8 ribbons and Roswell: only use Cap position
+            const isFigure8Ribbon = ['r121', 'r10', 'r92', '121'].includes(normalizedMic);
             const isRoswellMic = normalizedMic.includes('roswell');
-            const allowedPositions = isRoswellMic ? ['Cap'] : positions;
+            const allowedPositions = (isFigure8Ribbon || isRoswellMic) ? ['Cap'] : positions;
             
             for (const pos of allowedPositions) {
               if (added >= shortfall) break;
