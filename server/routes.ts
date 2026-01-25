@@ -2546,7 +2546,10 @@ Output JSON:
                 const micDefaults: Record<string, { label: string, distance: string }> = {
                   '57': { label: 'SM57', distance: '1' },
                   'sm57': { label: 'SM57', distance: '1' },
+                  'md421': { label: 'MD421', distance: '2' },
+                  '421': { label: 'MD421', distance: '2' },
                   'md421k': { label: 'MD421K', distance: '2' },
+                  '421k': { label: 'MD421K', distance: '2' },
                   'md441': { label: 'MD441_Presence', distance: '4' },
                   '441': { label: 'MD441_Presence', distance: '4' },
                   'm160': { label: 'M160', distance: '1' },
