@@ -2619,6 +2619,7 @@ Output JSON:
             { code: 'pr30', label: 'PR30', distance: '1', is1P: false },
             { code: 'm88', label: 'M88', distance: '1.5', is1P: false },
             { code: 'r121', label: 'R121', distance: '6', is1P: true },
+            { code: 'r10', label: 'R10', distance: '6', is1P: true },
             { code: 'r92', label: 'R92', distance: '6', is1P: true },
             { code: 'c414', label: 'C414', distance: '6', is1P: true },
             { code: 'roswellcab', label: 'Roswell Cab Mic', distance: '6', is1P: true },
@@ -2639,8 +2640,9 @@ Output JSON:
               else if (name.includes('906')) specifiedMicsList.push('e906');
               else if (name.includes('pr30')) specifiedMicsList.push('pr30');
               else if (name.includes('m88') || name.includes('88')) specifiedMicsList.push('m88');
-              else if (name.includes('r121') || name.includes('121')) specifiedMicsList.push('r121');
-              else if (name.includes('r92') || name.includes('92')) specifiedMicsList.push('r92');
+              else if (name.includes('r121') || name === '121') specifiedMicsList.push('r121');
+              else if (name.includes('r10') || name === '10') specifiedMicsList.push('r10');
+              else if (name.includes('r92') || name === '92') specifiedMicsList.push('r92');
               else if (name.includes('414')) specifiedMicsList.push('c414');
               else if (name.includes('roswell')) specifiedMicsList.push('roswellcab');
             });
