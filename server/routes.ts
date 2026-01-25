@@ -2611,6 +2611,7 @@ Output JSON:
           // All available mics with their defaults
           const allMics: { code: string, label: string, distance: string, is1P: boolean }[] = [
             { code: '57', label: 'SM57', distance: '1', is1P: false },
+            { code: 'md421', label: 'MD421', distance: '2', is1P: false },
             { code: 'md421k', label: 'MD421K', distance: '2', is1P: false },
             { code: 'md441', label: 'MD441_Presence', distance: '4', is1P: false },
             { code: 'm160', label: 'M160', distance: '1', is1P: false },
@@ -2633,7 +2634,8 @@ Output JSON:
               if (!match) return;
               const name = match[1].toLowerCase();
               if (name.includes('57')) specifiedMicsList.push('57');
-              else if (name.includes('421')) specifiedMicsList.push('md421k');
+              else if (name.includes('421k') || name.includes('kompakt')) specifiedMicsList.push('md421k');
+              else if (name.includes('421')) specifiedMicsList.push('md421');
               else if (name.includes('441')) specifiedMicsList.push('md441');
               else if (name.includes('160')) specifiedMicsList.push('m160');
               else if (name.includes('201')) specifiedMicsList.push('m201');
