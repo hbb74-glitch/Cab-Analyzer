@@ -28,17 +28,18 @@ export const POSITION_OFFSETS: Record<string, { offset: number; description: str
 };
 
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
-  'v30': { offset: 200, description: 'Aggressive upper-mids, modern rock' },
-  'v30bc': { offset: 100, description: 'Smoother than standard V30' },
-  'greenback': { offset: -150, description: 'Classic woody, mid-forward' },
-  'g12m': { offset: -150, description: 'Greenback variant' },
-  'g12t75': { offset: 100, description: 'Scooped mids, sizzly highs' },
-  'g12-65': { offset: -50, description: 'Warm, punchy, large sound' },
-  'g12h': { offset: 150, description: 'Tight bass, bright highs' },
-  'cream': { offset: -100, description: 'Alnico smoothness' },
+  // Calibrated from actual IR measurements (SM57 CapEdge baseline = 2600 Hz)
+  'v30': { offset: 650, description: 'Aggressive upper-mids, very bright' },
+  'v30bc': { offset: 275, description: 'Smoother than standard V30' },
+  'greenback': { offset: 450, description: 'Brighter than expected, mid-forward' },
+  'g12m': { offset: 450, description: 'Greenback variant' },
+  'g12t75': { offset: -500, description: 'Actually quite dark, scooped mids' },
+  'g12-65': { offset: -100, description: 'Warm, punchy, large sound' },
+  'g12h': { offset: 225, description: 'Tight bass, bright highs' },
+  'cream': { offset: 550, description: 'Alnico - brighter than expected' },
   'ga12-sc64': { offset: 50, description: 'Vintage American, tight and punchy' },
   'ga10-sc64': { offset: 100, description: '10 inch version, more focused highs' },
-  'k100': { offset: 0, description: 'Big low end, neutral' },
+  'k100': { offset: 325, description: 'Big low end, brighter than neutral' },
 };
 
 function normalizeMicName(mic: string): string {
