@@ -32,7 +32,7 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
   'v30bc': { offset: 100, description: 'Smoother than standard V30' },
   'greenback': { offset: -150, description: 'Classic woody, mid-forward' },
   'g12m': { offset: -150, description: 'Greenback variant' },
-  'g12t75': { offset: 200, description: 'Scooped mids, sizzly highs - very bright speaker' },
+  'g12t75': { offset: 100, description: 'Scooped mids, sizzly highs' },
   'g12-65': { offset: -50, description: 'Warm, punchy, large sound' },
   'g12h': { offset: 150, description: 'Tight bass, bright highs' },
   'cream': { offset: -100, description: 'Alnico smoothness' },
