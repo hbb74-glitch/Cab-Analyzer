@@ -7,7 +7,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
-import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment } from "@shared/knowledge/spectral-centroid";
+import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline } from "@shared/knowledge/spectral-centroid";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
@@ -923,23 +923,13 @@ Output JSON format:
   const smoothness = ir.frequencySmoothness ?? 70;
   const noiseFloor = ir.noiseFloorDb ?? -50;
   
-  // Smoothness adjustment: Recalibrated based on real-world IR data
-  // Professional IRs typically score 60-80 in the 75Hz-5kHz range
-  let smoothnessAdjustment = 0;
-  let smoothnessNote = '';
-  if (smoothness >= 80) {
-    smoothnessAdjustment = 1;
-    smoothnessNote = 'Exceptionally smooth frequency response';
-  } else if (smoothness >= 60) {
-    smoothnessAdjustment = 0;
-    smoothnessNote = 'Good frequency response smoothness';
-  } else if (smoothness >= 45) {
-    smoothnessAdjustment = -1;
-    smoothnessNote = 'Slightly bumpy frequency response';
-  } else {
-    smoothnessAdjustment = -2;
-    smoothnessNote = 'Rough frequency response with peaks/notches';
-  }
+  // Smoothness adjustment: Use mic-relative baselines
+  // Different mics have different natural response characteristics
+  const micForSmoothness = parsed.mic || 'unknown';
+  const smoothnessResult = getMicRelativeSmoothnessAdjustment(micForSmoothness, smoothness);
+  const smoothnessAdjustment = smoothnessResult.adjustment;
+  const micBaseline = getMicSmoothnessBaseline(micForSmoothness);
+  const smoothnessNote = `${smoothnessResult.note} (expected range: ${micBaseline.min}-${micBaseline.max})`;
   
   // Noise floor adjustment: below -50dB is good, above -35dB is problematic
   let noiseAdjustment = 0;

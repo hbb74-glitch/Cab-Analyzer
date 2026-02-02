@@ -195,3 +195,62 @@ export function getDeviationScoreAdjustment(deviationPercent: number): number {
   if (deviationPercent <= 150) return -5;
   return -6;
 }
+
+// Mic-specific smoothness baselines (75Hz-5kHz range)
+// Based on empirical data from real IR captures
+// Each mic has an expected range - scores within range are "normal for that mic"
+export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number; avg: number; description: string }> = {
+  'sm57': { min: 70, max: 82, avg: 75, description: 'Classic dynamic, relatively smooth response' },
+  'r121': { min: 65, max: 80, avg: 72, description: 'Ribbon, naturally smooth high-end rolloff' },
+  'r10': { min: 65, max: 80, avg: 72, description: 'Ribbon, similar to R121' },
+  'r92': { min: 65, max: 80, avg: 72, description: 'Ribbon, smooth and warm' },
+  'm160': { min: 68, max: 82, avg: 75, description: 'Hypercardioid ribbon, focused and smooth' },
+  'md421': { min: 68, max: 80, avg: 74, description: 'Large diaphragm dynamic, some character peaks' },
+  'md421kompakt': { min: 60, max: 75, avg: 67, description: 'Compact variant, more pronounced character' },
+  'md441': { min: 70, max: 82, avg: 76, description: 'Very accurate dynamic, smooth response' },
+  'm88': { min: 65, max: 78, avg: 71, description: 'Warm dynamic, moderate smoothness' },
+  'pr30': { min: 70, max: 85, avg: 77, description: 'Large diaphragm, very smooth response' },
+  'e906': { min: 65, max: 78, avg: 71, description: 'Supercardioid, switch-dependent response' },
+  'e906_presence': { min: 65, max: 78, avg: 71, description: 'Presence mode, similar smoothness' },
+  'm201': { min: 60, max: 72, avg: 66, description: 'Hypercardioid, pronounced character/peaks' },
+  'c414': { min: 65, max: 80, avg: 72, description: 'Condenser, detailed with some peaks' },
+  'roswell': { min: 65, max: 78, avg: 71, description: 'Roswell Cab Mic, moderate smoothness' },
+  'sm57_r121_combo': { min: 68, max: 82, avg: 75, description: 'Blend smooths out individual mic peaks' },
+};
+
+// Default baseline for unknown mics
+const DEFAULT_SMOOTHNESS_BASELINE = { min: 60, max: 80, avg: 70, description: 'Default baseline' };
+
+export function getMicSmoothnessBaseline(mic: string): { min: number; max: number; avg: number; description: string } {
+  const normalized = mic.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  
+  // Check for exact match first
+  if (MIC_SMOOTHNESS_BASELINES[normalized]) {
+    return MIC_SMOOTHNESS_BASELINES[normalized];
+  }
+  
+  // Check for partial matches
+  for (const [key, baseline] of Object.entries(MIC_SMOOTHNESS_BASELINES)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return baseline;
+    }
+  }
+  
+  return DEFAULT_SMOOTHNESS_BASELINE;
+}
+
+// Calculate smoothness score adjustment relative to mic's expected range
+export function getMicRelativeSmoothnessAdjustment(mic: string, smoothness: number): { adjustment: number; note: string } {
+  const baseline = getMicSmoothnessBaseline(mic);
+  
+  // Score relative to mic's expected range
+  if (smoothness >= baseline.max) {
+    return { adjustment: 1, note: `Exceptionally smooth for ${mic}` };
+  } else if (smoothness >= baseline.min) {
+    return { adjustment: 0, note: `Normal smoothness for ${mic}` };
+  } else if (smoothness >= baseline.min - 15) {
+    return { adjustment: -1, note: `Below average smoothness for ${mic}` };
+  } else {
+    return { adjustment: -2, note: `Significantly rough for ${mic}` };
+  }
+}
