@@ -596,6 +596,8 @@ export default function Analyzer() {
       hasClipping: ir.metrics!.hasClipping,
       clippedSamples: ir.metrics!.clippedSamples,
       crestFactorDb: ir.metrics!.crestFactorDb,
+      frequencySmoothness: ir.metrics!.frequencySmoothness,
+      noiseFloorDb: ir.metrics!.noiseFloorDb,
     }));
 
     analyzeBatch(irInputs);
@@ -985,8 +987,9 @@ export default function Analyzer() {
                             </div>
                             {ir.metrics && (
                               <p className="text-xs text-muted-foreground">
-                                {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz
+                                {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz | Smooth: {ir.metrics.frequencySmoothness.toFixed(0)}
                                 {ir.metrics.hasClipping && ` | Crest: ${ir.metrics.crestFactorDb.toFixed(1)}dB`}
+                                {ir.metrics.noiseFloorDb > -45 && ` | Noise: ${ir.metrics.noiseFloorDb.toFixed(0)}dB`}
                               </p>
                             )}
                             {ir.error && (
