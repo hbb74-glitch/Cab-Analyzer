@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -937,14 +937,39 @@ export default function Analyzer() {
                     <Music4 className="w-5 h-5 text-primary" />
                     IRs to Analyze ({validBatchCount} ready)
                   </h2>
-                  <button
-                    onClick={clearBatch}
-                    className="text-sm text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
-                    data-testid="button-clear-batch"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Clear all
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch('/api/clear-cache', { method: 'POST' });
+                          const data = await res.json();
+                          toast({
+                            title: "Cache Cleared",
+                            description: `Cleared ${data.cleared?.batch || 0} batch + ${data.cleared?.single || 0} single cached results`,
+                          });
+                        } catch {
+                          toast({
+                            title: "Error",
+                            description: "Failed to clear cache",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                      data-testid="button-clear-cache"
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Clear Cache
+                    </button>
+                    <button
+                      onClick={clearBatch}
+                      className="text-sm text-muted-foreground hover:text-destructive transition-colors flex items-center gap-1"
+                      data-testid="button-clear-batch"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Clear all
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid gap-2 max-h-64 overflow-y-auto">

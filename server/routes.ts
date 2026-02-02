@@ -647,6 +647,7 @@ setInterval(() => {
   cleanExpiredEntries(singleAnalysisCache);
 }, 60 * 60 * 1000);
 
+
 // Generate a stable hash for batch analysis input
 function generateBatchCacheKey(irs: Array<{
   filename: string;
@@ -1035,6 +1036,19 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // Register cache clear endpoint
+  app.post('/api/clear-cache', (_req, res) => {
+    const batchSize = batchAnalysisCache.size;
+    const singleSize = singleAnalysisCache.size;
+    batchAnalysisCache.clear();
+    singleAnalysisCache.clear();
+    console.log(`[Cache] Manually cleared all caches (batch: ${batchSize}, single: ${singleSize})`);
+    res.json({ 
+      success: true, 
+      cleared: { batch: batchSize, single: singleSize } 
+    });
+  });
   
   app.post(api.analyses.create.path, async (req, res) => {
     try {
