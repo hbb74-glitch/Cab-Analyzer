@@ -836,6 +836,8 @@ async function scoreSingleIR(ir: {
     direction: 'bright' | 'dark' | 'normal';
     isWithinRange: boolean;
   };
+  frequencySmoothness: number;
+  noiseFloorDb: number;
 }> {
   // Check cache first
   const cacheKey = generateIRCacheKey(ir);
@@ -1027,6 +1029,8 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
       direction: deviation.direction,
       isWithinRange: deviation.isWithinRange,
     },
+    frequencySmoothness: smoothness,
+    noiseFloorDb: noiseFloor,
   };
   
   // Cache the result
@@ -3500,6 +3504,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             issues: scored.issues,
             renameSuggestion: scored.renameSuggestion,
             spectralDeviation: scored.spectralDeviation,
+            frequencySmoothness: scored.frequencySmoothness,
+            noiseFloorDb: scored.noiseFloorDb,
           };
         })
       );

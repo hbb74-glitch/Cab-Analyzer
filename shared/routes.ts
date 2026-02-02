@@ -242,6 +242,8 @@ export const batchIRResultSchema = z.object({
     reason: z.string(),
   }).optional().nullable(),
   spectralDeviation: spectralDeviationSchema.optional().nullable(),
+  frequencySmoothness: z.number().optional().nullable(),  // 0-100, higher = smoother
+  noiseFloorDb: z.number().optional().nullable(),         // dB, more negative = cleaner
 });
 
 export const gapSuggestionSchema = z.object({

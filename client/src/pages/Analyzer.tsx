@@ -1242,6 +1242,35 @@ export default function Analyzer() {
                           </div>
                         )}
 
+                        {/* Quality Metrics: Smoothness & Noise Floor */}
+                        {(r.frequencySmoothness != null || r.noiseFloorDb != null) && (
+                          <div className="mt-2 p-2 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center gap-3 text-xs">
+                            <Activity className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                            <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                              {r.frequencySmoothness != null && (
+                                <span className="text-muted-foreground">
+                                  Smoothness: <span className={cn(
+                                    "font-mono font-medium",
+                                    r.frequencySmoothness >= 85 ? "text-emerald-400" :
+                                    r.frequencySmoothness >= 70 ? "text-foreground" :
+                                    r.frequencySmoothness >= 50 ? "text-amber-400" : "text-red-400"
+                                  )}>{Math.round(r.frequencySmoothness)}/100</span>
+                                </span>
+                              )}
+                              {r.noiseFloorDb != null && (
+                                <span className="text-muted-foreground">
+                                  Noise Floor: <span className={cn(
+                                    "font-mono font-medium",
+                                    r.noiseFloorDb <= -60 ? "text-emerald-400" :
+                                    r.noiseFloorDb <= -45 ? "text-foreground" :
+                                    r.noiseFloorDb <= -35 ? "text-amber-400" : "text-red-400"
+                                  )}>{r.noiseFloorDb.toFixed(1)} dB</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Tonal Modifier Suggestion */}
                         {r.renameSuggestion && (
                           <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
