@@ -237,9 +237,13 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   }
   
   // Convert to 0-100 score (lower variance = higher score)
-  // Typical deviation for smooth IR: 2-5, for bumpy IR: 10-20
+  // The 75Hz-5kHz range focuses on the active midrange where guitar speakers
+  // naturally have more peaks/character. Calibrated for this range:
+  // - Smooth IR in this range: 3-8 avg deviation
+  // - Normal IR: 8-15 avg deviation  
+  // - Bumpy IR: 15-25+ avg deviation
   const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
-  const maxExpectedDeviation = 15; // Above this is very bumpy
+  const maxExpectedDeviation = 25; // Recalibrated for 75Hz-5kHz midrange focus
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
