@@ -84,9 +84,10 @@ export interface AudioMetrics {
   hasClipping: boolean;      // True if clipping detected
   clippedSamples: number;    // Number of samples at max amplitude
   crestFactorDb: number;     // Peak to RMS ratio in dB (lower = more clipping)
-  // New quality metrics
+  // Quality metrics
   frequencySmoothness: number;  // 0-100, higher = smoother frequency response (fewer peaks/notches)
   noiseFloorDb: number;         // dB below peak, lower (more negative) = cleaner IR
+  isTruncatedIR: boolean;       // True if IR is < 200ms (tail level vs true noise floor)
 }
 
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
@@ -268,26 +269,24 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
-  // Noise Floor Measurement
-  // Analyze the tail of the IR vs the peak
-  // Lower noise floor = cleaner capture
+  // Tail Level / Noise Floor Measurement
   // 
-  // For short truncated IRs (< 100ms), there's no real "tail" - the decay
-  // is intentionally cut off for amp modelers. Use adaptive approach:
-  // - Long IRs (100ms+): Analyze last 30ms as true tail
-  // - Short IRs (<100ms): Analyze last 10% as best approximation
+  // For truncated IRs (< 200ms), there's no true "noise floor" - the decay
+  // is intentionally cut off for amp modelers. Instead, we measure "tail level"
+  // which indicates how much the IR has decayed by the truncation point.
+  // 
+  // Approach: Use fixed 15ms window for all IRs (consistent measurement)
+  // - Long IRs (200ms+): This approximates true noise floor
+  // - Short IRs (<200ms): This is "tail level" - end of decay, not noise
   // ============================================
   const sampleRate = audioBuffer.sampleRate;
   const irDurationMs = (channelData.length / sampleRate) * 1000;
+  const isTruncatedIR = irDurationMs < 200;
   
-  let tailStartSample: number;
-  if (irDurationMs >= 100) {
-    // Long IR: use fixed 30ms tail
-    tailStartSample = Math.max(0, channelData.length - Math.floor(sampleRate * 0.03));
-  } else {
-    // Short IR: use last 10% of samples (more meaningful for truncated IRs)
-    tailStartSample = Math.max(0, Math.floor(channelData.length * 0.9));
-  }
+  // Use fixed 15ms tail window for consistent measurement across all IR lengths
+  const tailWindowMs = 15;
+  const tailWindowSamples = Math.floor(sampleRate * (tailWindowMs / 1000));
+  const tailStartSample = Math.max(0, channelData.length - tailWindowSamples);
   const tailEndSample = channelData.length;
   
   let tailRmsSum = 0;
@@ -300,10 +299,10 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   const tailRms = tailSampleCount > 0 ? Math.sqrt(tailRmsSum / tailSampleCount) : 0;
   
-  // Noise floor in dB relative to peak (before normalization, use original peak)
-  // More negative = cleaner
-  // Good IRs: -50 to -70 dB, Noisy IRs: -30 to -40 dB
-  // Note: For short truncated IRs, this measures the end of the decay, not true noise floor
+  // Tail level in dB (relative to full scale, since IR is normalized to 0dB peak)
+  // More negative = better decay / cleaner
+  // For truncated IRs: -45 to -60 dB typical (measures decay at cutoff point)
+  // For full IRs: -50 to -70 dB (true noise floor)
   const noiseFloorDb = tailRms > 0 ? 20 * Math.log10(tailRms) : -96;
 
   return {
@@ -320,5 +319,6 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),
     frequencySmoothness: parseFloat(frequencySmoothness.toFixed(1)),
     noiseFloorDb: parseFloat(noiseFloorDb.toFixed(1)),
+    isTruncatedIR,
   };
 }

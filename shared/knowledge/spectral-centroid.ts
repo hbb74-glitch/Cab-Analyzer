@@ -199,23 +199,26 @@ export function getDeviationScoreAdjustment(deviationPercent: number): number {
 // Mic-specific smoothness baselines (75Hz-5kHz range)
 // Based on empirical data from real IR captures
 // Each mic has an expected range - scores within range are "normal for that mic"
+// Calibrated from empirical batch data (111 IRs, 2048-4096 sample truncated IRs at 44.1kHz)
+// Ranges tightened to observed distributions with ±2 padding
 export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number; avg: number; description: string }> = {
-  'sm57': { min: 70, max: 82, avg: 75, description: 'Classic dynamic, relatively smooth response' },
-  'r121': { min: 65, max: 80, avg: 72, description: 'Ribbon, naturally smooth high-end rolloff' },
-  'r10': { min: 65, max: 80, avg: 72, description: 'Ribbon, similar to R121' },
-  'r92': { min: 65, max: 80, avg: 72, description: 'Ribbon, smooth and warm' },
-  'm160': { min: 68, max: 82, avg: 75, description: 'Hypercardioid ribbon, focused and smooth' },
-  'md421': { min: 68, max: 80, avg: 74, description: 'Large diaphragm dynamic, some character peaks' },
-  'md421kompakt': { min: 60, max: 75, avg: 67, description: 'Compact variant, more pronounced character' },
-  'md441': { min: 70, max: 82, avg: 76, description: 'Very accurate dynamic, smooth response' },
-  'm88': { min: 65, max: 78, avg: 71, description: 'Warm dynamic, moderate smoothness' },
-  'pr30': { min: 70, max: 85, avg: 77, description: 'Large diaphragm, very smooth response' },
-  'e906': { min: 65, max: 78, avg: 71, description: 'Supercardioid, switch-dependent response' },
-  'e906_presence': { min: 65, max: 78, avg: 71, description: 'Presence mode, similar smoothness' },
-  'm201': { min: 60, max: 72, avg: 66, description: 'Hypercardioid, pronounced character/peaks' },
-  'c414': { min: 65, max: 80, avg: 72, description: 'Condenser, detailed with some peaks' },
-  'roswell': { min: 65, max: 78, avg: 71, description: 'Roswell Cab Mic, moderate smoothness' },
-  'sm57_r121_combo': { min: 68, max: 82, avg: 75, description: 'Blend smooths out individual mic peaks' },
+  'sm57': { min: 66, max: 77, avg: 72, description: 'Classic dynamic, mid-forward character' },
+  'r121': { min: 70, max: 76, avg: 73, description: 'Ribbon, naturally smooth high-end rolloff' },
+  'r10': { min: 70, max: 76, avg: 73, description: 'Ribbon, similar to R121' },
+  'r92': { min: 70, max: 76, avg: 73, description: 'Ribbon, smooth and warm' },
+  'm160': { min: 68, max: 74, avg: 71, description: 'Hypercardioid ribbon, focused response' },
+  'md421': { min: 68, max: 76, avg: 72, description: 'Large diaphragm dynamic, punchy' },
+  'md421kompakt': { min: 67, max: 75, avg: 71, description: 'Compact variant, similar to MD421' },
+  'md441': { min: 68, max: 76, avg: 72, description: 'Very accurate dynamic' },
+  'm88': { min: 66, max: 74, avg: 70, description: 'Warm dynamic, moderate smoothness' },
+  'pr30': { min: 69, max: 78, avg: 73, description: 'Large diaphragm, smooth response' },
+  'e906': { min: 67, max: 75, avg: 71, description: 'Supercardioid, switch-dependent' },
+  'e906_presence': { min: 67, max: 75, avg: 71, description: 'Presence mode, similar smoothness' },
+  'm201': { min: 68, max: 74, avg: 71, description: 'Hypercardioid, accurate response' },
+  'sm7b': { min: 69, max: 75, avg: 72, description: 'Smooth, thick dynamic' },
+  'c414': { min: 68, max: 76, avg: 72, description: 'Condenser, detailed response' },
+  'roswell': { min: 65, max: 76, avg: 71, description: 'Roswell Cab Mic, variable by position' },
+  'sm57_r121_combo': { min: 68, max: 76, avg: 72, description: 'Blend smooths out individual mic peaks' },
 };
 
 // Default baseline for unknown mics
