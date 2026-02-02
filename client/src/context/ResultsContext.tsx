@@ -39,6 +39,8 @@ export interface SingleAnalysisMetrics {
   hasClipping: boolean;
   clippedSamples: number;
   crestFactorDb: number;
+  frequencySmoothness: number;
+  noiseFloorDb: number;
 }
 
 interface ResultsContextType {

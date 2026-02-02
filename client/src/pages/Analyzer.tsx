@@ -1824,7 +1824,9 @@ export default function Analyzer() {
                     metrics={{
                       peak: metrics.peakAmplitudeDb,
                       duration: metrics.durationMs,
-                      centroid: metrics.spectralCentroid
+                      centroid: metrics.spectralCentroid,
+                      smoothness: metrics.frequencySmoothness,
+                      noiseFloor: metrics.noiseFloorDb
                     }}
                     micLabel={result.micLabel}
                     renameSuggestion={result.renameSuggestion}

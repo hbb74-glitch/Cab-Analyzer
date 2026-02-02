@@ -213,9 +213,11 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let smoothnessVarianceSum = 0;
   let smoothnessCount = 0;
   
-  // Focus on the usable frequency range (100Hz - 10kHz) for guitar cab IRs
-  const minBin = Math.floor(100 / binSize);
-  const maxBin = Math.min(Math.floor(10000 / binSize), freqByteData.length - 1);
+  // Focus on actual guitar speaker output range (75Hz - 5kHz)
+  // Guitar speakers: 70-75 Hz to 5000 Hz typical response
+  // Above 5-6kHz has minimal musical content for cab IRs
+  const minBin = Math.floor(75 / binSize);
+  const maxBin = Math.min(Math.floor(5000 / binSize), freqByteData.length - 1);
   
   // Use a sliding window to detect peaks/notches
   // Compare each bin to a local average (5-bin window)

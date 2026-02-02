@@ -30,6 +30,8 @@ interface ResultCardProps {
     peak: number;
     duration: number;
     centroid: number;
+    smoothness?: number;
+    noiseFloor?: number;
   };
   micLabel?: string;
   bestPositions?: BestPosition[];
@@ -129,7 +131,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
             </p>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 pt-2">
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-4 pt-2">
             <div className="space-y-1">
               <span className="text-xs uppercase tracking-wider text-muted-foreground">Peak</span>
               <p className={cn("text-lg font-mono font-medium", metrics.peak > -0.5 ? "text-destructive" : "text-foreground")}>
@@ -148,6 +150,32 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                 {metrics.centroid} Hz
               </p>
             </div>
+            {metrics.smoothness != null && (
+              <div className="space-y-1">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Smoothness</span>
+                <p className={cn(
+                  "text-lg font-mono font-medium",
+                  metrics.smoothness >= 85 ? "text-emerald-400" :
+                  metrics.smoothness >= 70 ? "text-foreground" :
+                  metrics.smoothness >= 50 ? "text-amber-400" : "text-red-400"
+                )}>
+                  {Math.round(metrics.smoothness)}/100
+                </p>
+              </div>
+            )}
+            {metrics.noiseFloor != null && (
+              <div className="space-y-1">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Noise Floor</span>
+                <p className={cn(
+                  "text-lg font-mono font-medium",
+                  metrics.noiseFloor <= -60 ? "text-emerald-400" :
+                  metrics.noiseFloor <= -45 ? "text-foreground" :
+                  metrics.noiseFloor <= -35 ? "text-amber-400" : "text-red-400"
+                )}>
+                  {metrics.noiseFloor.toFixed(1)} dB
+                </p>
+              </div>
+            )}
           </div>
 
           {spectralDeviation && (
