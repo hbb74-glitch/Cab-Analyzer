@@ -144,7 +144,20 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
 
   // 3. Spectral Analysis (Quick FFT approximation via OfflineContext)
   // We'll create a simplified spectral centroid and freq data for the graph
-  const fftSize = 8192;
+  // For short IRs (e.g., 2048 samples), use a smaller FFT size to avoid
+  // artificial smoothing from zero-padding
+  const irLength = channelData.length;
+  
+  // Find the largest power-of-2 FFT size that fits the IR, clamped to [512, 8192]
+  // This prevents zero-padding from artificially smoothing the frequency response
+  let fftSize = 8192;
+  if (irLength < 8192) {
+    // Find the largest power of 2 <= irLength
+    fftSize = Math.pow(2, Math.floor(Math.log2(irLength)));
+    // Clamp to minimum 512 for reasonable resolution
+    fftSize = Math.max(512, fftSize);
+  }
+  
   const offlineCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
   const source = offlineCtx.createBufferSource();
   source.buffer = audioBuffer;
