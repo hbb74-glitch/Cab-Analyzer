@@ -84,6 +84,9 @@ export interface AudioMetrics {
   hasClipping: boolean;      // True if clipping detected
   clippedSamples: number;    // Number of samples at max amplitude
   crestFactorDb: number;     // Peak to RMS ratio in dB (lower = more clipping)
+  // New quality metrics
+  frequencySmoothness: number;  // 0-100, higher = smoother frequency response (fewer peaks/notches)
+  noiseFloorDb: number;         // dB below peak, lower (more negative) = cleaner IR
 }
 
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
@@ -202,6 +205,65 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const midEnergy = totalEnergy > 0 ? midEnergySum / totalEnergy : 0;
   const highEnergy = totalEnergy > 0 ? highEnergySum / totalEnergy : 0;
 
+  // ============================================
+  // Frequency Response Smoothness
+  // Measures how "bumpy" vs "smooth" the frequency curve is
+  // Lower variance between adjacent bins = smoother = better
+  // ============================================
+  let smoothnessVarianceSum = 0;
+  let smoothnessCount = 0;
+  
+  // Focus on the usable frequency range (100Hz - 10kHz) for guitar cab IRs
+  const minBin = Math.floor(100 / binSize);
+  const maxBin = Math.min(Math.floor(10000 / binSize), freqByteData.length - 1);
+  
+  // Use a sliding window to detect peaks/notches
+  // Compare each bin to a local average (5-bin window)
+  const windowSize = 5;
+  for (let i = minBin + windowSize; i < maxBin - windowSize; i++) {
+    // Calculate local average
+    let localSum = 0;
+    for (let j = i - windowSize; j <= i + windowSize; j++) {
+      localSum += freqByteData[j];
+    }
+    const localAvg = localSum / (windowSize * 2 + 1);
+    
+    // Deviation from local average (peaks/notches will have high deviation)
+    const deviation = Math.abs(freqByteData[i] - localAvg);
+    smoothnessVarianceSum += deviation;
+    smoothnessCount++;
+  }
+  
+  // Convert to 0-100 score (lower variance = higher score)
+  // Typical deviation for smooth IR: 2-5, for bumpy IR: 10-20
+  const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
+  const maxExpectedDeviation = 15; // Above this is very bumpy
+  const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
+
+  // ============================================
+  // Noise Floor Measurement
+  // Analyze the tail of the IR (last 20-50ms) vs the peak
+  // Lower noise floor = cleaner capture
+  // ============================================
+  const sampleRate = audioBuffer.sampleRate;
+  const tailStartSample = Math.max(0, channelData.length - Math.floor(sampleRate * 0.03)); // Last 30ms
+  const tailEndSample = channelData.length;
+  
+  let tailRmsSum = 0;
+  let tailSampleCount = 0;
+  
+  for (let i = tailStartSample; i < tailEndSample; i++) {
+    tailRmsSum += channelData[i] * channelData[i];
+    tailSampleCount++;
+  }
+  
+  const tailRms = tailSampleCount > 0 ? Math.sqrt(tailRmsSum / tailSampleCount) : 0;
+  
+  // Noise floor in dB relative to peak (before normalization, use original peak)
+  // More negative = cleaner
+  // Good IRs: -50 to -70 dB, Noisy IRs: -30 to -40 dB
+  const noiseFloorDb = tailRms > 0 ? 20 * Math.log10(tailRms) : -96;
+
   return {
     durationMs,
     durationSamples,
@@ -214,5 +276,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     hasClipping,
     clippedSamples,
     crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),
+    frequencySmoothness: parseFloat(frequencySmoothness.toFixed(1)),
+    noiseFloorDb: parseFloat(noiseFloorDb.toFixed(1)),
   };
 }
