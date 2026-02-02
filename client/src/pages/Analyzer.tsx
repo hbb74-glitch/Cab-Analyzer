@@ -385,21 +385,9 @@ function cullIRs(
         diversityScore += 0.1;
       }
       
-      // Small bonus for quality score
+      // Bonus for quality score (which now includes smoothness and noise floor)
       const qualityBonus = ((irs[candidateIdx].score || 85) - 80) / 100;
-      diversityScore += qualityBonus * 0.1;
-      
-      // Bonus for frequency smoothness (0-100 scale)
-      // Smoother IRs are more usable and sit better in mixes
-      const smoothness = irs[candidateIdx].metrics.frequencySmoothness ?? 70;
-      const smoothnessBonus = (smoothness - 50) / 500; // ±0.1 bonus range
-      diversityScore += smoothnessBonus;
-      
-      // Bonus for lower noise floor (more negative = better)
-      // Good IRs: -50 to -70 dB, Noisy IRs: -30 to -40 dB
-      const noiseFloor = irs[candidateIdx].metrics.noiseFloorDb ?? -50;
-      const noiseBonus = Math.max(-0.1, Math.min(0.1, (noiseFloor + 30) / -400)); // Lower is better
-      diversityScore += noiseBonus;
+      diversityScore += qualityBonus * 0.15;
 
       if (diversityScore > bestDiversityScore) {
         bestDiversityScore = diversityScore;

@@ -817,6 +817,8 @@ async function scoreSingleIR(ir: {
   hasClipping?: boolean;
   clippedSamples?: number;
   crestFactorDb?: number;
+  frequencySmoothness?: number;  // 0-100, higher = smoother response
+  noiseFloorDb?: number;         // dB, more negative = cleaner
 }): Promise<{
   score: number;
   isPerfect: boolean;
@@ -915,6 +917,44 @@ Output JSON format:
   } or null
 }`;
 
+  // Calculate quality adjustments for smoothness and noise floor
+  const smoothness = ir.frequencySmoothness ?? 70;
+  const noiseFloor = ir.noiseFloorDb ?? -50;
+  
+  // Smoothness adjustment: 70+ is good, below 50 is problematic
+  let smoothnessAdjustment = 0;
+  let smoothnessNote = '';
+  if (smoothness >= 85) {
+    smoothnessAdjustment = 1;
+    smoothnessNote = 'Exceptionally smooth frequency response';
+  } else if (smoothness >= 70) {
+    smoothnessAdjustment = 0;
+    smoothnessNote = 'Good frequency response smoothness';
+  } else if (smoothness >= 50) {
+    smoothnessAdjustment = -1;
+    smoothnessNote = 'Slightly bumpy frequency response';
+  } else {
+    smoothnessAdjustment = -2;
+    smoothnessNote = 'Rough frequency response with peaks/notches';
+  }
+  
+  // Noise floor adjustment: below -50dB is good, above -35dB is problematic
+  let noiseAdjustment = 0;
+  let noiseNote = '';
+  if (noiseFloor <= -60) {
+    noiseAdjustment = 1;
+    noiseNote = 'Exceptionally clean/quiet IR';
+  } else if (noiseFloor <= -45) {
+    noiseAdjustment = 0;
+    noiseNote = 'Good noise floor';
+  } else if (noiseFloor <= -35) {
+    noiseAdjustment = -1;
+    noiseNote = 'Slightly elevated noise floor';
+  } else {
+    noiseAdjustment = -2;
+    noiseNote = 'High noise floor detected';
+  }
+
   const userMessage = `Analyze this IR for technical quality:
 
 Filename: "${ir.filename}"
@@ -925,6 +965,8 @@ Filename: "${ir.filename}"
 - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
 - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
 - Clipping Detected: ${ir.hasClipping ? `YES (${ir.clippedSamples} clipped samples, crest factor: ${ir.crestFactorDb?.toFixed(1)}dB)` : 'No'}
+- Frequency Smoothness: ${smoothness.toFixed(0)}/100 (${smoothnessNote})
+- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})
 
 Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
@@ -948,12 +990,27 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
                         ir.filename.match(/_(\d+(?:\.\d+)?)(?:_|$)/);
   const parsedDistance = distanceMatch ? distanceMatch[1] : (result.parsedInfo?.distance || null);
   
+  // Apply deterministic adjustments to AI score
+  const baseScore = result.score || 0;
+  const totalAdjustment = scoreAdjustment + smoothnessAdjustment + noiseAdjustment;
+  const adjustedScore = Math.max(0, Math.min(100, baseScore + totalAdjustment));
+  
+  // Update highlights/issues based on adjustments
+  const highlights = [...(result.highlights || [])];
+  const issues = [...(result.issues || [])];
+  
+  if (smoothnessAdjustment > 0) highlights.push(smoothnessNote);
+  else if (smoothnessAdjustment < 0) issues.push(smoothnessNote);
+  
+  if (noiseAdjustment > 0) highlights.push(noiseNote);
+  else if (noiseAdjustment < 0) issues.push(noiseNote);
+  
   const formatted = {
-    score: result.score || 0,
-    isPerfect: result.isPerfect || false,
+    score: adjustedScore,
+    isPerfect: adjustedScore >= 90 && issues.length === 0,
     advice: result.advice || "Could not generate advice.",
-    highlights: result.highlights || [],
-    issues: result.issues || [],
+    highlights,
+    issues,
     parsedInfo: {
       mic: parsed.mic,       // Use deterministic parsing
       position: parsed.position, // Use deterministic parsing

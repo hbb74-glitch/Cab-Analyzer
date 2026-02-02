@@ -205,6 +205,8 @@ export const batchIRInputSchema = z.object({
   hasClipping: z.boolean().optional(),
   clippedSamples: z.number().optional(),
   crestFactorDb: z.number().optional(),
+  frequencySmoothness: z.number().optional(),  // 0-100, higher = smoother response
+  noiseFloorDb: z.number().optional(),         // dB, more negative = cleaner
 });
 
 export const batchAnalysisInputSchema = z.object({
