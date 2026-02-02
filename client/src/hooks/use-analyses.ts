@@ -251,12 +251,20 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   // Convert to 0-100 score (lower variance = higher score)
   // The 75Hz-5kHz range focuses on the active midrange where guitar speakers
-  // naturally have more peaks/character. Calibrated for this range:
-  // - Smooth IR in this range: 3-8 avg deviation
-  // - Normal IR: 8-15 avg deviation  
-  // - Bumpy IR: 15-25+ avg deviation
+  // naturally have more peaks/character.
+  // 
+  // IMPORTANT: Scale the expected deviation based on FFT size
+  // Smaller FFTs have coarser frequency resolution, which means:
+  // - Each bin covers a wider frequency range
+  // - More natural variation between adjacent bins
+  // - Higher raw deviation values for the same actual smoothness
+  //
+  // Baseline: FFT 8192 with maxExpectedDeviation = 25
+  // Scale factor: sqrt(8192 / fftSize) to account for resolution difference
   const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
-  const maxExpectedDeviation = 25; // Recalibrated for 75Hz-5kHz midrange focus
+  const baselineFFT = 8192;
+  const scaleFactor = Math.sqrt(baselineFFT / fftSize);
+  const maxExpectedDeviation = 25 * scaleFactor; // Scale based on FFT resolution
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
