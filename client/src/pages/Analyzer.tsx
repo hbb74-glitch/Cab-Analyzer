@@ -1631,6 +1631,33 @@ export default function Analyzer() {
           {/* Left Column: Input & Controls */}
           <div className="lg:col-span-5 space-y-6">
             
+            {/* Clear Cache Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/clear-cache', { method: 'POST' });
+                    const data = await res.json();
+                    toast({
+                      title: "Cache Cleared",
+                      description: `Cleared ${data.cleared?.batch || 0} batch + ${data.cleared?.single || 0} single cached results`,
+                    });
+                  } catch {
+                    toast({
+                      title: "Error",
+                      description: "Failed to clear cache",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                data-testid="button-clear-cache-single"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Clear Cache
+              </button>
+            </div>
+
             {/* Upload Zone */}
             <div
               {...getRootProps()}
