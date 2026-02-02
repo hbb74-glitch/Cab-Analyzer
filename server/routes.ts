@@ -731,13 +731,27 @@ function generateIRCacheKey(ir: {
 }
 
 // Parse mic/position/speaker from filename for spectral centroid expectations
-function parseFilenameForExpectations(filename: string): { mic: string; position: string; speaker: string } {
+function parseFilenameForExpectations(filename: string): { mic: string; position: string; speaker: string; variant?: string; isCombo?: boolean } {
   const lower = filename.toLowerCase();
   
   // Parse mic - order matters! More specific patterns first
   // IMPORTANT: Avoid patterns that could match distances (e.g., _30_ could be 30mm distance)
   let mic = 'sm57'; // default
-  if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) mic = 'e906_presence';
+  let variant: string | undefined;
+  let isCombo = false;
+  
+  // Check for combo IRs first (e.g., SM57_R121_Combo_A.wav)
+  if ((lower.includes('sm57') && lower.includes('r121') && lower.includes('combo')) ||
+      lower.includes('sm57_r121_combo') || lower.includes('57_121_combo')) {
+    mic = 'sm57_r121_combo';
+    isCombo = true;
+    // Extract height variant (A, B, C, etc.) - the letter after "combo_"
+    const variantMatch = filename.match(/combo[_-]?([a-zA-Z])(?:[_.]|$)/i);
+    if (variantMatch) {
+      variant = variantMatch[1].toUpperCase();
+    }
+  }
+  else if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) mic = 'e906_presence';
   else if (lower.includes('e906')) mic = 'e906';
   else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) mic = 'md441_presence';
   else if (lower.includes('md441') || lower.includes('_441_') || lower.includes('-441-') || lower.includes('_441-')) mic = 'md441';
@@ -756,19 +770,22 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   else if (lower.includes('roswell')) mic = 'roswell';
   
   // Parse position - new naming convention
-  let position = 'capedge'; // default
-  // New names first
-  if (lower.includes('capedge_br') || lower.includes('capedgebr')) position = 'capedge_br';
-  else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) position = 'capedge_dk';
-  else if (lower.includes('cap_cone_trn') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) position = 'cap_cone_trn';
-  // Legacy mappings
-  else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) position = 'capedge_br';
-  else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) position = 'capedge_dk';
-  // Standard positions
-  else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
-  else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
-  else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) position = 'cap';
-  else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) position = 'cone';
+  // For combo IRs, position is 'blend' since it's a mix of SM57 and R121 positions
+  let position = isCombo ? 'blend' : 'capedge'; // default
+  if (!isCombo) {
+    // New names first
+    if (lower.includes('capedge_br') || lower.includes('capedgebr')) position = 'capedge_br';
+    else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) position = 'capedge_dk';
+    else if (lower.includes('cap_cone_trn') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) position = 'cap_cone_trn';
+    // Legacy mappings
+    else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) position = 'capedge_br';
+    else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) position = 'capedge_dk';
+    // Standard positions
+    else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
+    else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
+    else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) position = 'cap';
+    else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) position = 'cone';
+  }
   
   // Parse speaker
   let speaker = 'v30'; // default
@@ -777,13 +794,14 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   else if (lower.includes('greenback') || lower.includes('g12m25') || lower.includes('g12m_')) speaker = 'greenback';
   else if (lower.includes('g12t75') || lower.includes('g12t-75')) speaker = 'g12t75';
   else if (lower.includes('g12-65') || lower.includes('g1265') || lower.includes('heritage')) speaker = 'g12-65';
+  else if (lower.includes('g12h') && lower.includes('g12h')) speaker = 'g12h';
   else if (lower.includes('g12h') && lower.includes('anni')) speaker = 'g12hanni';
   else if (lower.includes('cream')) speaker = 'cream';
   else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) speaker = 'ga12-sc64';
   else if (lower.includes('ga10') || lower.includes('g10')) speaker = 'ga10-sc64';
   else if (lower.includes('k100')) speaker = 'k100';
   
-  return { mic, position, speaker };
+  return { mic, position, speaker, variant, isCombo };
 }
 
 // Shared single-IR scoring function used by both single and batch modes

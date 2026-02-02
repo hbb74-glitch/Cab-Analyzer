@@ -15,6 +15,7 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'sm7b': { min: 1700, max: 2400, description: 'Smooth, thick dynamic' },
   'c414': { min: 2600, max: 3600, description: 'Condenser, detailed highs' },
   'roswell': { min: 1400, max: 2400, description: 'Roswell Cab Mic - warm condenser, wider range to accommodate consistent output across speakers' },
+  'sm57_r121_combo': { min: 1850, max: 2600, description: 'SM57+R121 blend (50/50), balanced bright/warm character' },
 };
 
 export const POSITION_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -25,6 +26,7 @@ export const POSITION_OFFSETS: Record<string, { offset: number; description: str
   'capedge_dk': { offset: -150, description: 'CapEdge favoring the cone side of the seam, darker' },
   'cap_cone_tr': { offset: -250, description: 'Smooth cone immediately past the cap edge, transition zone' },
   'cone': { offset: -500, description: 'True mid-cone position (halfway from center to surround on most speakers), ribs allowed' },
+  'blend': { offset: 0, description: 'Combo IR blend - no position offset, uses mic base range directly' },
 };
 
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -43,7 +45,13 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
 };
 
 function normalizeMicName(mic: string): string {
-  const lower = mic.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const lower = mic.toLowerCase().replace(/[^a-z0-9_]/g, '');
+  
+  // Combo mics (check first before individual mics)
+  if ((lower.includes('sm57') && lower.includes('r121') && lower.includes('combo')) ||
+      lower.includes('sm57_r121_combo') || lower.includes('57_121_combo')) {
+    return 'sm57_r121_combo';
+  }
   
   if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) return 'e906_presence';
   if (lower.includes('e906')) return 'e906';
