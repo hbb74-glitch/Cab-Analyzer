@@ -923,16 +923,17 @@ Output JSON format:
   const smoothness = ir.frequencySmoothness ?? 70;
   const noiseFloor = ir.noiseFloorDb ?? -50;
   
-  // Smoothness adjustment: 70+ is good, below 50 is problematic
+  // Smoothness adjustment: Recalibrated based on real-world IR data
+  // Professional IRs typically score 60-80 in the 75Hz-5kHz range
   let smoothnessAdjustment = 0;
   let smoothnessNote = '';
-  if (smoothness >= 85) {
+  if (smoothness >= 80) {
     smoothnessAdjustment = 1;
     smoothnessNote = 'Exceptionally smooth frequency response';
-  } else if (smoothness >= 70) {
+  } else if (smoothness >= 60) {
     smoothnessAdjustment = 0;
     smoothnessNote = 'Good frequency response smoothness';
-  } else if (smoothness >= 50) {
+  } else if (smoothness >= 45) {
     smoothnessAdjustment = -1;
     smoothnessNote = 'Slightly bumpy frequency response';
   } else {

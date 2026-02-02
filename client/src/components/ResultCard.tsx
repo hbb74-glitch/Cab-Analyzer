@@ -155,9 +155,9 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                 <span className="text-xs uppercase tracking-wider text-muted-foreground">Smoothness</span>
                 <p className={cn(
                   "text-lg font-mono font-medium",
-                  metrics.smoothness >= 85 ? "text-emerald-400" :
-                  metrics.smoothness >= 70 ? "text-foreground" :
-                  metrics.smoothness >= 50 ? "text-amber-400" : "text-red-400"
+                  metrics.smoothness >= 80 ? "text-emerald-400" :
+                  metrics.smoothness >= 60 ? "text-foreground" :
+                  metrics.smoothness >= 45 ? "text-amber-400" : "text-red-400"
                 )}>
                   {Math.round(metrics.smoothness)}/100
                 </p>

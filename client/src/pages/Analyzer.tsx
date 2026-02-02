@@ -1251,9 +1251,9 @@ export default function Analyzer() {
                                 <span className="text-muted-foreground">
                                   Smoothness: <span className={cn(
                                     "font-mono font-medium",
-                                    r.frequencySmoothness >= 85 ? "text-emerald-400" :
-                                    r.frequencySmoothness >= 70 ? "text-foreground" :
-                                    r.frequencySmoothness >= 50 ? "text-amber-400" : "text-red-400"
+                                    r.frequencySmoothness >= 80 ? "text-emerald-400" :
+                                    r.frequencySmoothness >= 60 ? "text-foreground" :
+                                    r.frequencySmoothness >= 45 ? "text-amber-400" : "text-red-400"
                                   )}>{Math.round(r.frequencySmoothness)}/100</span>
                                 </span>
                               )}
