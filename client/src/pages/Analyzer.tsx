@@ -1483,7 +1483,7 @@ export default function Analyzer() {
   };
   
   // Cull IRs to target count
-  const handleCullIRs = (showToast = true, skipPreferenceCheck = false) => {
+  const handleCullIRs = (showToast = true, skipPreferenceCheck = false, overridesOverride?: Map<string, string[]>) => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
     
     // Exclude IRs that are marked for removal from redundancy groups
@@ -1542,7 +1542,7 @@ export default function Analyzer() {
       }));
     }
     
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, cullUserOverrides);
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
@@ -2972,14 +2972,12 @@ export default function Analyzer() {
                               newOverrides.set(cc.micType, existing);
                             }
                           }
-                          // Store overrides and trigger re-cull
+                          // Store overrides and trigger re-cull with new overrides passed directly
                           setCullUserOverrides(newOverrides);
                           setCullCloseCalls([]);
                           
-                          // Re-run culling with updated overrides
-                          setTimeout(() => {
-                            handleCullIRs(true, true);
-                          }, 100);
+                          // Re-run culling with updated overrides passed directly (avoid async state timing)
+                          handleCullIRs(true, true, newOverrides);
                         }}
                         data-testid="button-apply-close-call-choices"
                       >
