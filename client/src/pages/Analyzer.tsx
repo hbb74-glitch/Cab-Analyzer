@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -499,29 +499,55 @@ function findRedundantPairs(
   return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
+// Close call decision for user input during culling
+interface CullCloseCall {
+  micType: string;
+  slot: number; // Which slot in this mic's allocation (1st, 2nd, etc.)
+  candidates: {
+    filename: string;
+    score: number;
+    combinedScore: number; // The calculated selection score
+    brightness: string;
+    position: string;
+    distance: string | null;
+  }[];
+  selectedFilename: string | null; // User's choice, null if not yet decided
+}
+
 // Culling result type
 interface CullResult {
   keep: { filename: string; reason: string; score: number; diversityContribution: number }[];
   cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number }[];
+  closeCallsResolved?: boolean; // True if all close calls have been resolved
 }
 
 // Cull IRs to a target count, maximizing variety and quality
 // Uses per-mic-type selection: keeps best examples of each mic proportionally
+// userOverrides: Map of mic type -> array of filenames user has chosen to keep
 function cullIRs(
   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
-  targetCount: number
-): CullResult {
+  targetCount: number,
+  userOverrides: Map<string, string[]> = new Map()
+): { result: CullResult; closeCalls: CullCloseCall[] } {
   if (irs.length <= targetCount) {
     return {
-      keep: irs.map(ir => ({ 
-        filename: ir.filename, 
-        reason: "All IRs kept - count already at or below target",
-        score: ir.score || 85,
-        diversityContribution: 1
-      })),
-      cut: []
+      result: {
+        keep: irs.map(ir => ({ 
+          filename: ir.filename, 
+          reason: "All IRs kept - count already at or below target",
+          score: ir.score || 85,
+          diversityContribution: 1
+        })),
+        cut: [],
+        closeCallsResolved: true
+      },
+      closeCalls: []
     };
   }
+  
+  // Track close calls for user input
+  const closeCalls: CullCloseCall[] = [];
+  const CLOSE_CALL_THRESHOLD = 0.05; // 5% difference in combined score triggers close call
 
   // Parse filenames for mic/position info
   const getMicType = (filename: string): string => {
@@ -615,12 +641,35 @@ function cullIRs(
     } else break;
   }
 
+  // Helper to get distance from filename
+  const getDistanceFromFilename = (filename: string): string | null => {
+    const match = filename.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/i);
+    return match ? match[1] : null;
+  };
+  
+  // Helper to calculate brightness label
+  const centroidRankingForCloseCall = irs.map((ir, idx) => ({ idx, centroid: ir.metrics.spectralCentroid }))
+    .sort((a, b) => b.centroid - a.centroid);
+  const getBrightnessLabelForCloseCall = (idx: number): string => {
+    const rank = centroidRankingForCloseCall.findIndex(r => r.idx === idx);
+    const total = centroidRankingForCloseCall.length;
+    const percentile = rank / total;
+    if (percentile <= 0.2) return 'brightest';
+    if (percentile <= 0.4) return 'bright';
+    if (percentile <= 0.6) return 'mid-bright';
+    if (percentile <= 0.8) return 'dark';
+    return 'darkest';
+  };
+
   // Select best IRs from each mic group
   // Primary: score, Secondary: diversity within the mic's selections
   const selected: number[] = [];
   
   for (const [mic, indices] of Array.from(micGroups.entries())) {
     const slotsForMic = micSlots.get(mic) || 1;
+    
+    // Check if user has overrides for this mic
+    const userChoices = userOverrides.get(mic) || [];
     
     // Sort by score (primary factor)
     const sortedByScore = [...indices].sort((a, b) => {
@@ -630,16 +679,44 @@ function cullIRs(
     });
     
     if (slotsForMic === 1) {
-      // Just take the best one
-      selected.push(sortedByScore[0]);
+      // Check for close call: if top 2 scores are within 3 points
+      if (sortedByScore.length >= 2) {
+        const topScore = irs[sortedByScore[0]].score || 85;
+        const secondScore = irs[sortedByScore[1]].score || 85;
+        if (topScore - secondScore <= 3 && userChoices.length === 0) {
+          // Close call! Add for user input
+          closeCalls.push({
+            micType: mic,
+            slot: 1,
+            candidates: sortedByScore.slice(0, Math.min(3, sortedByScore.length)).map(idx => ({
+              filename: irs[idx].filename,
+              score: irs[idx].score || 85,
+              combinedScore: (irs[idx].score || 85) / 100,
+              brightness: getBrightnessLabelForCloseCall(idx),
+              position: getPosition(irs[idx].filename),
+              distance: getDistanceFromFilename(irs[idx].filename)
+            })),
+            selectedFilename: null
+          });
+        }
+      }
+      
+      // Use user choice if available, otherwise best score
+      if (userChoices.length > 0) {
+        const chosenIdx = indices.find(i => irs[i].filename === userChoices[0]);
+        selected.push(chosenIdx !== undefined ? chosenIdx : sortedByScore[0]);
+      } else {
+        selected.push(sortedByScore[0]);
+      }
     } else {
       // Select multiple: start with best, then consider diversity
       const micSelected: number[] = [sortedByScore[0]];
       const micRemaining = new Set(sortedByScore.slice(1));
+      let slotNumber = 2; // Start from slot 2 since slot 1 is the best
       
       while (micSelected.length < slotsForMic && micRemaining.size > 0) {
-        let bestCandidate = -1;
-        let bestCombinedScore = -Infinity;
+        // Calculate combined scores for all remaining candidates
+        const candidateScores: { idx: number; combinedScore: number }[] = [];
         
         for (const candidateIdx of Array.from(micRemaining)) {
           // Quality score (60% weight)
@@ -658,17 +735,54 @@ function cullIRs(
           const positionBonus = coveredPositions.has(candidatePos) ? 0 : 1;
           
           const combinedScore = (qualityScore * 0.6) + (diversityScore * 0.25) + (positionBonus * 0.15);
+          candidateScores.push({ idx: candidateIdx, combinedScore });
+        }
+        
+        // Sort by combined score
+        candidateScores.sort((a, b) => b.combinedScore - a.combinedScore);
+        
+        // Check for close call: if top candidates are within threshold
+        if (candidateScores.length >= 2 && userChoices.length < slotNumber) {
+          const topCombined = candidateScores[0].combinedScore;
+          const closeOnes = candidateScores.filter(c => topCombined - c.combinedScore <= CLOSE_CALL_THRESHOLD);
           
-          if (combinedScore > bestCombinedScore) {
-            bestCombinedScore = combinedScore;
-            bestCandidate = candidateIdx;
+          if (closeOnes.length >= 2) {
+            // Close call! Add for user input
+            closeCalls.push({
+              micType: mic,
+              slot: slotNumber,
+              candidates: closeOnes.slice(0, 4).map(c => ({
+                filename: irs[c.idx].filename,
+                score: irs[c.idx].score || 85,
+                combinedScore: c.combinedScore,
+                brightness: getBrightnessLabelForCloseCall(c.idx),
+                position: getPosition(irs[c.idx].filename),
+                distance: getDistanceFromFilename(irs[c.idx].filename)
+              })),
+              selectedFilename: null
+            });
           }
         }
         
-        if (bestCandidate >= 0) {
-          micSelected.push(bestCandidate);
-          micRemaining.delete(bestCandidate);
-        } else break;
+        // Use user choice if available for this slot
+        const userChoiceForSlot = userChoices[slotNumber - 1];
+        if (userChoiceForSlot) {
+          const chosenIdx = Array.from(micRemaining).find(i => irs[i].filename === userChoiceForSlot);
+          if (chosenIdx !== undefined) {
+            micSelected.push(chosenIdx);
+            micRemaining.delete(chosenIdx);
+          } else if (candidateScores.length > 0) {
+            micSelected.push(candidateScores[0].idx);
+            micRemaining.delete(candidateScores[0].idx);
+          }
+        } else if (candidateScores.length > 0) {
+          micSelected.push(candidateScores[0].idx);
+          micRemaining.delete(candidateScores[0].idx);
+        } else {
+          break;
+        }
+        
+        slotNumber++;
       }
       
       selected.push(...micSelected);
@@ -831,7 +945,10 @@ function cullIRs(
   keep.sort((a, b) => b.diversityContribution - a.diversityContribution);
   cut.sort((a, b) => b.similarity - a.similarity);
 
-  return { keep, cut };
+  return { 
+    result: { keep, cut, closeCallsResolved: closeCalls.length === 0 },
+    closeCalls 
+  };
 }
 
 export default function Analyzer() {
@@ -846,6 +963,15 @@ export default function Analyzer() {
     analyzerMode: mode,
     setAnalyzerMode: setMode
   } = useResults();
+  
+  // Section refs for navigation
+  const analyzeRef = useRef<HTMLDivElement>(null);
+  const redundancyRef = useRef<HTMLDivElement>(null);
+  const cullerRef = useRef<HTMLDivElement>(null);
+  
+  const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   
   // Single mode state
   const [file, setFile] = useState<File | null>(null);
@@ -866,6 +992,10 @@ export default function Analyzer() {
   const [targetCullCount, setTargetCullCount] = useState(10);
   const [cullCountInput, setCullCountInput] = useState("10"); // Text input for easier editing
   const [showCuller, setShowCuller] = useState(false);
+  
+  // Close call decisions state for interactive culling
+  const [cullCloseCalls, setCullCloseCalls] = useState<CullCloseCall[]>([]);
+  const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
   
   // Preference query state for subjective culling decisions
   interface CullPreference {
@@ -1341,18 +1471,25 @@ export default function Analyzer() {
       }));
     }
     
-    const result = cullIRs(irsToProcess, effectiveTarget);
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget);
     setCullResult(result);
+    setCullCloseCalls(closeCalls);
     setShowCuller(true);
     setShowPreferenceQuery(false);
+    
+    // If there are close calls, show them for user input
+    if (closeCalls.length > 0) {
+      setShowCloseCallQuery(true);
+    }
     
     if (showToast) {
       const excludedCount = validIRs.length - eligibleIRs.length;
       const excludeNote = excludedCount > 0 ? ` (${excludedCount} excluded from redundancy)` : '';
       const prefNote = Object.keys(selectedPreferences).length > 0 ? ' with your preferences' : '';
+      const closeCallNote = closeCalls.length > 0 ? ` (${closeCalls.length} close call${closeCalls.length > 1 ? 's' : ''} need your input)` : '';
       toast({ 
         title: `Culling complete`, 
-        description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs${excludeNote}${prefNote}` 
+        description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs${excludeNote}${prefNote}${closeCallNote}` 
       });
     }
   };
@@ -1629,8 +1766,8 @@ export default function Analyzer() {
 
             {/* Batch IR List */}
             {batchIRs.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-4" ref={analyzeRef}>
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h2 className="text-lg font-semibold flex items-center gap-2">
                     <Music4 className="w-5 h-5 text-primary" />
                     IRs to Analyze ({validBatchCount} ready)
@@ -1667,6 +1804,31 @@ export default function Analyzer() {
                       <Trash2 className="w-4 h-4" />
                       Clear all
                     </button>
+                    {/* Navigation buttons */}
+                    {showRedundancies && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(redundancyRef)}
+                        className="text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
+                        data-testid="button-goto-redundancy"
+                      >
+                        <Target className="w-4 h-4 mr-1" />
+                        Redundancy
+                      </Button>
+                    )}
+                    {showCuller && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(cullerRef)}
+                        className="text-purple-400 border-purple-400/30 hover:bg-purple-400/10"
+                        data-testid="button-goto-culler"
+                      >
+                        <Scissors className="w-4 h-4 mr-1" />
+                        Culler
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -2071,6 +2233,7 @@ export default function Analyzer() {
             <AnimatePresence>
               {showRedundancies && (
                 <motion.div
+                  ref={redundancyRef}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -2090,6 +2253,29 @@ export default function Analyzer() {
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
+                      {/* Navigation buttons */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(analyzeRef)}
+                        className="text-primary border-primary/30 hover:bg-primary/10"
+                        data-testid="button-goto-analyze-from-redundancy"
+                      >
+                        <ChevronUp className="w-4 h-4 mr-1" />
+                        Analyze
+                      </Button>
+                      {showCuller && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => scrollToSection(cullerRef)}
+                          className="text-purple-400 border-purple-400/30 hover:bg-purple-400/10"
+                          data-testid="button-goto-culler-from-redundancy"
+                        >
+                          <Scissors className="w-4 h-4 mr-1" />
+                          Culler
+                        </Button>
+                      )}
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Threshold:</span>
                         <button
@@ -2379,6 +2565,7 @@ export default function Analyzer() {
             <AnimatePresence>
               {showCuller && (
                 <motion.div
+                  ref={cullerRef}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -2390,13 +2577,38 @@ export default function Analyzer() {
                       <Scissors className="w-5 h-5 text-purple-400" />
                       <h3 className="text-lg font-semibold">IR Culler</h3>
                     </div>
-                    <button
-                      onClick={() => setShowCuller(false)}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                      data-testid="button-close-culler"
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Navigation buttons */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(analyzeRef)}
+                        className="text-primary border-primary/30 hover:bg-primary/10"
+                        data-testid="button-goto-analyze-from-culler"
+                      >
+                        <ChevronUp className="w-4 h-4 mr-1" />
+                        Analyze
+                      </Button>
+                      {showRedundancies && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => scrollToSection(redundancyRef)}
+                          className="text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
+                          data-testid="button-goto-redundancy-from-culler"
+                        >
+                          <Target className="w-4 h-4 mr-1" />
+                          Redundancy
+                        </Button>
+                      )}
+                      <button
+                        onClick={() => setShowCuller(false)}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        data-testid="button-close-culler"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                   
                   <p className="text-sm text-muted-foreground">
