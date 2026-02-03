@@ -129,20 +129,22 @@ function parseFilename(filename: string): ParsedFilename {
         break;
       }
     }
-    // Handle aliases: "balanced" -> "balance", "ribbondom"/"ribbon-dom" -> "ribbon_dom"
+    // Handle aliases: "balanced" -> "balance", "combo"/"ribbondom" -> "ribbon_dom"
     let blendLabelInFilename: string | null = null;
     if (!result.blendLabel && (parts.includes('balanced') || fullName.includes('balanced'))) {
       result.blendLabel = 'balance';
       blendLabelInFilename = 'balanced';
     }
-    if (!result.blendLabel && (parts.includes('ribbondom') || fullName.includes('ribbondom') || 
+    // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
+    if (!result.blendLabel && (parts.includes('combo') || fullName.includes('combo') ||
+        parts.includes('ribbondom') || fullName.includes('ribbondom') || 
         parts.some(p => p === 'ribbon' && parts.includes('dom')))) {
       result.blendLabel = 'ribbon_dom';
-      blendLabelInFilename = 'ribbondom';
+      blendLabelInFilename = parts.includes('combo') ? 'combo' : 'ribbondom';
     }
-    // If no blend label found, default to 'thick' (50:50)
+    // If no blend label found, default to 'balance' (60:40)
     if (!result.blendLabel) {
-      result.blendLabel = 'thick';
+      result.blendLabel = 'balance';
     }
     // Track what was actually in the filename for index lookup
     if (!blendLabelInFilename) {
