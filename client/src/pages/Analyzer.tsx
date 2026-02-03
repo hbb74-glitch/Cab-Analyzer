@@ -123,30 +123,32 @@ function parseFilename(filename: string): ParsedFilename {
   if (hasSM57 && hasR121) {
     result.isComboIR = true;
     // Detect blend label (support "balanced" as alias for "balance")
+    let blendLabelInFilename: string | null = null;
     for (const label of COMBO_BLEND_LABELS) {
-      if (parts.includes(label) || fullName.includes(label)) {
+      const foundIdx = parts.findIndex(p => p === label);
+      if (foundIdx !== -1) {
         result.blendLabel = label;
+        blendLabelInFilename = label;
         break;
       }
     }
     // Handle aliases: "balanced" -> "balance", "combo"/"ribbondom" -> "ribbon_dom"
-    let blendLabelInFilename: string | null = null;
-    if (!result.blendLabel && (parts.includes('balanced') || fullName.includes('balanced'))) {
-      result.blendLabel = 'balance';
-      blendLabelInFilename = 'balanced';
+    if (!result.blendLabel) {
+      const balancedIdx = parts.findIndex(p => p === 'balanced');
+      if (balancedIdx !== -1) {
+        result.blendLabel = 'balance';
+        blendLabelInFilename = 'balanced';
+      }
     }
     // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
-    if (!result.blendLabel && (parts.includes('combo') || fullName.includes('combo') ||
-        parts.includes('ribbondom') || fullName.includes('ribbondom') || 
-        parts.some(p => p === 'ribbon' && parts.includes('dom')))) {
-      result.blendLabel = 'ribbon_dom';
-      blendLabelInFilename = parts.includes('combo') ? 'combo' : 'ribbondom';
+    if (!result.blendLabel) {
+      const comboIdx = parts.findIndex(p => p === 'combo' || p === 'ribbondom');
+      if (comboIdx !== -1) {
+        result.blendLabel = 'ribbon_dom';
+        blendLabelInFilename = parts[comboIdx];
+      }
     }
     // All combo IRs must be labeled - no default
-    // Track what was actually in the filename for index lookup
-    if (!blendLabelInFilename && result.blendLabel) {
-      blendLabelInFilename = result.blendLabel;
-    }
     // Format: Speaker_SM57_R121_BlendLabel_ShotVariant_R121Height
     // e.g., Cab_SM57_R121_Balanced_A_6in
     const blendIndex = blendLabelInFilename ? parts.indexOf(blendLabelInFilename) : -1;
@@ -604,10 +606,49 @@ function cullIRs(
   const keep: CullResult['keep'] = [];
   const cut: CullResult['cut'] = [];
 
+  // Parse additional info from filenames for better descriptions
+  const getDistance = (filename: string): string | null => {
+    const match = filename.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/i);
+    return match ? match[1] : null;
+  };
+  
+  const getBlendLabel = (filename: string): string | null => {
+    const lower = filename.toLowerCase();
+    if (lower.includes('tight')) return 'tight';
+    if (lower.includes('balanced') || lower.includes('balance')) return 'balance';
+    if (lower.includes('thick')) return 'thick';
+    if (lower.includes('smooth')) return 'smooth';
+    if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('combo')) return 'ribbon_dom';
+    return null;
+  };
+
+  const isComboIR = (filename: string): boolean => {
+    const lower = filename.toLowerCase();
+    return (lower.includes('sm57') || lower.includes('57')) && (lower.includes('r121') || lower.includes('121'));
+  };
+
+  // Calculate brightness ranking for all IRs
+  const centroidRanking = irs.map((ir, idx) => ({ idx, centroid: ir.metrics.spectralCentroid }))
+    .sort((a, b) => b.centroid - a.centroid);
+  const getBrightnessLabel = (idx: number): string => {
+    const rank = centroidRanking.findIndex(r => r.idx === idx);
+    const total = centroidRanking.length;
+    const percentile = rank / total;
+    if (percentile <= 0.2) return 'brightest';
+    if (percentile <= 0.4) return 'bright';
+    if (percentile <= 0.6) return 'mid-bright';
+    if (percentile <= 0.8) return 'dark';
+    return 'darkest';
+  };
+
   for (const idx of selected) {
     const ir = irs[idx];
     const mic = getMicType(ir.filename);
     const pos = getPosition(ir.filename);
+    const dist = getDistance(ir.filename);
+    const blend = getBlendLabel(ir.filename);
+    const isCombo = isComboIR(ir.filename);
+    const brightness = getBrightnessLabel(idx);
     
     // Calculate this IR's diversity contribution
     let minSimToOthers = 1;
@@ -620,14 +661,35 @@ function cullIRs(
     
     let reason = "";
     if (idx === selected[0]) {
-      reason = "Highest quality IR - anchor for the collection";
-    } else if (mic !== 'unknown' || pos !== 'unknown') {
-      const parts = [];
-      if (mic !== 'unknown') parts.push(`${mic.toUpperCase()} character`);
-      if (pos !== 'unknown') parts.push(`${pos} position`);
-      reason = `Unique ${parts.join(' at ')}`;
+      reason = `Best capture (score ${ir.score || 85})`;
+      if (isCombo && blend) {
+        reason += ` — SM57+R121 ${blend} blend`;
+      } else if (mic !== 'unknown') {
+        reason += ` — ${mic.toUpperCase()}`;
+      }
+      if (pos !== 'unknown') reason += ` at ${pos}`;
     } else {
-      reason = "Adds spectral variety to the collection";
+      const parts: string[] = [];
+      
+      // Describe what makes this IR unique
+      if (isCombo && blend) {
+        parts.push(`SM57+R121 ${blend}`);
+      } else if (mic !== 'unknown') {
+        parts.push(mic.toUpperCase());
+      }
+      
+      if (pos !== 'unknown') {
+        parts.push(pos.replace(/_/g, ' '));
+      }
+      
+      if (dist) {
+        parts.push(`${dist}" distance`);
+      }
+      
+      // Add brightness context
+      parts.push(`${brightness} variant`);
+      
+      reason = parts.length > 0 ? parts.join(', ') : "Adds spectral variety";
     }
     
     keep.push({
@@ -640,6 +702,11 @@ function cullIRs(
 
   for (const idx of Array.from(remaining)) {
     const ir = irs[idx];
+    const mic = getMicType(ir.filename);
+    const pos = getPosition(ir.filename);
+    const blend = getBlendLabel(ir.filename);
+    const isCombo = isComboIR(ir.filename);
+    const brightness = getBrightnessLabel(idx);
     
     // Find most similar to kept IRs
     let maxSim = 0;
@@ -651,11 +718,28 @@ function cullIRs(
       }
     }
     
-    const reason = maxSim >= 0.9 
-      ? `Very similar (${Math.round(maxSim * 100)}%) to kept IR`
-      : maxSim >= 0.8
-        ? `Similar (${Math.round(maxSim * 100)}%) to kept IR`
-        : "Less diverse than kept alternatives";
+    // Build descriptive reason
+    let irDesc = '';
+    if (isCombo && blend) {
+      irDesc = `SM57+R121 ${blend}`;
+    } else if (mic !== 'unknown') {
+      irDesc = mic.toUpperCase();
+    }
+    if (pos !== 'unknown') {
+      irDesc += irDesc ? ` at ${pos.replace(/_/g, ' ')}` : pos.replace(/_/g, ' ');
+    }
+    irDesc += ` (${brightness})`;
+    
+    let reason = '';
+    if (maxSim >= 0.95) {
+      reason = `Nearly identical (${Math.round(maxSim * 100)}%) to kept ${irDesc ? 'variant' : 'IR'}`;
+    } else if (maxSim >= 0.9) {
+      reason = `Very similar (${Math.round(maxSim * 100)}%) — ${irDesc || 'similar character'}`;
+    } else if (maxSim >= 0.8) {
+      reason = `Similar (${Math.round(maxSim * 100)}%) — ${irDesc || 'overlapping character'}`;
+    } else {
+      reason = `Lower priority — ${irDesc || 'less unique contribution'}`;
+    }
     
     cut.push({
       filename: ir.filename,
