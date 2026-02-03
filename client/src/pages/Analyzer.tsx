@@ -255,6 +255,14 @@ interface RedundantPair {
   recommendation: string;
 }
 
+// Clustered redundancy group - smarter than showing all pairs
+interface RedundancyGroup {
+  id: number;
+  members: { filename: string; centroid: number }[];
+  avgSimilarity: number;
+  selectedToKeep: string | null; // User's selection of which IR to keep
+}
+
 // Calculate Pearson correlation between two frequency arrays, normalized to [0, 1]
 function calculateFrequencyCorrelation(freq1: number[], freq2: number[]): number {
   if (freq1.length !== freq2.length || freq1.length === 0) return 0;
@@ -334,7 +342,111 @@ function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
   };
 }
 
-// Find all redundant pairs above threshold
+// Union-Find for clustering
+class UnionFind {
+  parent: number[];
+  rank: number[];
+  
+  constructor(n: number) {
+    this.parent = Array.from({ length: n }, (_, i) => i);
+    this.rank = Array(n).fill(0);
+  }
+  
+  find(x: number): number {
+    if (this.parent[x] !== x) {
+      this.parent[x] = this.find(this.parent[x]);
+    }
+    return this.parent[x];
+  }
+  
+  union(x: number, y: number): void {
+    const px = this.find(x);
+    const py = this.find(y);
+    if (px === py) return;
+    if (this.rank[px] < this.rank[py]) {
+      this.parent[px] = py;
+    } else if (this.rank[px] > this.rank[py]) {
+      this.parent[py] = px;
+    } else {
+      this.parent[py] = px;
+      this.rank[px]++;
+    }
+  }
+}
+
+// Find redundancy groups using clustering instead of listing all pairs
+function findRedundancyGroups(
+  irs: { filename: string; metrics: AudioMetrics }[],
+  threshold: number = 0.95
+): RedundancyGroup[] {
+  const n = irs.length;
+  if (n < 2) return [];
+  
+  // Build similarity matrix and union similar IRs
+  const uf = new UnionFind(n);
+  const similarities: Map<string, number> = new Map();
+  
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+      if (similarity >= threshold) {
+        uf.union(i, j);
+        similarities.set(`${i}-${j}`, similarity);
+      }
+    }
+  }
+  
+  // Group IRs by their cluster root
+  const clusters: Map<number, number[]> = new Map();
+  for (let i = 0; i < n; i++) {
+    const root = uf.find(i);
+    if (!clusters.has(root)) {
+      clusters.set(root, []);
+    }
+    clusters.get(root)!.push(i);
+  }
+  
+  // Convert clusters with 2+ members to RedundancyGroups
+  const groups: RedundancyGroup[] = [];
+  
+  const clusterEntries = Array.from(clusters.entries());
+  for (let c = 0; c < clusterEntries.length; c++) {
+    const memberIndices = clusterEntries[c][1];
+    if (memberIndices.length < 2) continue;
+    
+    // Calculate average similarity within the group
+    let totalSim = 0;
+    let pairCount = 0;
+    for (let i = 0; i < memberIndices.length; i++) {
+      for (let j = i + 1; j < memberIndices.length; j++) {
+        const key = `${Math.min(memberIndices[i], memberIndices[j])}-${Math.max(memberIndices[i], memberIndices[j])}`;
+        const sim = similarities.get(key);
+        if (sim !== undefined) {
+          totalSim += sim;
+          pairCount++;
+        }
+      }
+    }
+    
+    const members = memberIndices.map((idx: number) => ({
+      filename: irs[idx].filename,
+      centroid: irs[idx].metrics.spectralCentroid
+    })).sort((a: { centroid: number }, b: { centroid: number }) => b.centroid - a.centroid); // Sort brightest first
+    
+    const avgSimilarity = pairCount > 0 ? totalSim / pairCount : threshold;
+    
+    groups.push({
+      id: groups.length,
+      members,
+      avgSimilarity,
+      selectedToKeep: null // User selects which to keep
+    });
+  }
+  
+  return groups.sort((a, b) => b.members.length - a.members.length);
+}
+
+// Legacy function for compatibility - converts groups back to pairs if needed
 function findRedundantPairs(
   irs: { filename: string; metrics: AudioMetrics }[],
   threshold: number = 0.95
@@ -346,7 +458,6 @@ function findRedundantPairs(
       const { similarity, details } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
       
       if (similarity >= threshold) {
-        // Determine which to recommend removing (prefer removing darker/brighter variants)
         const centroidDiff = irs[i].metrics.spectralCentroid - irs[j].metrics.spectralCentroid;
         const recommendation = Math.abs(centroidDiff) < 50 
           ? `Either "${irs[i].filename}" or "${irs[j].filename}" can be removed`
@@ -583,9 +694,9 @@ export default function Analyzer() {
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
   const [copied, setCopied] = useState(false);
   
-  // Redundancy detection state
+  // Redundancy detection state - using groups instead of pairs for cleaner display
   // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)
-  const [redundantPairs, setRedundantPairs] = useState<RedundantPair[]>([]);
+  const [redundancyGroups, setRedundancyGroups] = useState<RedundancyGroup[]>([]);
   const [similarityThreshold, setSimilarityThreshold] = useState(0.95);
   const [showRedundancies, setShowRedundancies] = useState(false);
   
@@ -644,7 +755,7 @@ export default function Analyzer() {
     setBatchIRs(newIRs);
     setBatchResult(null);
     // Clear redundancy results when new files are uploaded
-    setRedundantPairs([]);
+    setRedundancyGroups([]);
     setShowRedundancies(false);
 
     for (let i = 0; i < wavFiles.length; i++) {
@@ -694,13 +805,13 @@ export default function Analyzer() {
   const clearBatch = () => {
     setBatchIRs([]);
     setBatchResult(null);
-    setRedundantPairs([]);
+    setRedundancyGroups([]);
     setShowRedundancies(false);
     setCullResult(null);
     setShowCuller(false);
   };
   
-  // Find redundant IR pairs
+  // Find redundancy groups (clustered)
   const handleFindRedundancies = () => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
     if (validIRs.length < 2) {
@@ -713,17 +824,42 @@ export default function Analyzer() {
       metrics: ir.metrics!
     }));
     
-    const pairs = findRedundantPairs(irsWithMetrics, similarityThreshold);
-    setRedundantPairs(pairs);
+    const groups = findRedundancyGroups(irsWithMetrics, similarityThreshold);
+    setRedundancyGroups(groups);
     setShowRedundancies(true);
     
-    if (pairs.length === 0) {
-      toast({ title: "No redundancies found", description: `No IR pairs exceeded ${Math.round(similarityThreshold * 100)}% similarity threshold` });
+    if (groups.length === 0) {
+      toast({ title: "No redundancies found", description: `No IR groups exceeded ${Math.round(similarityThreshold * 100)}% similarity threshold` });
     } else {
-      toast({ title: `Found ${pairs.length} redundant pair${pairs.length > 1 ? 's' : ''}`, description: "Review below to identify removable IRs" });
+      const totalRedundant = groups.reduce((sum, g) => sum + g.members.length, 0);
+      toast({ title: `Found ${groups.length} redundant group${groups.length > 1 ? 's' : ''}`, description: `${totalRedundant} IRs can be reduced - select which to keep` });
     }
   };
   
+  // Select which IR to keep from a redundancy group
+  const handleSelectToKeep = (groupId: number, filename: string) => {
+    setRedundancyGroups(prev => prev.map(group => 
+      group.id === groupId 
+        ? { ...group, selectedToKeep: group.selectedToKeep === filename ? null : filename }
+        : group
+    ));
+  };
+
+  // Get list of IRs to remove based on selections
+  const getIRsToRemove = (): string[] => {
+    const toRemove: string[] = [];
+    for (const group of redundancyGroups) {
+      if (group.selectedToKeep) {
+        for (const member of group.members) {
+          if (member.filename !== group.selectedToKeep) {
+            toRemove.push(member.filename);
+          }
+        }
+      }
+    }
+    return toRemove;
+  };
+
   // Cull IRs to target count
   const handleCullIRs = () => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
@@ -1473,9 +1609,9 @@ export default function Analyzer() {
                         Redundancy Analysis
                       </h2>
                       <p className="text-muted-foreground mt-1">
-                        {redundantPairs.length === 0 
-                          ? `No redundant pairs found at ${Math.round(similarityThreshold * 100)}% threshold`
-                          : `Found ${redundantPairs.length} similar IR pair${redundantPairs.length > 1 ? 's' : ''}`
+                        {redundancyGroups.length === 0 
+                          ? `No redundant groups found at ${Math.round(similarityThreshold * 100)}% threshold`
+                          : `Found ${redundancyGroups.length} group${redundancyGroups.length > 1 ? 's' : ''} of similar IRs (${redundancyGroups.reduce((sum, g) => sum + g.members.length, 0)} total)`
                         }
                       </p>
                     </div>
@@ -1511,80 +1647,86 @@ export default function Analyzer() {
                     </div>
                   </div>
 
-                  {redundantPairs.length > 0 ? (
-                    <div className="space-y-3">
-                      {redundantPairs.map((pair, index) => (
+                  {/* Summary of selections */}
+                  {redundancyGroups.length > 0 && getIRsToRemove().length > 0 && (
+                    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-sm">
+                      <span className="text-green-400 font-medium">
+                        {getIRsToRemove().length} IR{getIRsToRemove().length > 1 ? 's' : ''} marked for removal
+                      </span>
+                      <span className="text-muted-foreground ml-2">
+                        (keeping {redundancyGroups.filter(g => g.selectedToKeep).length} from {redundancyGroups.length} groups)
+                      </span>
+                    </div>
+                  )}
+
+                  {redundancyGroups.length > 0 ? (
+                    <div className="space-y-4">
+                      {redundancyGroups.map((group, index) => (
                         <motion.div
-                          key={index}
+                          key={group.id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.05 }}
                           className="p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 space-y-3"
-                          data-testid={`redundant-pair-${index}`}
+                          data-testid={`redundancy-group-${index}`}
                         >
-                          <div className="flex items-start justify-between gap-4 flex-wrap">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded text-xs font-bold",
-                                  pair.similarity >= 0.98 ? "bg-red-500/30 text-red-300" :
-                                  pair.similarity >= 0.95 ? "bg-amber-500/30 text-amber-300" :
-                                  "bg-yellow-500/30 text-yellow-300"
-                                )}>
-                                  {Math.round(pair.similarity * 100)}% Similar
-                                </span>
-                                {pair.similarity >= 0.98 && (
-                                  <span className="text-xs text-red-400">Nearly Identical</span>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                <div className="p-2 rounded bg-black/20 font-mono text-xs truncate">
-                                  {pair.ir1}
-                                </div>
-                                <div className="p-2 rounded bg-black/20 font-mono text-xs truncate">
-                                  {pair.ir2}
-                                </div>
-                              </div>
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded text-xs font-bold",
+                                group.avgSimilarity >= 0.98 ? "bg-red-500/30 text-red-300" :
+                                group.avgSimilarity >= 0.95 ? "bg-amber-500/30 text-amber-300" :
+                                "bg-yellow-500/30 text-yellow-300"
+                              )}>
+                                {Math.round(group.avgSimilarity * 100)}% Similar
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                {group.members.length} IRs in group
+                              </span>
+                              {group.avgSimilarity >= 0.98 && (
+                                <span className="text-xs text-red-400">Nearly Identical</span>
+                              )}
                             </div>
+                            {group.selectedToKeep && (
+                              <span className="text-xs text-green-400">
+                                Keeping: {group.selectedToKeep.replace(/\.wav$/i, '')}
+                              </span>
+                            )}
                           </div>
                           
-                          {/* Similarity breakdown */}
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div className="text-center p-2 rounded bg-black/20">
-                              <div className="text-muted-foreground mb-1">Frequency Curve</div>
-                              <div className={cn(
-                                "font-bold",
-                                pair.details.frequencyCorrelation >= 0.95 ? "text-red-400" :
-                                pair.details.frequencyCorrelation >= 0.9 ? "text-amber-400" : "text-green-400"
-                              )}>
-                                {Math.round(pair.details.frequencyCorrelation * 100)}%
-                              </div>
-                            </div>
-                            <div className="text-center p-2 rounded bg-black/20">
-                              <div className="text-muted-foreground mb-1">Brightness</div>
-                              <div className={cn(
-                                "font-bold",
-                                pair.details.centroidProximity >= 0.95 ? "text-red-400" :
-                                pair.details.centroidProximity >= 0.9 ? "text-amber-400" : "text-green-400"
-                              )}>
-                                {Math.round(pair.details.centroidProximity * 100)}%
-                              </div>
-                            </div>
-                            <div className="text-center p-2 rounded bg-black/20">
-                              <div className="text-muted-foreground mb-1">Energy Balance</div>
-                              <div className={cn(
-                                "font-bold",
-                                pair.details.energyMatch >= 0.95 ? "text-red-400" :
-                                pair.details.energyMatch >= 0.9 ? "text-amber-400" : "text-green-400"
-                              )}>
-                                {Math.round(pair.details.energyMatch * 100)}%
-                              </div>
+                          {/* Selectable members - sorted by brightness */}
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Click to select which IR to keep (sorted brightest → darkest):
+                            </p>
+                            <div className="grid gap-1.5">
+                              {group.members.map((member, memberIdx) => (
+                                <button
+                                  key={member.filename}
+                                  onClick={() => handleSelectToKeep(group.id, member.filename)}
+                                  className={cn(
+                                    "p-2 rounded-lg text-left transition-all flex items-center justify-between gap-2",
+                                    group.selectedToKeep === member.filename
+                                      ? "bg-green-500/20 border border-green-500/50 text-green-300"
+                                      : group.selectedToKeep
+                                        ? "bg-red-500/10 border border-red-500/20 text-red-300/70 line-through"
+                                        : "bg-black/20 border border-white/10 hover:border-amber-500/30 text-foreground"
+                                  )}
+                                  data-testid={`select-ir-${group.id}-${memberIdx}`}
+                                >
+                                  <span className="font-mono text-xs truncate flex-1">
+                                    {member.filename}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                    {Math.round(member.centroid)} Hz
+                                  </span>
+                                  {group.selectedToKeep === member.filename && (
+                                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                          
-                          <p className="text-xs text-muted-foreground italic">
-                            {pair.recommendation}
-                          </p>
                         </motion.div>
                       ))}
                     </div>
@@ -1592,7 +1734,7 @@ export default function Analyzer() {
                     <div className="text-center py-8 text-muted-foreground">
                       <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
                       <p>No redundant IRs detected at the current threshold.</p>
-                      <p className="text-xs mt-2">Try lowering the threshold to find more similar pairs.</p>
+                      <p className="text-xs mt-2">Try lowering the threshold to find more similar groups.</p>
                     </div>
                   )}
                 </motion.div>
