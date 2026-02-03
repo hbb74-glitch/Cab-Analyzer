@@ -241,11 +241,13 @@ export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number
   'sm7b': { min: 69, max: 75, avg: 72, description: 'Smooth, thick dynamic' },
   'c414': { min: 68, max: 76, avg: 72, description: 'Condenser, detailed response' },
   'roswell': { min: 65, max: 76, avg: 71, description: 'Roswell Cab Mic, variable by position' },
-  'sm57_r121_combo': { min: 68, max: 76, avg: 72, description: 'Blend smooths out individual mic peaks' },
-  'sm57_r121_tight': { min: 67, max: 76, avg: 72, description: '60:40 blend, slightly more dynamic character' },
-  'sm57_r121_balance': { min: 68, max: 76, avg: 72, description: '55:45 blend' },
-  'sm57_r121_thick': { min: 68, max: 76, avg: 72, description: '50:50 blend, full and thick' },
-  'sm57_r121_smooth': { min: 69, max: 77, avg: 73, description: '48:52 blend, more ribbon smoothness' },
+  // Combo IR smoothness - empirically calibrated from V30 combo IRs (typically 60-66 range)
+  // Blends don't inherently smooth the response; they combine two mic characteristics
+  'sm57_r121_combo': { min: 58, max: 68, avg: 63, description: 'SM57+R121 blend, typical combo range' },
+  'sm57_r121_tight': { min: 58, max: 68, avg: 63, description: '60:40 blend, SM57-forward character' },
+  'sm57_r121_balance': { min: 60, max: 68, avg: 64, description: '55:45 blend, balanced characteristics' },
+  'sm57_r121_thick': { min: 58, max: 68, avg: 63, description: '50:50 blend, full and thick' },
+  'sm57_r121_smooth': { min: 60, max: 68, avg: 64, description: '48:52 blend, R121-forward character' },
 };
 
 // Default baseline for unknown mics
