@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1068,6 +1068,18 @@ export default function Analyzer() {
   const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
   const [cullUserOverrides, setCullUserOverrides] = useState<Map<string, string[]>>(new Map());
   
+  // Smart Thin state - auto-detect over-represented groups and suggest keeping bright/mid/dark
+  interface SmartThinGroup {
+    groupKey: string; // e.g., "roswell_cap" or "sm57_r121_a_tight"
+    displayName: string;
+    members: { filename: string; centroid: number; label: 'bright' | 'mid' | 'dark' | 'extra' }[];
+    suggested: string[]; // Filenames to keep (bright, mid, dark)
+    extras: string[]; // Filenames that could be cut
+  }
+  const [smartThinGroups, setSmartThinGroups] = useState<SmartThinGroup[]>([]);
+  const [smartThinExclusions, setSmartThinExclusions] = useState<Set<string>>(new Set()); // User-confirmed exclusions
+  const [showSmartThin, setShowSmartThin] = useState(false);
+  
   // Preference query state for subjective culling decisions
   interface CullPreference {
     type: 'brightness' | 'midrange';
@@ -1482,13 +1494,178 @@ export default function Analyzer() {
     });
   };
   
+  // Smart Thin: detect over-represented groups and suggest keeping bright/mid/dark
+  const detectSmartThinGroups = (irs: { filename: string; metrics: AudioMetrics }[]): SmartThinGroup[] => {
+    const groups: SmartThinGroup[] = [];
+    
+    // Helper functions
+    const getMic = (filename: string): string => {
+      const lower = filename.toLowerCase();
+      const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+      for (const mic of mics) {
+        if (lower.includes(mic)) return mic;
+      }
+      return 'unknown';
+    };
+    
+    const getPos = (filename: string): string => {
+      const lower = filename.toLowerCase();
+      if (lower.includes('cone_tr') || lower.includes('conetr')) return 'cone_tr';
+      if (lower.includes('capedge_br') || lower.includes('capedgebr')) return 'capedge_br';
+      if (lower.includes('capedge_dk') || lower.includes('capedgedk')) return 'capedge_dk';
+      if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
+      if (lower.includes('cap_offcenter') || lower.includes('offcenter')) return 'cap_offcenter';
+      if (lower.includes('cap')) return 'cap';
+      if (lower.includes('cone')) return 'cone';
+      return 'unknown';
+    };
+    
+    // Detect if this is a combo IR (e.g., sm57_r121)
+    const isCombo = (filename: string): boolean => {
+      const lower = filename.toLowerCase();
+      const mics = ['sm57', 'r121', 'm160', 'md421', 'pr30', 'e906', 'm201', 'c414', 'r92', 'roswell'];
+      let micCount = 0;
+      for (const mic of mics) {
+        if (lower.includes(mic)) micCount++;
+      }
+      return micCount >= 2;
+    };
+    
+    // Get combo position variant (A, B, C, etc.)
+    const getComboVariant = (filename: string): string => {
+      const match = filename.match(/_([abc])_/i);
+      return match ? match[1].toUpperCase() : 'default';
+    };
+    
+    // Get voicing for combos (tight, thick, balanced, etc.)
+    const getVoicing = (filename: string): string => {
+      const lower = filename.toLowerCase();
+      if (lower.includes('tight')) return 'tight';
+      if (lower.includes('thick')) return 'thick';
+      if (lower.includes('balanced') || lower.includes('bal')) return 'balanced';
+      if (lower.includes('warm')) return 'warm';
+      if (lower.includes('bright')) return 'bright';
+      return 'default';
+    };
+    
+    // Group IRs by key
+    const groupMap = new Map<string, typeof irs>();
+    
+    for (const ir of irs) {
+      let groupKey: string;
+      let displayName: string;
+      
+      if (isCombo(ir.filename)) {
+        // Combo: group by mic combo + position variant + voicing
+        const mic = getMic(ir.filename);
+        const variant = getComboVariant(ir.filename);
+        const voicing = getVoicing(ir.filename);
+        groupKey = `combo_${mic}_${variant}_${voicing}`;
+        displayName = `${mic.toUpperCase()} Combo (${variant}${voicing !== 'default' ? `, ${voicing}` : ''})`;
+      } else {
+        // Single mic: group by mic + position
+        const mic = getMic(ir.filename);
+        const pos = getPos(ir.filename);
+        groupKey = `${mic}_${pos}`;
+        displayName = `${mic.toUpperCase()} @ ${pos.replace(/_/g, ' ')}`;
+      }
+      
+      if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
+      groupMap.get(groupKey)!.push(ir);
+    }
+    
+    // Find groups with 4+ members (over-represented)
+    for (const [key, members] of Array.from(groupMap.entries())) {
+      if (members.length >= 4) {
+        // Sort by spectral centroid (brightness)
+        const sorted = [...members].sort((a, b) => b.metrics.spectralCentroid - a.metrics.spectralCentroid);
+        
+        // Pick brightest, mid, darkest
+        const brightIdx = 0;
+        const darkIdx = sorted.length - 1;
+        const midIdx = Math.floor(sorted.length / 2);
+        
+        const suggested = [
+          sorted[brightIdx].filename,
+          sorted[midIdx].filename,
+          sorted[darkIdx].filename
+        ].filter((v, i, arr) => arr.indexOf(v) === i); // Dedupe if small group
+        
+        const suggestedSet = new Set(suggested);
+        const extras = sorted.filter(ir => !suggestedSet.has(ir.filename)).map(ir => ir.filename);
+        
+        const labeledMembers = sorted.map((ir, idx) => {
+          let label: 'bright' | 'mid' | 'dark' | 'extra' = 'extra';
+          if (idx === brightIdx) label = 'bright';
+          else if (idx === darkIdx) label = 'dark';
+          else if (idx === midIdx) label = 'mid';
+          return { filename: ir.filename, centroid: Math.round(ir.metrics.spectralCentroid), label };
+        });
+        
+        groups.push({
+          groupKey: key,
+          displayName: members[0].filename.includes('_') ? 
+            key.replace(/_/g, ' ').replace('combo ', '') : key,
+          members: labeledMembers,
+          suggested,
+          extras
+        });
+      }
+    }
+    
+    return groups;
+  };
+  
+  // Handle smart thin detection
+  const handleDetectSmartThin = () => {
+    const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
+    if (validIRs.length < 4) {
+      toast({ title: "Not enough IRs", description: "Need at least 4 IRs to detect over-represented groups", variant: "destructive" });
+      return;
+    }
+    
+    const irsWithMetrics = validIRs.map(ir => ({
+      filename: ir.file.name,
+      metrics: ir.metrics!
+    }));
+    
+    const groups = detectSmartThinGroups(irsWithMetrics);
+    
+    if (groups.length === 0) {
+      toast({ title: "No over-represented groups", description: "Your collection is already well-balanced!" });
+      return;
+    }
+    
+    setSmartThinGroups(groups);
+    setShowSmartThin(true);
+    
+    const totalExtras = groups.reduce((sum, g) => sum + g.extras.length, 0);
+    toast({ 
+      title: `Found ${groups.length} over-represented group${groups.length > 1 ? 's' : ''}`,
+      description: `${totalExtras} IRs could be thinned to keep bright/mid/dark variants`
+    });
+  };
+  
+  // Apply smart thin exclusions
+  const applySmartThinExclusions = () => {
+    const allExtras = smartThinGroups.flatMap(g => g.extras);
+    setSmartThinExclusions(new Set(allExtras));
+    setShowSmartThin(false);
+    toast({ 
+      title: "Exclusions applied", 
+      description: `${allExtras.length} IRs marked for exclusion. Run cull to see results.` 
+    });
+  };
+  
   // Cull IRs to target count
   const handleCullIRs = (showToast = true, skipPreferenceCheck = false, overridesOverride?: Map<string, string[]>) => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
     
     // Exclude IRs that are marked for removal from redundancy groups
     const irsToRemove = new Set(getIRsToRemove());
-    const eligibleIRs = validIRs.filter(ir => !irsToRemove.has(ir.file.name));
+    const eligibleIRs = validIRs.filter(ir => 
+      !irsToRemove.has(ir.file.name) && !smartThinExclusions.has(ir.file.name)
+    );
     
     if (eligibleIRs.length < 2) {
       if (showToast) {
@@ -2033,6 +2210,21 @@ export default function Analyzer() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={handleDetectSmartThin}
+                        disabled={validBatchCount < 4 || analyzingBatchCount > 0}
+                        className={cn(
+                          "py-2 px-3 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                          validBatchCount >= 4 && analyzingBatchCount === 0
+                            ? "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/30"
+                            : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                        )}
+                        title="Auto-detect over-represented groups and suggest keeping bright/mid/dark variants"
+                        data-testid="button-smart-thin"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Smart Thin
+                      </button>
+                      <button
                         onClick={() => handleCullIRs()}
                         disabled={validBatchCount < 2 || analyzingBatchCount > 0 || targetCullCount >= validBatchCount}
                         className={cn(
@@ -2560,6 +2752,110 @@ export default function Analyzer() {
                       <p>No redundant IRs detected at the current threshold.</p>
                       <p className="text-xs mt-2">Try lowering the threshold to find more similar groups.</p>
                     </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Smart Thin Panel */}
+            <AnimatePresence>
+              {showSmartThin && smartThinGroups.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-4"
+                  data-testid="panel-smart-thin"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Zap className="w-5 h-5 text-cyan-400" />
+                      <h3 className="text-lg font-semibold">Smart Thin Suggestions</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowSmartThin(false)}
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid="button-close-smart-thin"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Found {smartThinGroups.length} over-represented group{smartThinGroups.length > 1 ? 's' : ''}. 
+                    Keep the <span className="text-green-400">brightest</span>, <span className="text-yellow-400">mid</span>, and <span className="text-blue-400">darkest</span> variant of each:
+                  </p>
+                  
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {smartThinGroups.map((group) => (
+                      <div key={group.groupKey} className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <h4 className="font-medium text-cyan-300 mb-2">{group.displayName}</h4>
+                        <div className="grid gap-1.5">
+                          {group.members.map((m) => (
+                            <div 
+                              key={m.filename}
+                              className={cn(
+                                "flex items-center justify-between px-3 py-1.5 rounded text-sm",
+                                m.label === 'bright' && "bg-green-500/10 border border-green-500/20",
+                                m.label === 'mid' && "bg-yellow-500/10 border border-yellow-500/20",
+                                m.label === 'dark' && "bg-blue-500/10 border border-blue-500/20",
+                                m.label === 'extra' && "bg-red-500/5 border border-red-500/10 opacity-60"
+                              )}
+                            >
+                              <span className={cn(
+                                "font-mono text-xs truncate max-w-[70%]",
+                                m.label === 'bright' && "text-green-300",
+                                m.label === 'mid' && "text-yellow-300",
+                                m.label === 'dark' && "text-blue-300",
+                                m.label === 'extra' && "text-red-300 line-through"
+                              )}>
+                                {m.filename}
+                              </span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-muted-foreground">{m.centroid} Hz</span>
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded text-[10px] uppercase font-medium",
+                                  m.label === 'bright' && "bg-green-500/20 text-green-400",
+                                  m.label === 'mid' && "bg-yellow-500/20 text-yellow-400",
+                                  m.label === 'dark' && "bg-blue-500/20 text-blue-400",
+                                  m.label === 'extra' && "bg-red-500/20 text-red-400"
+                                )}>
+                                  {m.label === 'extra' ? 'cut' : m.label}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="default"
+                      onClick={applySmartThinExclusions}
+                      className="flex-1 bg-cyan-600 hover:bg-cyan-700"
+                      data-testid="button-apply-smart-thin"
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Apply ({smartThinGroups.reduce((sum, g) => sum + g.extras.length, 0)} IRs to exclude)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSmartThinExclusions(new Set());
+                        setShowSmartThin(false);
+                      }}
+                      data-testid="button-cancel-smart-thin"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  
+                  {smartThinExclusions.size > 0 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      {smartThinExclusions.size} IRs currently excluded. Run Cull to apply.
+                    </p>
                   )}
                 </motion.div>
               )}
