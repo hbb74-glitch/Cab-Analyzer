@@ -758,10 +758,9 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
       mic = 'sm57_r121_thick';
     } else if (lower.includes('smooth')) {
       mic = 'sm57_r121_smooth';
-    } else if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('ribbon-dom')) {
+    } else if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('ribbon-dom') || lower.includes('combo')) {
+      // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
       mic = 'sm57_r121_ribbon_dom';
-    } else if (lower.includes('combo')) {
-      mic = 'sm57_r121_combo';
     } else {
       // Default to thick (50/50) for unlabeled combos
       mic = 'sm57_r121_thick';

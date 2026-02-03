@@ -15,7 +15,6 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'sm7b': { min: 1700, max: 2400, description: 'Smooth, thick dynamic' },
   'c414': { min: 2600, max: 3600, description: 'Condenser, detailed highs' },
   'roswell': { min: 1400, max: 2400, description: 'Roswell Cab Mic - warm condenser, wider range to accommodate consistent output across speakers' },
-  'sm57_r121_combo': { min: 1850, max: 2600, description: 'SM57+R121 blend (50/50), balanced bright/warm character' },
   // SM57+R121 blend variants based on refined ratios
   'sm57_r121_tight': { min: 2100, max: 2850, description: 'SM57+R121 67:33 - modern/tight, keeps bite and attack' },
   'sm57_r121_balance': { min: 2000, max: 2750, description: 'SM57+R121 60:40 - default, best overall translation' },
@@ -72,10 +71,9 @@ function normalizeMicName(mic: string): string {
     if (lower.includes('balanced') || lower.includes('balance')) return 'sm57_r121_balance';
     if (lower.includes('thick')) return 'sm57_r121_thick';
     if (lower.includes('smooth')) return 'sm57_r121_smooth';
-    if (lower.includes('ribbon_dom') || lower.includes('ribbondom')) return 'sm57_r121_ribbon_dom';
-    // Generic combo (backward compatibility)
-    if (lower.includes('combo')) return 'sm57_r121_combo';
-    // Default to thick (50/50) for unlabeled combos
+    // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
+    if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('combo')) return 'sm57_r121_ribbon_dom';
+    // Default to balance for unlabeled SM57+R121 blends
     return 'sm57_r121_thick';
   }
   
@@ -246,8 +244,7 @@ export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number
   'roswell': { min: 65, max: 76, avg: 71, description: 'Roswell Cab Mic, variable by position' },
   // Combo IR smoothness - empirically calibrated from V30 combo IRs (typically 60-66 range)
   // Blends don't inherently smooth the response; they combine two mic characteristics
-  'sm57_r121_combo': { min: 58, max: 68, avg: 63, description: 'SM57+R121 blend, typical combo range' },
-  'sm57_r121_tight': { min: 58, max: 68, avg: 63, description: '60:40 blend, SM57-forward character' },
+  'sm57_r121_tight': { min: 58, max: 68, avg: 63, description: '67:33 blend, SM57-forward character' },
   'sm57_r121_balance': { min: 60, max: 68, avg: 64, description: '55:45 blend, balanced characteristics' },
   'sm57_r121_thick': { min: 58, max: 68, avg: 63, description: '51:49 blend, full and thick' },
   'sm57_r121_smooth': { min: 60, max: 70, avg: 65, description: '45:55 blend, R121-forward character' },
