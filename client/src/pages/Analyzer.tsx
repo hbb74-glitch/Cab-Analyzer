@@ -2136,16 +2136,18 @@ export default function Analyzer() {
                       Clear all
                     </button>
                     {/* Navigation buttons */}
-                    {showSmartThin && (
+                    {showSmartThin && smartThinGroups.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => scrollToSection(smartThinRef)}
-                        className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10"
+                        onClick={() => {
+                          smartThinRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                        className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10 animate-pulse"
                         data-testid="button-goto-smart-thin"
                       >
                         <Zap className="w-4 h-4 mr-1" />
-                        Smart Thin
+                        → Smart Thin ({smartThinGroups.length})
                       </Button>
                     )}
                     {showRedundancies && (
@@ -3097,16 +3099,18 @@ export default function Analyzer() {
                         <ChevronUp className="w-4 h-4 mr-1" />
                         Analyze
                       </Button>
-                      {showSmartThin && (
+                      {showSmartThin && smartThinGroups.length > 0 && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => scrollToSection(smartThinRef)}
-                          className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10"
+                          onClick={() => {
+                            smartThinRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }}
+                          className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10 animate-pulse"
                           data-testid="button-goto-smart-thin-from-culler"
                         >
                           <Zap className="w-4 h-4 mr-1" />
-                          Smart Thin
+                          → Smart Thin ({smartThinGroups.length})
                         </Button>
                       )}
                       {showRedundancies && (
