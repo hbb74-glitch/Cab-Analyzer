@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -819,7 +819,25 @@ export default function Analyzer() {
   // Culling state
   const [cullResult, setCullResult] = useState<CullResult | null>(null);
   const [targetCullCount, setTargetCullCount] = useState(10);
+  const [cullCountInput, setCullCountInput] = useState("10"); // Text input for easier editing
   const [showCuller, setShowCuller] = useState(false);
+  
+  // Sync cull count input with numeric state
+  const handleCullCountChange = (value: string) => {
+    setCullCountInput(value);
+    const num = parseInt(value);
+    if (!isNaN(num) && num >= 1) {
+      setTargetCullCount(num);
+    }
+  };
+  
+  const handleCullCountBlur = () => {
+    const num = parseInt(cullCountInput);
+    if (isNaN(num) || num < 1) {
+      setCullCountInput("1");
+      setTargetCullCount(1);
+    }
+  };
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -959,7 +977,17 @@ export default function Analyzer() {
         ? { ...group, selectedToKeep: group.selectedToKeep === filename ? null : filename }
         : group
     ));
+    // Auto-restart culling if cull results exist (will update after state change via useEffect)
   };
+  
+  // Auto-restart culling when redundancy selections change
+  const redundancySelectionsCount = redundancyGroups.filter(g => g.selectedToKeep).length;
+  useEffect(() => {
+    if (cullResult && redundancyGroups.length > 0) {
+      // Silently re-run culling to reflect new exclusions
+      handleCullIRs(false);
+    }
+  }, [redundancySelectionsCount]);
 
   // Get list of IRs to remove based on selections
   const getIRsToRemove = (): string[] => {
@@ -976,16 +1004,39 @@ export default function Analyzer() {
     return toRemove;
   };
 
+  // Get IRs already selected to keep from redundancy groups
+  const getIRsKeptFromRedundancy = (): Set<string> => {
+    const keptSet = new Set<string>();
+    for (const group of redundancyGroups) {
+      if (group.selectedToKeep) {
+        keptSet.add(group.selectedToKeep);
+      }
+    }
+    return keptSet;
+  };
+
   // Cull IRs to target count
-  const handleCullIRs = () => {
+  const handleCullIRs = (showToast = true) => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
-    if (validIRs.length < 2) {
-      toast({ title: "Need more IRs", description: "Upload at least 2 IRs to cull", variant: "destructive" });
+    
+    // Exclude IRs that are marked for removal from redundancy groups
+    const irsToRemove = new Set(getIRsToRemove());
+    const eligibleIRs = validIRs.filter(ir => !irsToRemove.has(ir.file.name));
+    
+    if (eligibleIRs.length < 2) {
+      if (showToast) {
+        toast({ title: "Need more IRs", description: "Upload at least 2 eligible IRs to cull", variant: "destructive" });
+      }
       return;
     }
     
-    if (targetCullCount >= validIRs.length) {
-      toast({ title: "Target too high", description: `You have ${validIRs.length} IRs. Set a target lower than that to cull.`, variant: "destructive" });
+    // Adjust target if redundancy selections reduced available pool
+    const effectiveTarget = Math.min(targetCullCount, eligibleIRs.length - 1);
+    
+    if (effectiveTarget >= eligibleIRs.length) {
+      if (showToast) {
+        toast({ title: "Target too high", description: `You have ${eligibleIRs.length} eligible IRs. Set a target lower than that to cull.`, variant: "destructive" });
+      }
       return;
     }
     
@@ -997,20 +1048,24 @@ export default function Analyzer() {
       }
     }
     
-    const irsWithMetrics = validIRs.map(ir => ({
+    const irsWithMetrics = eligibleIRs.map(ir => ({
       filename: ir.file.name,
       metrics: ir.metrics!,
       score: scoreMap.get(ir.file.name)
     }));
     
-    const result = cullIRs(irsWithMetrics, targetCullCount);
+    const result = cullIRs(irsWithMetrics, effectiveTarget);
     setCullResult(result);
     setShowCuller(true);
     
-    toast({ 
-      title: `Culling complete`, 
-      description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs` 
-    });
+    if (showToast) {
+      const excludedCount = validIRs.length - eligibleIRs.length;
+      const excludeNote = excludedCount > 0 ? ` (${excludedCount} excluded from redundancy)` : '';
+      toast({ 
+        title: `Culling complete`, 
+        description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs${excludeNote}` 
+      });
+    }
   };
 
   const copyBatchResults = () => {
@@ -1430,18 +1485,18 @@ export default function Analyzer() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Cull to:</span>
                       <input
-                        type="number"
-                        min={1}
-                        max={validBatchCount - 1}
-                        value={targetCullCount}
-                        onChange={(e) => setTargetCullCount(Math.max(1, parseInt(e.target.value) || 1))}
+                        type="text"
+                        inputMode="numeric"
+                        value={cullCountInput}
+                        onChange={(e) => handleCullCountChange(e.target.value)}
+                        onBlur={handleCullCountBlur}
                         className="w-16 px-2 py-1 rounded bg-black/30 border border-white/10 text-center text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                         data-testid="input-cull-target-inline"
                       />
                       <span className="text-sm text-muted-foreground">of {validBatchCount} IRs</span>
                     </div>
                     <button
-                      onClick={handleCullIRs}
+                      onClick={() => handleCullIRs()}
                       disabled={validBatchCount < 2 || analyzingBatchCount > 0 || targetCullCount >= validBatchCount}
                       className={cn(
                         "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
@@ -1955,11 +2010,11 @@ export default function Analyzer() {
                   <div className="flex items-center gap-4 flex-wrap">
                     <label className="text-sm font-medium">Target count:</label>
                     <input
-                      type="number"
-                      min={1}
-                      max={batchIRs.filter(ir => ir.metrics && !ir.error).length - 1}
-                      value={targetCullCount}
-                      onChange={(e) => setTargetCullCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      type="text"
+                      inputMode="numeric"
+                      value={cullCountInput}
+                      onChange={(e) => handleCullCountChange(e.target.value)}
+                      onBlur={handleCullCountBlur}
                       className="w-20 px-3 py-1.5 rounded-lg bg-black/30 border border-white/10 text-center text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                       data-testid="input-target-cull-count"
                     />
@@ -1967,7 +2022,7 @@ export default function Analyzer() {
                       of {batchIRs.filter(ir => ir.metrics && !ir.error).length} IRs
                     </span>
                     <button
-                      onClick={handleCullIRs}
+                      onClick={() => handleCullIRs()}
                       className="px-4 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-sm font-medium transition-all border border-purple-500/30"
                       data-testid="button-run-cull"
                     >
