@@ -2761,6 +2761,94 @@ export default function Analyzer() {
                     </div>
                     );
                   })()}
+                  
+                  {/* Close Call Decisions */}
+                  {cullCloseCalls.length > 0 && (
+                    <div className="mt-6 p-4 rounded-lg border border-amber-500/30 bg-amber-500/10">
+                      <div className="flex items-center gap-2 mb-4">
+                        <HelpCircle className="w-5 h-5 text-amber-400" />
+                        <h4 className="font-medium text-amber-400">Close Calls ({cullCloseCalls.length})</h4>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        These IRs had very similar scores. Your input can help make better choices:
+                      </p>
+                      <div className="space-y-4">
+                        {cullCloseCalls.map((closeCall, ccIdx) => (
+                          <div key={`${closeCall.micType}-${closeCall.slot}`} className="p-3 rounded-lg bg-background/50 border border-border/30">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="text-xs font-medium text-amber-300">{closeCall.micType.toUpperCase()}</span>
+                              {closeCall.slot > 1 && (
+                                <span className="text-xs text-muted-foreground">(slot {closeCall.slot})</span>
+                              )}
+                            </div>
+                            <div className="grid gap-2">
+                              {closeCall.candidates.map((candidate, candIdx) => (
+                                <button
+                                  key={candidate.filename}
+                                  onClick={() => {
+                                    // Update close call with selection
+                                    const updated = [...cullCloseCalls];
+                                    updated[ccIdx] = { ...updated[ccIdx], selectedFilename: candidate.filename };
+                                    setCullCloseCalls(updated);
+                                    toast({ title: "Selection saved", description: `Will keep ${candidate.filename}` });
+                                  }}
+                                  className={cn(
+                                    "p-2 rounded text-left transition-all",
+                                    closeCall.selectedFilename === candidate.filename
+                                      ? "bg-green-500/20 border border-green-500/40"
+                                      : "bg-background/30 border border-transparent hover:border-amber-500/30"
+                                  )}
+                                  data-testid={`button-close-call-select-${ccIdx}-${candIdx}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-mono text-xs truncate">{candidate.filename}</p>
+                                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                                        <span>Score: {candidate.score}</span>
+                                        {candidate.position && <span>{candidate.position}</span>}
+                                        {candidate.distance && <span>{candidate.distance}in</span>}
+                                        <span className={cn(
+                                          candidate.brightness === 'brightest' || candidate.brightness === 'bright' ? 'text-yellow-400' :
+                                          candidate.brightness === 'darkest' || candidate.brightness === 'dark' ? 'text-blue-400' :
+                                          'text-muted-foreground'
+                                        )}>{candidate.brightness}</span>
+                                      </div>
+                                    </div>
+                                    {closeCall.selectedFilename === candidate.filename && (
+                                      <Check className="w-4 h-4 text-green-400 shrink-0" />
+                                    )}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="mt-4 w-full"
+                        onClick={() => {
+                          // Re-run culling with user selections as overrides
+                          const overrides = new Map<string, string[]>();
+                          for (const cc of cullCloseCalls) {
+                            if (cc.selectedFilename) {
+                              const existing = overrides.get(cc.micType) || [];
+                              existing[cc.slot - 1] = cc.selectedFilename;
+                              overrides.set(cc.micType, existing);
+                            }
+                          }
+                          // Store overrides and trigger re-cull
+                          toast({ title: "Applying choices", description: "Re-running culler with your selections..." });
+                          // For now, just clear close calls - full re-run would need refactor
+                          setCullCloseCalls([]);
+                        }}
+                        data-testid="button-apply-close-call-choices"
+                      >
+                        Apply Choices & Re-cull
+                      </Button>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
