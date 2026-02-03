@@ -1037,6 +1037,7 @@ export default function Analyzer() {
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
   const redundancyRef = useRef<HTMLDivElement>(null);
+  const smartThinRef = useRef<HTMLDivElement>(null);
   const cullerRef = useRef<HTMLDivElement>(null);
   
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
@@ -2053,6 +2054,18 @@ export default function Analyzer() {
                       Clear all
                     </button>
                     {/* Navigation buttons */}
+                    {showSmartThin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(smartThinRef)}
+                        className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10"
+                        data-testid="button-goto-smart-thin"
+                      >
+                        <Zap className="w-4 h-4 mr-1" />
+                        Smart Thin
+                      </Button>
+                    )}
                     {showRedundancies && (
                       <Button
                         variant="outline"
@@ -2761,6 +2774,7 @@ export default function Analyzer() {
             <AnimatePresence>
               {showSmartThin && smartThinGroups.length > 0 && (
                 <motion.div
+                  ref={smartThinRef}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
@@ -2970,6 +2984,18 @@ export default function Analyzer() {
                         <ChevronUp className="w-4 h-4 mr-1" />
                         Analyze
                       </Button>
+                      {showSmartThin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => scrollToSection(smartThinRef)}
+                          className="text-cyan-400 border-cyan-400/30 hover:bg-cyan-400/10"
+                          data-testid="button-goto-smart-thin-from-culler"
+                        >
+                          <Zap className="w-4 h-4 mr-1" />
+                          Smart Thin
+                        </Button>
+                      )}
                       {showRedundancies && (
                         <Button
                           variant="outline"
