@@ -647,6 +647,22 @@ function cullIRs(
     return match ? match[1] : null;
   };
   
+  // Helper to get position category for close call grouping
+  // Only compare IRs within the same position family
+  const getPositionCategory = (position: string | null): string => {
+    if (!position) return 'unknown';
+    const pos = position.toLowerCase();
+    // Cap family: cap, cap_offcenter
+    if (pos === 'cap' || pos === 'cap_offcenter') return 'cap';
+    // CapEdge family: capedge, cap_cone_trn, capedge_br
+    if (pos.includes('capedge') || pos === 'cap_cone_trn') return 'capedge';
+    // Cone family: cone, cone_br
+    if (pos.includes('cone') && !pos.includes('cap')) return 'cone';
+    // Edge family
+    if (pos === 'edge') return 'edge';
+    return pos; // Default to exact position
+  };
+  
   // Helper to calculate brightness label
   const centroidRankingForCloseCall = irs.map((ir, idx) => ({ idx, centroid: ir.metrics.spectralCentroid }))
     .sort((a, b) => b.centroid - a.centroid);
@@ -679,16 +695,29 @@ function cullIRs(
     });
     
     if (slotsForMic === 1) {
-      // Check for close call: if top 2 scores are within 3 points
-      if (sortedByScore.length >= 2) {
-        const topScore = irs[sortedByScore[0]].score || 85;
-        const secondScore = irs[sortedByScore[1]].score || 85;
-        if (topScore - secondScore <= 3 && userChoices.length === 0) {
-          // Close call! Add for user input
+      // Check for close call: same position CATEGORY (Cap family, CapEdge family, etc), within 3 points
+      // This allows comparing Cap vs Cap Off-Center, or CapEdge vs CapEdge Cone Transition
+      // But NOT comparing Cap family to Cone family
+      if (sortedByScore.length >= 2 && userChoices.length === 0) {
+        const topIdx = sortedByScore[0];
+        const topScore = irs[topIdx].score || 85;
+        const topPosCategory = getPositionCategory(getPosition(irs[topIdx].filename));
+        
+        // Find close candidates in the same position category (e.g., Cap + Cap Off-Center)
+        const sameCategoryCloseOnes = sortedByScore.filter(idx => {
+          if (idx === topIdx) return false; // Exclude the top one initially
+          const posCategory = getPositionCategory(getPosition(irs[idx].filename));
+          const score = irs[idx].score || 85;
+          return posCategory === topPosCategory && topScore - score <= 3;
+        });
+        
+        // Only flag close call if there are alternatives in same category
+        if (sameCategoryCloseOnes.length >= 1) {
+          const allCandidates = [topIdx, ...sameCategoryCloseOnes];
           closeCalls.push({
             micType: mic,
             slot: 1,
-            candidates: sortedByScore.slice(0, Math.min(3, sortedByScore.length)).map(idx => ({
+            candidates: allCandidates.slice(0, 3).map(idx => ({
               filename: irs[idx].filename,
               score: irs[idx].score || 85,
               combinedScore: (irs[idx].score || 85) / 100,
@@ -741,17 +770,25 @@ function cullIRs(
         // Sort by combined score
         candidateScores.sort((a, b) => b.combinedScore - a.combinedScore);
         
-        // Check for close call: if top candidates are within threshold
+        // Check for close call: same position CATEGORY, within threshold
         if (candidateScores.length >= 2 && userChoices.length < slotNumber) {
+          const topIdx = candidateScores[0].idx;
           const topCombined = candidateScores[0].combinedScore;
-          const closeOnes = candidateScores.filter(c => topCombined - c.combinedScore <= CLOSE_CALL_THRESHOLD);
+          const topPosCategory = getPositionCategory(getPosition(irs[topIdx].filename));
           
-          if (closeOnes.length >= 2) {
-            // Close call! Add for user input
+          // Filter to same position category, within threshold
+          const sameCategoryCloseOnes = candidateScores.slice(1).filter(c => {
+            const posCategory = getPositionCategory(getPosition(irs[c.idx].filename));
+            return posCategory === topPosCategory && topCombined - c.combinedScore <= CLOSE_CALL_THRESHOLD;
+          });
+          
+          // Only flag if there are alternatives in same category
+          if (sameCategoryCloseOnes.length >= 1) {
+            const allCandidates = [candidateScores[0], ...sameCategoryCloseOnes];
             closeCalls.push({
               micType: mic,
               slot: slotNumber,
-              candidates: closeOnes.slice(0, 4).map(c => ({
+              candidates: allCandidates.slice(0, 4).map(c => ({
                 filename: irs[c.idx].filename,
                 score: irs[c.idx].score || 85,
                 combinedScore: c.combinedScore,
