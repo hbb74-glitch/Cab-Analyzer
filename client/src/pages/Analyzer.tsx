@@ -506,6 +506,7 @@ interface CullResult {
 }
 
 // Cull IRs to a target count, maximizing variety and quality
+// Uses per-mic-type selection: keeps best examples of each mic proportionally
 function cullIRs(
   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
   targetCount: number
@@ -522,22 +523,10 @@ function cullIRs(
     };
   }
 
-  // Build similarity matrix
-  const n = irs.length;
-  const similarityMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
-  
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
-      similarityMatrix[i][j] = similarity;
-      similarityMatrix[j][i] = similarity;
-    }
-  }
-
-  // Parse filenames for mic/position/speaker info to boost diversity
+  // Parse filenames for mic/position info
   const getMicType = (filename: string): string => {
     const lower = filename.toLowerCase();
-    const mics = ['sm57', 'r121', 'm160', 'md421', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
     for (const mic of mics) {
       if (lower.includes(mic)) return mic;
     }
@@ -556,84 +545,139 @@ function cullIRs(
     return 'unknown';
   };
 
-  // Greedy selection: prioritize diversity and quality
+  // Build similarity matrix for diversity consideration within each mic
+  const n = irs.length;
+  const similarityMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
+  
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+      similarityMatrix[i][j] = similarity;
+      similarityMatrix[j][i] = similarity;
+    }
+  }
+
+  // Group IRs by mic type
+  const micGroups = new Map<string, number[]>();
+  irs.forEach((ir, idx) => {
+    const mic = getMicType(ir.filename);
+    if (!micGroups.has(mic)) micGroups.set(mic, []);
+    micGroups.get(mic)!.push(idx);
+  });
+
+  // Calculate how many slots each mic type gets (proportional allocation)
+  const micTypes = Array.from(micGroups.keys());
+  const totalIRs = irs.length;
+  const micSlots = new Map<string, number>();
+  let allocatedSlots = 0;
+  
+  // First pass: proportional allocation (at least 1 per mic if possible)
+  for (const mic of micTypes) {
+    const micCount = micGroups.get(mic)!.length;
+    const proportion = micCount / totalIRs;
+    const slots = Math.max(1, Math.round(targetCount * proportion));
+    micSlots.set(mic, Math.min(slots, micCount)); // Can't keep more than exist
+    allocatedSlots += micSlots.get(mic)!;
+  }
+  
+  // Adjust if we over/under-allocated
+  while (allocatedSlots > targetCount) {
+    // Remove from mic with most slots that has more than 1
+    let maxMic = '';
+    let maxSlots = 0;
+    for (const [mic, slots] of Array.from(micSlots.entries())) {
+      if (slots > maxSlots && slots > 1) {
+        maxSlots = slots;
+        maxMic = mic;
+      }
+    }
+    if (maxMic) {
+      micSlots.set(maxMic, maxSlots - 1);
+      allocatedSlots--;
+    } else break;
+  }
+  
+  while (allocatedSlots < targetCount) {
+    // Add to mic with room to grow (has more IRs than slots)
+    let bestMic = '';
+    let bestRoom = 0;
+    for (const [mic, slots] of Array.from(micSlots.entries())) {
+      const available = micGroups.get(mic)!.length;
+      const room = available - slots;
+      if (room > bestRoom) {
+        bestRoom = room;
+        bestMic = mic;
+      }
+    }
+    if (bestMic && bestRoom > 0) {
+      micSlots.set(bestMic, micSlots.get(bestMic)! + 1);
+      allocatedSlots++;
+    } else break;
+  }
+
+  // Select best IRs from each mic group
+  // Primary: score, Secondary: diversity within the mic's selections
   const selected: number[] = [];
-  const remaining = new Set<number>(irs.map((_, i) => i));
-
-  // Start with highest quality IR
-  let bestIdx = 0;
-  let bestScore = irs[0].score || 85;
-  for (let i = 1; i < n; i++) {
-    const score = irs[i].score || 85;
-    if (score > bestScore) {
-      bestScore = score;
-      bestIdx = i;
+  
+  for (const [mic, indices] of Array.from(micGroups.entries())) {
+    const slotsForMic = micSlots.get(mic) || 1;
+    
+    // Sort by score (primary factor)
+    const sortedByScore = [...indices].sort((a, b) => {
+      const scoreA = irs[a].score || 85;
+      const scoreB = irs[b].score || 85;
+      return scoreB - scoreA; // Higher score first
+    });
+    
+    if (slotsForMic === 1) {
+      // Just take the best one
+      selected.push(sortedByScore[0]);
+    } else {
+      // Select multiple: start with best, then consider diversity
+      const micSelected: number[] = [sortedByScore[0]];
+      const micRemaining = new Set(sortedByScore.slice(1));
+      
+      while (micSelected.length < slotsForMic && micRemaining.size > 0) {
+        let bestCandidate = -1;
+        let bestCombinedScore = -Infinity;
+        
+        for (const candidateIdx of Array.from(micRemaining)) {
+          // Quality score (60% weight)
+          const qualityScore = ((irs[candidateIdx].score || 85) - 70) / 30;
+          
+          // Diversity from already selected within this mic (25% weight)
+          let minSim = 1;
+          for (const selIdx of micSelected) {
+            minSim = Math.min(minSim, similarityMatrix[candidateIdx][selIdx]);
+          }
+          const diversityScore = 1 - minSim;
+          
+          // Position variety bonus (15% weight)
+          const coveredPositions = new Set(micSelected.map(i => getPosition(irs[i].filename)));
+          const candidatePos = getPosition(irs[candidateIdx].filename);
+          const positionBonus = coveredPositions.has(candidatePos) ? 0 : 1;
+          
+          const combinedScore = (qualityScore * 0.6) + (diversityScore * 0.25) + (positionBonus * 0.15);
+          
+          if (combinedScore > bestCombinedScore) {
+            bestCombinedScore = combinedScore;
+            bestCandidate = candidateIdx;
+          }
+        }
+        
+        if (bestCandidate >= 0) {
+          micSelected.push(bestCandidate);
+          micRemaining.delete(bestCandidate);
+        } else break;
+      }
+      
+      selected.push(...micSelected);
     }
   }
-  selected.push(bestIdx);
-  remaining.delete(bestIdx);
 
-  // Select remaining IRs to maximize diversity
-  while (selected.length < targetCount && remaining.size > 0) {
-    let bestCandidate = -1;
-    let bestDiversityScore = -Infinity;
-
-    // Track which mic types and positions are already covered
-    const coveredMics = new Set(selected.map(i => getMicType(irs[i].filename)));
-    const coveredPositions = new Set(selected.map(i => getPosition(irs[i].filename)));
-
-    for (const candidateIdx of Array.from(remaining)) {
-      // Calculate minimum similarity to already selected (lower = more diverse)
-      let maxSimToSelected = 0;
-      for (const selectedIdx of selected) {
-        maxSimToSelected = Math.max(maxSimToSelected, similarityMatrix[candidateIdx][selectedIdx]);
-      }
-      
-      // Diversity score: inversely proportional to max similarity
-      let diversityScore = 1 - maxSimToSelected;
-      
-      // Bonus for new mic types
-      const candidateMic = getMicType(irs[candidateIdx].filename);
-      if (!coveredMics.has(candidateMic)) {
-        diversityScore += 0.15;
-      }
-      
-      // Bonus for new positions
-      const candidatePosition = getPosition(irs[candidateIdx].filename);
-      if (!coveredPositions.has(candidatePosition)) {
-        diversityScore += 0.1;
-      }
-      
-      // Bonus for quality score (primary quality factor)
-      const qualityBonus = ((irs[candidateIdx].score || 85) - 80) / 100;
-      diversityScore += qualityBonus * 0.15;
-      
-      // Bonus for smoothness (0-100, higher is better)
-      const smoothnessBonus = (irs[candidateIdx].metrics.frequencySmoothness - 50) / 200;
-      diversityScore += smoothnessBonus * 0.08;
-      
-      // Bonus for clean noise floor (more negative is better, typical range -60 to -30)
-      const noiseBonus = Math.max(0, (-irs[candidateIdx].metrics.noiseFloorDb - 40) / 100);
-      diversityScore += noiseBonus * 0.05;
-      
-      // Bonus for balanced energy distribution (low variance = more balanced)
-      const m = irs[candidateIdx].metrics;
-      const avgEnergy = (m.lowEnergy + m.midEnergy + m.highEnergy) / 3;
-      const energyVariance = Math.abs(m.lowEnergy - avgEnergy) + Math.abs(m.midEnergy - avgEnergy) + Math.abs(m.highEnergy - avgEnergy);
-      const balanceBonus = (1 - energyVariance) * 0.05;
-      diversityScore += balanceBonus;
-
-      if (diversityScore > bestDiversityScore) {
-        bestDiversityScore = diversityScore;
-        bestCandidate = candidateIdx;
-      }
-    }
-
-    if (bestCandidate >= 0) {
-      selected.push(bestCandidate);
-      remaining.delete(bestCandidate);
-    }
-  }
+  // Create set of remaining (not selected) indices
+  const selectedSet = new Set(selected);
+  const remaining = new Set(irs.map((_, i) => i).filter(i => !selectedSet.has(i)));
 
   // Build result with explanations
   const keep: CullResult['keep'] = [];
