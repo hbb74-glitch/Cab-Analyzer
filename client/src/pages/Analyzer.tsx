@@ -1054,9 +1054,26 @@ export default function Analyzer() {
   
   // Redundancy detection state - using groups instead of pairs for cleaner display
   // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)
-  const [redundancyGroups, setRedundancyGroups] = useState<RedundancyGroup[]>([]);
+  const [redundancyGroups, setRedundancyGroups] = useState<RedundancyGroup[]>(() => {
+    try {
+      const stored = sessionStorage.getItem('ir-redundancy-groups');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [similarityThreshold, setSimilarityThreshold] = useState(0.95);
-  const [showRedundancies, setShowRedundancies] = useState(false);
+  const [showRedundancies, setShowRedundancies] = useState(() => {
+    try {
+      return sessionStorage.getItem('ir-show-redundancies') === 'true';
+    } catch { return false; }
+  });
+  
+  // Persist redundancy state to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('ir-redundancy-groups', JSON.stringify(redundancyGroups));
+      sessionStorage.setItem('ir-show-redundancies', showRedundancies.toString());
+    } catch {}
+  }, [redundancyGroups, showRedundancies]);
   
   // Culling state
   const [cullResult, setCullResult] = useState<CullResult | null>(null);
@@ -1264,6 +1281,11 @@ export default function Analyzer() {
     setPendingPreferences([]);
     setSelectedPreferences({});
     setShowPreferenceQuery(false);
+    // Clear session storage
+    try {
+      sessionStorage.removeItem('ir-redundancy-groups');
+      sessionStorage.removeItem('ir-show-redundancies');
+    } catch {}
   };
   
   // Find redundancy groups (clustered)
