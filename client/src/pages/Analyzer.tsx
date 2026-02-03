@@ -1137,34 +1137,32 @@ export default function Analyzer() {
     }
   };
   
-  // Section navigation - ordered list for up/down navigation
-  const sectionOrder = [
-    { ref: analyzeRef, name: 'Analyze', visible: true },
-    { ref: redundancyRef, name: 'Redundancies', visible: showRedundancies },
-    { ref: smartThinRef, name: 'Smart Thin', visible: showSmartThin && smartThinGroups.length > 0 },
-    { ref: cullerRef, name: 'Culler', visible: showCuller },
+  // Section navigation - 3 main sections that cycle: Analysis → Redundancy → Culling
+  const mainSections = [
+    { ref: analyzeRef, name: 'Analysis' },
+    { ref: redundancyRef, name: 'Redundancy' },
+    { ref: cullerRef, name: 'Culling' },
   ];
   
-  const visibleSections = sectionOrder.filter(s => s.visible);
-  
   const navigateSection = (direction: 'up' | 'down') => {
-    if (visibleSections.length <= 1) return;
-    
     // Find current position based on scroll position
     let currentIdx = 0;
-    for (let i = 0; i < visibleSections.length; i++) {
-      const rect = visibleSections[i].ref.current?.getBoundingClientRect();
+    for (let i = 0; i < mainSections.length; i++) {
+      const rect = mainSections[i].ref.current?.getBoundingClientRect();
       if (rect && rect.top <= 100) {
         currentIdx = i;
       }
     }
     
-    // Calculate next index
-    const nextIdx = direction === 'down' 
-      ? Math.min(currentIdx + 1, visibleSections.length - 1)
-      : Math.max(currentIdx - 1, 0);
+    // Calculate next index with wrapping (bounce from top to bottom)
+    let nextIdx;
+    if (direction === 'down') {
+      nextIdx = (currentIdx + 1) % mainSections.length;
+    } else {
+      nextIdx = (currentIdx - 1 + mainSections.length) % mainSections.length;
+    }
     
-    scrollToSection(visibleSections[nextIdx].ref);
+    scrollToSection(mainSections[nextIdx].ref);
   };
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
@@ -1752,19 +1750,11 @@ export default function Analyzer() {
     setSmartThinGroups(groups);
     setShowSmartThin(true);
     
-    // Debug logging
-    console.log('[Smart Thin] Found groups:', groups.length, 'showSmartThin set to true');
-    
     const totalExtras = groups.reduce((sum, g) => sum + g.extras.length, 0);
     toast({ 
       title: `Found ${groups.length} over-represented group${groups.length > 1 ? 's' : ''}`,
       description: `${totalExtras} IRs could be thinned to keep tonally unique variants`
     });
-    
-    // Scroll to Smart Thin panel after a short delay
-    setTimeout(() => {
-      smartThinRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
   };
   
   // Apply smart thin exclusions
@@ -3753,8 +3743,8 @@ export default function Analyzer() {
         )}
       </div>
       
-      {/* Floating Section Navigation */}
-      {visibleSections.length > 1 && (
+      {/* Floating Section Navigation - always visible */}
+      {mode === 'batch' && (
         <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
           <Button
             size="icon"
