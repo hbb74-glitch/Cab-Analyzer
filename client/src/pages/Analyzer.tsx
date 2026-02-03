@@ -1789,15 +1789,29 @@ export default function Analyzer() {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Threshold:</span>
+                        <button
+                          onClick={() => setSimilarityThreshold(Math.max(0.80, similarityThreshold - 0.01))}
+                          className="w-6 h-6 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold border border-amber-500/30"
+                          data-testid="button-threshold-decrease"
+                        >
+                          −
+                        </button>
                         <input
                           type="range"
                           min="80"
                           max="99"
                           value={similarityThreshold * 100}
                           onChange={(e) => setSimilarityThreshold(parseInt(e.target.value) / 100)}
-                          className="w-20 h-1 accent-amber-400"
+                          className="w-16 h-1 accent-amber-400"
                           data-testid="slider-similarity-threshold"
                         />
+                        <button
+                          onClick={() => setSimilarityThreshold(Math.min(0.99, similarityThreshold + 0.01))}
+                          className="w-6 h-6 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold border border-amber-500/30"
+                          data-testid="button-threshold-increase"
+                        >
+                          +
+                        </button>
                         <span className="text-xs font-mono text-amber-400">{Math.round(similarityThreshold * 100)}%</span>
                       </div>
                       <button
@@ -2031,16 +2045,39 @@ export default function Analyzer() {
                   </div>
                   
                   {/* Cull Results */}
-                  {cullResult && (
+                  {cullResult && (() => {
+                    // Sort helper: extract mic type and distance for sorting
+                    const getMicFromFilename = (filename: string): string => {
+                      const lower = filename.toLowerCase();
+                      const mics = ['c414', 'e906', 'm160', 'm201', 'm88', 'md421', 'md441', 'pr30', 'r10', 'r121', 'r92', 'roswell', 'sm57', 'sm7b'];
+                      for (const mic of mics) {
+                        if (lower.includes(mic)) return mic;
+                      }
+                      return 'zzz'; // Sort unknowns last
+                    };
+                    const getDistFromFilename = (filename: string): number => {
+                      const match = filename.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/i);
+                      return match ? parseFloat(match[1]) : 999;
+                    };
+                    const sortFn = (a: { filename: string }, b: { filename: string }) => {
+                      const micA = getMicFromFilename(a.filename);
+                      const micB = getMicFromFilename(b.filename);
+                      if (micA !== micB) return micA.localeCompare(micB);
+                      return getDistFromFilename(a.filename) - getDistFromFilename(b.filename);
+                    };
+                    const sortedKeep = [...cullResult.keep].sort(sortFn);
+                    const sortedCut = [...cullResult.cut].sort(sortFn);
+                    
+                    return (
                     <div className="space-y-4 mt-4">
                       {/* Keep Section */}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-green-400" />
-                          <h4 className="font-medium text-green-400">Keep ({cullResult.keep.length})</h4>
+                          <h4 className="font-medium text-green-400">Keep ({sortedKeep.length})</h4>
                         </div>
                         <div className="grid gap-2">
-                          {cullResult.keep.map((ir, idx) => (
+                          {sortedKeep.map((ir, idx) => (
                             <div 
                               key={ir.filename} 
                               className="p-3 rounded-lg bg-green-500/10 border border-green-500/20"
@@ -2066,10 +2103,10 @@ export default function Analyzer() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <XCircle className="w-4 h-4 text-red-400" />
-                          <h4 className="font-medium text-red-400">Cut ({cullResult.cut.length})</h4>
+                          <h4 className="font-medium text-red-400">Cut ({sortedCut.length})</h4>
                         </div>
                         <div className="grid gap-2">
-                          {cullResult.cut.map((ir, idx) => (
+                          {sortedCut.map((ir, idx) => (
                             <div 
                               key={ir.filename} 
                               className="p-3 rounded-lg bg-red-500/10 border border-red-500/20"
@@ -2096,7 +2133,8 @@ export default function Analyzer() {
                         </div>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </motion.div>
               )}
             </AnimatePresence>
