@@ -28,14 +28,15 @@ type FormData = z.infer<typeof formSchema>;
 // Filename parsing to auto-populate fields
 // Supports formats like: SM57_cap-edge_v30-china_1in.wav, 57_cap_greenback_0.5.wav, etc.
 // SM57+R121 combo blend labels and ratios
-const COMBO_BLEND_LABELS = ['tight', 'balance', 'thick', 'smooth'] as const;
+const COMBO_BLEND_LABELS = ['tight', 'balance', 'thick', 'smooth', 'ribbon_dom'] as const;
 type ComboBlendLabel = typeof COMBO_BLEND_LABELS[number];
 
 const COMBO_BLEND_INFO: Record<ComboBlendLabel, { sm57: number; r121: number; label: string }> = {
-  tight: { sm57: 60, r121: 40, label: 'Tight' },
-  balance: { sm57: 55, r121: 45, label: 'Balance' },
-  thick: { sm57: 50, r121: 50, label: 'Thick' },
-  smooth: { sm57: 48, r121: 52, label: 'Smooth' },
+  tight: { sm57: 67, r121: 33, label: 'Tight' },
+  balance: { sm57: 60, r121: 40, label: 'Balance' },
+  thick: { sm57: 51, r121: 49, label: 'Thick' },
+  smooth: { sm57: 45, r121: 55, label: 'Smooth' },
+  ribbon_dom: { sm57: 24, r121: 76, label: 'Ribbon Dom' },
 };
 
 // Format combo IR info for display
@@ -128,11 +129,16 @@ function parseFilename(filename: string): ParsedFilename {
         break;
       }
     }
-    // Handle "balanced" alias
+    // Handle aliases: "balanced" -> "balance", "ribbondom"/"ribbon-dom" -> "ribbon_dom"
     let blendLabelInFilename: string | null = null;
     if (!result.blendLabel && (parts.includes('balanced') || fullName.includes('balanced'))) {
       result.blendLabel = 'balance';
-      blendLabelInFilename = 'balanced'; // Track the actual string in filename
+      blendLabelInFilename = 'balanced';
+    }
+    if (!result.blendLabel && (parts.includes('ribbondom') || fullName.includes('ribbondom') || 
+        parts.some(p => p === 'ribbon' && parts.includes('dom')))) {
+      result.blendLabel = 'ribbon_dom';
+      blendLabelInFilename = 'ribbondom';
     }
     // If no blend label found, default to 'thick' (50:50)
     if (!result.blendLabel) {

@@ -758,6 +758,8 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
       mic = 'sm57_r121_thick';
     } else if (lower.includes('smooth')) {
       mic = 'sm57_r121_smooth';
+    } else if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('ribbon-dom')) {
+      mic = 'sm57_r121_ribbon_dom';
     } else if (lower.includes('combo')) {
       mic = 'sm57_r121_combo';
     } else {
@@ -765,7 +767,7 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
       mic = 'sm57_r121_thick';
     }
     // Extract shot variant (A, B, C, etc.) - single letter after blend label
-    const variantMatch = filename.match(/(?:tight|balance|balanced|thick|smooth|combo)[_-]?([a-zA-Z])(?:[_.]|$)/i);
+    const variantMatch = filename.match(/(?:tight|balance|balanced|thick|smooth|ribbon_dom|ribbondom|combo)[_-]?([a-zA-Z])(?:[_.]|$)/i);
     if (variantMatch) {
       variant = variantMatch[1].toUpperCase();
     }

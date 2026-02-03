@@ -16,19 +16,21 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'c414': { min: 2600, max: 3600, description: 'Condenser, detailed highs' },
   'roswell': { min: 1400, max: 2400, description: 'Roswell Cab Mic - warm condenser, wider range to accommodate consistent output across speakers' },
   'sm57_r121_combo': { min: 1850, max: 2600, description: 'SM57+R121 blend (50/50), balanced bright/warm character' },
-  // SM57+R121 blend variants based on ratio
-  'sm57_r121_tight': { min: 2000, max: 2750, description: 'SM57+R121 60:40 - tighter, more SM57 presence' },
-  'sm57_r121_balance': { min: 1950, max: 2700, description: 'SM57+R121 55:45 - slightly brighter blend' },
-  'sm57_r121_thick': { min: 1850, max: 2600, description: 'SM57+R121 50:50 - even blend, full body' },
-  'sm57_r121_smooth': { min: 1800, max: 2550, description: 'SM57+R121 48:52 - smoother, more ribbon character' },
+  // SM57+R121 blend variants based on refined ratios
+  'sm57_r121_tight': { min: 2100, max: 2850, description: 'SM57+R121 67:33 - modern/tight, keeps bite and attack' },
+  'sm57_r121_balance': { min: 2000, max: 2750, description: 'SM57+R121 60:40 - default, best overall translation' },
+  'sm57_r121_thick': { min: 1850, max: 2600, description: 'SM57+R121 51:49 - near-equal, bigger fuller tones' },
+  'sm57_r121_smooth': { min: 1750, max: 2500, description: 'SM57+R121 45:55 - ribbon-leaning, polished transient' },
+  'sm57_r121_ribbon_dom': { min: 1650, max: 2400, description: 'SM57+R121 24:76 - ribbon-dominant, maximum warmth' },
 };
 
-// SM57+R121 blend ratio labels
+// SM57+R121 blend ratio labels (refined empirical calibration)
 export const COMBO_BLEND_RATIOS: Record<string, { sm57: number; r121: number; description: string }> = {
-  'tight': { sm57: 60, r121: 40, description: 'Tighter, more SM57 presence and bite' },
-  'balance': { sm57: 55, r121: 45, description: 'Balanced blend, slight SM57 emphasis' },
-  'thick': { sm57: 50, r121: 50, description: 'Even 50/50 blend, full and thick' },
-  'smooth': { sm57: 48, r121: 52, description: 'Smoother, more R121 ribbon warmth' },
+  'tight': { sm57: 67, r121: 33, description: 'Modern/tight; keeps bite and attack' },
+  'balance': { sm57: 60, r121: 40, description: 'Default; best overall translation' },
+  'thick': { sm57: 51, r121: 49, description: 'Near-equal body; bigger, fuller tones' },
+  'smooth': { sm57: 45, r121: 55, description: 'Ribbon-leaning; polished/softer transient' },
+  'ribbon_dom': { sm57: 24, r121: 76, description: 'Ribbon-dominant; unattenuated R121, maximum warmth' },
 };
 
 export const POSITION_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -70,6 +72,7 @@ function normalizeMicName(mic: string): string {
     if (lower.includes('balanced') || lower.includes('balance')) return 'sm57_r121_balance';
     if (lower.includes('thick')) return 'sm57_r121_thick';
     if (lower.includes('smooth')) return 'sm57_r121_smooth';
+    if (lower.includes('ribbon_dom') || lower.includes('ribbondom')) return 'sm57_r121_ribbon_dom';
     // Generic combo (backward compatibility)
     if (lower.includes('combo')) return 'sm57_r121_combo';
     // Default to thick (50/50) for unlabeled combos
@@ -246,8 +249,9 @@ export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number
   'sm57_r121_combo': { min: 58, max: 68, avg: 63, description: 'SM57+R121 blend, typical combo range' },
   'sm57_r121_tight': { min: 58, max: 68, avg: 63, description: '60:40 blend, SM57-forward character' },
   'sm57_r121_balance': { min: 60, max: 68, avg: 64, description: '55:45 blend, balanced characteristics' },
-  'sm57_r121_thick': { min: 58, max: 68, avg: 63, description: '50:50 blend, full and thick' },
-  'sm57_r121_smooth': { min: 60, max: 68, avg: 64, description: '48:52 blend, R121-forward character' },
+  'sm57_r121_thick': { min: 58, max: 68, avg: 63, description: '51:49 blend, full and thick' },
+  'sm57_r121_smooth': { min: 60, max: 70, avg: 65, description: '45:55 blend, R121-forward character' },
+  'sm57_r121_ribbon_dom': { min: 62, max: 72, avg: 67, description: '24:76 blend, ribbon-dominant warmth' },
 };
 
 // Default baseline for unknown mics
