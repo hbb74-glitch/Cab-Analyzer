@@ -761,10 +761,8 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
     } else if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('ribbon-dom') || lower.includes('combo')) {
       // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
       mic = 'sm57_r121_ribbon_dom';
-    } else {
-      // Default to thick (50/50) for unlabeled combos
-      mic = 'sm57_r121_thick';
     }
+    // All combo IRs must be labeled - no default fallback
     // Extract shot variant (A, B, C, etc.) - single letter after blend label
     const variantMatch = filename.match(/(?:tight|balance|balanced|thick|smooth|ribbon_dom|ribbondom|combo)[_-]?([a-zA-Z])(?:[_.]|$)/i);
     if (variantMatch) {

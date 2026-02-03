@@ -73,8 +73,7 @@ function normalizeMicName(mic: string): string {
     if (lower.includes('smooth')) return 'sm57_r121_smooth';
     // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
     if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('combo')) return 'sm57_r121_ribbon_dom';
-    // Default to balance for unlabeled SM57+R121 blends
-    return 'sm57_r121_thick';
+    // All combo IRs must be labeled - treat unlabeled as regular SM57 (won't match combo ranges)
   }
   
   if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) return 'e906_presence';

@@ -142,17 +142,14 @@ function parseFilename(filename: string): ParsedFilename {
       result.blendLabel = 'ribbon_dom';
       blendLabelInFilename = parts.includes('combo') ? 'combo' : 'ribbondom';
     }
-    // If no blend label found, default to 'balance' (60:40)
-    if (!result.blendLabel) {
-      result.blendLabel = 'balance';
-    }
+    // All combo IRs must be labeled - no default
     // Track what was actually in the filename for index lookup
-    if (!blendLabelInFilename) {
+    if (!blendLabelInFilename && result.blendLabel) {
       blendLabelInFilename = result.blendLabel;
     }
     // Format: Speaker_SM57_R121_BlendLabel_ShotVariant_R121Height
     // e.g., Cab_SM57_R121_Balanced_A_6in
-    const blendIndex = parts.indexOf(blendLabelInFilename);
+    const blendIndex = blendLabelInFilename ? parts.indexOf(blendLabelInFilename) : -1;
     if (blendIndex !== -1 && blendIndex < parts.length - 1) {
       // Next part after blend label is shot variant (A, B, C, etc.)
       const variantPart = parts[blendIndex + 1];
