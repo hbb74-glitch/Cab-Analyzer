@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
+import { Button } from "@/components/ui/button";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -2357,9 +2358,25 @@ export default function Analyzer() {
                     <div className="space-y-4 mt-4">
                       {/* Keep Section */}
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <h4 className="font-medium text-green-400">Keep ({sortedKeep.length})</h4>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                            <h4 className="font-medium text-green-400">Keep ({sortedKeep.length})</h4>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const text = sortedKeep.map(ir => ir.filename).join('\n');
+                              navigator.clipboard.writeText(text);
+                              toast({ title: "Copied", description: `${sortedKeep.length} filenames copied to clipboard` });
+                            }}
+                            className="h-7 px-2 text-xs text-green-400 hover:text-green-300"
+                            data-testid="button-copy-keep-list"
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy list
+                          </Button>
                         </div>
                         <div className="grid gap-2">
                           {sortedKeep.map((ir, idx) => (
@@ -2386,9 +2403,25 @@ export default function Analyzer() {
                       
                       {/* Cut Section */}
                       <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <XCircle className="w-4 h-4 text-red-400" />
-                          <h4 className="font-medium text-red-400">Cut ({sortedCut.length})</h4>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <XCircle className="w-4 h-4 text-red-400" />
+                            <h4 className="font-medium text-red-400">Cut ({sortedCut.length})</h4>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const text = sortedCut.map(ir => ir.filename).join('\n');
+                              navigator.clipboard.writeText(text);
+                              toast({ title: "Copied", description: `${sortedCut.length} filenames copied to clipboard` });
+                            }}
+                            className="h-7 px-2 text-xs text-red-400 hover:text-red-300"
+                            data-testid="button-copy-cut-list"
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy list
+                          </Button>
                         </div>
                         <div className="grid gap-2">
                           {sortedCut.map((ir, idx) => (
