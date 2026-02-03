@@ -1301,8 +1301,31 @@ export default function Analyzer() {
       metrics: ir.metrics!
     }));
     
+    // Preserve existing selections - map from member filenames to selected keeper
+    const existingSelections = new Map<string, string>();
+    for (const group of redundancyGroups) {
+      if (group.selectedToKeep) {
+        for (const member of group.members) {
+          existingSelections.set(member.filename, group.selectedToKeep);
+        }
+      }
+    }
+    
     const groups = findRedundancyGroups(irsWithMetrics, similarityThreshold);
-    setRedundancyGroups(groups);
+    
+    // Restore selections to new groups if the selected IR is still in the group
+    const groupsWithSelections = groups.map(group => {
+      const memberFilenames = group.members.map(m => m.filename);
+      for (const member of group.members) {
+        const previousSelection = existingSelections.get(member.filename);
+        if (previousSelection && memberFilenames.includes(previousSelection)) {
+          return { ...group, selectedToKeep: previousSelection };
+        }
+      }
+      return group;
+    });
+    
+    setRedundancyGroups(groupsWithSelections);
     setShowRedundancies(true);
     
     if (groups.length === 0) {
