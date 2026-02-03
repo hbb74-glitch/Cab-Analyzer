@@ -258,9 +258,20 @@ interface RedundantPair {
 }
 
 // Clustered redundancy group - smarter than showing all pairs
+interface RedundancyGroupMember {
+  filename: string;
+  centroid: number;        // Brightness (Hz)
+  score: number;           // Quality score 0-100
+  smoothness: number;      // Frequency smoothness 0-100
+  noiseFloorDb: number;    // Noise floor in dB (lower = cleaner)
+  lowEnergy: number;       // Bass 0-1
+  midEnergy: number;       // Mids 0-1
+  highEnergy: number;      // Highs 0-1
+}
+
 interface RedundancyGroup {
   id: number;
-  members: { filename: string; centroid: number }[];
+  members: RedundancyGroupMember[];
   avgSimilarity: number;
   selectedToKeep: string | null; // User's selection of which IR to keep
 }
@@ -378,7 +389,7 @@ class UnionFind {
 
 // Find redundancy groups using clustering instead of listing all pairs
 function findRedundancyGroups(
-  irs: { filename: string; metrics: AudioMetrics }[],
+  irs: { filename: string; metrics: AudioMetrics; score?: number }[],
   threshold: number = 0.95
 ): RedundancyGroup[] {
   const n = irs.length;
@@ -430,10 +441,16 @@ function findRedundancyGroups(
       }
     }
     
-    const members = memberIndices.map((idx: number) => ({
+    const members: RedundancyGroupMember[] = memberIndices.map((idx: number) => ({
       filename: irs[idx].filename,
-      centroid: irs[idx].metrics.spectralCentroid
-    })).sort((a: { centroid: number }, b: { centroid: number }) => b.centroid - a.centroid); // Sort brightest first
+      centroid: irs[idx].metrics.spectralCentroid,
+      score: irs[idx].score || 85,
+      smoothness: irs[idx].metrics.frequencySmoothness,
+      noiseFloorDb: irs[idx].metrics.noiseFloorDb,
+      lowEnergy: irs[idx].metrics.lowEnergy,
+      midEnergy: irs[idx].metrics.midEnergy,
+      highEnergy: irs[idx].metrics.highEnergy
+    })).sort((a, b) => b.centroid - a.centroid); // Sort brightest first
     
     const avgSimilarity = pairCount > 0 ? totalSim / pairCount : threshold;
     
@@ -1743,9 +1760,39 @@ export default function Analyzer() {
                     </div>
                   )}
 
+
                   {redundancyGroups.length > 0 ? (
                     <div className="space-y-4">
-                      {redundancyGroups.map((group, index) => (
+                      {redundancyGroups.map((group, index) => {
+                        // Multi-criteria ranking: Score > Brightness > Balance > Smoothness > Noise
+                        const getBalanceScore = (m: RedundancyGroupMember) => {
+                          // More balanced = lower variance between low/mid/high
+                          const avg = (m.lowEnergy + m.midEnergy + m.highEnergy) / 3;
+                          const variance = Math.abs(m.lowEnergy - avg) + Math.abs(m.midEnergy - avg) + Math.abs(m.highEnergy - avg);
+                          return 1 - variance; // Higher = more balanced
+                        };
+                        
+                        const sortedMembers = [...group.members].sort((a, b) => {
+                          // 1. Score (higher is better) - primary
+                          const scoreDiff = b.score - a.score;
+                          if (Math.abs(scoreDiff) > 2) return scoreDiff;
+                          
+                          // 2. Brightness/centroid (higher first)
+                          const centroidDiff = b.centroid - a.centroid;
+                          if (Math.abs(centroidDiff) > 100) return centroidDiff;
+                          
+                          // 3. Energy balance (more balanced first)
+                          const balanceDiff = getBalanceScore(b) - getBalanceScore(a);
+                          if (Math.abs(balanceDiff) > 0.05) return balanceDiff;
+                          
+                          // 4. Smoothness (higher is better)
+                          const smoothDiff = b.smoothness - a.smoothness;
+                          if (Math.abs(smoothDiff) > 3) return smoothDiff;
+                          
+                          // 5. Noise floor (lower/more negative is better)
+                          return a.noiseFloorDb - b.noiseFloorDb;
+                        });
+                        return (
                         <motion.div
                           key={group.id}
                           initial={{ opacity: 0, y: 10 }}
@@ -1778,41 +1825,77 @@ export default function Analyzer() {
                             )}
                           </div>
                           
-                          {/* Selectable members - sorted by brightness */}
+                          {/* Selectable members - sorted by selected criteria */}
                           <div className="space-y-1">
                             <p className="text-xs text-muted-foreground mb-2">
-                              Click to select which IR to keep (sorted brightest → darkest):
+                              Click to select which IR to keep (ranked by score → brightness → balance → smoothness → noise):
                             </p>
                             <div className="grid gap-1.5">
-                              {group.members.map((member, memberIdx) => (
-                                <button
-                                  key={member.filename}
-                                  onClick={() => handleSelectToKeep(group.id, member.filename)}
-                                  className={cn(
-                                    "p-2 rounded-lg text-left transition-all flex items-center justify-between gap-2",
-                                    group.selectedToKeep === member.filename
-                                      ? "bg-green-500/20 border border-green-500/50 text-green-300"
-                                      : group.selectedToKeep
-                                        ? "bg-red-500/10 border border-red-500/20 text-red-300/70 line-through"
-                                        : "bg-black/20 border border-white/10 hover:border-amber-500/30 text-foreground"
-                                  )}
-                                  data-testid={`select-ir-${group.id}-${memberIdx}`}
-                                >
-                                  <span className="font-mono text-xs truncate flex-1">
-                                    {member.filename}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {Math.round(member.centroid)} Hz
-                                  </span>
-                                  {group.selectedToKeep === member.filename && (
-                                    <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
-                                  )}
-                                </button>
-                              ))}
+                              {sortedMembers.map((member, memberIdx) => {
+                                // Calculate tonal character label
+                                const getTonalBalance = () => {
+                                  if (member.lowEnergy > 0.4) return member.highEnergy > 0.3 ? "scooped" : "bass-heavy";
+                                  if (member.highEnergy > 0.4) return "bright";
+                                  if (member.midEnergy > 0.5) return "mid-forward";
+                                  return "balanced";
+                                };
+                                const tonalBalance = getTonalBalance();
+                                
+                                return (
+                                  <button
+                                    key={member.filename}
+                                    onClick={() => handleSelectToKeep(group.id, member.filename)}
+                                    className={cn(
+                                      "p-2 rounded-lg text-left transition-all",
+                                      group.selectedToKeep === member.filename
+                                        ? "bg-green-500/20 border border-green-500/50 text-green-300"
+                                        : group.selectedToKeep
+                                          ? "bg-red-500/10 border border-red-500/20 text-red-300/70 line-through"
+                                          : "bg-black/20 border border-white/10 hover:border-amber-500/30 text-foreground"
+                                    )}
+                                    data-testid={`select-ir-${group.id}-${memberIdx}`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                      <span className="font-mono text-xs truncate flex-1">
+                                        {member.filename}
+                                      </span>
+                                      {group.selectedToKeep === member.filename && (
+                                        <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+                                      <span className={cn(
+                                        "px-1.5 py-0.5 rounded",
+                                        member.score >= 90 ? "bg-green-500/20 text-green-300" :
+                                        member.score >= 80 ? "bg-blue-500/20 text-blue-300" :
+                                        "bg-amber-500/20 text-amber-300"
+                                      )}>
+                                        Score: {Math.round(member.score)}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {Math.round(member.centroid)} Hz
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        Smooth: {Math.round(member.smoothness)}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        Noise: {Math.round(member.noiseFloorDb)} dB
+                                      </span>
+                                      <span className={cn(
+                                        "italic",
+                                        tonalBalance === "balanced" ? "text-green-400/70" : "text-muted-foreground"
+                                      )}>
+                                        {tonalBalance}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
