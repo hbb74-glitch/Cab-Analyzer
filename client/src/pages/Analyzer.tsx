@@ -1722,11 +1722,19 @@ export default function Analyzer() {
     setSmartThinGroups(groups);
     setShowSmartThin(true);
     
+    // Debug logging
+    console.log('[Smart Thin] Found groups:', groups.length, 'showSmartThin set to true');
+    
     const totalExtras = groups.reduce((sum, g) => sum + g.extras.length, 0);
     toast({ 
       title: `Found ${groups.length} over-represented group${groups.length > 1 ? 's' : ''}`,
-      description: `${totalExtras} IRs could be thinned to keep bright/mid/dark variants`
+      description: `${totalExtras} IRs could be thinned to keep tonally unique variants`
     });
+    
+    // Scroll to Smart Thin panel after a short delay
+    setTimeout(() => {
+      smartThinRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   };
   
   // Apply smart thin exclusions
@@ -2272,23 +2280,6 @@ export default function Analyzer() {
                         Analyze All ({validBatchCount} IRs)
                       </>
                     )}
-                  </button>
-                  
-                  {/* Smart Thin Button - prominent standalone */}
-                  <button
-                    onClick={handleDetectSmartThin}
-                    disabled={validBatchCount < 4 || analyzingBatchCount > 0}
-                    className={cn(
-                      "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
-                      validBatchCount >= 4 && analyzingBatchCount === 0
-                        ? "bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 border border-cyan-500/30"
-                        : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
-                    )}
-                    title="Auto-detect over-represented mic/position groups and suggest keeping tonally unique variants"
-                    data-testid="button-smart-thin-main"
-                  >
-                    <Zap className="w-5 h-5" />
-                    Smart Thin (detect over-represented groups)
                   </button>
                   
                   {/* Find Redundancies Button */}
