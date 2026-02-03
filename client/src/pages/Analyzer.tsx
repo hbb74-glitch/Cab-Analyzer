@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -822,6 +822,43 @@ export default function Analyzer() {
   const [cullCountInput, setCullCountInput] = useState("10"); // Text input for easier editing
   const [showCuller, setShowCuller] = useState(false);
   
+  // Preference query state for subjective culling decisions
+  interface CullPreference {
+    type: 'brightness' | 'midrange';
+    question: string;
+    options: { label: string; value: string }[];
+  }
+  const [pendingPreferences, setPendingPreferences] = useState<CullPreference[]>([]);
+  const [selectedPreferences, setSelectedPreferences] = useState<Record<string, string>>({});
+  const [showPreferenceQuery, setShowPreferenceQuery] = useState(false);
+  
+  // Sort batch IRs by mic type (alphabetically) then by distance
+  const sortedBatchIRs = useMemo(() => {
+    const getMicFromFilename = (filename: string): string => {
+      const lower = filename.toLowerCase();
+      const mics = ['c414', 'e906', 'm160', 'm201', 'md421', 'md441', 'pr30', 'r10', 'r121', 'r92', 'roswell', 'sm57', 'sm7b', 'm88'];
+      for (const mic of mics) {
+        if (lower.includes(mic)) return mic;
+      }
+      return 'zzz'; // Sort unknown mics last
+    };
+    
+    const getDistanceFromFilename = (filename: string): number => {
+      const match = filename.match(/(\d+(?:\.\d+)?)\s*(?:in|inch|")/i);
+      return match ? parseFloat(match[1]) : 999;
+    };
+    
+    return [...batchIRs].sort((a, b) => {
+      const micA = getMicFromFilename(a.file.name);
+      const micB = getMicFromFilename(b.file.name);
+      if (micA !== micB) return micA.localeCompare(micB);
+      
+      const distA = getDistanceFromFilename(a.file.name);
+      const distB = getDistanceFromFilename(b.file.name);
+      return distA - distB;
+    });
+  }, [batchIRs]);
+  
   // Sync cull count input with numeric state
   const handleCullCountChange = (value: string) => {
     setCullCountInput(value);
@@ -943,6 +980,9 @@ export default function Analyzer() {
     setShowRedundancies(false);
     setCullResult(null);
     setShowCuller(false);
+    setPendingPreferences([]);
+    setSelectedPreferences({});
+    setShowPreferenceQuery(false);
   };
   
   // Find redundancy groups (clustered)
@@ -984,8 +1024,8 @@ export default function Analyzer() {
   const redundancySelectionsCount = redundancyGroups.filter(g => g.selectedToKeep).length;
   useEffect(() => {
     if (cullResult && redundancyGroups.length > 0) {
-      // Silently re-run culling to reflect new exclusions
-      handleCullIRs(false);
+      // Silently re-run culling to reflect new exclusions (skip preference check, use existing preferences)
+      handleCullIRs(false, true);
     }
   }, [redundancySelectionsCount]);
 
@@ -1015,8 +1055,110 @@ export default function Analyzer() {
     return keptSet;
   };
 
+  // Detect if subjective preferences are needed for culling
+  const detectPreferencesNeeded = (irs: { filename: string; metrics: AudioMetrics; score?: number }[]): CullPreference[] => {
+    const preferences: CullPreference[] = [];
+    
+    if (irs.length < 4) return preferences; // Not enough variety to warrant preferences
+    
+    // Calculate brightness range (spectral centroid)
+    const centroids = irs.map(ir => ir.metrics.spectralCentroid);
+    const minCentroid = Math.min(...centroids);
+    const maxCentroid = Math.max(...centroids);
+    const centroidRange = maxCentroid - minCentroid;
+    
+    // If there's significant brightness variation (>400Hz spread), ask about brightness preference
+    if (centroidRange > 400) {
+      preferences.push({
+        type: 'brightness',
+        question: 'What tonal character do you prefer?',
+        options: [
+          { label: 'Brighter / More cutting', value: 'bright' },
+          { label: 'Balanced / Neutral', value: 'neutral' },
+          { label: 'Darker / Warmer', value: 'dark' },
+          { label: 'No preference (technical only)', value: 'none' }
+        ]
+      });
+    }
+    
+    // Calculate midrange character variation
+    const midScores = irs.map(ir => {
+      const total = ir.metrics.lowEnergy + ir.metrics.midEnergy + ir.metrics.highEnergy;
+      return ir.metrics.midEnergy / total;
+    });
+    const minMid = Math.min(...midScores);
+    const maxMid = Math.max(...midScores);
+    const midRange = maxMid - minMid;
+    
+    // If there's significant mid variation (>0.1 spread), ask about midrange preference
+    if (midRange > 0.1) {
+      preferences.push({
+        type: 'midrange',
+        question: 'What midrange character do you prefer?',
+        options: [
+          { label: 'Mid-forward / Punchy', value: 'forward' },
+          { label: 'Balanced mids', value: 'neutral' },
+          { label: 'Scooped / More low & high', value: 'scooped' },
+          { label: 'No preference (technical only)', value: 'none' }
+        ]
+      });
+    }
+    
+    return preferences;
+  };
+  
+  // Apply user preferences to culling scores
+  const applyPreferencesToCull = (
+    irs: { filename: string; metrics: AudioMetrics; score?: number }[],
+    prefs: Record<string, string>
+  ): { filename: string; metrics: AudioMetrics; score?: number; prefBonus: number }[] => {
+    // Sort by centroid for brightness ranking
+    const sortedByCentroid = [...irs].sort((a, b) => b.metrics.spectralCentroid - a.metrics.spectralCentroid);
+    const centroidRanks = new Map(sortedByCentroid.map((ir, idx) => [ir.filename, idx / (irs.length - 1)]));
+    
+    // Sort by mid ratio for midrange ranking
+    const getMidRatio = (m: AudioMetrics) => m.midEnergy / (m.lowEnergy + m.midEnergy + m.highEnergy);
+    const sortedByMid = [...irs].sort((a, b) => getMidRatio(b.metrics) - getMidRatio(a.metrics));
+    const midRanks = new Map(sortedByMid.map((ir, idx) => [ir.filename, idx / (irs.length - 1)]));
+    
+    return irs.map(ir => {
+      let prefBonus = 0;
+      
+      // Apply brightness preference
+      const brightPref = prefs['brightness'];
+      if (brightPref && brightPref !== 'none') {
+        const rank = centroidRanks.get(ir.filename) || 0.5;
+        if (brightPref === 'bright') {
+          prefBonus += (1 - rank) * 0.2; // Boost brighter IRs
+        } else if (brightPref === 'dark') {
+          prefBonus += rank * 0.2; // Boost darker IRs
+        }
+        // 'neutral' gives bonus to middle 40%
+        else if (brightPref === 'neutral' && rank > 0.3 && rank < 0.7) {
+          prefBonus += 0.1;
+        }
+      }
+      
+      // Apply midrange preference
+      const midPref = prefs['midrange'];
+      if (midPref && midPref !== 'none') {
+        const rank = midRanks.get(ir.filename) || 0.5;
+        if (midPref === 'forward') {
+          prefBonus += (1 - rank) * 0.15; // Boost mid-forward IRs
+        } else if (midPref === 'scooped') {
+          prefBonus += rank * 0.15; // Boost scooped IRs
+        }
+        else if (midPref === 'neutral' && rank > 0.3 && rank < 0.7) {
+          prefBonus += 0.08;
+        }
+      }
+      
+      return { ...ir, prefBonus };
+    });
+  };
+  
   // Cull IRs to target count
-  const handleCullIRs = (showToast = true) => {
+  const handleCullIRs = (showToast = true, skipPreferenceCheck = false) => {
     const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
     
     // Exclude IRs that are marked for removal from redundancy groups
@@ -1054,18 +1196,55 @@ export default function Analyzer() {
       score: scoreMap.get(ir.file.name)
     }));
     
-    const result = cullIRs(irsWithMetrics, effectiveTarget);
+    // Check if preferences are needed (only for initial cull, not re-runs)
+    if (!skipPreferenceCheck && Object.keys(selectedPreferences).length === 0) {
+      const neededPrefs = detectPreferencesNeeded(irsWithMetrics);
+      if (neededPrefs.length > 0) {
+        setPendingPreferences(neededPrefs);
+        setShowPreferenceQuery(true);
+        return;
+      }
+    }
+    
+    // Apply preferences if any were selected
+    let irsToProcess = irsWithMetrics;
+    if (Object.keys(selectedPreferences).length > 0) {
+      const irsWithBonus = applyPreferencesToCull(irsWithMetrics, selectedPreferences);
+      // Add preference bonus to score
+      irsToProcess = irsWithBonus.map(ir => ({
+        ...ir,
+        score: (ir.score || 85) + Math.round(ir.prefBonus * 10)
+      }));
+    }
+    
+    const result = cullIRs(irsToProcess, effectiveTarget);
     setCullResult(result);
     setShowCuller(true);
+    setShowPreferenceQuery(false);
     
     if (showToast) {
       const excludedCount = validIRs.length - eligibleIRs.length;
       const excludeNote = excludedCount > 0 ? ` (${excludedCount} excluded from redundancy)` : '';
+      const prefNote = Object.keys(selectedPreferences).length > 0 ? ' with your preferences' : '';
       toast({ 
         title: `Culling complete`, 
-        description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs${excludeNote}` 
+        description: `Keep ${result.keep.length} IRs, cut ${result.cut.length} IRs${excludeNote}${prefNote}` 
       });
     }
+  };
+  
+  // Handle preference selection and continue culling
+  const handlePreferenceSelected = (type: string, value: string) => {
+    setSelectedPreferences(prev => ({ ...prev, [type]: value }));
+  };
+  
+  const handleApplyPreferencesAndCull = () => {
+    handleCullIRs(true, true);
+  };
+  
+  const handleSkipPreferencesAndCull = () => {
+    setSelectedPreferences({});
+    handleCullIRs(true, true);
   };
 
   const copyBatchResults = () => {
@@ -1369,7 +1548,7 @@ export default function Analyzer() {
 
                 <div className="grid gap-2 max-h-64 overflow-y-auto">
                   <AnimatePresence>
-                    {batchIRs.map((ir, index) => (
+                    {sortedBatchIRs.map((ir, index) => (
                       <motion.div
                         key={`${ir.file.name}-${index}`}
                         initial={{ opacity: 0, x: -20 }}
@@ -1988,6 +2167,86 @@ export default function Analyzer() {
                       <p className="text-xs mt-2">Try lowering the threshold to find more similar groups.</p>
                     </div>
                   )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Preference Query Panel */}
+            <AnimatePresence>
+              {showPreferenceQuery && pendingPreferences.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-4"
+                  data-testid="panel-preferences"
+                >
+                  <div className="flex items-center gap-3">
+                    <HelpCircle className="w-5 h-5 text-amber-400" />
+                    <h3 className="text-lg font-semibold">Quick Preferences</h3>
+                  </div>
+                  
+                  <p className="text-sm text-muted-foreground">
+                    Your IR collection has variety in tonal character. Help me choose the best ones for your needs:
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {pendingPreferences.map((pref) => (
+                      <div key={pref.type} className="space-y-2">
+                        <p className="text-sm font-medium">{pref.question}</p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {pref.options.map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => handlePreferenceSelected(pref.type, opt.value)}
+                              className={cn(
+                                "px-3 py-2 rounded-lg text-sm transition-all border",
+                                selectedPreferences[pref.type] === opt.value
+                                  ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                                  : "bg-black/20 border-white/10 hover:border-amber-500/30 text-muted-foreground hover:text-foreground"
+                              )}
+                              data-testid={`pref-${pref.type}-${opt.value}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 pt-2 flex-wrap">
+                    <button
+                      onClick={handleApplyPreferencesAndCull}
+                      disabled={Object.keys(selectedPreferences).length === 0}
+                      className={cn(
+                        "px-4 py-2 rounded-lg font-medium transition-all",
+                        Object.keys(selectedPreferences).length > 0
+                          ? "bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/30"
+                          : "bg-white/5 text-muted-foreground cursor-not-allowed"
+                      )}
+                      data-testid="button-apply-preferences"
+                    >
+                      Apply Preferences & Cull
+                    </button>
+                    <button
+                      onClick={handleSkipPreferencesAndCull}
+                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      data-testid="button-skip-preferences"
+                    >
+                      Skip (technical only)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPreferenceQuery(false);
+                        setPendingPreferences([]);
+                      }}
+                      className="text-muted-foreground hover:text-foreground transition-colors ml-auto"
+                      data-testid="button-close-preferences"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
