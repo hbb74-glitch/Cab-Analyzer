@@ -833,12 +833,14 @@ export default function Analyzer() {
   const [selectedPreferences, setSelectedPreferences] = useState<Record<string, string>>({});
   const [showPreferenceQuery, setShowPreferenceQuery] = useState(false);
   
+  // Shared mic list for sorting (alphabetical order)
+  const KNOWN_MICS = ['c414', 'e906', 'm160', 'm201', 'm88', 'md421', 'md421kompakt', 'md441', 'pr30', 'r10', 'r121', 'r92', 'roswell', 'sm57', 'sm7b'];
+  
   // Sort batch IRs by mic type (alphabetically) then by distance
   const sortedBatchIRs = useMemo(() => {
     const getMicFromFilename = (filename: string): string => {
       const lower = filename.toLowerCase();
-      const mics = ['c414', 'e906', 'm160', 'm201', 'md421', 'md441', 'pr30', 'r10', 'r121', 'r92', 'roswell', 'sm57', 'sm7b', 'm88'];
-      for (const mic of mics) {
+      for (const mic of KNOWN_MICS) {
         if (lower.includes(mic)) return mic;
       }
       return 'zzz'; // Sort unknown mics last
@@ -2386,8 +2388,7 @@ export default function Analyzer() {
                     // Sort helper: extract mic type and distance for sorting
                     const getMicFromFilename = (filename: string): string => {
                       const lower = filename.toLowerCase();
-                      const mics = ['c414', 'e906', 'm160', 'm201', 'm88', 'md421', 'md441', 'pr30', 'r10', 'r121', 'r92', 'roswell', 'sm57', 'sm7b'];
-                      for (const mic of mics) {
+                      for (const mic of KNOWN_MICS) {
                         if (lower.includes(mic)) return mic;
                       }
                       return 'zzz'; // Sort unknowns last
