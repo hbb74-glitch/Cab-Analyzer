@@ -223,35 +223,35 @@ export function getDeviationScoreAdjustment(deviationPercent: number): number {
 // Based on empirical data from real IR captures
 // Each mic has an expected range - scores within range are "normal for that mic"
 // Calibrated from empirical batch data (111 IRs, 2048-4096 sample truncated IRs at 44.1kHz)
-// Ranges tightened to observed distributions with ±2 padding
+// Ranges widened to be more forgiving - guitar cab IRs naturally have character/peaks
 export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number; avg: number; description: string }> = {
-  'sm57': { min: 66, max: 77, avg: 72, description: 'Classic dynamic, mid-forward character' },
-  'r121': { min: 70, max: 76, avg: 73, description: 'Ribbon, naturally smooth high-end rolloff' },
-  'r10': { min: 70, max: 76, avg: 73, description: 'Ribbon, similar to R121' },
-  'r92': { min: 70, max: 76, avg: 73, description: 'Ribbon, smooth and warm' },
-  'm160': { min: 68, max: 74, avg: 71, description: 'Hypercardioid ribbon, focused response' },
-  'md421': { min: 68, max: 76, avg: 72, description: 'Large diaphragm dynamic, punchy' },
-  'md421kompakt': { min: 67, max: 75, avg: 71, description: 'Compact variant, similar to MD421' },
-  'md441': { min: 68, max: 76, avg: 72, description: 'Very accurate dynamic' },
-  'm88': { min: 66, max: 74, avg: 70, description: 'Warm dynamic, moderate smoothness' },
-  'pr30': { min: 69, max: 78, avg: 73, description: 'Large diaphragm, smooth response' },
-  'e906': { min: 67, max: 75, avg: 71, description: 'Supercardioid, switch-dependent' },
-  'e906_presence': { min: 67, max: 75, avg: 71, description: 'Presence mode, similar smoothness' },
-  'm201': { min: 68, max: 74, avg: 71, description: 'Hypercardioid, accurate response' },
-  'sm7b': { min: 69, max: 75, avg: 72, description: 'Smooth, thick dynamic' },
-  'c414': { min: 68, max: 76, avg: 72, description: 'Condenser, detailed response' },
-  'roswell': { min: 65, max: 76, avg: 71, description: 'Roswell Cab Mic, variable by position' },
+  'sm57': { min: 58, max: 80, avg: 69, description: 'Classic dynamic, mid-forward character' },
+  'r121': { min: 62, max: 82, avg: 72, description: 'Ribbon, naturally smooth high-end rolloff' },
+  'r10': { min: 62, max: 82, avg: 72, description: 'Ribbon, similar to R121' },
+  'r92': { min: 62, max: 82, avg: 72, description: 'Ribbon, smooth and warm' },
+  'm160': { min: 60, max: 80, avg: 70, description: 'Hypercardioid ribbon, focused response' },
+  'md421': { min: 58, max: 80, avg: 69, description: 'Large diaphragm dynamic, punchy' },
+  'md421kompakt': { min: 58, max: 80, avg: 69, description: 'Compact variant, similar to MD421' },
+  'md441': { min: 60, max: 80, avg: 70, description: 'Very accurate dynamic' },
+  'm88': { min: 56, max: 78, avg: 67, description: 'Warm dynamic, moderate smoothness' },
+  'pr30': { min: 60, max: 82, avg: 71, description: 'Large diaphragm, smooth response' },
+  'e906': { min: 56, max: 78, avg: 67, description: 'Supercardioid, switch-dependent' },
+  'e906_presence': { min: 56, max: 78, avg: 67, description: 'Presence mode, similar smoothness' },
+  'm201': { min: 58, max: 78, avg: 68, description: 'Hypercardioid, accurate response' },
+  'sm7b': { min: 60, max: 80, avg: 70, description: 'Smooth, thick dynamic' },
+  'c414': { min: 58, max: 80, avg: 69, description: 'Condenser, detailed response' },
+  'roswell': { min: 55, max: 80, avg: 68, description: 'Roswell Cab Mic, variable by position' },
   // Combo IR smoothness - empirically calibrated from V30 combo IRs (typically 60-66 range)
   // Blends don't inherently smooth the response; they combine two mic characteristics
-  'sm57_r121_tight': { min: 58, max: 68, avg: 63, description: '67:33 blend, SM57-forward character' },
-  'sm57_r121_balance': { min: 60, max: 68, avg: 64, description: '55:45 blend, balanced characteristics' },
-  'sm57_r121_thick': { min: 58, max: 68, avg: 63, description: '51:49 blend, full and thick' },
-  'sm57_r121_smooth': { min: 60, max: 70, avg: 65, description: '45:55 blend, R121-forward character' },
-  'sm57_r121_ribbon_dom': { min: 62, max: 72, avg: 67, description: '24:76 blend, ribbon-dominant warmth' },
+  'sm57_r121_tight': { min: 50, max: 72, avg: 61, description: '67:33 blend, SM57-forward character' },
+  'sm57_r121_balance': { min: 52, max: 72, avg: 62, description: '55:45 blend, balanced characteristics' },
+  'sm57_r121_thick': { min: 50, max: 72, avg: 61, description: '51:49 blend, full and thick' },
+  'sm57_r121_smooth': { min: 52, max: 74, avg: 63, description: '45:55 blend, R121-forward character' },
+  'sm57_r121_ribbon_dom': { min: 54, max: 76, avg: 65, description: '24:76 blend, ribbon-dominant warmth' },
 };
 
-// Default baseline for unknown mics
-const DEFAULT_SMOOTHNESS_BASELINE = { min: 60, max: 80, avg: 70, description: 'Default baseline' };
+// Default baseline for unknown mics - very forgiving
+const DEFAULT_SMOOTHNESS_BASELINE = { min: 50, max: 85, avg: 68, description: 'Default baseline' };
 
 export function getMicSmoothnessBaseline(mic: string): { min: number; max: number; avg: number; description: string } {
   const normalized = mic.toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -276,13 +276,19 @@ export function getMicRelativeSmoothnessAdjustment(mic: string, smoothness: numb
   const baseline = getMicSmoothnessBaseline(mic);
   
   // Score relative to mic's expected range
+  // Be forgiving - guitar cab IRs naturally have character/peaks
   if (smoothness >= baseline.max) {
     return { adjustment: 1, note: `Exceptionally smooth for ${mic}` };
   } else if (smoothness >= baseline.min) {
     return { adjustment: 0, note: `Normal smoothness for ${mic}` };
-  } else if (smoothness >= baseline.min - 15) {
+  } else if (smoothness >= baseline.min - 10) {
+    // Slightly below range - no penalty, just informational
+    return { adjustment: 0, note: `Acceptable smoothness for ${mic}` };
+  } else if (smoothness >= baseline.min - 20) {
+    // Noticeably below - minor penalty
     return { adjustment: -1, note: `Below average smoothness for ${mic}` };
   } else {
-    return { adjustment: -2, note: `Significantly rough for ${mic}` };
+    // Significantly below - this indicates a real issue
+    return { adjustment: -2, note: `Rough frequency response for ${mic}` };
   }
 }
