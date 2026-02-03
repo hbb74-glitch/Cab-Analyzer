@@ -1068,40 +1068,66 @@ export default function Analyzer() {
     const centroidRange = maxCentroid - minCentroid;
     
     // If there's significant brightness variation (>400Hz spread), ask about brightness preference
+    // But only offer options that actually have IRs in those ranges
     if (centroidRange > 400) {
-      preferences.push({
-        type: 'brightness',
-        question: 'What tonal character do you prefer?',
-        options: [
-          { label: 'Brighter / More cutting', value: 'bright' },
-          { label: 'Balanced / Neutral', value: 'neutral' },
-          { label: 'Darker / Warmer', value: 'dark' },
-          { label: 'No preference (technical only)', value: 'none' }
-        ]
-      });
+      // Categorize IRs by brightness: bright = top third, neutral = middle third, dark = bottom third
+      const brightThreshold = minCentroid + (centroidRange * 0.67);
+      const darkThreshold = minCentroid + (centroidRange * 0.33);
+      
+      const hasBrightIRs = centroids.some(c => c >= brightThreshold);
+      const hasDarkIRs = centroids.some(c => c <= darkThreshold);
+      const hasNeutralIRs = centroids.some(c => c > darkThreshold && c < brightThreshold);
+      
+      const brightOptions: { label: string; value: string }[] = [];
+      if (hasBrightIRs) brightOptions.push({ label: 'Brighter / More cutting', value: 'bright' });
+      if (hasNeutralIRs) brightOptions.push({ label: 'Balanced / Neutral', value: 'neutral' });
+      if (hasDarkIRs) brightOptions.push({ label: 'Darker / Warmer', value: 'dark' });
+      brightOptions.push({ label: 'No preference (technical only)', value: 'none' });
+      
+      // Only add preference if there are at least 2 tonal options (excluding "none")
+      if (brightOptions.length > 2) {
+        preferences.push({
+          type: 'brightness',
+          question: 'What tonal character do you prefer?',
+          options: brightOptions
+        });
+      }
     }
     
     // Calculate midrange character variation
-    const midScores = irs.map(ir => {
+    const midRatios = irs.map(ir => {
       const total = ir.metrics.lowEnergy + ir.metrics.midEnergy + ir.metrics.highEnergy;
       return ir.metrics.midEnergy / total;
     });
-    const minMid = Math.min(...midScores);
-    const maxMid = Math.max(...midScores);
+    const minMid = Math.min(...midRatios);
+    const maxMid = Math.max(...midRatios);
     const midRange = maxMid - minMid;
     
     // If there's significant mid variation (>0.1 spread), ask about midrange preference
+    // But only offer options that actually have IRs in those ranges
     if (midRange > 0.1) {
-      preferences.push({
-        type: 'midrange',
-        question: 'What midrange character do you prefer?',
-        options: [
-          { label: 'Mid-forward / Punchy', value: 'forward' },
-          { label: 'Balanced mids', value: 'neutral' },
-          { label: 'Scooped / More low & high', value: 'scooped' },
-          { label: 'No preference (technical only)', value: 'none' }
-        ]
-      });
+      // Categorize IRs by mid character: forward = top third, neutral = middle, scooped = bottom third
+      const forwardThreshold = minMid + (midRange * 0.67);
+      const scoopedThreshold = minMid + (midRange * 0.33);
+      
+      const hasForwardIRs = midRatios.some(m => m >= forwardThreshold);
+      const hasScoopedIRs = midRatios.some(m => m <= scoopedThreshold);
+      const hasNeutralMidIRs = midRatios.some(m => m > scoopedThreshold && m < forwardThreshold);
+      
+      const midOptions: { label: string; value: string }[] = [];
+      if (hasForwardIRs) midOptions.push({ label: 'Mid-forward / Punchy', value: 'forward' });
+      if (hasNeutralMidIRs) midOptions.push({ label: 'Balanced mids', value: 'neutral' });
+      if (hasScoopedIRs) midOptions.push({ label: 'Scooped / More low & high', value: 'scooped' });
+      midOptions.push({ label: 'No preference (technical only)', value: 'none' });
+      
+      // Only add preference if there are at least 2 tonal options (excluding "none")
+      if (midOptions.length > 2) {
+        preferences.push({
+          type: 'midrange',
+          question: 'What midrange character do you prefer?',
+          options: midOptions
+        });
+      }
     }
     
     return preferences;
