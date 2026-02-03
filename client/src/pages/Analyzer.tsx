@@ -1066,6 +1066,7 @@ export default function Analyzer() {
   // Close call decisions state for interactive culling
   const [cullCloseCalls, setCullCloseCalls] = useState<CullCloseCall[]>([]);
   const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
+  const [cullUserOverrides, setCullUserOverrides] = useState<Map<string, string[]>>(new Map());
   
   // Preference query state for subjective culling decisions
   interface CullPreference {
@@ -1541,7 +1542,7 @@ export default function Analyzer() {
       }));
     }
     
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget);
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, cullUserOverrides);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
@@ -2750,25 +2751,69 @@ export default function Analyzer() {
                     <div className="space-y-4 mt-4">
                       {/* Keep Section */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
                             <CheckCircle className="w-4 h-4 text-green-400" />
                             <h4 className="font-medium text-green-400">Keep ({sortedKeep.length})</h4>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const text = sortedKeep.map(ir => ir.filename).join('\n');
-                              navigator.clipboard.writeText(text);
-                              toast({ title: "Copied", description: `${sortedKeep.length} filenames copied to clipboard` });
-                            }}
-                            className="h-7 px-2 text-xs text-green-400 hover:text-green-300"
-                            data-testid="button-copy-keep-list"
-                          >
-                            <Copy className="w-3 h-3 mr-1" />
-                            Copy list
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Run redundancy check on just the kept IRs
+                                const keptFilenames = new Set(sortedKeep.map(ir => ir.filename));
+                                const keptBatchIRs = batchIRs.filter(ir => keptFilenames.has(ir.file.name) && ir.metrics);
+                                
+                                if (keptBatchIRs.length < 2) {
+                                  toast({ title: "Not enough IRs", description: "Need at least 2 kept IRs to check redundancy" });
+                                  return;
+                                }
+                                
+                                // Build groups for kept IRs only
+                                const keptGroups = findRedundancyGroups(
+                                  keptBatchIRs.map(ir => ({
+                                    filename: ir.file.name,
+                                    metrics: ir.metrics!
+                                  })),
+                                  similarityThreshold
+                                );
+                                
+                                if (keptGroups.length === 0) {
+                                  toast({ title: "No redundancies", description: "Your kept IRs are all distinct - nice selection!" });
+                                } else {
+                                  // Update redundancy panel with kept-only results
+                                  setRedundancyGroups(keptGroups);
+                                  setShowRedundancies(true);
+                                  toast({ 
+                                    title: `Found ${keptGroups.length} similar group${keptGroups.length > 1 ? 's' : ''}`, 
+                                    description: "Scroll up to see redundancy analysis of your kept IRs" 
+                                  });
+                                  // Scroll to redundancy section
+                                  scrollToSection(redundancyRef);
+                                }
+                              }}
+                              className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300"
+                              data-testid="button-check-keep-redundancy"
+                            >
+                              <Target className="w-3 h-3 mr-1" />
+                              Check Redundancy
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const text = sortedKeep.map(ir => ir.filename).join('\n');
+                                navigator.clipboard.writeText(text);
+                                toast({ title: "Copied", description: `${sortedKeep.length} filenames copied to clipboard` });
+                              }}
+                              className="h-7 px-2 text-xs text-green-400 hover:text-green-300"
+                              data-testid="button-copy-keep-list"
+                            >
+                              <Copy className="w-3 h-3 mr-1" />
+                              Copy list
+                            </Button>
+                          </div>
                         </div>
                         <div className="grid gap-2">
                           {sortedKeep.map((ir, idx) => (
@@ -2918,19 +2963,23 @@ export default function Analyzer() {
                         size="sm"
                         className="mt-4 w-full"
                         onClick={() => {
-                          // Re-run culling with user selections as overrides
-                          const overrides = new Map<string, string[]>();
+                          // Build overrides map from user selections
+                          const newOverrides = new Map<string, string[]>(cullUserOverrides);
                           for (const cc of cullCloseCalls) {
                             if (cc.selectedFilename) {
-                              const existing = overrides.get(cc.micType) || [];
+                              const existing = newOverrides.get(cc.micType) || [];
                               existing[cc.slot - 1] = cc.selectedFilename;
-                              overrides.set(cc.micType, existing);
+                              newOverrides.set(cc.micType, existing);
                             }
                           }
                           // Store overrides and trigger re-cull
-                          toast({ title: "Applying choices", description: "Re-running culler with your selections..." });
-                          // For now, just clear close calls - full re-run would need refactor
+                          setCullUserOverrides(newOverrides);
                           setCullCloseCalls([]);
+                          
+                          // Re-run culling with updated overrides
+                          setTimeout(() => {
+                            handleCullIRs(true, true);
+                          }, 100);
                         }}
                         data-testid="button-apply-close-call-choices"
                       >
