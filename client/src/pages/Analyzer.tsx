@@ -603,9 +603,24 @@ function cullIRs(
         diversityScore += 0.1;
       }
       
-      // Bonus for quality score (which now includes smoothness and noise floor)
+      // Bonus for quality score (primary quality factor)
       const qualityBonus = ((irs[candidateIdx].score || 85) - 80) / 100;
       diversityScore += qualityBonus * 0.15;
+      
+      // Bonus for smoothness (0-100, higher is better)
+      const smoothnessBonus = (irs[candidateIdx].metrics.frequencySmoothness - 50) / 200;
+      diversityScore += smoothnessBonus * 0.08;
+      
+      // Bonus for clean noise floor (more negative is better, typical range -60 to -30)
+      const noiseBonus = Math.max(0, (-irs[candidateIdx].metrics.noiseFloorDb - 40) / 100);
+      diversityScore += noiseBonus * 0.05;
+      
+      // Bonus for balanced energy distribution (low variance = more balanced)
+      const m = irs[candidateIdx].metrics;
+      const avgEnergy = (m.lowEnergy + m.midEnergy + m.highEnergy) / 3;
+      const energyVariance = Math.abs(m.lowEnergy - avgEnergy) + Math.abs(m.midEnergy - avgEnergy) + Math.abs(m.highEnergy - avgEnergy);
+      const balanceBonus = (1 - energyVariance) * 0.05;
+      diversityScore += balanceBonus;
 
       if (diversityScore > bestDiversityScore) {
         bestDiversityScore = diversityScore;
