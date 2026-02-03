@@ -1136,6 +1136,36 @@ export default function Analyzer() {
       setTargetCullCount(1);
     }
   };
+  
+  // Section navigation - ordered list for up/down navigation
+  const sectionOrder = [
+    { ref: analyzeRef, name: 'Analyze', visible: true },
+    { ref: redundancyRef, name: 'Redundancies', visible: showRedundancies },
+    { ref: smartThinRef, name: 'Smart Thin', visible: showSmartThin && smartThinGroups.length > 0 },
+    { ref: cullerRef, name: 'Culler', visible: showCuller },
+  ];
+  
+  const visibleSections = sectionOrder.filter(s => s.visible);
+  
+  const navigateSection = (direction: 'up' | 'down') => {
+    if (visibleSections.length <= 1) return;
+    
+    // Find current position based on scroll position
+    let currentIdx = 0;
+    for (let i = 0; i < visibleSections.length; i++) {
+      const rect = visibleSections[i].ref.current?.getBoundingClientRect();
+      if (rect && rect.top <= 100) {
+        currentIdx = i;
+      }
+    }
+    
+    // Calculate next index
+    const nextIdx = direction === 'down' 
+      ? Math.min(currentIdx + 1, visibleSections.length - 1)
+      : Math.max(currentIdx - 1, 0);
+    
+    scrollToSection(visibleSections[nextIdx].ref);
+  };
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -3332,22 +3362,53 @@ export default function Analyzer() {
                         These IRs had very similar scores. Your input can help make better choices:
                       </p>
                       <div className="space-y-4">
-                        {cullCloseCalls.map((closeCall, ccIdx) => (
+                        {cullCloseCalls.map((closeCall, ccIdx) => {
+                          // Get all filenames already selected in OTHER close call groups
+                          const selectedInOtherGroups = new Set(
+                            cullCloseCalls
+                              .filter((_, idx) => idx !== ccIdx)
+                              .map(cc => cc.selectedFilename)
+                              .filter(Boolean) as string[]
+                          );
+                          
+                          // Filter candidates to exclude those already selected elsewhere
+                          const availableCandidates = closeCall.candidates.filter(
+                            c => !selectedInOtherGroups.has(c.filename)
+                          );
+                          
+                          // If no candidates left, skip this group
+                          if (availableCandidates.length === 0) return null;
+                          
+                          return (
                           <div key={`${closeCall.micType}-${closeCall.slot}`} className="p-3 rounded-lg bg-background/50 border border-border/30">
                             <div className="flex items-center gap-2 mb-3">
                               <span className="text-xs font-medium text-amber-300">{closeCall.micType.toUpperCase()}</span>
                               {closeCall.slot > 1 && (
                                 <span className="text-xs text-muted-foreground">(slot {closeCall.slot})</span>
                               )}
+                              {availableCandidates.length < closeCall.candidates.length && (
+                                <span className="text-xs text-green-400/70">
+                                  ({closeCall.candidates.length - availableCandidates.length} already selected)
+                                </span>
+                              )}
                             </div>
                             <div className="grid gap-2">
-                              {closeCall.candidates.map((candidate, candIdx) => (
+                              {availableCandidates.map((candidate, candIdx) => (
                                 <button
                                   key={candidate.filename}
                                   onClick={() => {
-                                    // Update close call with selection
-                                    const updated = [...cullCloseCalls];
-                                    updated[ccIdx] = { ...updated[ccIdx], selectedFilename: candidate.filename };
+                                    // Update close call with selection and clear conflicts in other groups
+                                    const updated = cullCloseCalls.map((cc, idx) => {
+                                      if (idx === ccIdx) {
+                                        // This is the group being selected
+                                        return { ...cc, selectedFilename: candidate.filename };
+                                      }
+                                      // For other groups: if they had selected this filename, clear it
+                                      if (cc.selectedFilename === candidate.filename) {
+                                        return { ...cc, selectedFilename: null };
+                                      }
+                                      return cc;
+                                    });
                                     setCullCloseCalls(updated);
                                     toast({ title: "Selection saved", description: `Will keep ${candidate.filename}` });
                                   }}
@@ -3386,7 +3447,8 @@ export default function Analyzer() {
                               ))}
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <Button
                         variant="default"
@@ -3690,6 +3752,30 @@ export default function Analyzer() {
         </div>
         )}
       </div>
+      
+      {/* Floating Section Navigation */}
+      {visibleSections.length > 1 && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => navigateSection('up')}
+            title="Previous section"
+            data-testid="button-nav-up"
+          >
+            <ChevronUp className="w-5 h-5" />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => navigateSection('down')}
+            title="Next section"
+            data-testid="button-nav-down"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
