@@ -1069,12 +1069,12 @@ export default function Analyzer() {
   const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
   const [cullUserOverrides, setCullUserOverrides] = useState<Map<string, string[]>>(new Map());
   
-  // Smart Thin state - auto-detect over-represented groups and suggest keeping bright/mid/dark
+  // Smart Thin state - auto-detect over-represented groups and suggest keeping tonally unique variants
   interface SmartThinGroup {
     groupKey: string; // e.g., "roswell_cap" or "sm57_r121_a_tight"
     displayName: string;
-    members: { filename: string; centroid: number; label: 'bright' | 'mid' | 'dark' | 'extra' }[];
-    suggested: string[]; // Filenames to keep (bright, mid, dark)
+    members: { filename: string; centroid: number; label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra'; midRatio?: number }[];
+    suggested: string[]; // Filenames to keep (3-5 tonally unique variants)
     extras: string[]; // Filenames that could be cut
   }
   const [smartThinGroups, setSmartThinGroups] = useState<SmartThinGroup[]>([]);
@@ -1578,29 +1578,111 @@ export default function Analyzer() {
     // Find groups with 4+ members (over-represented)
     for (const [key, members] of Array.from(groupMap.entries())) {
       if (members.length >= 4) {
-        // Sort by spectral centroid (brightness)
-        const sorted = [...members].sort((a, b) => b.metrics.spectralCentroid - a.metrics.spectralCentroid);
+        // Calculate tonal characteristics for each IR
+        const withTonalData = members.map(ir => {
+          const centroid = ir.metrics.spectralCentroid;
+          // Estimate midrange energy from frequency data (1k-4k Hz region)
+          const freqData = ir.metrics.frequencyData || [];
+          let midEnergy = 0;
+          let lowEnergy = 0;
+          let highEnergy = 0;
+          
+          // Simple band energy estimation
+          for (let i = 0; i < freqData.length; i++) {
+            const freq = (i / freqData.length) * 22050; // Approx freq
+            const energy = Math.pow(10, freqData[i] / 20);
+            if (freq < 500) lowEnergy += energy;
+            else if (freq < 4000) midEnergy += energy;
+            else highEnergy += energy;
+          }
+          
+          const totalEnergy = lowEnergy + midEnergy + highEnergy || 1;
+          const midRatio = midEnergy / totalEnergy;
+          const smoothness = ir.metrics.frequencySmoothness || 60;
+          
+          return {
+            ...ir,
+            centroid,
+            midRatio,
+            smoothness,
+            // Combined tonal score for clustering
+            tonalVector: [centroid / 5000, midRatio, smoothness / 100]
+          };
+        });
         
-        // Pick brightest, mid, darkest
-        const brightIdx = 0;
-        const darkIdx = sorted.length - 1;
-        const midIdx = Math.floor(sorted.length / 2);
+        // Sort by centroid for initial ordering
+        const sorted = [...withTonalData].sort((a, b) => b.centroid - a.centroid);
         
-        const suggested = [
-          sorted[brightIdx].filename,
-          sorted[midIdx].filename,
-          sorted[darkIdx].filename
-        ].filter((v, i, arr) => arr.indexOf(v) === i); // Dedupe if small group
+        // Use greedy selection: keep IRs that are tonally distinct
+        // Start with brightest and darkest, then add any that are different enough
+        const selected: typeof sorted = [];
+        const TONAL_DIFF_THRESHOLD = 0.15; // 15% difference in tonal vector
         
+        // Helper to calculate tonal distance
+        const tonalDist = (a: typeof sorted[0], b: typeof sorted[0]): number => {
+          const dCentroid = Math.abs(a.centroid - b.centroid) / 2000; // Normalize
+          const dMid = Math.abs(a.midRatio - b.midRatio) * 2; // Weight mids
+          const dSmooth = Math.abs(a.smoothness - b.smoothness) / 30;
+          return Math.sqrt(dCentroid * dCentroid + dMid * dMid + dSmooth * dSmooth);
+        };
+        
+        // Always include brightest
+        selected.push(sorted[0]);
+        
+        // Always include darkest if different enough
+        if (sorted.length > 1) {
+          const darkest = sorted[sorted.length - 1];
+          if (tonalDist(sorted[0], darkest) > 0.1) {
+            selected.push(darkest);
+          }
+        }
+        
+        // Add mid-point candidate
+        const midCandidate = sorted[Math.floor(sorted.length / 2)];
+        const isMidUnique = selected.every(s => tonalDist(s, midCandidate) > TONAL_DIFF_THRESHOLD);
+        if (isMidUnique) {
+          selected.push(midCandidate);
+        }
+        
+        // Check remaining IRs for any that are tonally unique (mids-forward, scooped, etc.)
+        for (const ir of sorted) {
+          if (selected.includes(ir)) continue;
+          const isUnique = selected.every(s => tonalDist(s, ir) > TONAL_DIFF_THRESHOLD);
+          if (isUnique && selected.length < 5) { // Cap at 5 unique variants
+            selected.push(ir);
+          }
+        }
+        
+        // Sort selected by centroid for consistent labeling
+        selected.sort((a, b) => b.centroid - a.centroid);
+        
+        // Generate labels based on characteristics
+        const getLabel = (ir: typeof sorted[0], idx: number, total: number): 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra' => {
+          if (idx === 0) return 'bright';
+          if (idx === total - 1) return 'dark';
+          // Check if notably mid-forward
+          if (ir.midRatio > 0.5) return 'mid-fwd';
+          // Check if notably smooth
+          if (ir.smoothness > 70) return 'smooth';
+          return 'mid';
+        };
+        
+        const suggested = selected.map(s => s.filename);
         const suggestedSet = new Set(suggested);
         const extras = sorted.filter(ir => !suggestedSet.has(ir.filename)).map(ir => ir.filename);
         
-        const labeledMembers = sorted.map((ir, idx) => {
-          let label: 'bright' | 'mid' | 'dark' | 'extra' = 'extra';
-          if (idx === brightIdx) label = 'bright';
-          else if (idx === darkIdx) label = 'dark';
-          else if (idx === midIdx) label = 'mid';
-          return { filename: ir.filename, centroid: Math.round(ir.metrics.spectralCentroid), label };
+        const labeledMembers = sorted.map((ir) => {
+          const selIdx = selected.findIndex(s => s.filename === ir.filename);
+          let label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra' = 'extra';
+          if (selIdx !== -1) {
+            label = getLabel(ir, selIdx, selected.length);
+          }
+          return { 
+            filename: ir.filename, 
+            centroid: Math.round(ir.centroid), 
+            label,
+            midRatio: Math.round(ir.midRatio * 100)
+          };
         });
         
         groups.push({
@@ -2797,13 +2879,18 @@ export default function Analyzer() {
                   
                   <p className="text-sm text-muted-foreground">
                     Found {smartThinGroups.length} over-represented group{smartThinGroups.length > 1 ? 's' : ''}. 
-                    Keep the <span className="text-green-400">brightest</span>, <span className="text-yellow-400">mid</span>, and <span className="text-blue-400">darkest</span> variant of each:
+                    Keeping tonally unique variants (bright, dark, mid-forward, smooth, etc.):
                   </p>
                   
                   <div className="space-y-4 max-h-96 overflow-y-auto">
                     {smartThinGroups.map((group) => (
                       <div key={group.groupKey} className="p-4 rounded-lg bg-white/5 border border-white/10">
-                        <h4 className="font-medium text-cyan-300 mb-2">{group.displayName}</h4>
+                        <h4 className="font-medium text-cyan-300 mb-2">
+                          {group.displayName} 
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (keeping {group.suggested.length} of {group.members.length})
+                          </span>
+                        </h4>
                         <div className="grid gap-1.5">
                           {group.members.map((m) => (
                             <div 
@@ -2813,25 +2900,34 @@ export default function Analyzer() {
                                 m.label === 'bright' && "bg-green-500/10 border border-green-500/20",
                                 m.label === 'mid' && "bg-yellow-500/10 border border-yellow-500/20",
                                 m.label === 'dark' && "bg-blue-500/10 border border-blue-500/20",
+                                m.label === 'mid-fwd' && "bg-orange-500/10 border border-orange-500/20",
+                                m.label === 'smooth' && "bg-purple-500/10 border border-purple-500/20",
                                 m.label === 'extra' && "bg-red-500/5 border border-red-500/10 opacity-60"
                               )}
                             >
                               <span className={cn(
-                                "font-mono text-xs truncate max-w-[70%]",
+                                "font-mono text-xs truncate max-w-[60%]",
                                 m.label === 'bright' && "text-green-300",
                                 m.label === 'mid' && "text-yellow-300",
                                 m.label === 'dark' && "text-blue-300",
+                                m.label === 'mid-fwd' && "text-orange-300",
+                                m.label === 'smooth' && "text-purple-300",
                                 m.label === 'extra' && "text-red-300 line-through"
                               )}>
                                 {m.filename}
                               </span>
                               <div className="flex items-center gap-2 text-xs">
                                 <span className="text-muted-foreground">{m.centroid} Hz</span>
+                                {m.midRatio !== undefined && (
+                                  <span className="text-muted-foreground">{m.midRatio}% mid</span>
+                                )}
                                 <span className={cn(
                                   "px-1.5 py-0.5 rounded text-[10px] uppercase font-medium",
                                   m.label === 'bright' && "bg-green-500/20 text-green-400",
                                   m.label === 'mid' && "bg-yellow-500/20 text-yellow-400",
                                   m.label === 'dark' && "bg-blue-500/20 text-blue-400",
+                                  m.label === 'mid-fwd' && "bg-orange-500/20 text-orange-400",
+                                  m.label === 'smooth' && "bg-purple-500/20 text-purple-400",
                                   m.label === 'extra' && "bg-red-500/20 text-red-400"
                                 )}>
                                   {m.label === 'extra' ? 'cut' : m.label}
