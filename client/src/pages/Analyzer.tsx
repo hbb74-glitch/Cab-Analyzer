@@ -1854,7 +1854,7 @@ export default function Analyzer() {
                         Redundancy
                       </Button>
                     )}
-                    {showCuller && (
+                    {(showCuller || showPreferenceQuery) && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -2518,6 +2518,8 @@ export default function Analyzer() {
               )}
             </AnimatePresence>
             
+            {/* Culler Section (Preferences + Results) */}
+            <div ref={cullerRef}>
             {/* Preference Query Panel */}
             <AnimatePresence>
               {showPreferenceQuery && pendingPreferences.length > 0 && (
@@ -2602,11 +2604,10 @@ export default function Analyzer() {
             <AnimatePresence>
               {showCuller && (
                 <motion.div
-                  ref={cullerRef}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="glass-panel p-6 rounded-2xl space-y-4"
+                  className="glass-panel p-6 rounded-2xl space-y-4 mt-4"
                   data-testid="panel-culler"
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2889,6 +2890,7 @@ export default function Analyzer() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
           </motion.div>
         )}
 
