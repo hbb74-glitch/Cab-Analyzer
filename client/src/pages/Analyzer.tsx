@@ -1080,6 +1080,11 @@ export default function Analyzer() {
       const hasNeutralIRs = centroids.some(c => c > darkThreshold && c < brightThreshold);
       
       const brightOptions: { label: string; value: string }[] = [];
+      // Add variety option if there are at least 2 distinct tonal categories
+      const tonalCategories = [hasBrightIRs, hasNeutralIRs, hasDarkIRs].filter(Boolean).length;
+      if (tonalCategories >= 2) {
+        brightOptions.push({ label: 'Variety (keep mix of bright/neutral/dark)', value: 'variety' });
+      }
       if (hasBrightIRs) brightOptions.push({ label: 'Brighter / More cutting', value: 'bright' });
       if (hasNeutralIRs) brightOptions.push({ label: 'Balanced / Neutral', value: 'neutral' });
       if (hasDarkIRs) brightOptions.push({ label: 'Darker / Warmer', value: 'dark' });
@@ -1116,6 +1121,11 @@ export default function Analyzer() {
       const hasNeutralMidIRs = midRatios.some(m => m > scoopedThreshold && m < forwardThreshold);
       
       const midOptions: { label: string; value: string }[] = [];
+      // Add variety option if there are at least 2 distinct mid categories
+      const midCategories = [hasForwardIRs, hasNeutralMidIRs, hasScoopedIRs].filter(Boolean).length;
+      if (midCategories >= 2) {
+        midOptions.push({ label: 'Variety (keep mix of mid characters)', value: 'variety' });
+      }
       if (hasForwardIRs) midOptions.push({ label: 'Mid-forward / Punchy', value: 'forward' });
       if (hasNeutralMidIRs) midOptions.push({ label: 'Balanced mids', value: 'neutral' });
       if (hasScoopedIRs) midOptions.push({ label: 'Scooped / More low & high', value: 'scooped' });
@@ -1148,20 +1158,59 @@ export default function Analyzer() {
     const sortedByMid = [...irs].sort((a, b) => getMidRatio(b.metrics) - getMidRatio(a.metrics));
     const midRanks = new Map(sortedByMid.map((ir, idx) => [ir.filename, idx / (irs.length - 1)]));
     
+    // For variety mode: categorize IRs into thirds
+    const getBrightnessCategory = (rank: number): 'bright' | 'neutral' | 'dark' => {
+      if (rank < 0.33) return 'bright';
+      if (rank > 0.67) return 'dark';
+      return 'neutral';
+    };
+    const getMidCategory = (rank: number): 'forward' | 'neutral' | 'scooped' => {
+      if (rank < 0.33) return 'forward';
+      if (rank > 0.67) return 'scooped';
+      return 'neutral';
+    };
+    
+    // Count how many IRs are in each category (for variety balancing)
+    const brightCounts = { bright: 0, neutral: 0, dark: 0 };
+    const midCounts = { forward: 0, neutral: 0, scooped: 0 };
+    for (const ir of irs) {
+      const bRank = centroidRanks.get(ir.filename) || 0.5;
+      const mRank = midRanks.get(ir.filename) || 0.5;
+      brightCounts[getBrightnessCategory(bRank)]++;
+      midCounts[getMidCategory(mRank)]++;
+    }
+    
+    // Calculate inverse representation bonus (underrepresented categories get more bonus)
+    const totalIRs = irs.length;
+    const getBrightVarietyBonus = (cat: 'bright' | 'neutral' | 'dark') => {
+      const idealShare = 1 / 3;
+      const actualShare = brightCounts[cat] / totalIRs;
+      // If underrepresented, give bonus; if overrepresented, less bonus
+      return Math.max(0, (idealShare - actualShare + 0.1) * 0.3);
+    };
+    const getMidVarietyBonus = (cat: 'forward' | 'neutral' | 'scooped') => {
+      const idealShare = 1 / 3;
+      const actualShare = midCounts[cat] / totalIRs;
+      return Math.max(0, (idealShare - actualShare + 0.1) * 0.25);
+    };
+    
     return irs.map(ir => {
       let prefBonus = 0;
+      const bRank = centroidRanks.get(ir.filename) || 0.5;
+      const mRank = midRanks.get(ir.filename) || 0.5;
       
       // Apply brightness preference
       const brightPref = prefs['brightness'];
       if (brightPref && brightPref !== 'none') {
-        const rank = centroidRanks.get(ir.filename) || 0.5;
-        if (brightPref === 'bright') {
-          prefBonus += (1 - rank) * 0.2; // Boost brighter IRs
+        if (brightPref === 'variety') {
+          // Variety mode: boost underrepresented categories
+          const cat = getBrightnessCategory(bRank);
+          prefBonus += getBrightVarietyBonus(cat);
+        } else if (brightPref === 'bright') {
+          prefBonus += (1 - bRank) * 0.2; // Boost brighter IRs
         } else if (brightPref === 'dark') {
-          prefBonus += rank * 0.2; // Boost darker IRs
-        }
-        // 'neutral' gives bonus to middle 40%
-        else if (brightPref === 'neutral' && rank > 0.3 && rank < 0.7) {
+          prefBonus += bRank * 0.2; // Boost darker IRs
+        } else if (brightPref === 'neutral' && bRank > 0.3 && bRank < 0.7) {
           prefBonus += 0.1;
         }
       }
@@ -1169,13 +1218,15 @@ export default function Analyzer() {
       // Apply midrange preference
       const midPref = prefs['midrange'];
       if (midPref && midPref !== 'none') {
-        const rank = midRanks.get(ir.filename) || 0.5;
-        if (midPref === 'forward') {
-          prefBonus += (1 - rank) * 0.15; // Boost mid-forward IRs
+        if (midPref === 'variety') {
+          // Variety mode: boost underrepresented categories
+          const cat = getMidCategory(mRank);
+          prefBonus += getMidVarietyBonus(cat);
+        } else if (midPref === 'forward') {
+          prefBonus += (1 - mRank) * 0.15; // Boost mid-forward IRs
         } else if (midPref === 'scooped') {
-          prefBonus += rank * 0.15; // Boost scooped IRs
-        }
-        else if (midPref === 'neutral' && rank > 0.3 && rank < 0.7) {
+          prefBonus += mRank * 0.15; // Boost scooped IRs
+        } else if (midPref === 'neutral' && mRank > 0.3 && mRank < 0.7) {
           prefBonus += 0.08;
         }
       }
