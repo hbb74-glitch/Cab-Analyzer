@@ -325,8 +325,8 @@ function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
     metrics2.lowEnergy, metrics2.midEnergy, metrics2.highEnergy
   );
   
-  // Weighted average: frequency curve is most important
-  const similarity = (frequencyCorrelation * 0.5) + (centroidProximity * 0.3) + (energyMatch * 0.2);
+  // Weighted average: frequency curve is most important (60/25/15)
+  const similarity = (frequencyCorrelation * 0.6) + (centroidProximity * 0.25) + (energyMatch * 0.15);
   
   return {
     similarity,
