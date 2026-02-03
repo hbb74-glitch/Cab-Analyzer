@@ -741,13 +741,31 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   let variant: string | undefined;
   let isCombo = false;
   
-  // Check for combo IRs first (e.g., SM57_R121_Combo_A.wav)
-  if ((lower.includes('sm57') && lower.includes('r121') && lower.includes('combo')) ||
-      lower.includes('sm57_r121_combo') || lower.includes('57_121_combo')) {
-    mic = 'sm57_r121_combo';
+  // Check for combo IRs first (SM57+R121 blends with or without "combo" label)
+  // Formats: Speaker_SM57_R121_BlendLabel_ShotVariant_R121Height
+  // e.g., V30_SM57_R121_Balanced_A_6in.wav, Cab_SM57_R121_Thick_B.wav
+  const hasSM57 = lower.includes('sm57') || lower.includes('_57_') || lower.includes('-57-');
+  const hasR121 = lower.includes('r121') || lower.includes('_121_') || lower.includes('-121-');
+  
+  if (hasSM57 && hasR121) {
     isCombo = true;
-    // Extract height variant (A, B, C, etc.) - the letter after "combo_"
-    const variantMatch = filename.match(/combo[_-]?([a-zA-Z])(?:[_.]|$)/i);
+    // Detect specific blend labels (including "balanced" alias for "balance")
+    if (lower.includes('tight')) {
+      mic = 'sm57_r121_tight';
+    } else if (lower.includes('balanced') || lower.includes('balance')) {
+      mic = 'sm57_r121_balance';
+    } else if (lower.includes('thick')) {
+      mic = 'sm57_r121_thick';
+    } else if (lower.includes('smooth')) {
+      mic = 'sm57_r121_smooth';
+    } else if (lower.includes('combo')) {
+      mic = 'sm57_r121_combo';
+    } else {
+      // Default to thick (50/50) for unlabeled combos
+      mic = 'sm57_r121_thick';
+    }
+    // Extract shot variant (A, B, C, etc.) - single letter after blend label
+    const variantMatch = filename.match(/(?:tight|balance|balanced|thick|smooth|combo)[_-]?([a-zA-Z])(?:[_.]|$)/i);
     if (variantMatch) {
       variant = variantMatch[1].toUpperCase();
     }

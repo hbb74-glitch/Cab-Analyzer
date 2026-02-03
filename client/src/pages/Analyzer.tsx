@@ -129,16 +129,22 @@ function parseFilename(filename: string): ParsedFilename {
       }
     }
     // Handle "balanced" alias
+    let blendLabelInFilename: string | null = null;
     if (!result.blendLabel && (parts.includes('balanced') || fullName.includes('balanced'))) {
       result.blendLabel = 'balance';
+      blendLabelInFilename = 'balanced'; // Track the actual string in filename
     }
     // If no blend label found, default to 'thick' (50:50)
     if (!result.blendLabel) {
       result.blendLabel = 'thick';
     }
+    // Track what was actually in the filename for index lookup
+    if (!blendLabelInFilename) {
+      blendLabelInFilename = result.blendLabel;
+    }
     // Format: Speaker_SM57_R121_BlendLabel_ShotVariant_R121Height
     // e.g., Cab_SM57_R121_Balanced_A_6in
-    const blendIndex = result.blendLabel ? parts.indexOf(result.blendLabel) : -1;
+    const blendIndex = parts.indexOf(blendLabelInFilename);
     if (blendIndex !== -1 && blendIndex < parts.length - 1) {
       // Next part after blend label is shot variant (A, B, C, etc.)
       const variantPart = parts[blendIndex + 1];

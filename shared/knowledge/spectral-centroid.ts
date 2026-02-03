@@ -62,12 +62,12 @@ function normalizeMicName(mic: string): string {
   
   // Combo mics with blend labels (check first before generic combo)
   const isCombo = (lower.includes('sm57') && lower.includes('r121')) ||
-                  lower.includes('57') && lower.includes('121');
+                  (lower.includes('57') && lower.includes('121'));
   
   if (isCombo) {
-    // Check for specific blend labels
+    // Check for specific blend labels (including "balanced" alias)
     if (lower.includes('tight')) return 'sm57_r121_tight';
-    if (lower.includes('balance')) return 'sm57_r121_balance';
+    if (lower.includes('balanced') || lower.includes('balance')) return 'sm57_r121_balance';
     if (lower.includes('thick')) return 'sm57_r121_thick';
     if (lower.includes('smooth')) return 'sm57_r121_smooth';
     // Generic combo (backward compatibility)
