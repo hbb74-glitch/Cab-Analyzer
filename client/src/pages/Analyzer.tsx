@@ -1138,6 +1138,7 @@ export default function Analyzer() {
   };
   
   // Section navigation - 3 main sections that cycle: Analysis → Redundancy → Culling
+  const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
   const mainSections = [
     { ref: analyzeRef, name: 'Analysis' },
     { ref: redundancyRef, name: 'Redundancy' },
@@ -1145,24 +1146,15 @@ export default function Analyzer() {
   ];
   
   const navigateSection = (direction: 'up' | 'down') => {
-    // Find current position based on scroll position
-    let currentIdx = 0;
-    for (let i = 0; i < mainSections.length; i++) {
-      const rect = mainSections[i].ref.current?.getBoundingClientRect();
-      if (rect && rect.top <= 100) {
-        currentIdx = i;
-      }
-    }
-    
-    // Calculate next index with wrapping (bounce from top to bottom)
     let nextIdx;
     if (direction === 'down') {
-      nextIdx = (currentIdx + 1) % mainSections.length;
+      nextIdx = (currentSectionIdx + 1) % mainSections.length;
     } else {
-      nextIdx = (currentIdx - 1 + mainSections.length) % mainSections.length;
+      nextIdx = (currentSectionIdx - 1 + mainSections.length) % mainSections.length;
     }
     
-    scrollToSection(mainSections[nextIdx].ref);
+    setCurrentSectionIdx(nextIdx);
+    mainSections[nextIdx].ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
@@ -3743,9 +3735,9 @@ export default function Analyzer() {
         )}
       </div>
       
-      {/* Floating Section Navigation - always visible */}
+      {/* Floating Section Navigation - always visible in batch mode */}
       {mode === 'batch' && (
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
+        <div className="fixed bottom-6 right-6 flex flex-col items-center gap-2 z-50">
           <Button
             size="icon"
             variant="outline"
@@ -3755,6 +3747,9 @@ export default function Analyzer() {
           >
             <ChevronUp className="w-5 h-5" />
           </Button>
+          <span className="text-xs font-medium px-2 py-1 bg-background/90 border border-border rounded text-muted-foreground">
+            {mainSections[currentSectionIdx]?.name}
+          </span>
           <Button
             size="icon"
             variant="outline"
