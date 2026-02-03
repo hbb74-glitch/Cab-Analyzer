@@ -510,6 +510,9 @@ interface CullCloseCall {
     brightness: string;
     position: string;
     distance: string | null;
+    smoothness: number; // Raw smoothness score
+    centroid: number; // Spectral centroid Hz
+    midrangeHint: string; // Tonal character hint
   }[];
   selectedFilename: string | null; // User's choice, null if not yet decided
 }
@@ -676,6 +679,30 @@ function cullIRs(
     if (percentile <= 0.8) return 'dark';
     return 'darkest';
   };
+  
+  // Helper to generate midrange/tonal hint based on frequency response
+  const getMidrangeHint = (idx: number): string => {
+    const metrics = irs[idx].metrics;
+    const centroid = metrics.spectralCentroid;
+    const smoothness = metrics.frequencySmoothness || 0;
+    
+    // Generate helpful tonal hints based on centroid and smoothness
+    const hints: string[] = [];
+    
+    // Centroid-based hints
+    if (centroid > 2800) hints.push('crisp');
+    else if (centroid > 2200) hints.push('balanced');
+    else if (centroid > 1600) hints.push('warm');
+    else hints.push('thick');
+    
+    // Smoothness-based hints
+    if (smoothness >= 75) hints.push('smooth');
+    else if (smoothness >= 60) hints.push('natural');
+    else if (smoothness >= 45) hints.push('textured');
+    else hints.push('aggressive');
+    
+    return hints.join(', ');
+  };
 
   // Select best IRs from each mic group
   // Primary: score, Secondary: diversity within the mic's selections
@@ -723,7 +750,10 @@ function cullIRs(
               combinedScore: (irs[idx].score || 85) / 100,
               brightness: getBrightnessLabelForCloseCall(idx),
               position: getPosition(irs[idx].filename),
-              distance: getDistanceFromFilename(irs[idx].filename)
+              distance: getDistanceFromFilename(irs[idx].filename),
+              smoothness: irs[idx].metrics.frequencySmoothness || 0,
+              centroid: Math.round(irs[idx].metrics.spectralCentroid),
+              midrangeHint: getMidrangeHint(idx)
             })),
             selectedFilename: null
           });
@@ -794,7 +824,10 @@ function cullIRs(
                 combinedScore: c.combinedScore,
                 brightness: getBrightnessLabelForCloseCall(c.idx),
                 position: getPosition(irs[c.idx].filename),
-                distance: getDistanceFromFilename(irs[c.idx].filename)
+                distance: getDistanceFromFilename(irs[c.idx].filename),
+                smoothness: irs[c.idx].metrics.frequencySmoothness || 0,
+                centroid: Math.round(irs[c.idx].metrics.spectralCentroid),
+                midrangeHint: getMidrangeHint(c.idx)
               })),
               selectedFilename: null
             });
@@ -1997,20 +2030,33 @@ export default function Analyzer() {
                       />
                       <span className="text-sm text-muted-foreground">of {validBatchCount} IRs</span>
                     </div>
-                    <button
-                      onClick={() => handleCullIRs()}
-                      disabled={validBatchCount < 2 || analyzingBatchCount > 0 || targetCullCount >= validBatchCount}
-                      className={cn(
-                        "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
-                        validBatchCount >= 2 && analyzingBatchCount === 0 && targetCullCount < validBatchCount
-                          ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30"
-                          : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleCullIRs()}
+                        disabled={validBatchCount < 2 || analyzingBatchCount > 0 || targetCullCount >= validBatchCount}
+                        className={cn(
+                          "flex-1 py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                          validBatchCount >= 2 && analyzingBatchCount === 0 && targetCullCount < validBatchCount
+                            ? "bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30"
+                            : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                        )}
+                        data-testid="button-cull-now"
+                      >
+                        <Scissors className="w-4 h-4" />
+                        Cull Now
+                      </button>
+                      {/* Quick nav to culler results when visible */}
+                      {(showCuller || showPreferenceQuery) && (
+                        <button
+                          onClick={() => scrollToSection(cullerRef)}
+                          className="px-3 py-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-all text-sm"
+                          data-testid="button-jump-to-culler"
+                          title="Jump to culler results"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
                       )}
-                      data-testid="button-cull-now"
-                    >
-                      <Scissors className="w-4 h-4" />
-                      Cull Now
-                    </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2841,8 +2887,8 @@ export default function Analyzer() {
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1 min-w-0">
                                       <p className="font-mono text-xs truncate">{candidate.filename}</p>
-                                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-                                        <span>Score: {candidate.score}</span>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                                        <span className="font-medium">Score: {candidate.score}</span>
                                         {candidate.position && <span>{candidate.position}</span>}
                                         {candidate.distance && <span>{candidate.distance}in</span>}
                                         <span className={cn(
@@ -2850,6 +2896,11 @@ export default function Analyzer() {
                                           candidate.brightness === 'darkest' || candidate.brightness === 'dark' ? 'text-blue-400' :
                                           'text-muted-foreground'
                                         )}>{candidate.brightness}</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs">
+                                        <span className="text-cyan-400/80">Centroid: {candidate.centroid}Hz</span>
+                                        <span className="text-green-400/80">Smooth: {Math.round(candidate.smoothness)}</span>
+                                        <span className="text-purple-400/80 italic">{candidate.midrangeHint}</span>
                                       </div>
                                     </div>
                                     {closeCall.selectedFilename === candidate.filename && (
