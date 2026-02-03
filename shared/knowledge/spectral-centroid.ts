@@ -16,6 +16,19 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'c414': { min: 2600, max: 3600, description: 'Condenser, detailed highs' },
   'roswell': { min: 1400, max: 2400, description: 'Roswell Cab Mic - warm condenser, wider range to accommodate consistent output across speakers' },
   'sm57_r121_combo': { min: 1850, max: 2600, description: 'SM57+R121 blend (50/50), balanced bright/warm character' },
+  // SM57+R121 blend variants based on ratio
+  'sm57_r121_tight': { min: 2000, max: 2750, description: 'SM57+R121 60:40 - tighter, more SM57 presence' },
+  'sm57_r121_balance': { min: 1950, max: 2700, description: 'SM57+R121 55:45 - slightly brighter blend' },
+  'sm57_r121_thick': { min: 1850, max: 2600, description: 'SM57+R121 50:50 - even blend, full body' },
+  'sm57_r121_smooth': { min: 1800, max: 2550, description: 'SM57+R121 48:52 - smoother, more ribbon character' },
+};
+
+// SM57+R121 blend ratio labels
+export const COMBO_BLEND_RATIOS: Record<string, { sm57: number; r121: number; description: string }> = {
+  'tight': { sm57: 60, r121: 40, description: 'Tighter, more SM57 presence and bite' },
+  'balance': { sm57: 55, r121: 45, description: 'Balanced blend, slight SM57 emphasis' },
+  'thick': { sm57: 50, r121: 50, description: 'Even 50/50 blend, full and thick' },
+  'smooth': { sm57: 48, r121: 52, description: 'Smoother, more R121 ribbon warmth' },
 };
 
 export const POSITION_OFFSETS: Record<string, { offset: number; description: string }> = {
@@ -47,10 +60,20 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
 function normalizeMicName(mic: string): string {
   const lower = mic.toLowerCase().replace(/[^a-z0-9_]/g, '');
   
-  // Combo mics (check first before individual mics)
-  if ((lower.includes('sm57') && lower.includes('r121') && lower.includes('combo')) ||
-      lower.includes('sm57_r121_combo') || lower.includes('57_121_combo')) {
-    return 'sm57_r121_combo';
+  // Combo mics with blend labels (check first before generic combo)
+  const isCombo = (lower.includes('sm57') && lower.includes('r121')) ||
+                  lower.includes('57') && lower.includes('121');
+  
+  if (isCombo) {
+    // Check for specific blend labels
+    if (lower.includes('tight')) return 'sm57_r121_tight';
+    if (lower.includes('balance')) return 'sm57_r121_balance';
+    if (lower.includes('thick')) return 'sm57_r121_thick';
+    if (lower.includes('smooth')) return 'sm57_r121_smooth';
+    // Generic combo (backward compatibility)
+    if (lower.includes('combo')) return 'sm57_r121_combo';
+    // Default to thick (50/50) for unlabeled combos
+    return 'sm57_r121_thick';
   }
   
   if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) return 'e906_presence';
@@ -219,6 +242,10 @@ export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number
   'c414': { min: 68, max: 76, avg: 72, description: 'Condenser, detailed response' },
   'roswell': { min: 65, max: 76, avg: 71, description: 'Roswell Cab Mic, variable by position' },
   'sm57_r121_combo': { min: 68, max: 76, avg: 72, description: 'Blend smooths out individual mic peaks' },
+  'sm57_r121_tight': { min: 67, max: 76, avg: 72, description: '60:40 blend, slightly more dynamic character' },
+  'sm57_r121_balance': { min: 68, max: 76, avg: 72, description: '55:45 blend' },
+  'sm57_r121_thick': { min: 68, max: 76, avg: 72, description: '50:50 blend, full and thick' },
+  'sm57_r121_smooth': { min: 69, max: 77, avg: 73, description: '48:52 blend, more ribbon smoothness' },
 };
 
 // Default baseline for unknown mics

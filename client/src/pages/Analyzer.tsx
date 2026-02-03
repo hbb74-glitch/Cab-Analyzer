@@ -27,6 +27,27 @@ type FormData = z.infer<typeof formSchema>;
 
 // Filename parsing to auto-populate fields
 // Supports formats like: SM57_cap-edge_v30-china_1in.wav, 57_cap_greenback_0.5.wav, etc.
+// SM57+R121 combo blend labels and ratios
+const COMBO_BLEND_LABELS = ['tight', 'balance', 'thick', 'smooth'] as const;
+type ComboBlendLabel = typeof COMBO_BLEND_LABELS[number];
+
+const COMBO_BLEND_INFO: Record<ComboBlendLabel, { sm57: number; r121: number; label: string }> = {
+  tight: { sm57: 60, r121: 40, label: 'Tight' },
+  balance: { sm57: 55, r121: 45, label: 'Balance' },
+  thick: { sm57: 50, r121: 50, label: 'Thick' },
+  smooth: { sm57: 48, r121: 52, label: 'Smooth' },
+};
+
+// Format combo IR info for display
+function formatComboLabel(parsed: ParsedFilename): string | null {
+  if (!parsed.isComboIR || !parsed.blendLabel) return null;
+  const info = COMBO_BLEND_INFO[parsed.blendLabel];
+  let label = `SM57+R121 ${info.label} (${info.sm57}:${info.r121})`;
+  if (parsed.shotVariant) label += ` Shot ${parsed.shotVariant}`;
+  if (parsed.r121Height) label += ` @${parsed.r121Height}"`;
+  return label;
+}
+
 const MIC_PATTERNS: Record<string, string> = {
   // Order matters! More specific patterns should come first
   // IMPORTANT: Avoid short patterns that could match speaker names (e.g., "30" matches "V30")
@@ -80,30 +101,86 @@ const SPEAKER_PATTERNS: Record<string, string> = {
   "g10sc64": "g10-sc64", "g10-sc64": "g10-sc64", "g10": "g10-sc64",
 };
 
-function parseFilename(filename: string): Partial<FormData> {
-  const result: Partial<FormData> = {};
+// Extended result type to include combo IR metadata
+interface ParsedFilename extends Partial<FormData> {
+  isComboIR?: boolean;
+  blendLabel?: ComboBlendLabel;
+  r121Height?: string;
+  shotVariant?: string; // A, B, C, etc. for different shots of same setup
+}
+
+function parseFilename(filename: string): ParsedFilename {
+  const result: ParsedFilename = {};
   const name = filename.toLowerCase().replace('.wav', '');
   const parts = name.split(/[_\-\s]+/);
   const fullName = parts.join('');
   
-  // Special handling for mics with variants (e906, md441)
-  // Check if filename contains both the mic and its variant modifier
-  const hasE906 = parts.includes('e906') || fullName.includes('e906');
-  const hasPresence = parts.includes('presence') || parts.includes('boost') || fullName.includes('presence') || fullName.includes('boost');
-  const hasFlat = parts.includes('flat') || fullName.includes('flat');
+  // Check for SM57+R121 combo IR first (format: Speaker_SM57_R121_BlendLabel_R121Height)
+  const hasSM57 = parts.includes('sm57') || parts.includes('57') || fullName.includes('sm57');
+  const hasR121 = parts.includes('r121') || parts.includes('121') || fullName.includes('r121');
   
-  const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
-  
-  if (hasE906) {
-    result.micType = 'e906';
-  } else if (hasMd441) {
-    result.micType = 'md441';
-  } else {
-    // Try to find mic type from patterns
-    for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
-      if (parts.includes(pattern) || fullName.includes(pattern)) {
-        result.micType = value;
+  if (hasSM57 && hasR121) {
+    result.isComboIR = true;
+    // Detect blend label (support "balanced" as alias for "balance")
+    for (const label of COMBO_BLEND_LABELS) {
+      if (parts.includes(label) || fullName.includes(label)) {
+        result.blendLabel = label;
         break;
+      }
+    }
+    // Handle "balanced" alias
+    if (!result.blendLabel && (parts.includes('balanced') || fullName.includes('balanced'))) {
+      result.blendLabel = 'balance';
+    }
+    // If no blend label found, default to 'thick' (50:50)
+    if (!result.blendLabel) {
+      result.blendLabel = 'thick';
+    }
+    // Format: Speaker_SM57_R121_BlendLabel_ShotVariant_R121Height
+    // e.g., Cab_SM57_R121_Balanced_A_6in
+    const blendIndex = result.blendLabel ? parts.indexOf(result.blendLabel) : -1;
+    if (blendIndex !== -1 && blendIndex < parts.length - 1) {
+      // Next part after blend label is shot variant (A, B, C, etc.)
+      const variantPart = parts[blendIndex + 1];
+      if (/^[a-z]$/i.test(variantPart)) {
+        result.shotVariant = variantPart.toUpperCase();
+        // R121 height comes after variant (e.g., "6in", "6", "0.5in")
+        if (blendIndex + 2 < parts.length) {
+          const heightPart = parts[blendIndex + 2];
+          const heightMatch = heightPart.match(/^(\d+(?:\.\d+)?)/);
+          if (heightMatch) {
+            result.r121Height = heightMatch[1];
+          }
+        }
+      } else {
+        // No variant letter, check if it's the height directly
+        const heightMatch = variantPart.match(/^(\d+(?:\.\d+)?)/);
+        if (heightMatch) {
+          result.r121Height = heightMatch[1];
+        }
+      }
+    }
+    // Set mic type for combo IRs
+    result.micType = 'sm57_r121_combo' as any; // Will need form schema update for combo support
+  } else {
+    // Special handling for mics with variants (e906, md441)
+    const hasE906 = parts.includes('e906') || fullName.includes('e906');
+    const hasPresence = parts.includes('presence') || parts.includes('boost') || fullName.includes('presence') || fullName.includes('boost');
+    const hasFlat = parts.includes('flat') || fullName.includes('flat');
+    
+    const hasMd441 = parts.includes('md441') || parts.includes('441') || fullName.includes('md441');
+    
+    if (hasE906) {
+      result.micType = 'e906';
+    } else if (hasMd441) {
+      result.micType = 'md441';
+    } else {
+      // Try to find mic type from patterns
+      for (const [pattern, value] of Object.entries(MIC_PATTERNS)) {
+        if (parts.includes(pattern) || fullName.includes(pattern)) {
+          result.micType = value;
+          break;
+        }
       }
     }
   }
@@ -1002,8 +1079,20 @@ export default function Analyzer() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-sm font-medium truncate">{ir.file.name}</p>
+                              {(() => {
+                                const parsed = parseFilename(ir.file.name);
+                                const comboLabel = formatComboLabel(parsed);
+                                if (comboLabel) {
+                                  return (
+                                    <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded flex-shrink-0">
+                                      {comboLabel}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                               {ir.metrics?.hasClipping && (
                                 <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded flex-shrink-0">
                                   CLIPPING
@@ -1014,7 +1103,7 @@ export default function Analyzer() {
                               <p className="text-xs text-muted-foreground">
                                 {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz | Smooth: {ir.metrics.frequencySmoothness.toFixed(0)}
                                 {ir.metrics.hasClipping && ` | Crest: ${ir.metrics.crestFactorDb.toFixed(1)}dB`}
-                                {ir.metrics.noiseFloorDb > -45 && ` | Noise: ${ir.metrics.noiseFloorDb.toFixed(0)}dB`}
+                                {ir.metrics.noiseFloorDb > -45 && ` | Tail: ${ir.metrics.noiseFloorDb.toFixed(0)}dB`}
                               </p>
                             )}
                             {ir.error && (
