@@ -271,6 +271,15 @@ export default function CherryPicker() {
     setExamineIRs([]);
     setPreferenceProfile(null);
     setExaminedResults([]);
+    sessionStorage.removeItem(STORAGE_KEY);
+    toast({ title: "Cleared", description: "All data and saved profile removed" });
+  };
+
+  const clearCache = () => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setPreferenceProfile(null);
+    setExaminedResults([]);
+    toast({ title: "Profile cleared", description: "Saved preference profile removed from cache" });
   };
 
   const trainingReady = trainingIRs.filter(ir => ir.metrics && !ir.error).length;
@@ -306,9 +315,31 @@ export default function CherryPicker() {
             <Cherry className="w-8 h-8 text-primary" />
             <h1 className="text-3xl font-bold tracking-tight">Cherry Picker</h1>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-4">
             Train on your favorite IRs, then find matching gems in professional collections
           </p>
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearAll}
+              disabled={trainingIRs.length === 0 && examineIRs.length === 0 && !preferenceProfile && examinedResults.length === 0}
+              data-testid="button-clear-all"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear All
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearCache}
+              disabled={!preferenceProfile}
+              data-testid="button-clear-cache"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Clear Saved Profile
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
