@@ -10,6 +10,7 @@ import Analyzer from "@/pages/Analyzer";
 import History from "@/pages/History";
 import Recommendations from "@/pages/Recommendations";
 import Pairing from "@/pages/Pairing";
+import CherryPicker from "@/pages/CherryPicker";
 import FractalSettings from "@/pages/FractalSettings";
 import MikingGuide from "@/pages/MikingGuide";
 import NotFound from "@/pages/not-found";
@@ -19,6 +20,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Analyzer} />
       <Route path="/pairing" component={Pairing} />
+      <Route path="/cherry-picker" component={CherryPicker} />
       <Route path="/history" component={History} />
       <Route path="/recommendations" component={Recommendations} />
       <Route path="/fractal" component={FractalSettings} />
