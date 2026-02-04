@@ -732,12 +732,24 @@ function generateIRCacheKey(ir: {
 }
 
 // Parse mic/position/speaker from filename for spectral centroid expectations
-function parseFilenameForExpectations(filename: string): { mic: string; position: string; speaker: string; variant?: string; isCombo?: boolean } {
+// Returns parsing confidence to determine how heavily to weight deviation penalties
+function parseFilenameForExpectations(filename: string): { 
+  mic: string; 
+  position: string; 
+  speaker: string; 
+  variant?: string; 
+  isCombo?: boolean;
+  confidence: 'high' | 'medium' | 'low';  // high = all detected, medium = some defaults, low = all defaults
+  micDetected: boolean;
+  positionDetected: boolean;
+  speakerDetected: boolean;
+} {
   const lower = filename.toLowerCase();
   
   // Parse mic - order matters! More specific patterns first
   // IMPORTANT: Avoid patterns that could match distances (e.g., _30_ could be 30mm distance)
   let mic = 'sm57'; // default
+  let micDetected = false;
   let variant: string | undefined;
   let isCombo = false;
   
@@ -749,6 +761,7 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
   
   if (hasSM57 && hasR121) {
     isCombo = true;
+    micDetected = true;  // Combo mics are always detected
     // Detect specific blend labels (including "balanced" alias for "balance")
     if (lower.includes('tight')) {
       mic = 'sm57_r121_tight';
@@ -769,57 +782,70 @@ function parseFilenameForExpectations(filename: string): { mic: string; position
       variant = variantMatch[1].toUpperCase();
     }
   }
-  else if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) mic = 'e906_presence';
-  else if (lower.includes('e906')) mic = 'e906';
-  else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) mic = 'md441_presence';
-  else if (lower.includes('md441') || lower.includes('_441_') || lower.includes('-441-') || lower.includes('_441-')) mic = 'md441';
-  else if (lower.includes('md421') && lower.includes('kompakt')) mic = 'md421kompakt';
-  else if (lower.includes('md421') || lower.includes('_421_') || lower.includes('-421-') || lower.includes('_421-')) mic = 'md421';
-  else if (lower.includes('sm57') || lower.includes('_57_') || lower.includes('-57-') || lower.includes('_57-')) mic = 'sm57';
-  else if (lower.includes('sm7b') || lower.includes('sm7_') || lower.includes('sm7-')) mic = 'sm7b';
-  else if (lower.includes('r121') || lower.includes('_121_') || lower.includes('-121-') || lower.includes('_121-')) mic = 'r121';
-  else if (lower.includes('r92') || lower.includes('_92_') || lower.includes('-92-')) mic = 'r92';
-  else if (lower.includes('r10') || lower.includes('_r10_') || lower.includes('-r10-')) mic = 'r10';
-  else if (lower.includes('m160') || lower.includes('_160_') || lower.includes('-160-') || lower.includes('_160-')) mic = 'm160';
-  else if (lower.includes('m88') || lower.includes('_88_') || lower.includes('-88-') || lower.includes('_88-')) mic = 'm88';
-  else if (lower.includes('m201') || lower.includes('_201_') || lower.includes('-201-') || lower.includes('_201-')) mic = 'm201';
-  else if (lower.includes('pr30') || lower.includes('_pr30_') || lower.includes('-pr30-')) mic = 'pr30'; // Removed _30_ - conflicts with distance
-  else if (lower.includes('c414') || lower.includes('_414_') || lower.includes('-414-') || lower.includes('_414-')) mic = 'c414';
-  else if (lower.includes('roswell')) mic = 'roswell';
+  else if (lower.includes('e906') && (lower.includes('presence') || lower.includes('boost'))) { mic = 'e906_presence'; micDetected = true; }
+  else if (lower.includes('e906')) { mic = 'e906'; micDetected = true; }
+  else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) { mic = 'md441_presence'; micDetected = true; }
+  else if (lower.includes('md441') || lower.includes('_441_') || lower.includes('-441-') || lower.includes('_441-')) { mic = 'md441'; micDetected = true; }
+  else if (lower.includes('md421') && lower.includes('kompakt')) { mic = 'md421kompakt'; micDetected = true; }
+  else if (lower.includes('md421') || lower.includes('_421_') || lower.includes('-421-') || lower.includes('_421-')) { mic = 'md421'; micDetected = true; }
+  else if (lower.includes('sm57') || lower.includes('_57_') || lower.includes('-57-') || lower.includes('_57-')) { mic = 'sm57'; micDetected = true; }
+  else if (lower.includes('sm7b') || lower.includes('sm7_') || lower.includes('sm7-')) { mic = 'sm7b'; micDetected = true; }
+  else if (lower.includes('r121') || lower.includes('_121_') || lower.includes('-121-') || lower.includes('_121-')) { mic = 'r121'; micDetected = true; }
+  else if (lower.includes('r92') || lower.includes('_92_') || lower.includes('-92-')) { mic = 'r92'; micDetected = true; }
+  else if (lower.includes('r10') || lower.includes('_r10_') || lower.includes('-r10-')) { mic = 'r10'; micDetected = true; }
+  else if (lower.includes('m160') || lower.includes('_160_') || lower.includes('-160-') || lower.includes('_160-')) { mic = 'm160'; micDetected = true; }
+  else if (lower.includes('m88') || lower.includes('_88_') || lower.includes('-88-') || lower.includes('_88-')) { mic = 'm88'; micDetected = true; }
+  else if (lower.includes('m201') || lower.includes('_201_') || lower.includes('-201-') || lower.includes('_201-')) { mic = 'm201'; micDetected = true; }
+  else if (lower.includes('pr30') || lower.includes('_pr30_') || lower.includes('-pr30-')) { mic = 'pr30'; micDetected = true; } // Removed _30_ - conflicts with distance
+  else if (lower.includes('c414') || lower.includes('_414_') || lower.includes('-414-') || lower.includes('_414-')) { mic = 'c414'; micDetected = true; }
+  else if (lower.includes('roswell')) { mic = 'roswell'; micDetected = true; }
   
   // Parse position - new naming convention
   // For combo IRs, position is 'blend' since it's a mix of SM57 and R121 positions
   let position = isCombo ? 'blend' : 'capedge'; // default
+  let positionDetected = isCombo; // Combo IRs have implicit 'blend' position
   if (!isCombo) {
     // New names first
-    if (lower.includes('capedge_br') || lower.includes('capedgebr')) position = 'capedge_br';
-    else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) position = 'capedge_dk';
-    else if (lower.includes('cap_cone_trn') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) position = 'cap_cone_trn';
+    if (lower.includes('capedge_br') || lower.includes('capedgebr')) { position = 'capedge_br'; positionDetected = true; }
+    else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) { position = 'capedge_dk'; positionDetected = true; }
+    else if (lower.includes('cap_cone_trn') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) { position = 'cap_cone_trn'; positionDetected = true; }
     // Legacy mappings
-    else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) position = 'capedge_br';
-    else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) position = 'capedge_dk';
+    else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) { position = 'capedge_br'; positionDetected = true; }
+    else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) { position = 'capedge_dk'; positionDetected = true; }
     // Standard positions
-    else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) position = 'capedge';
-    else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) position = 'cap_offcenter';
-    else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) position = 'cap';
-    else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) position = 'cone';
+    else if (lower.includes('capedge') || lower.includes('cap_edge') || lower.includes('cap-edge')) { position = 'capedge'; positionDetected = true; }
+    else if (lower.includes('offcenter') || lower.includes('off_center') || lower.includes('off-center')) { position = 'cap_offcenter'; positionDetected = true; }
+    else if (lower.includes('_cap_') || lower.match(/cap[_\-]?\d/) || lower.startsWith('cap_')) { position = 'cap'; positionDetected = true; }
+    else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) { position = 'cone'; positionDetected = true; }
   }
   
   // Parse speaker
   let speaker = 'v30'; // default
-  if (lower.includes('v30bc') || lower.includes('v30_bc') || lower.includes('blackcat')) speaker = 'v30bc';
-  else if (lower.includes('v30')) speaker = 'v30';
-  else if (lower.includes('greenback') || lower.includes('g12m25') || lower.includes('g12m_')) speaker = 'greenback';
-  else if (lower.includes('g12t75') || lower.includes('g12t-75')) speaker = 'g12t75';
-  else if (lower.includes('g12-65') || lower.includes('g1265') || lower.includes('heritage')) speaker = 'g12-65';
-  else if (lower.includes('g12h') && lower.includes('g12h')) speaker = 'g12h';
-  else if (lower.includes('g12h') && lower.includes('anni')) speaker = 'g12hanni';
-  else if (lower.includes('cream')) speaker = 'cream';
-  else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) speaker = 'ga12-sc64';
-  else if (lower.includes('ga10') || lower.includes('g10')) speaker = 'ga10-sc64';
-  else if (lower.includes('k100')) speaker = 'k100';
+  let speakerDetected = false;
+  if (lower.includes('v30bc') || lower.includes('v30_bc') || lower.includes('blackcat')) { speaker = 'v30bc'; speakerDetected = true; }
+  else if (lower.includes('v30')) { speaker = 'v30'; speakerDetected = true; }
+  else if (lower.includes('greenback') || lower.includes('g12m25') || lower.includes('g12m_')) { speaker = 'greenback'; speakerDetected = true; }
+  else if (lower.includes('g12t75') || lower.includes('g12t-75')) { speaker = 'g12t75'; speakerDetected = true; }
+  else if (lower.includes('g12-65') || lower.includes('g1265') || lower.includes('heritage')) { speaker = 'g12-65'; speakerDetected = true; }
+  else if (lower.includes('g12h') && lower.includes('g12h')) { speaker = 'g12h'; speakerDetected = true; }
+  else if (lower.includes('g12h') && lower.includes('anni')) { speaker = 'g12hanni'; speakerDetected = true; }
+  else if (lower.includes('cream')) { speaker = 'cream'; speakerDetected = true; }
+  else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) { speaker = 'ga12-sc64'; speakerDetected = true; }
+  else if (lower.includes('ga10') || lower.includes('g10')) { speaker = 'ga10-sc64'; speakerDetected = true; }
+  else if (lower.includes('k100')) { speaker = 'k100'; speakerDetected = true; }
   
-  return { mic, position, speaker, variant, isCombo };
+  // Calculate parsing confidence
+  const detectedCount = [micDetected, positionDetected, speakerDetected].filter(Boolean).length;
+  let confidence: 'high' | 'medium' | 'low';
+  if (detectedCount === 3) {
+    confidence = 'high';
+  } else if (detectedCount >= 1) {
+    confidence = 'medium';
+  } else {
+    confidence = 'low';  // All defaults - filename couldn't be parsed
+  }
+  
+  return { mic, position, speaker, variant, isCombo, confidence, micDetected, positionDetected, speakerDetected };
 }
 
 // Shared single-IR scoring function used by both single and batch modes
@@ -843,7 +869,7 @@ async function scoreSingleIR(ir: {
   advice: string;
   highlights: string[];
   issues: string[];
-  parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null };
+  parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null; confidence: 'high' | 'medium' | 'low'; micDetected: boolean; positionDetected: boolean; speakerDetected: boolean };
   renameSuggestion: { suggestedModifier: string; suggestedFilename: string; reason: string } | null;
   spectralDeviation: {
     expectedMin: number;
@@ -871,16 +897,49 @@ async function scoreSingleIR(ir: {
   const parsed = parseFilenameForExpectations(ir.filename);
   const expectedRange = getExpectedCentroidRange(parsed.mic, parsed.position, parsed.speaker);
   const deviation = calculateCentroidDeviation(ir.spectralCentroid, expectedRange);
-  const scoreAdjustment = getDeviationScoreAdjustment(deviation.deviationPercent);
+  const rawScoreAdjustment = getDeviationScoreAdjustment(deviation.deviationPercent);
+  
+  // CRITICAL: Reduce deviation penalty based on parsing confidence
+  // When we can't identify mic/position/speaker, we're scoring against arbitrary defaults
+  // Professional IRs with non-standard naming shouldn't be penalized
+  let scoreAdjustment = rawScoreAdjustment;
+  let confidenceNote = '';
+  if (parsed.confidence === 'low') {
+    // All defaults - don't penalize for deviation at all
+    scoreAdjustment = 0;
+    confidenceNote = ' (CONFIDENCE: LOW - ignoring deviation, filename not parseable)';
+  } else if (parsed.confidence === 'medium') {
+    // Partial detection - reduce penalty by 50%
+    scoreAdjustment = Math.round(rawScoreAdjustment * 0.5);
+    confidenceNote = ` (CONFIDENCE: MEDIUM - penalty halved, partial detection: mic=${parsed.micDetected}, pos=${parsed.positionDetected}, spk=${parsed.speakerDetected})`;
+  }
   
   console.log(`[Spectral Analysis] ${ir.filename}:`);
-  console.log(`  Parsed: mic=${parsed.mic}, pos=${parsed.position}, spk=${parsed.speaker}`);
+  console.log(`  Parsed: mic=${parsed.mic}, pos=${parsed.position}, spk=${parsed.speaker}, confidence=${parsed.confidence}`);
+  console.log(`  Detection: mic=${parsed.micDetected}, pos=${parsed.positionDetected}, spk=${parsed.speakerDetected}`);
   console.log(`  Expected range: ${expectedRange.min}-${expectedRange.max}Hz, Actual: ${ir.spectralCentroid.toFixed(0)}Hz`);
-  console.log(`  Deviation: ${deviation.deviation.toFixed(0)}Hz (${deviation.deviationPercent.toFixed(1)}%), Direction: ${deviation.direction}, Score adj: ${scoreAdjustment}`);
+  console.log(`  Deviation: ${deviation.deviation.toFixed(0)}Hz (${deviation.deviationPercent.toFixed(1)}%), Direction: ${deviation.direction}`);
+  console.log(`  Raw score adj: ${rawScoreAdjustment}, Final score adj: ${scoreAdjustment}${confidenceNote}`);
   
+  // Build confidence-aware prompt
+  const confidenceInfo = parsed.confidence === 'low' 
+    ? `FILENAME PARSING CONFIDENCE: LOW
+The filename could not be parsed to detect mic, position, or speaker.
+Using defaults (SM57/CapEdge/V30) which may not match the actual IR.
+DO NOT penalize for spectral deviation - score based on other technical metrics only.`
+    : parsed.confidence === 'medium'
+    ? `FILENAME PARSING CONFIDENCE: MEDIUM
+Partial detection: mic=${parsed.micDetected ? parsed.mic : 'default'}, position=${parsed.positionDetected ? parsed.position : 'default'}, speaker=${parsed.speakerDetected ? parsed.speaker : 'default'}
+Deviation penalty is reduced by 50% due to incomplete parsing.`
+    : `FILENAME PARSING CONFIDENCE: HIGH
+All parameters detected: mic=${parsed.mic}, position=${parsed.position}, speaker=${parsed.speaker}
+Apply full spectral deviation scoring.`;
+
   const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
 Analyze the provided technical metrics to determine the TECHNICAL QUALITY of this single IR.
 Your analysis should be purely objective, focusing on audio quality metrics - NOT genre or stylistic preferences.
+
+${confidenceInfo}
 
 SPECTRAL CENTROID EXPECTATIONS (use these deterministic ranges for scoring):
 For this IR, based on the detected mic/position/speaker combination:
@@ -888,12 +947,14 @@ For this IR, based on the detected mic/position/speaker combination:
 - Actual centroid: ${ir.spectralCentroid.toFixed(0)}Hz
 - Deviation: ${deviation.isWithinRange ? 'WITHIN expected range' : `${deviation.deviation.toFixed(0)}Hz ${deviation.direction === 'bright' ? 'ABOVE' : 'BELOW'} expected range`}
 
-SCORING RULES:
-- If centroid is within expected range: No penalty for spectral balance
+SCORING RULES (adjusted for parsing confidence):
+${parsed.confidence === 'low' ? '- IGNORE spectral deviation entirely - cannot reliably judge without knowing mic/position/speaker' : 
+  parsed.confidence === 'medium' ? '- Apply HALF the normal deviation penalty due to incomplete parsing' :
+  `- If centroid is within expected range: No penalty for spectral balance
 - If centroid deviates by <25% of range width: Minor (-1 point)
 - If centroid deviates by 25-50%: Small (-2 points)
 - If centroid deviates by 50-100%: Moderate (-3-4 points)
-- If centroid deviates by >100%: Significant (-5-6 points)
+- If centroid deviates by >100%: Significant (-5-6 points)`}
 
 The pre-calculated score adjustment for this IR is: ${scoreAdjustment} points
 Start with a base score of 92 (excellent technical quality) and apply this adjustment.
@@ -1027,6 +1088,10 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
       position: parsed.position, // Use deterministic parsing
       speaker: parsed.speaker,   // Use deterministic parsing
       distance: parsedDistance,  // Parse from filename or use AI's
+      confidence: parsed.confidence,
+      micDetected: parsed.micDetected,
+      positionDetected: parsed.positionDetected,
+      speakerDetected: parsed.speakerDetected,
     },
     renameSuggestion: result.renameSuggestion || null,
     spectralDeviation: {
