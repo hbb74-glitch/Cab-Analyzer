@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Cherry, FileAudio, Trash2, Brain, Target, Sparkles, ThumbsUp, ThumbsDown, HelpCircle, Check, RotateCcw } from "lucide-react";
+import { Loader2, Cherry, FileAudio, Trash2, Brain, Target, Sparkles, ThumbsUp, ThumbsDown, HelpCircle, Check, RotateCcw, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -210,7 +210,9 @@ export default function CherryPicker() {
       const highMatch = calculateMatchWithVariance(m.highEnergy, p.highEnergy);
       const energyMatch = (lowMatch + midMatch + highMatch) / 3;
 
-      const matchScore = Math.round(centroidMatch * 0.4 + smoothnessMatch * 0.3 + energyMatch * 0.3);
+      // Weights: Centroid (frequency) 45%, Energy distribution 45%, Smoothness 10%
+      // Smoothness is minor factor - only matters if user strongly prefers smooth or textured IRs
+      const matchScore = Math.round(centroidMatch * 0.45 + energyMatch * 0.45 + smoothnessMatch * 0.10);
 
       let matchLevel: 'excellent' | 'good' | 'fair' | 'poor';
       if (matchScore >= 85) matchLevel = 'excellent';
@@ -280,6 +282,20 @@ export default function CherryPicker() {
     setPreferenceProfile(null);
     setExaminedResults([]);
     toast({ title: "Profile cleared", description: "Saved preference profile removed from cache" });
+  };
+
+  const copyKeepers = () => {
+    const keepers = examinedResults
+      .filter(r => r.matchLevel === 'excellent' || r.matchLevel === 'good' || r.matchLevel === 'fair')
+      .map(r => r.filename);
+    
+    if (keepers.length === 0) {
+      toast({ title: "Nothing to copy", description: "No matches found to copy" });
+      return;
+    }
+    
+    navigator.clipboard.writeText(keepers.join('\n'));
+    toast({ title: "Copied!", description: `${keepers.length} filenames copied to clipboard` });
   };
 
   const trainingReady = trainingIRs.filter(ir => ir.metrics && !ir.error).length;
@@ -590,8 +606,17 @@ export default function CherryPicker() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
-                      {examinedResults.filter(r => r.matchLevel === 'excellent' || r.matchLevel === 'good').length} matches found
+                      {examinedResults.filter(r => r.matchLevel === 'excellent' || r.matchLevel === 'good' || r.matchLevel === 'fair').length} keepers
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={copyKeepers}
+                      disabled={examinedResults.filter(r => r.matchLevel !== 'poor').length === 0}
+                      data-testid="button-copy-keepers"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
                 <CardDescription>
