@@ -28,7 +28,7 @@ export function Navigation() {
             </span>
           </div>
           
-          <div className="flex items-center gap-1 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4 overflow-x-auto scrollbar-hide max-w-[calc(100vw-140px)] sm:max-w-none">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.href;
@@ -36,15 +36,15 @@ export function Navigation() {
                 <Link key={item.href} href={item.href}>
                   <button
                     className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                      "flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0",
                       isActive
                         ? "bg-primary/10 text-primary border border-primary/20 shadow-[0_0_10px_-5px_rgba(34,197,94,0.4)]"
                         : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     )}
                     data-testid={`link-nav-${item.label.toLowerCase()}`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">{item.label}</span>
                   </button>
                 </Link>
               );
