@@ -81,6 +81,14 @@ export interface AudioMetrics {
   lowEnergy: number;   // 0-1, energy in low frequency range (20-250Hz)
   midEnergy: number;   // 0-1, energy in mid frequency range (250-4000Hz)
   highEnergy: number;  // 0-1, energy in high frequency range (4000-20000Hz)
+  // 6-band energy breakdown for detailed tonal analysis
+  subBassEnergy: number;    // 0-1, 20-120Hz (sub-bass, rumble)
+  bassEnergy: number;       // 0-1, 120-250Hz (bass, proximity effect zone)
+  lowMidEnergy: number;     // 0-1, 250-500Hz (warmth, body, mud zone)
+  midEnergy6: number;       // 0-1, 500-2000Hz (presence, punch, clarity)
+  highMidEnergy: number;    // 0-1, 2000-4000Hz (bite, articulation, harsh zone)
+  presenceEnergy: number;   // 0-1, 4000-8000Hz (fizz, sizzle, air)
+  ultraHighEnergy: number;  // 0-1, 8000-20000Hz (sparkle, ultra-high fizz)
   hasClipping: boolean;      // True if clipping detected
   clippedSamples: number;    // Number of samples at max amplitude
   crestFactorDb: number;     // Peak to RMS ratio in dB (lower = more clipping)
@@ -184,11 +192,20 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   const frequencyData: number[] = [];
 
-  // Energy band accumulators
+  // Energy band accumulators - 3 band (legacy)
   let lowEnergySum = 0;
   let midEnergySum = 0;
   let highEnergySum = 0;
   let totalEnergy = 0;
+  
+  // 6-band energy accumulators for detailed tonal analysis
+  let subBassSum = 0;     // 20-120Hz (sub-bass, rumble)
+  let bassSum = 0;        // 120-250Hz (bass, proximity effect zone)
+  let lowMidSum = 0;      // 250-500Hz (warmth, body, mud zone)
+  let midSum6 = 0;        // 500-2000Hz (presence, punch, clarity)
+  let highMidSum = 0;     // 2000-4000Hz (bite, articulation, harsh zone)
+  let presenceSum = 0;    // 4000-8000Hz (fizz, sizzle, air)
+  let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
   for (let i = 0; i < freqByteData.length; i++) {
     const magnitude = freqByteData[i];
@@ -203,12 +220,30 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     const energy = magnitude * magnitude;
     totalEnergy += energy;
     
+    // Legacy 3-band accumulation
     if (frequency >= 20 && frequency < 250) {
       lowEnergySum += energy;
     } else if (frequency >= 250 && frequency < 4000) {
       midEnergySum += energy;
     } else if (frequency >= 4000 && frequency <= 20000) {
       highEnergySum += energy;
+    }
+    
+    // 6-band accumulation for detailed analysis
+    if (frequency >= 20 && frequency < 120) {
+      subBassSum += energy;
+    } else if (frequency >= 120 && frequency < 250) {
+      bassSum += energy;
+    } else if (frequency >= 250 && frequency < 500) {
+      lowMidSum += energy;
+    } else if (frequency >= 500 && frequency < 2000) {
+      midSum6 += energy;
+    } else if (frequency >= 2000 && frequency < 4000) {
+      highMidSum += energy;
+    } else if (frequency >= 4000 && frequency < 8000) {
+      presenceSum += energy;
+    } else if (frequency >= 8000 && frequency <= 20000) {
+      ultraHighSum += energy;
     }
   }
   
@@ -218,6 +253,15 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const lowEnergy = totalEnergy > 0 ? lowEnergySum / totalEnergy : 0;
   const midEnergy = totalEnergy > 0 ? midEnergySum / totalEnergy : 0;
   const highEnergy = totalEnergy > 0 ? highEnergySum / totalEnergy : 0;
+  
+  // Normalize 6-band energy
+  const subBassEnergy = totalEnergy > 0 ? subBassSum / totalEnergy : 0;
+  const bassEnergy = totalEnergy > 0 ? bassSum / totalEnergy : 0;
+  const lowMidEnergy = totalEnergy > 0 ? lowMidSum / totalEnergy : 0;
+  const midEnergy6 = totalEnergy > 0 ? midSum6 / totalEnergy : 0;
+  const highMidEnergy = totalEnergy > 0 ? highMidSum / totalEnergy : 0;
+  const presenceEnergy = totalEnergy > 0 ? presenceSum / totalEnergy : 0;
+  const ultraHighEnergy = totalEnergy > 0 ? ultraHighSum / totalEnergy : 0;
 
   // ============================================
   // Frequency Response Smoothness
@@ -314,6 +358,14 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     lowEnergy: parseFloat(lowEnergy.toFixed(4)),
     midEnergy: parseFloat(midEnergy.toFixed(4)),
     highEnergy: parseFloat(highEnergy.toFixed(4)),
+    // 6-band detailed breakdown
+    subBassEnergy: parseFloat(subBassEnergy.toFixed(4)),
+    bassEnergy: parseFloat(bassEnergy.toFixed(4)),
+    lowMidEnergy: parseFloat(lowMidEnergy.toFixed(4)),
+    midEnergy6: parseFloat(midEnergy6.toFixed(4)),
+    highMidEnergy: parseFloat(highMidEnergy.toFixed(4)),
+    presenceEnergy: parseFloat(presenceEnergy.toFixed(4)),
+    ultraHighEnergy: parseFloat(ultraHighEnergy.toFixed(4)),
     hasClipping,
     clippedSamples,
     crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),

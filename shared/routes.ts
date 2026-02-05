@@ -202,6 +202,14 @@ export const batchIRInputSchema = z.object({
   lowEnergy: z.number(),
   midEnergy: z.number(),
   highEnergy: z.number(),
+  // 6-band detailed breakdown for tonal analysis
+  subBassEnergy: z.number().optional(),    // 20-120Hz (sub-bass, rumble)
+  bassEnergy: z.number().optional(),       // 120-250Hz (bass, proximity effect zone)
+  lowMidEnergy: z.number().optional(),     // 250-500Hz (warmth, body, mud zone)
+  midEnergy6: z.number().optional(),       // 500-2000Hz (presence, punch, clarity)
+  highMidEnergy: z.number().optional(),    // 2000-4000Hz (bite, articulation, harsh zone)
+  presenceEnergy: z.number().optional(),   // 4000-8000Hz (fizz, sizzle, air)
+  ultraHighEnergy: z.number().optional(),  // 8000-20000Hz (sparkle, ultra-high fizz)
   hasClipping: z.boolean().optional(),
   clippedSamples: z.number().optional(),
   crestFactorDb: z.number().optional(),

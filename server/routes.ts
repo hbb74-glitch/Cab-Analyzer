@@ -858,6 +858,14 @@ async function scoreSingleIR(ir: {
   lowEnergy: number;
   midEnergy: number;
   highEnergy: number;
+  // 6-band detailed breakdown for tonal analysis
+  subBassEnergy?: number;    // 20-120Hz (sub-bass, rumble)
+  bassEnergy?: number;       // 120-250Hz (bass, proximity effect zone)
+  lowMidEnergy?: number;     // 250-500Hz (warmth, body, mud zone)
+  midEnergy6?: number;       // 500-2000Hz (presence, punch, clarity)
+  highMidEnergy?: number;    // 2000-4000Hz (bite, articulation, harsh zone)
+  presenceEnergy?: number;   // 4000-8000Hz (fizz, sizzle, air)
+  ultraHighEnergy?: number;  // 8000-20000Hz (sparkle, ultra-high fizz)
   hasClipping?: boolean;
   clippedSamples?: number;
   crestFactorDb?: number;
@@ -922,10 +930,27 @@ async function scoreSingleIR(ir: {
   const lowMidRatio = ir.midEnergy > 0 ? (ir.lowEnergy / ir.midEnergy).toFixed(2) : 'N/A';
   const highMidRatio = ir.midEnergy > 0 ? (ir.highEnergy / ir.midEnergy).toFixed(2) : 'N/A';
   
+  // 6-band detailed breakdown (if available)
+  const has6Band = ir.subBassEnergy !== undefined;
+  const sixBandTotal = has6Band ? 
+    (ir.subBassEnergy! + ir.bassEnergy! + ir.lowMidEnergy! + ir.midEnergy6! + ir.highMidEnergy! + ir.presenceEnergy! + ir.ultraHighEnergy!) || 1 : 1;
+  
   console.log(`[Spectral Analysis] ${ir.filename}:`);
   console.log(`  Parsed: mic=${parsed.mic}, pos=${parsed.position}, spk=${parsed.speaker}, confidence=${parsed.confidence}`);
   console.log(`  Centroid: ${ir.spectralCentroid.toFixed(0)}Hz (expected ${expectedRange.min}-${expectedRange.max}Hz) | Smooth: ${ir.frequencySmoothness?.toFixed(1) || 'N/A'} | Noise: ${ir.noiseFloorDb?.toFixed(1) || 'N/A'}dB`);
-  console.log(`  Energy: Low=${lowPct}% Mid=${midPct}% High=${highPct}% | Low/Mid=${lowMidRatio} High/Mid=${highMidRatio}`);
+  console.log(`  Energy 3-band: Low=${lowPct}% Mid=${midPct}% High=${highPct}% | Low/Mid=${lowMidRatio} High/Mid=${highMidRatio}`);
+  
+  if (has6Band) {
+    const subBass = ((ir.subBassEnergy! / sixBandTotal) * 100).toFixed(1);
+    const bass = ((ir.bassEnergy! / sixBandTotal) * 100).toFixed(1);
+    const lowMid = ((ir.lowMidEnergy! / sixBandTotal) * 100).toFixed(1);
+    const mid6 = ((ir.midEnergy6! / sixBandTotal) * 100).toFixed(1);
+    const highMid = ((ir.highMidEnergy! / sixBandTotal) * 100).toFixed(1);
+    const presence = ((ir.presenceEnergy! / sixBandTotal) * 100).toFixed(1);
+    const ultraHigh = ((ir.ultraHighEnergy! / sixBandTotal) * 100).toFixed(1);
+    console.log(`  Energy 6-band: SubBass=${subBass}% Bass=${bass}% LowMid=${lowMid}% Mid=${mid6}% HiMid=${highMid}% Pres=${presence}% Ultra=${ultraHigh}%`);
+  }
+  
   console.log(`  Deviation: ${deviation.deviation.toFixed(0)}Hz (${deviation.deviationPercent.toFixed(1)}%), Direction: ${deviation.direction}`);
   console.log(`  Raw score adj: ${rawScoreAdjustment}, Final score adj: ${scoreAdjustment}${confidenceNote}`);
   
