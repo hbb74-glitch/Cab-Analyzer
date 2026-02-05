@@ -252,6 +252,15 @@ export const batchIRResultSchema = z.object({
   spectralDeviation: spectralDeviationSchema.optional().nullable(),
   frequencySmoothness: z.number().optional().nullable(),  // 0-100, higher = smoother
   noiseFloorDb: z.number().optional().nullable(),         // dB, more negative = cleaner
+  // 6-band tonal balance (percentages, sum to ~100%)
+  subBassPercent: z.number().optional().nullable(),    // 20-120Hz
+  bassPercent: z.number().optional().nullable(),       // 120-250Hz
+  lowMidPercent: z.number().optional().nullable(),     // 250-500Hz
+  midPercent: z.number().optional().nullable(),        // 500-2000Hz
+  highMidPercent: z.number().optional().nullable(),    // 2000-4000Hz
+  presencePercent: z.number().optional().nullable(),   // 4000-8000Hz
+  ultraHighPercent: z.number().optional().nullable(),  // 8000-20000Hz
+  highMidMidRatio: z.number().optional().nullable(),   // HiMid/Mid ratio for harshness
 });
 
 export const gapSuggestionSchema = z.object({

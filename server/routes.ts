@@ -3614,6 +3614,34 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const scoredResults = await Promise.all(
         irs.map(async (ir) => {
           const scored = await scoreSingleIR(ir);
+          
+          // Calculate 6-band percentages if available
+          const has6Band = ir.subBassEnergy !== undefined;
+          let sixBandPercents: {
+            subBassPercent?: number;
+            bassPercent?: number;
+            lowMidPercent?: number;
+            midPercent?: number;
+            highMidPercent?: number;
+            presencePercent?: number;
+            ultraHighPercent?: number;
+            highMidMidRatio?: number;
+          } = {};
+          
+          if (has6Band) {
+            const total = (ir.subBassEnergy! + ir.bassEnergy! + ir.lowMidEnergy! + ir.midEnergy6! + ir.highMidEnergy! + ir.presenceEnergy! + (ir.ultraHighEnergy || 0)) || 1;
+            sixBandPercents = {
+              subBassPercent: Math.round((ir.subBassEnergy! / total) * 1000) / 10,
+              bassPercent: Math.round((ir.bassEnergy! / total) * 1000) / 10,
+              lowMidPercent: Math.round((ir.lowMidEnergy! / total) * 1000) / 10,
+              midPercent: Math.round((ir.midEnergy6! / total) * 1000) / 10,
+              highMidPercent: Math.round((ir.highMidEnergy! / total) * 1000) / 10,
+              presencePercent: Math.round((ir.presenceEnergy! / total) * 1000) / 10,
+              ultraHighPercent: ir.ultraHighEnergy ? Math.round((ir.ultraHighEnergy / total) * 1000) / 10 : 0,
+              highMidMidRatio: ir.midEnergy6! > 0 ? Math.round((ir.highMidEnergy! / ir.midEnergy6!) * 100) / 100 : 0,
+            };
+          }
+          
           return {
             filename: ir.filename,
             parsedInfo: scored.parsedInfo,
@@ -3626,6 +3654,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             spectralDeviation: scored.spectralDeviation,
             frequencySmoothness: scored.frequencySmoothness,
             noiseFloorDb: scored.noiseFloorDb,
+            ...sixBandPercents,
           };
         })
       );

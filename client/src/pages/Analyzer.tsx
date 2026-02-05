@@ -2620,6 +2620,48 @@ export default function Analyzer() {
                           </div>
                         )}
 
+                        {/* 6-Band Tonal Balance */}
+                        {r.midPercent != null && r.highMidPercent != null && r.presencePercent != null && (
+                          <div className="mt-2 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Layers className="w-4 h-4 text-indigo-400" />
+                              <span className="text-xs font-medium text-indigo-400">Tonal Balance</span>
+                              {r.highMidMidRatio != null && (
+                                <span className={cn(
+                                  "ml-auto text-xs font-mono px-1.5 py-0.5 rounded",
+                                  r.highMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                                  r.highMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                                  "bg-amber-500/20 text-amber-400"
+                                )}>
+                                  HiMid/Mid: {r.highMidMidRatio.toFixed(2)}
+                                  {r.highMidMidRatio < 1.0 ? " (dark)" : r.highMidMidRatio > 2.0 ? " (bright)" : ""}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-6 gap-1 text-[10px]">
+                              {[
+                                { label: "SubB", value: r.subBassPercent, color: "bg-purple-500" },
+                                { label: "Bass", value: r.bassPercent, color: "bg-blue-500" },
+                                { label: "LowM", value: r.lowMidPercent, color: "bg-cyan-500" },
+                                { label: "Mid", value: r.midPercent, color: "bg-green-500" },
+                                { label: "HiMid", value: r.highMidPercent, color: "bg-yellow-500" },
+                                { label: "Pres", value: r.presencePercent, color: "bg-orange-500" },
+                              ].map((band) => (
+                                <div key={band.label} className="flex flex-col items-center">
+                                  <div className="w-full h-16 bg-white/5 rounded-sm overflow-hidden flex flex-col-reverse">
+                                    <div 
+                                      className={cn(band.color, "w-full transition-all")}
+                                      style={{ height: `${Math.min(band.value || 0, 100)}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-muted-foreground mt-1">{band.label}</span>
+                                  <span className="text-foreground font-mono">{band.value?.toFixed(1)}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Tonal Modifier Suggestion */}
                         {r.renameSuggestion && (
                           <div className="mt-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
