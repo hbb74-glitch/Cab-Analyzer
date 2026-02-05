@@ -2293,11 +2293,17 @@ export default function Analyzer() {
                               )}
                             </div>
                             {ir.metrics && (
-                              <p className="text-xs text-muted-foreground">
-                                {ir.metrics.durationMs.toFixed(1)}ms | Centroid: {ir.metrics.spectralCentroid.toFixed(0)}Hz | Smooth: {ir.metrics.frequencySmoothness.toFixed(0)}
-                                {ir.metrics.hasClipping && ` | Crest: ${ir.metrics.crestFactorDb.toFixed(1)}dB`}
-                                {ir.metrics.noiseFloorDb > -45 && ` | Tail: ${ir.metrics.noiseFloorDb.toFixed(0)}dB`}
-                              </p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                <span>{ir.metrics.durationMs.toFixed(1)}ms</span>
+                                <span>Centroid: <span className="text-foreground">{ir.metrics.spectralCentroid.toFixed(0)}Hz</span></span>
+                                <span>Smooth: <span className="text-foreground">{ir.metrics.frequencySmoothness.toFixed(0)}</span></span>
+                                {ir.metrics.hasClipping && (
+                                  <span>Crest: <span className="text-amber-400">{ir.metrics.crestFactorDb.toFixed(1)}dB</span></span>
+                                )}
+                                {ir.metrics.noiseFloorDb > -45 && (
+                                  <span>Tail: <span className={ir.metrics.noiseFloorDb > -35 ? "text-amber-400" : "text-foreground"}>{ir.metrics.noiseFloorDb.toFixed(0)}dB</span></span>
+                                )}
+                              </div>
                             )}
                             {ir.error && (
                               <p className="text-xs text-destructive">{ir.error}</p>
