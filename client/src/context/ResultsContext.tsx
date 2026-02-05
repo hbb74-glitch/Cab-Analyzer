@@ -36,6 +36,14 @@ export interface SingleAnalysisMetrics {
   lowEnergy: number;
   midEnergy: number;
   highEnergy: number;
+  // 6-band detailed breakdown for tonal analysis
+  subBassEnergy: number;    // 20-120Hz
+  bassEnergy: number;       // 120-250Hz
+  lowMidEnergy: number;     // 250-500Hz
+  midEnergy6: number;       // 500-2000Hz
+  highMidEnergy: number;    // 2000-4000Hz
+  presenceEnergy: number;   // 4000-8000Hz
+  ultraHighEnergy: number;  // 8000-20000Hz
   hasClipping: boolean;
   clippedSamples: number;
   crestFactorDb: number;

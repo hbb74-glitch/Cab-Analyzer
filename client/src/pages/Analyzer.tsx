@@ -2081,6 +2081,16 @@ export default function Analyzer() {
         lowEnergy: metrics.lowEnergy,
         midEnergy: metrics.midEnergy,
         highEnergy: metrics.highEnergy,
+        // 6-band detailed breakdown
+        subBassEnergy: metrics.subBassEnergy,
+        bassEnergy: metrics.bassEnergy,
+        lowMidEnergy: metrics.lowMidEnergy,
+        midEnergy6: metrics.midEnergy6,
+        highMidEnergy: metrics.highMidEnergy,
+        presenceEnergy: metrics.presenceEnergy,
+        ultraHighEnergy: metrics.ultraHighEnergy,
+        frequencySmoothness: metrics.frequencySmoothness,
+        noiseFloorDb: metrics.noiseFloorDb,
         originalFilename: file.name, // Pass original filename for mic variant detection
       });
       setResult({ ...response, filename: file.name });
@@ -3827,6 +3837,16 @@ export default function Analyzer() {
                     renameSuggestion={result.renameSuggestion}
                     filename={result.filename}
                     spectralDeviation={result.spectralDeviation}
+                    tonalBalance={{
+                      subBassPercent: (result as any).subBassPercent,
+                      bassPercent: (result as any).bassPercent,
+                      lowMidPercent: (result as any).lowMidPercent,
+                      midPercent: (result as any).midPercent,
+                      highMidPercent: (result as any).highMidPercent,
+                      presencePercent: (result as any).presencePercent,
+                      ultraHighPercent: (result as any).ultraHighPercent,
+                      highMidMidRatio: (result as any).highMidMidRatio,
+                    }}
                   />
                 </motion.div>
               )}

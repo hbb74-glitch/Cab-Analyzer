@@ -39,6 +39,16 @@ export const analysisRequestSchema = insertAnalysisSchema.extend({
   lowEnergy: z.number().min(0).max(1),   // Energy in 20-250Hz range
   midEnergy: z.number().min(0).max(1),   // Energy in 250-4000Hz range
   highEnergy: z.number().min(0).max(1),  // Energy in 4000-20000Hz range
+  // 6-band detailed breakdown for tonal analysis
+  subBassEnergy: z.number().optional(),    // 20-120Hz
+  bassEnergy: z.number().optional(),       // 120-250Hz
+  lowMidEnergy: z.number().optional(),     // 250-500Hz
+  midEnergy6: z.number().optional(),       // 500-2000Hz
+  highMidEnergy: z.number().optional(),    // 2000-4000Hz
+  presenceEnergy: z.number().optional(),   // 4000-8000Hz
+  ultraHighEnergy: z.number().optional(),  // 8000-20000Hz
+  frequencySmoothness: z.number().optional(),
+  noiseFloorDb: z.number().optional(),
   // Original filename for mic variant detection (e.g., e906 presence boost)
   originalFilename: z.string().optional(),
 });

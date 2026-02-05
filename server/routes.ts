@@ -1200,7 +1200,44 @@ export async function registerRoutes(
         lowEnergy: input.lowEnergy,
         midEnergy: input.midEnergy,
         highEnergy: input.highEnergy,
+        subBassEnergy: input.subBassEnergy,
+        bassEnergy: input.bassEnergy,
+        lowMidEnergy: input.lowMidEnergy,
+        midEnergy6: input.midEnergy6,
+        highMidEnergy: input.highMidEnergy,
+        presenceEnergy: input.presenceEnergy,
+        ultraHighEnergy: input.ultraHighEnergy,
+        frequencySmoothness: input.frequencySmoothness,
+        noiseFloorDb: input.noiseFloorDb,
       });
+      
+      // Calculate 6-band percentages if available
+      const has6Band = input.subBassEnergy !== undefined;
+      let sixBandPercents: {
+        subBassPercent?: number;
+        bassPercent?: number;
+        lowMidPercent?: number;
+        midPercent?: number;
+        highMidPercent?: number;
+        presencePercent?: number;
+        ultraHighPercent?: number;
+        highMidMidRatio?: number;
+      } = {};
+      
+      if (has6Band) {
+        const total = (input.subBassEnergy! + input.bassEnergy! + input.lowMidEnergy! + input.midEnergy6! + input.highMidEnergy! + input.presenceEnergy! + (input.ultraHighEnergy || 0)) || 1;
+        sixBandPercents = {
+          subBassPercent: Math.round((input.subBassEnergy! / total) * 1000) / 10,
+          bassPercent: Math.round((input.bassEnergy! / total) * 1000) / 10,
+          lowMidPercent: Math.round((input.lowMidEnergy! / total) * 1000) / 10,
+          midPercent: Math.round((input.midEnergy6! / total) * 1000) / 10,
+          highMidPercent: Math.round((input.highMidEnergy! / total) * 1000) / 10,
+          presencePercent: Math.round((input.presenceEnergy! / total) * 1000) / 10,
+          ultraHighPercent: input.ultraHighEnergy ? Math.round((input.ultraHighEnergy / total) * 1000) / 10 : 0,
+          highMidMidRatio: input.midEnergy6! > 0 ? Math.round((input.highMidEnergy! / input.midEnergy6!) * 100) / 100 : 0,
+        };
+        console.log(`[Single Analysis] 6-band: Mid=${sixBandPercents.midPercent}% HiMid=${sixBandPercents.highMidPercent}% Pres=${sixBandPercents.presencePercent}% Ratio=${sixBandPercents.highMidMidRatio}`);
+      }
       
       const saved = await storage.createAnalysis({
         ...input,
@@ -1209,7 +1246,7 @@ export async function registerRoutes(
         isPerfect: scored.isPerfect
       });
 
-      // Include tonal modifier suggestion, detected mic variant, and spectral deviation in response
+      // Include tonal modifier suggestion, detected mic variant, spectral deviation, and 6-band data in response
       const responseWithExtras = {
         ...saved,
         micLabel: micVariant,
@@ -1217,7 +1254,10 @@ export async function registerRoutes(
           suggestedModifier: scored.renameSuggestion.suggestedModifier,
           reason: scored.renameSuggestion.reason
         } : null,
-        spectralDeviation: scored.spectralDeviation
+        spectralDeviation: scored.spectralDeviation,
+        frequencySmoothness: scored.frequencySmoothness,
+        noiseFloorDb: scored.noiseFloorDb,
+        ...sixBandPercents,
       };
 
       res.status(201).json(responseWithExtras);

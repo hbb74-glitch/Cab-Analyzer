@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Activity, Info, Target, Pencil } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 
@@ -22,6 +22,17 @@ interface SpectralDeviation {
   isWithinRange: boolean;
 }
 
+interface TonalBalance {
+  subBassPercent?: number;
+  bassPercent?: number;
+  lowMidPercent?: number;
+  midPercent?: number;
+  highMidPercent?: number;
+  presencePercent?: number;
+  ultraHighPercent?: number;
+  highMidMidRatio?: number;
+}
+
 interface ResultCardProps {
   score: number;
   isPerfect: boolean;
@@ -38,6 +49,7 @@ interface ResultCardProps {
   renameSuggestion?: RenameSuggestion | null;
   filename?: string;
   spectralDeviation?: SpectralDeviation | null;
+  tonalBalance?: TonalBalance | null;
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -55,7 +67,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap_OffCenter",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation, tonalBalance }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -264,6 +276,50 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
           )}
         </div>
       </div>
+
+      {/* 6-Band Tonal Balance */}
+      {tonalBalance && tonalBalance.midPercent != null && tonalBalance.highMidPercent != null && tonalBalance.presencePercent != null && (
+        <div className="space-y-4 pt-4 border-t border-white/10">
+          <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+            <div className="flex items-center gap-2 mb-3">
+              <Layers className="w-5 h-5 text-indigo-400" />
+              <h4 className="text-sm font-semibold text-indigo-400">Tonal Balance</h4>
+              {tonalBalance.highMidMidRatio != null && (
+                <span className={cn(
+                  "ml-auto text-xs font-mono px-2 py-1 rounded",
+                  tonalBalance.highMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                  tonalBalance.highMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                  "bg-amber-500/20 text-amber-400"
+                )}>
+                  HiMid/Mid: {tonalBalance.highMidMidRatio.toFixed(2)}
+                  {tonalBalance.highMidMidRatio < 1.0 ? " (dark)" : tonalBalance.highMidMidRatio > 2.0 ? " (bright)" : ""}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-6 gap-2 text-xs">
+              {[
+                { label: "SubBass", value: tonalBalance.subBassPercent, color: "bg-purple-500" },
+                { label: "Bass", value: tonalBalance.bassPercent, color: "bg-blue-500" },
+                { label: "LowMid", value: tonalBalance.lowMidPercent, color: "bg-cyan-500" },
+                { label: "Mid", value: tonalBalance.midPercent, color: "bg-green-500" },
+                { label: "HiMid", value: tonalBalance.highMidPercent, color: "bg-yellow-500" },
+                { label: "Presence", value: tonalBalance.presencePercent, color: "bg-orange-500" },
+              ].map((band) => (
+                <div key={band.label} className="flex flex-col items-center">
+                  <div className="w-full h-20 bg-white/5 rounded overflow-hidden flex flex-col-reverse">
+                    <div 
+                      className={cn(band.color, "w-full transition-all")}
+                      style={{ height: `${Math.min(band.value || 0, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-muted-foreground mt-1.5 text-[10px]">{band.label}</span>
+                  <span className="text-foreground font-mono text-xs">{band.value?.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {bestPositions && bestPositions.length > 0 && (
         <div className="space-y-4 pt-4 border-t border-white/10">
