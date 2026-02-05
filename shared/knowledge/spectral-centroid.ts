@@ -43,6 +43,55 @@ export const POSITION_OFFSETS: Record<string, { offset: number; description: str
   'blend': { offset: 0, description: 'Combo IR blend - no position offset, uses mic base range directly' },
 };
 
+// Distance offsets - closer distances pick up more proximity effect and harsh fizz from dust cap
+// Calibrated from user feedback: 1" cap sounds "fuzzy and harsh" vs 2"+ sounds cleaner
+export const DISTANCE_OFFSETS: Record<string, { offset: number; description: string }> = {
+  '0.5': { offset: 150, description: 'Very close - extreme proximity effect, harshest' },
+  '0.5in': { offset: 150, description: 'Very close - extreme proximity effect, harshest' },
+  '1': { offset: 100, description: 'Close - significant proximity effect, can be harsh on cap' },
+  '1in': { offset: 100, description: 'Close - significant proximity effect, can be harsh on cap' },
+  '1inch': { offset: 100, description: 'Close - significant proximity effect, can be harsh on cap' },
+  '2': { offset: 0, description: 'Standard distance - balanced tone (baseline)' },
+  '2in': { offset: 0, description: 'Standard distance - balanced tone (baseline)' },
+  '3': { offset: -50, description: 'Moderate distance - slightly darker, less proximity' },
+  '3in': { offset: -50, description: 'Moderate distance - slightly darker, less proximity' },
+  '4': { offset: -100, description: 'Far - darker, minimal proximity effect' },
+  '4in': { offset: -100, description: 'Far - darker, minimal proximity effect' },
+  '6': { offset: -150, description: 'Very far - darkest, room influence' },
+  '6in': { offset: -150, description: 'Very far - darkest, room influence' },
+};
+
+// Quality penalty for risky position+distance combinations
+// Some combos sound bad regardless of centroid being "in range"
+export interface DistancePositionPenalty {
+  scorePenalty: number;
+  note: string;
+}
+
+export function getDistancePositionPenalty(position: string, distance: string, speaker: string): DistancePositionPenalty {
+  const pos = normalizePosition(position);
+  const dist = distance.toLowerCase().replace(/[^0-9.]/g, '');
+  const spk = normalizeSpeaker(speaker);
+  
+  // 1" or closer at dead-center cap = high risk of harsh/fizzy tone
+  // Especially problematic on darker speakers like G12T-75 where the cap fizz stands out
+  if ((dist === '1' || dist === '0.5') && pos === 'cap') {
+    // G12T-75 specifically flagged as problematic at 1" cap based on user feedback
+    if (spk === 'g12t75') {
+      return { scorePenalty: -4, note: 'G12T-75 at 1" cap often sounds fuzzy/harsh - try 2"+ or cap_offcenter' };
+    }
+    // Other speakers: moderate penalty
+    return { scorePenalty: -2, note: '1" cap can sound harsh/fizzy - try 2"+ or cap_offcenter' };
+  }
+  
+  // Cap off-center at 1" is generally fine
+  if ((dist === '1' || dist === '0.5') && pos === 'cap_offcenter') {
+    return { scorePenalty: 0, note: 'Cap off-center works well even at close distances' };
+  }
+  
+  return { scorePenalty: 0, note: '' };
+}
+
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
   // Calibrated from actual IR measurements (SM57 CapEdge baseline = 2600 Hz)
   'v30': { offset: 650, description: 'Aggressive upper-mids, very bright' },
@@ -140,6 +189,32 @@ function normalizeSpeaker(speaker: string): string {
   return 'v30';
 }
 
+function normalizeDistance(distance: string): string {
+  if (!distance) return '2'; // Default to 2" (baseline)
+  const lower = distance.toLowerCase().replace(/[^0-9.]/g, '');
+  
+  // Match common distance formats
+  if (lower === '0.5' || lower === '05') return '0.5';
+  if (lower === '1' || lower === '1.0') return '1';
+  if (lower === '2' || lower === '2.0') return '2';
+  if (lower === '3' || lower === '3.0') return '3';
+  if (lower === '4' || lower === '4.0') return '4';
+  if (lower === '6' || lower === '6.0') return '6';
+  
+  // Try to parse any number
+  const num = parseFloat(lower);
+  if (!isNaN(num)) {
+    if (num <= 0.75) return '0.5';
+    if (num <= 1.5) return '1';
+    if (num <= 2.5) return '2';
+    if (num <= 3.5) return '3';
+    if (num <= 5) return '4';
+    return '6';
+  }
+  
+  return '2'; // Default baseline
+}
+
 export interface ExpectedCentroidResult {
   min: number;
   max: number;
@@ -147,25 +222,30 @@ export interface ExpectedCentroidResult {
   micRange: { min: number; max: number };
   positionOffset: number;
   speakerOffset: number;
+  distanceOffset: number;
   micName: string;
   positionName: string;
   speakerName: string;
+  distanceName: string;
 }
 
 export function getExpectedCentroidRange(
   mic: string,
   position: string,
-  speaker: string
+  speaker: string,
+  distance?: string
 ): ExpectedCentroidResult {
   const normalizedMic = normalizeMicName(mic);
   const normalizedPosition = normalizePosition(position);
   const normalizedSpeaker = normalizeSpeaker(speaker);
+  const normalizedDistance = normalizeDistance(distance || '2');
   
   const micRange = MIC_BASE_CENTROID_RANGES[normalizedMic] || { min: 2000, max: 2800 };
   const positionOffset = POSITION_OFFSETS[normalizedPosition]?.offset || 0;
   const speakerOffset = SPEAKER_OFFSETS[normalizedSpeaker]?.offset || 0;
+  const distanceOffset = DISTANCE_OFFSETS[normalizedDistance]?.offset || 0;
   
-  const totalOffset = positionOffset + speakerOffset;
+  const totalOffset = positionOffset + speakerOffset + distanceOffset;
   
   return {
     min: micRange.min + totalOffset,
@@ -174,9 +254,11 @@ export function getExpectedCentroidRange(
     micRange: { min: micRange.min, max: micRange.max },
     positionOffset,
     speakerOffset,
+    distanceOffset,
     micName: normalizedMic,
     positionName: normalizedPosition,
     speakerName: normalizedSpeaker,
+    distanceName: normalizedDistance,
   };
 }
 
