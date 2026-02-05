@@ -914,10 +914,18 @@ async function scoreSingleIR(ir: {
     confidenceNote = ` (CONFIDENCE: MEDIUM - penalty halved, partial detection: mic=${parsed.micDetected}, pos=${parsed.positionDetected}, spk=${parsed.speakerDetected})`;
   }
   
+  // Calculate tonal shape metrics for analysis
+  const totalEnergy = ir.lowEnergy + ir.midEnergy + ir.highEnergy || 1;
+  const lowPct = (ir.lowEnergy / totalEnergy * 100).toFixed(1);
+  const midPct = (ir.midEnergy / totalEnergy * 100).toFixed(1);
+  const highPct = (ir.highEnergy / totalEnergy * 100).toFixed(1);
+  const lowMidRatio = ir.midEnergy > 0 ? (ir.lowEnergy / ir.midEnergy).toFixed(2) : 'N/A';
+  const highMidRatio = ir.midEnergy > 0 ? (ir.highEnergy / ir.midEnergy).toFixed(2) : 'N/A';
+  
   console.log(`[Spectral Analysis] ${ir.filename}:`);
   console.log(`  Parsed: mic=${parsed.mic}, pos=${parsed.position}, spk=${parsed.speaker}, confidence=${parsed.confidence}`);
-  console.log(`  Detection: mic=${parsed.micDetected}, pos=${parsed.positionDetected}, spk=${parsed.speakerDetected}`);
-  console.log(`  Expected range: ${expectedRange.min}-${expectedRange.max}Hz, Actual: ${ir.spectralCentroid.toFixed(0)}Hz`);
+  console.log(`  Centroid: ${ir.spectralCentroid.toFixed(0)}Hz (expected ${expectedRange.min}-${expectedRange.max}Hz) | Smooth: ${ir.frequencySmoothness?.toFixed(1) || 'N/A'} | Noise: ${ir.noiseFloorDb?.toFixed(1) || 'N/A'}dB`);
+  console.log(`  Energy: Low=${lowPct}% Mid=${midPct}% High=${highPct}% | Low/Mid=${lowMidRatio} High/Mid=${highMidRatio}`);
   console.log(`  Deviation: ${deviation.deviation.toFixed(0)}Hz (${deviation.deviationPercent.toFixed(1)}%), Direction: ${deviation.direction}`);
   console.log(`  Raw score adj: ${rawScoreAdjustment}, Final score adj: ${scoreAdjustment}${confidenceNote}`);
   
