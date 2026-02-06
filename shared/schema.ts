@@ -59,7 +59,7 @@ export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;
 
 export const preferenceSignals = pgTable("preference_signals", {
   id: serial("id").primaryKey(),
-  action: text("action").notNull(), // "ranked_1", "ranked_2", "ranked_3", "nope"
+  action: text("action").notNull(), // "love", "like", "meh", "nope"
   baseFilename: text("base_filename").notNull(),
   featureFilename: text("feature_filename").notNull(),
   subBass: real("sub_bass").notNull(),

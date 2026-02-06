@@ -1168,17 +1168,26 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data" };
   }
 
-  const liked = signals.filter((s) => s.action === "ranked_1" || s.action === "ranked_2" || s.action === "ranked_3");
+  const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
     return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning" };
   }
 
+  const signalWeight = (action: string): number => {
+    switch (action) {
+      case "love": return 3;
+      case "like": return 1.5;
+      case "meh": return 0.5;
+      default: return 1;
+    }
+  };
+
   const weightedAvg = (arr: PreferenceSignal[], field: keyof PreferenceSignal) => {
     let sum = 0, wSum = 0;
     for (const s of arr) {
-      const w = s.action === "ranked_1" ? 3 : s.action === "ranked_2" ? 1.5 : s.action === "ranked_3" ? 0.75 : 1;
+      const w = signalWeight(s.action);
       sum += (s[field] as number) * w;
       wSum += w;
     }

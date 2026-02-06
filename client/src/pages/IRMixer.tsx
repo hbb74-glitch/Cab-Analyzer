@@ -347,12 +347,9 @@ export default function IRMixer() {
       const next = { ...prev };
       if (next[key] === rank) {
         delete next[key];
-        return next;
+      } else {
+        next[key] = rank;
       }
-      Object.keys(next).forEach((k) => {
-        if (next[k] === rank) delete next[k];
-      });
-      next[key] = rank;
       return next;
     });
     setDismissedPairings((prev) => {
@@ -379,9 +376,10 @@ export default function IRMixer() {
     });
   }, []);
 
-  const hasFirstPick = Object.values(pairingRankings).includes(1);
+  const hasAnyRank = Object.keys(pairingRankings).length > 0;
+  const hasLoveOrLike = Object.values(pairingRankings).some((r) => r === 1 || r === 2);
   const activePairings = suggestedPairs.filter((p) => !dismissedPairings.has(pairKey(p)));
-  const canConfirm = hasFirstPick || dismissedPairings.size === suggestedPairs.length;
+  const canConfirm = hasAnyRank || dismissedPairings.size === suggestedPairs.length;
 
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
@@ -400,8 +398,9 @@ export default function IRMixer() {
       if (!isDismissed && !rank) continue;
 
       const r = pair.blendBands.mid > 0 ? pair.blendBands.highMid / pair.blendBands.mid : 0;
+      const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
       signals.push({
-        action: isDismissed ? "nope" : `ranked_${rank}`,
+        action: actionLabel,
         baseFilename: pair.baseFilename,
         featureFilename: pair.featureFilename,
         subBass: pair.blendBands.subBass,
@@ -431,7 +430,8 @@ export default function IRMixer() {
     setTotalRoundsCompleted((prev) => prev + 1);
 
     if (loadTopPick) {
-      const topKey = Object.entries(pairingRankings).find(([, rank]) => rank === 1)?.[0];
+      const sorted = Object.entries(pairingRankings).sort((a, b) => a[1] - b[1]);
+      const topKey = sorted[0]?.[0];
       if (topKey) {
         const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
         if (pair) {
@@ -624,14 +624,14 @@ export default function IRMixer() {
               </h4>
               {totalRoundsCompleted > 0 && (
                 <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
-                  {cumulativeSignals.liked} liked / {cumulativeSignals.noped} noped so far
+                  {cumulativeSignals.liked} rated / {cumulativeSignals.noped} noped so far
                 </span>
               )}
             </div>
             <p className="text-xs text-muted-foreground mb-4">
               {totalRoundsCompleted === 0
-                ? "Top 3 blends from your set. Rank the ones you like, nope the rest. Keep refining until the profiles match your taste."
-                : "Fresh suggestions based on what you've taught so far. Keep going or load your #1 pick into the mixer."
+                ? "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
+                : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -698,24 +698,23 @@ export default function IRMixer() {
                         </div>
 
                         <div className="flex items-center gap-1.5 pt-1">
-                          <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
-                          {[1, 2, 3].map((r) => (
+                          {[
+                            { rank: 1, label: "Love", color: "bg-amber-500/20 text-amber-400 border border-amber-500/30" },
+                            { rank: 2, label: "Like", color: "bg-violet-500/20 text-violet-400 border border-violet-500/30" },
+                            { rank: 3, label: "Meh", color: "bg-slate-400/20 text-slate-300 border border-slate-400/30" },
+                          ].map(({ rank: r, label, color }) => (
                             <Button
                               key={r}
                               size="sm"
                               variant={assignedRank === r ? "default" : "ghost"}
                               onClick={() => assignRank(pk, r)}
                               className={cn(
-                                "font-mono text-xs flex-1",
-                                assignedRank === r && (
-                                  r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                                  r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
-                                  "bg-orange-800/20 text-orange-400 border border-orange-800/30"
-                                )
+                                "text-xs flex-1",
+                                assignedRank === r && color
                               )}
                               data-testid={`button-rank-${idx}-${r}`}
                             >
-                              {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
+                              {label}
                             </Button>
                           ))}
                         </div>
@@ -730,7 +729,7 @@ export default function IRMixer() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Target className="w-3.5 h-3.5 text-violet-400" />
-                  {hasFirstPick ? "Submit & refine, or load your #1 into the mixer" : "Submit nopes to keep refining"}
+                  {hasLoveOrLike ? "Submit & refine, or load your top pick into the mixer" : "Submit to keep refining"}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
@@ -739,9 +738,9 @@ export default function IRMixer() {
                     className="bg-violet-500/20 text-violet-400 border border-violet-500/30"
                     data-testid="button-next-round"
                   >
-                    {hasFirstPick ? "Submit & Show More" : "Submit & Next Round"}
+                    {hasAnyRank ? "Submit & Show More" : "Submit & Next Round"}
                   </Button>
-                  {hasFirstPick && (
+                  {hasLoveOrLike && (
                     <Button
                       size="sm"
                       onClick={() => handleSubmitRankings(true)}
@@ -749,7 +748,7 @@ export default function IRMixer() {
                       data-testid="button-confirm-load"
                     >
                       <Trophy className="w-3.5 h-3.5 mr-1" />
-                      Load #1 into Mixer
+                      Load Top Pick
                     </Button>
                   )}
                 </div>
@@ -763,7 +762,7 @@ export default function IRMixer() {
             <div className="flex items-center gap-2">
               <Brain className="w-4 h-4 text-amber-400 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                All pairings evaluated ({cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). {showFoundation ? "Pick a base from the ranked list above to continue in the mixer." : "Your preferences have been recorded."}
+                All pairings evaluated ({cumulativeSignals.liked} rated, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). {showFoundation ? "Pick a base from the ranked list above to continue in the mixer." : "Your preferences have been recorded."}
               </p>
             </div>
           </motion.div>
