@@ -521,18 +521,27 @@ interface CullCloseCall {
 
 // Culling result type
 interface CullResult {
-  keep: { filename: string; reason: string; score: number; diversityContribution: number }[];
-  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number }[];
-  closeCallsResolved?: boolean; // True if all close calls have been resolved
+  keep: { filename: string; reason: string; score: number; diversityContribution: number; preferenceRole?: string }[];
+  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number; preferenceRole?: string }[];
+  closeCallsResolved?: boolean;
 }
 
 // Cull IRs to a target count, maximizing variety and quality
 // Uses per-mic-type selection: keeps best examples of each mic proportionally
 // userOverrides: Map of mic type -> array of filenames user has chosen to keep
+interface IRPreferenceInfo {
+  featuredScore: number;
+  bodyScore: number;
+  bestProfile: string;
+  bestScore: number;
+  avoidPenalty: number;
+}
+
 function cullIRs(
   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
   targetCount: number,
-  userOverrides: Map<string, string[]> = new Map()
+  userOverrides: Map<string, string[]> = new Map(),
+  preferenceMap?: Map<string, IRPreferenceInfo>
 ): { result: CullResult; closeCalls: CullCloseCall[] } {
   if (irs.length <= targetCount) {
     return {
@@ -706,21 +715,32 @@ function cullIRs(
     return hints.join(', ');
   };
 
-  // Select best IRs from each mic group
-  // Primary: score, Secondary: diversity within the mic's selections
+  const getPreferenceRole = (idx: number): string | undefined => {
+    if (!preferenceMap) return undefined;
+    const pref = preferenceMap.get(irs[idx].filename);
+    if (!pref || pref.bestScore < 60) return undefined;
+    return pref.bestProfile === "Featured" ? "Feature element" : "Body element";
+  };
+
+  const getEffectiveScore = (idx: number): number => {
+    const baseScore = irs[idx].score || 85;
+    if (!preferenceMap) return baseScore;
+    const pref = preferenceMap.get(irs[idx].filename);
+    if (!pref) return baseScore;
+    const prefBoost = Math.max(0, (pref.bestScore - 60) / 40) * 8;
+    const penalty = pref.avoidPenalty;
+    return baseScore + prefBoost - penalty;
+  };
+
   const selected: number[] = [];
   
   for (const [mic, indices] of Array.from(micGroups.entries())) {
     const slotsForMic = micSlots.get(mic) || 1;
     
-    // Check if user has overrides for this mic
     const userChoices = userOverrides.get(mic) || [];
     
-    // Sort by score (primary factor)
     const sortedByScore = [...indices].sort((a, b) => {
-      const scoreA = irs[a].score || 85;
-      const scoreB = irs[b].score || 85;
-      return scoreB - scoreA; // Higher score first
+      return getEffectiveScore(b) - getEffectiveScore(a);
     });
     
     if (slotsForMic === 1) {
@@ -780,8 +800,7 @@ function cullIRs(
         const candidateScores: { idx: number; combinedScore: number }[] = [];
         
         for (const candidateIdx of Array.from(micRemaining)) {
-          // Quality score (60% weight)
-          const qualityScore = ((irs[candidateIdx].score || 85) - 70) / 30;
+          const qualityScore = (getEffectiveScore(candidateIdx) - 70) / 30;
           
           // Diversity from already selected within this mic (25% weight)
           let minSim = 1;
@@ -959,7 +978,8 @@ function cullIRs(
       filename: ir.filename,
       reason,
       score: ir.score || 85,
-      diversityContribution
+      diversityContribution,
+      preferenceRole: getPreferenceRole(idx)
     });
   }
 
@@ -1009,7 +1029,8 @@ function cullIRs(
       reason,
       score: ir.score || 85,
       mostSimilarTo: irs[mostSimilarIdx].filename,
-      similarity: maxSim
+      similarity: maxSim,
+      preferenceRole: getPreferenceRole(idx)
     });
   }
 
@@ -1886,7 +1907,49 @@ export default function Analyzer() {
       }));
     }
     
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides);
+    const prefMap = new Map<string, IRPreferenceInfo>();
+    if (learnedProfile && learnedProfile.status !== "no_data") {
+      for (const ir of irsToProcess) {
+        if (!ir.metrics) continue;
+        const totalEnergy = (ir.metrics.subBassEnergy || 0) + (ir.metrics.bassEnergy || 0) +
+          (ir.metrics.lowMidEnergy || 0) + (ir.metrics.midEnergy6 || 0) +
+          (ir.metrics.highMidEnergy || 0) + (ir.metrics.presenceEnergy || 0);
+        const toPercent = (e: number) => totalEnergy > 0 ? Math.round((e / totalEnergy) * 100) : 0;
+        const bands: TonalBands = {
+          subBass: toPercent(ir.metrics.subBassEnergy || 0),
+          bass: toPercent(ir.metrics.bassEnergy || 0),
+          lowMid: toPercent(ir.metrics.lowMidEnergy || 0),
+          mid: toPercent(ir.metrics.midEnergy6 || 0),
+          highMid: toPercent(ir.metrics.highMidEnergy || 0),
+          presence: toPercent(ir.metrics.presenceEnergy || 0),
+        };
+        const { results: matchResults } = scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile);
+        const featured = matchResults.find((r) => r.profile === "Featured");
+        const body = matchResults.find((r) => r.profile === "Body");
+        const fScore = featured?.score ?? 0;
+        const bScore = body?.score ?? 0;
+        const bestProfile = fScore >= bScore ? "Featured" : "Body";
+        const bestScore = Math.max(fScore, bScore);
+        
+        let avoidPenalty = 0;
+        const ratio = bands.presence > 0 ? bands.highMid / bands.presence : 0;
+        for (const zone of learnedProfile.avoidZones) {
+          if (zone.band === "muddy_composite" && bands.mid > 30 && bands.presence < 18) {
+            avoidPenalty += 5;
+          } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
+            avoidPenalty += Math.min(5, (bands.mid - zone.threshold) * 0.5);
+          } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
+            avoidPenalty += Math.min(5, (zone.threshold - bands.presence) * 0.5);
+          } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
+            avoidPenalty += Math.min(3, (zone.threshold - ratio) * 2);
+          }
+        }
+        
+        prefMap.set(ir.filename, { featuredScore: fScore, bodyScore: bScore, bestProfile, bestScore, avoidPenalty });
+      }
+    }
+
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
@@ -3460,7 +3523,19 @@ export default function Analyzer() {
                                   <p className="font-mono text-sm truncate text-green-300" title={ir.filename}>
                                     {ir.filename}
                                   </p>
-                                  <p className="text-xs text-muted-foreground mt-1">{ir.reason}</p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <p className="text-xs text-muted-foreground">{ir.reason}</p>
+                                    {ir.preferenceRole && (
+                                      <span className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                                        ir.preferenceRole === "Feature element"
+                                          ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+                                          : "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                      )} data-testid={`badge-cull-role-keep-${idx}`}>
+                                        {ir.preferenceRole}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-xs text-muted-foreground">Score</div>
@@ -3505,9 +3580,21 @@ export default function Analyzer() {
                                   <p className="font-mono text-sm truncate text-red-300" title={ir.filename}>
                                     {ir.filename}
                                   </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {ir.reason}
-                                  </p>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <p className="text-xs text-muted-foreground">
+                                      {ir.reason}
+                                    </p>
+                                    {ir.preferenceRole && (
+                                      <span className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                                        ir.preferenceRole === "Feature element"
+                                          ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+                                          : "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                                      )} data-testid={`badge-cull-role-cut-${idx}`}>
+                                        {ir.preferenceRole}
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-muted-foreground">
                                     Similar to: <span className="text-foreground/70">{ir.mostSimilarTo}</span> ({Math.round(ir.similarity * 100)}%)
                                   </p>
