@@ -392,6 +392,59 @@ export function scoreWithAvoidPenalty(
   return base;
 }
 
+export function scoreIndividualIR(
+  bands: TonalBands,
+  profiles: PreferenceProfile[],
+  learned?: LearnedProfileData
+) {
+  const relaxed = profiles.map((p) => ({
+    ...p,
+    targets: {
+      mid: { min: p.targets.mid.min - 5, max: p.targets.mid.max + 5, ideal: p.targets.mid.ideal },
+      highMid: { min: p.targets.highMid.min - 8, max: p.targets.highMid.max + 10, ideal: p.targets.highMid.ideal },
+      presence: { min: Math.max(0, p.targets.presence.min - 8), max: p.targets.presence.max + 8, ideal: p.targets.presence.ideal },
+      ratio: { min: Math.max(0, p.targets.ratio.min - 0.3), max: p.targets.ratio.max + 0.4, ideal: p.targets.ratio.ideal },
+      lowEnd: { max: p.targets.lowEnd.max + 3 },
+      lowMid: { max: p.targets.lowMid.max + 3 },
+    },
+  }));
+
+  const results = relaxed.map((p) => scoreAgainstProfile(bands, p));
+  const best = results.reduce((a, b) => (a.score > b.score ? a : b));
+
+  let penalty = 0;
+  if (learned && learned.avoidZones) {
+    const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+    const lowMidPlusMid = bands.lowMid + bands.mid;
+    for (const zone of learned.avoidZones) {
+      if (zone.band === "muddy_composite") {
+        if (zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
+          penalty += Math.min(3, (lowMidPlusMid - zone.threshold) * 0.8);
+        }
+        continue;
+      }
+      const val = zone.band === "mid" ? bands.mid
+        : zone.band === "presence" ? bands.presence
+        : zone.band === "ratio" ? ratio : 0;
+      if (zone.direction === "high" && val >= zone.threshold) {
+        penalty += Math.min(3, (val - zone.threshold) * 0.6);
+      } else if (zone.direction === "low" && val <= zone.threshold) {
+        penalty += Math.min(3, (zone.threshold - val) * 0.6);
+      }
+    }
+  }
+
+  if (penalty > 0) {
+    const adjusted = { ...best, score: Math.max(0, Math.round(best.score - penalty)) };
+    if (adjusted.score >= 85) adjusted.label = "strong" as const;
+    else if (adjusted.score >= 70) adjusted.label = "close" as const;
+    else if (adjusted.score >= 50) adjusted.label = "partial" as const;
+    else adjusted.label = "miss" as const;
+    return { results, best: adjusted };
+  }
+  return { results, best };
+}
+
 export function suggestPairings(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,

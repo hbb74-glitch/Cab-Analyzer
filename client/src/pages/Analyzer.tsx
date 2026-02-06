@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, applyLearnedAdjustments, DEFAULT_PROFILES, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain } from "lucide-react";
 
 // Validation schema for the form
@@ -1923,32 +1923,18 @@ export default function Analyzer() {
           highMid: toPercent(ir.metrics.highMidEnergy || 0),
           presence: toPercent(ir.metrics.presenceEnergy || 0),
         };
-        const { results: matchResults } = scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile);
+        const { results: matchResults, best } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
         const featured = matchResults.find((r) => r.profile === "Featured");
         const body = matchResults.find((r) => r.profile === "Body");
         const fScore = featured?.score ?? 0;
         const bScore = body?.score ?? 0;
         const bestProfile = fScore >= bScore ? "Featured" : "Body";
         const bestScore = Math.max(fScore, bScore);
+        const avoidPenalty = bestScore - best.score;
         
-        let avoidPenalty = 0;
-        const ratio = bands.presence > 0 ? bands.highMid / bands.presence : 0;
-        for (const zone of learnedProfile.avoidZones) {
-          if (zone.band === "muddy_composite" && bands.mid > 30 && bands.presence < 18) {
-            avoidPenalty += 5;
-          } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
-            avoidPenalty += Math.min(5, (bands.mid - zone.threshold) * 0.5);
-          } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
-            avoidPenalty += Math.min(5, (zone.threshold - bands.presence) * 0.5);
-          } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
-            avoidPenalty += Math.min(3, (zone.threshold - ratio) * 2);
-          }
-        }
-        
-        prefMap.set(ir.filename, { featuredScore: fScore, bodyScore: bScore, bestProfile, bestScore, avoidPenalty });
+        prefMap.set(ir.filename, { featuredScore: fScore, bodyScore: bScore, bestProfile, bestScore, avoidPenalty: Math.max(0, avoidPenalty) });
       }
     }
-
     const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
