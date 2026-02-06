@@ -44,6 +44,7 @@ Preferred communication style: Simple, everyday language.
 - **Genre-Specific Guidance**: Offers detailed tonal goals, studio contexts, and "avoid" rules for 16 predefined genres plus custom options.
 - **Miking Guide**: A curated reference of close-miking techniques for 14 microphones, sourced from professional recording engineering references, including distance ranges, best positions, switch settings, and blending recommendations.
 - **IR Culling**: A batch tool that reduces an IR collection to a target count while maximizing variety (mic types, positions) and quality. Uses spectral similarity analysis and greedy selection algorithm to recommend which IRs to keep vs cut.
+- **IR Mixer**: A client-side tool for previewing blend permutations of a base IR + multiple feature IRs at 5 configurable ratios (70/30 through 30/70). Uses raw energy blending (not rounded percentages) for accurate tonal predictions. Displays 6-band breakdown and HiMid/Mid ratio for each blend.
 
 ## External Dependencies
 

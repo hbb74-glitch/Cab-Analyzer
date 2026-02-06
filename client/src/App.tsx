@@ -13,6 +13,7 @@ import Pairing from "@/pages/Pairing";
 import CherryPicker from "@/pages/CherryPicker";
 import FractalSettings from "@/pages/FractalSettings";
 import MikingGuide from "@/pages/MikingGuide";
+import IRMixer from "@/pages/IRMixer";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/recommendations" component={Recommendations} />
       <Route path="/fractal" component={FractalSettings} />
       <Route path="/miking-guide" component={MikingGuide} />
+      <Route path="/mixer" component={IRMixer} />
       <Route component={NotFound} />
     </Switch>
   );
