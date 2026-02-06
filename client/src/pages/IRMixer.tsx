@@ -203,6 +203,7 @@ export default function IRMixer() {
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
   const [showFoundation, setShowFoundation] = useState(false);
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
+  const [dismissedPairings, setDismissedPairings] = useState<Set<string>>(new Set());
   const [rankingSubmitted, setRankingSubmitted] = useState(false);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
@@ -242,6 +243,7 @@ export default function IRMixer() {
     setIsLoadingAll(true);
     setShowFoundation(true);
     setPairingRankings({});
+    setDismissedPairings(new Set());
     setRankingSubmitted(false);
     try {
       const results: AnalyzedIR[] = [];
@@ -295,12 +297,35 @@ export default function IRMixer() {
       next[key] = rank;
       return next;
     });
+    setDismissedPairings((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
   }, []);
 
-  const ranksNeeded = Math.min(suggestedPairs.length, 3);
-  const assignedRanks = new Set(Object.values(pairingRankings));
-  const allRanksAssigned = assignedRanks.size === ranksNeeded &&
-    [1, 2, 3].slice(0, ranksNeeded).every((r) => assignedRanks.has(r));
+  const dismissPairing = useCallback((key: string) => {
+    setDismissedPairings((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+    setPairingRankings((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const hasFirstPick = Object.values(pairingRankings).includes(1);
+  const activePairings = suggestedPairs.filter((p) => !dismissedPairings.has(pairKey(p)));
+  const allAccountedFor = activePairings.every((p) => pairingRankings[pairKey(p)] !== undefined)
+    && activePairings.length > 0;
+  const canConfirm = hasFirstPick;
 
   const handleSubmitRankings = useCallback(() => {
     setRankingSubmitted(true);
@@ -372,11 +397,12 @@ export default function IRMixer() {
                 Suggested Pairings
               </h4>
               <p className="text-xs text-muted-foreground mb-4">
-                These are the 3 best 50/50 blends from your set. Rank them 1-2-3 and your #1 pick gets loaded into the mixer.
+                These are the 3 best 50/50 blends from your set. Rank the ones you like, nope the ones you hate. Pick a #1 and it loads into the mixer at all ratios.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {suggestedPairs.map((pair, idx) => {
                   const pk = pairKey(pair);
+                  const isDismissed = dismissedPairings.has(pk);
                   const assignedRank = pairingRankings[pk];
                   const hiMidMidRatio = pair.blendBands.mid > 0
                     ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
@@ -385,7 +411,8 @@ export default function IRMixer() {
                     <div
                       key={`${pair.baseFilename}-${pair.featureFilename}`}
                       className={cn(
-                        "p-3 rounded-lg border space-y-3",
+                        "p-3 rounded-lg border space-y-3 transition-opacity",
+                        isDismissed ? "opacity-40 bg-red-500/[0.03] border-red-500/10" :
                         assignedRank === 1 ? "bg-amber-500/10 border-amber-500/20" :
                         assignedRank !== undefined ? "bg-violet-500/[0.03] border-violet-500/10" :
                         "bg-white/[0.02] border-white/5"
@@ -393,7 +420,23 @@ export default function IRMixer() {
                       data-testid={`suggested-pairing-${idx}`}
                     >
                       <div className="space-y-1">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pairing {idx + 1}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                            {isDismissed ? "Nope" : `Pairing ${idx + 1}`}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => dismissPairing(pk)}
+                            className={cn(
+                              "text-[10px] font-mono h-6 px-2",
+                              isDismissed ? "text-muted-foreground" : "text-red-400"
+                            )}
+                            data-testid={`button-dismiss-${idx}`}
+                          >
+                            {isDismissed ? "Undo" : "Nope"}
+                          </Button>
+                        </div>
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
                           {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                         </p>
@@ -403,52 +446,56 @@ export default function IRMixer() {
                         </p>
                       </div>
 
-                      <BandChart bands={pair.blendBands} height={12} compact />
+                      {!isDismissed && (
+                        <>
+                          <BandChart bands={pair.blendBands} height={12} compact />
 
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <MatchBadge match={pair.bestMatch} />
-                        <span className={cn(
-                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                          hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                          hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                          "bg-amber-500/20 text-amber-400"
-                        )}>
-                          {hiMidMidRatio.toFixed(2)}
-                        </span>
-                      </div>
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <MatchBadge match={pair.bestMatch} />
+                            <span className={cn(
+                              "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                              hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                              hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                              "bg-amber-500/20 text-amber-400"
+                            )}>
+                              {hiMidMidRatio.toFixed(2)}
+                            </span>
+                          </div>
 
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
-                        {[1, 2, 3].map((r) => (
-                          <Button
-                            key={r}
-                            size="sm"
-                            variant={assignedRank === r ? "default" : "ghost"}
-                            onClick={() => assignRank(pk, r)}
-                            className={cn(
-                              "font-mono text-xs flex-1",
-                              assignedRank === r && (
-                                r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                                r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
-                                "bg-orange-800/20 text-orange-400 border border-orange-800/30"
-                              )
-                            )}
-                            data-testid={`button-rank-${idx}-${r}`}
-                          >
-                            {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
-                          </Button>
-                        ))}
-                      </div>
+                          <div className="flex items-center gap-1.5 pt-1">
+                            <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
+                            {[1, 2, 3].map((r) => (
+                              <Button
+                                key={r}
+                                size="sm"
+                                variant={assignedRank === r ? "default" : "ghost"}
+                                onClick={() => assignRank(pk, r)}
+                                className={cn(
+                                  "font-mono text-xs flex-1",
+                                  assignedRank === r && (
+                                    r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                                    r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
+                                    "bg-orange-800/20 text-orange-400 border border-orange-800/30"
+                                  )
+                                )}
+                                data-testid={`button-rank-${idx}-${r}`}
+                              >
+                                {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
+                              </Button>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
               </div>
 
-              {allRanksAssigned && (
+              {canConfirm && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                    Rankings set -- your #1 pick will be loaded as base + feature
+                    Your #1 pick will be loaded as base + feature
                   </div>
                   <Button
                     size="sm"
