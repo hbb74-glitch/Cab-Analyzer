@@ -1,19 +1,23 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   type TonalBands,
   type MatchResult,
   type SuggestedPairing,
+  type LearnedProfileData,
   scoreAgainstAllProfiles,
   findFoundationIR,
   rankBlendPartners,
   suggestPairings,
+  applyLearnedAdjustments,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
 
@@ -104,8 +108,8 @@ function MatchBadge({ match }: { match: MatchResult }) {
   );
 }
 
-function ProfileScores({ bands }: { bands: TonalBands }) {
-  const { results } = scoreAgainstAllProfiles(bands);
+function ProfileScores({ bands, profiles }: { bands: TonalBands; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
+  const { results } = scoreAgainstAllProfiles(bands, profiles);
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {results.map((r) => (
@@ -115,7 +119,7 @@ function ProfileScores({ bands }: { bands: TonalBands }) {
   );
 }
 
-function BandChart({ bands, height = 20, compact = false, showScores = false }: { bands: TonalBands; height?: number; compact?: boolean; showScores?: boolean }) {
+function BandChart({ bands, height = 20, compact = false, showScores = false, profiles }: { bands: TonalBands; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
   const hiMidMidRatio = bands.mid > 0 ? Math.round((bands.highMid / bands.mid) * 100) / 100 : 0;
   return (
     <div className="space-y-1">
@@ -143,7 +147,7 @@ function BandChart({ bands, height = 20, compact = false, showScores = false }: 
           HiMid/Mid: {hiMidMidRatio.toFixed(2)}
           {hiMidMidRatio < 1.0 ? " (dark)" : hiMidMidRatio > 2.0 ? " (bright)" : ""}
         </span>
-        {showScores && <ProfileScores bands={bands} />}
+        {showScores && <ProfileScores bands={bands} profiles={profiles} />}
       </div>
     </div>
   );
@@ -205,6 +209,24 @@ export default function IRMixer() {
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
   const [dismissedPairings, setDismissedPairings] = useState<Set<string>>(new Set());
   const [rankingSubmitted, setRankingSubmitted] = useState(false);
+
+  const { data: learnedProfile } = useQuery<LearnedProfileData>({
+    queryKey: ["/api/preferences/learned"],
+  });
+
+  const submitSignalsMutation = useMutation({
+    mutationFn: async (signals: any[]) => {
+      await apiRequest("POST", "/api/preferences/signals", { signals });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+    },
+  });
+
+  const activeProfiles = useMemo(() => {
+    if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
+    return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
+  }, [learnedProfile]);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -268,18 +290,18 @@ export default function IRMixer() {
 
   const foundationResults = useMemo(() => {
     if (allIRs.length === 0) return [];
-    return findFoundationIR(allIRs, DEFAULT_PROFILES);
-  }, [allIRs]);
+    return findFoundationIR(allIRs, activeProfiles);
+  }, [allIRs, activeProfiles]);
 
   const blendPartnerResults = useMemo(() => {
     if (!baseIR || featureIRs.length === 0) return [];
-    return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, DEFAULT_PROFILES);
-  }, [baseIR, featureIRs]);
+    return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, activeProfiles, learnedProfile || undefined);
+  }, [baseIR, featureIRs, activeProfiles, learnedProfile]);
 
   const suggestedPairs = useMemo(() => {
     if (allIRs.length < 2) return [];
-    return suggestPairings(allIRs, DEFAULT_PROFILES, 3);
-  }, [allIRs]);
+    return suggestPairings(allIRs, activeProfiles, 3, learnedProfile || undefined);
+  }, [allIRs, activeProfiles, learnedProfile]);
 
   const pairKey = useCallback((p: SuggestedPairing) =>
     `${p.baseFilename}||${p.featureFilename}`, []);
@@ -329,7 +351,36 @@ export default function IRMixer() {
 
   const handleSubmitRankings = useCallback(() => {
     setRankingSubmitted(true);
-  }, []);
+
+    const signals: any[] = [];
+    for (const pair of suggestedPairs) {
+      const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+      const isDismissed = dismissedPairings.has(pk);
+      const rank = pairingRankings[pk];
+
+      if (!isDismissed && !rank) continue;
+
+      const r = pair.blendBands.mid > 0 ? pair.blendBands.highMid / pair.blendBands.mid : 0;
+      signals.push({
+        action: isDismissed ? "nope" : `ranked_${rank}`,
+        baseFilename: pair.baseFilename,
+        featureFilename: pair.featureFilename,
+        subBass: pair.blendBands.subBass,
+        bass: pair.blendBands.bass,
+        lowMid: pair.blendBands.lowMid,
+        mid: pair.blendBands.mid,
+        highMid: pair.blendBands.highMid,
+        presence: pair.blendBands.presence,
+        ratio: Math.round(r * 100) / 100,
+        score: pair.score,
+        profileMatch: pair.bestMatch.profile,
+      });
+    }
+
+    if (signals.length > 0) {
+      submitSignalsMutation.mutate(signals);
+    }
+  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -342,11 +393,11 @@ export default function IRMixer() {
     return featureIRs.map((feature) => {
       const allRatioBlends = BLEND_RATIOS.map((r) => {
         const bands = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, r.base, r.feature);
-        const match = scoreAgainstAllProfiles(bands);
+        const match = scoreAgainstAllProfiles(bands, activeProfiles);
         return { ratio: r, bands, bestMatch: match.best };
       });
       const currentBlend = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, currentRatio.base, currentRatio.feature);
-      const currentMatch = scoreAgainstAllProfiles(currentBlend);
+      const currentMatch = scoreAgainstAllProfiles(currentBlend, activeProfiles);
       return {
         feature,
         currentBlend,
@@ -354,7 +405,7 @@ export default function IRMixer() {
         allRatioBlends,
       };
     });
-  }, [baseIR, featureIRs, currentRatio]);
+  }, [baseIR, featureIRs, currentRatio, activeProfiles]);
 
   const sortedBlendResults = useMemo(() => {
     return [...blendResults].sort((a, b) => b.currentMatch.best.score - a.currentMatch.best.score);
@@ -373,6 +424,27 @@ export default function IRMixer() {
           <p className="text-muted-foreground text-sm">
             Drop IRs to preview blend permutations scored against your tonal profiles.
           </p>
+          {learnedProfile && learnedProfile.signalCount > 0 && (
+            <div className="mt-3 flex items-center gap-2" data-testid="learning-status">
+              <Brain className={cn(
+                "w-4 h-4",
+                learnedProfile.status === "confident" ? "text-emerald-400" : "text-amber-400"
+              )} />
+              <span className="text-xs text-muted-foreground">
+                {learnedProfile.status === "confident"
+                  ? `Learned from ${learnedProfile.likedCount} liked + ${learnedProfile.nopedCount} noped blends -- profiles adjusted`
+                  : `Learning: ${learnedProfile.likedCount} liked, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more likes for confidence)`
+                }
+              </span>
+              {learnedProfile.learnedAdjustments && (
+                <span className="text-[10px] font-mono text-muted-foreground/70">
+                  Mid {learnedProfile.learnedAdjustments.mid.shift > 0 ? "+" : ""}{learnedProfile.learnedAdjustments.mid.shift.toFixed(1)}
+                  {" / "}Pres {learnedProfile.learnedAdjustments.presence.shift > 0 ? "+" : ""}{learnedProfile.learnedAdjustments.presence.shift.toFixed(1)}
+                  {" / "}Ratio {learnedProfile.learnedAdjustments.ratio.shift > 0 ? "+" : ""}{learnedProfile.learnedAdjustments.ratio.shift.toFixed(2)}
+                </span>
+              )}
+            </div>
+          )}
         </motion.div>
 
         <div className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
@@ -527,9 +599,9 @@ export default function IRMixer() {
 
           {rankingSubmitted && (
             <div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
+              <Brain className="w-4 h-4 text-emerald-400 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                Rankings saved for this session. Your #1 pairing is loaded below.
+                Rankings saved and learned. Your preferences will improve future suggestions. #1 pairing loaded below.
               </p>
             </div>
           )}
@@ -632,7 +704,7 @@ export default function IRMixer() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <BandChart bands={baseIR.bands} showScores />
+                <BandChart bands={baseIR.bands} showScores profiles={activeProfiles} />
               </motion.div>
             ) : (
               <DropZone
@@ -816,17 +888,17 @@ export default function IRMixer() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-base">Base</p>
-                                  <BandChart bands={baseIR.bands} height={14} compact showScores />
+                                  <BandChart bands={baseIR.bands} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-indigo-400 uppercase tracking-wider text-center font-semibold" data-testid="text-label-blend">
                                     Blend ({currentRatio.label})
                                   </p>
-                                  <BandChart bands={result.currentBlend} height={14} compact showScores />
+                                  <BandChart bands={result.currentBlend} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-feature">Feature</p>
-                                  <BandChart bands={result.feature.bands} height={14} compact showScores />
+                                  <BandChart bands={result.feature.bands} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                               </div>
 

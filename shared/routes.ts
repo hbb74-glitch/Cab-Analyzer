@@ -1,6 +1,6 @@
 
 import { z } from 'zod';
-import { insertAnalysisSchema, analysisRequestSchema, analyses } from './schema';
+import { insertAnalysisSchema, analysisRequestSchema, analyses, insertPreferenceSignalSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -382,6 +382,34 @@ export const api = {
         200: batchAnalysisResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
+      },
+    },
+  },
+  preferences: {
+    submit: {
+      method: 'POST' as const,
+      path: '/api/preferences/signals',
+      input: z.object({
+        signals: z.array(insertPreferenceSignalSchema),
+      }),
+      responses: {
+        201: z.object({ count: z.number() }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    list: {
+      method: 'GET' as const,
+      path: '/api/preferences/signals',
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    learned: {
+      method: 'GET' as const,
+      path: '/api/preferences/learned',
+      responses: {
+        200: z.any(),
       },
     },
   },

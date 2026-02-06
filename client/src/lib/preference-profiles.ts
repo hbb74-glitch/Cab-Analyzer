@@ -220,7 +220,8 @@ export function rankBlendPartners(
     { label: "40/60", base: 0.4, feature: 0.6 },
     { label: "30/70", base: 0.3, feature: 0.7 },
   ],
-  profiles: PreferenceProfile[] = DEFAULT_PROFILES
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+  learned?: LearnedProfileData
 ): BlendPartnerScore[] {
   if (candidates.length === 0) return [];
 
@@ -254,7 +255,9 @@ export function rankBlendPartners(
 
     for (const r of ratios) {
       const blendedBands = blendRaw(baseIR.rawEnergy, cand.rawEnergy, r.base, r.feature);
-      const { best } = scoreAgainstAllProfiles(blendedBands, profiles);
+      const { best } = learned && learned.avoidZones.length > 0
+        ? scoreWithAvoidPenalty(blendedBands, profiles, learned)
+        : scoreAgainstAllProfiles(blendedBands, profiles);
       if (best.score > bestScore) {
         bestScore = best.score;
         bestLabel = best.label;
@@ -290,10 +293,96 @@ export interface SuggestedPairing {
   rank: number;
 }
 
+export interface LearnedProfileData {
+  signalCount: number;
+  likedCount: number;
+  nopedCount: number;
+  learnedAdjustments: {
+    mid: { shift: number; confidence: number };
+    highMid: { shift: number; confidence: number };
+    presence: { shift: number; confidence: number };
+    ratio: { shift: number; confidence: number };
+  } | null;
+  avoidZones: { band: string; direction: string; threshold: number }[];
+  status: "no_data" | "learning" | "confident";
+}
+
+export function applyLearnedAdjustments(
+  profiles: PreferenceProfile[],
+  learned: LearnedProfileData
+): PreferenceProfile[] {
+  if (!learned.learnedAdjustments || learned.status === "no_data") return profiles;
+
+  const adj = learned.learnedAdjustments;
+
+  return profiles.map((p) => {
+    const shiftTarget = (
+      orig: { min: number; max: number; ideal: number },
+      shift: number,
+      conf: number
+    ) => {
+      const s = shift * conf * 0.5;
+      return {
+        min: Math.round((orig.min + s) * 10) / 10,
+        max: Math.round((orig.max + s) * 10) / 10,
+        ideal: Math.round((orig.ideal + s) * 10) / 10,
+      };
+    };
+
+    return {
+      ...p,
+      name: p.name,
+      description: p.description,
+      targets: {
+        ...p.targets,
+        mid: shiftTarget(p.targets.mid, adj.mid.shift, adj.mid.confidence),
+        highMid: shiftTarget(p.targets.highMid, adj.highMid.shift, adj.highMid.confidence),
+        presence: shiftTarget(p.targets.presence, adj.presence.shift, adj.presence.confidence),
+        ratio: shiftTarget(p.targets.ratio, adj.ratio.shift, adj.ratio.confidence),
+      },
+    };
+  });
+}
+
+export function scoreWithAvoidPenalty(
+  bands: TonalBands,
+  profiles: PreferenceProfile[],
+  learned: LearnedProfileData
+) {
+  const base = scoreAgainstAllProfiles(bands, profiles);
+  if (learned.avoidZones.length === 0) return base;
+
+  const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+
+  let penalty = 0;
+  for (const zone of learned.avoidZones) {
+    const val = zone.band === "mid" ? bands.mid
+      : zone.band === "presence" ? bands.presence
+      : zone.band === "ratio" ? ratio : 0;
+
+    if (zone.direction === "high" && val >= zone.threshold) {
+      penalty += 10;
+    } else if (zone.direction === "low" && val <= zone.threshold) {
+      penalty += 10;
+    }
+  }
+
+  if (penalty > 0) {
+    const adjusted = { ...base.best, score: Math.max(0, base.best.score - penalty) };
+    if (adjusted.score >= 85) adjusted.label = "strong";
+    else if (adjusted.score >= 70) adjusted.label = "close";
+    else if (adjusted.score >= 50) adjusted.label = "partial";
+    else adjusted.label = "miss";
+    return { results: base.results, best: adjusted };
+  }
+  return base;
+}
+
 export function suggestPairings(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
-  count: number = 3
+  count: number = 3,
+  learned?: LearnedProfileData
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
@@ -324,13 +413,15 @@ export function suggestPairings(
         highMid: Math.round((raw.highMid / total) * 1000) / 10,
         presence: Math.round((raw.presence / total) * 1000) / 10,
       };
-      const { best } = scoreAgainstAllProfiles(blendBands, profiles);
+      const result = learned && learned.avoidZones.length > 0
+        ? scoreWithAvoidPenalty(blendBands, profiles, learned)
+        : scoreAgainstAllProfiles(blendBands, profiles);
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
         blendBands,
-        bestMatch: best,
-        score: best.score,
+        bestMatch: result.best,
+        score: result.best.score,
         rank: 0,
       });
     }

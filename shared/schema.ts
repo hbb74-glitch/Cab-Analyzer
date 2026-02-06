@@ -56,3 +56,28 @@ export const analysisRequestSchema = insertAnalysisSchema.extend({
 export type Analysis = typeof analyses.$inferSelect;
 export type InsertAnalysis = z.infer<typeof insertAnalysisSchema>;
 export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;
+
+export const preferenceSignals = pgTable("preference_signals", {
+  id: serial("id").primaryKey(),
+  action: text("action").notNull(), // "ranked_1", "ranked_2", "ranked_3", "nope"
+  baseFilename: text("base_filename").notNull(),
+  featureFilename: text("feature_filename").notNull(),
+  subBass: real("sub_bass").notNull(),
+  bass: real("bass").notNull(),
+  lowMid: real("low_mid").notNull(),
+  mid: real("mid").notNull(),
+  highMid: real("high_mid").notNull(),
+  presence: real("presence").notNull(),
+  ratio: real("ratio").notNull(),
+  score: integer("score").notNull(),
+  profileMatch: text("profile_match").notNull(), // "Featured", "Body"
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPreferenceSignalSchema = createInsertSchema(preferenceSignals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PreferenceSignal = typeof preferenceSignals.$inferSelect;
+export type InsertPreferenceSignal = z.infer<typeof insertPreferenceSignalSchema>;

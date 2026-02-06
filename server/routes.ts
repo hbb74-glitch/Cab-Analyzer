@@ -1147,6 +1147,76 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
   return formatted;
 }
 
+import type { PreferenceSignal } from "@shared/schema";
+
+interface LearnedProfileData {
+  signalCount: number;
+  likedCount: number;
+  nopedCount: number;
+  learnedAdjustments: {
+    mid: { shift: number; confidence: number };
+    highMid: { shift: number; confidence: number };
+    presence: { shift: number; confidence: number };
+    ratio: { shift: number; confidence: number };
+  } | null;
+  avoidZones: { band: string; direction: string; threshold: number }[];
+  status: "no_data" | "learning" | "confident";
+}
+
+function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
+  if (signals.length === 0) {
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data" };
+  }
+
+  const liked = signals.filter((s) => s.action === "ranked_1" || s.action === "ranked_2" || s.action === "ranked_3");
+  const noped = signals.filter((s) => s.action === "nope");
+
+  if (liked.length === 0) {
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning" };
+  }
+
+  const weightedAvg = (arr: PreferenceSignal[], field: keyof PreferenceSignal) => {
+    let sum = 0, wSum = 0;
+    for (const s of arr) {
+      const w = s.action === "ranked_1" ? 3 : s.action === "ranked_2" ? 1.5 : s.action === "ranked_3" ? 0.75 : 1;
+      sum += (s[field] as number) * w;
+      wSum += w;
+    }
+    return wSum > 0 ? sum / wSum : 0;
+  };
+
+  const likedMid = weightedAvg(liked, "mid");
+  const likedHiMid = weightedAvg(liked, "highMid");
+  const likedPresence = weightedAvg(liked, "presence");
+  const likedRatio = weightedAvg(liked, "ratio");
+
+  const baseMid = 28, baseHiMid = 39, basePresence = 23, baseRatio = 1.4;
+
+  const confidence = Math.min(liked.length / 8, 1);
+  const status: LearnedProfileData["status"] = liked.length >= 5 ? "confident" : "learning";
+
+  const adjustments = {
+    mid: { shift: Math.round((likedMid - baseMid) * confidence * 10) / 10, confidence },
+    highMid: { shift: Math.round((likedHiMid - baseHiMid) * confidence * 10) / 10, confidence },
+    presence: { shift: Math.round((likedPresence - basePresence) * confidence * 10) / 10, confidence },
+    ratio: { shift: Math.round((likedRatio - baseRatio) * confidence * 100) / 100, confidence },
+  };
+
+  const avoidZones: LearnedProfileData["avoidZones"] = [];
+  if (noped.length >= 3) {
+    const nopedMidAvg = noped.reduce((s, n) => s + n.mid, 0) / noped.length;
+    const nopedPresAvg = noped.reduce((s, n) => s + n.presence, 0) / noped.length;
+    const nopedRatioAvg = noped.reduce((s, n) => s + n.ratio, 0) / noped.length;
+    if (nopedMidAvg > 32) avoidZones.push({ band: "mid", direction: "high", threshold: Math.round(nopedMidAvg) });
+    if (nopedMidAvg < 20) avoidZones.push({ band: "mid", direction: "low", threshold: Math.round(nopedMidAvg) });
+    if (nopedPresAvg > 30) avoidZones.push({ band: "presence", direction: "high", threshold: Math.round(nopedPresAvg) });
+    if (nopedPresAvg < 10) avoidZones.push({ band: "presence", direction: "low", threshold: Math.round(nopedPresAvg) });
+    if (nopedRatioAvg > 2.0) avoidZones.push({ band: "ratio", direction: "high", threshold: Math.round(nopedRatioAvg * 100) / 100 });
+  }
+
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3846,6 +3916,42 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
         });
       }
       res.status(500).json({ message: "Failed to analyze IRs" });
+    }
+  });
+
+  // ── Preference Signals ──────────────────────────────────
+  app.post(api.preferences.submit.path, async (req, res) => {
+    try {
+      const { signals } = api.preferences.submit.input.parse(req.body);
+      const created = await storage.createPreferenceSignals(signals);
+      res.status(201).json({ count: created.length });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error('Preference signal error:', err);
+      res.status(500).json({ message: "Failed to store preference signals" });
+    }
+  });
+
+  app.get(api.preferences.list.path, async (_req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+      res.json(signals);
+    } catch (err) {
+      console.error('Preference list error:', err);
+      res.status(500).json({ message: "Failed to retrieve preference signals" });
+    }
+  });
+
+  app.get(api.preferences.learned.path, async (_req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+      const learned = computeLearnedProfile(signals);
+      res.json(learned);
+    } catch (err) {
+      console.error('Learned profile error:', err);
+      res.status(500).json({ message: "Failed to compute learned profile" });
     }
   });
 
