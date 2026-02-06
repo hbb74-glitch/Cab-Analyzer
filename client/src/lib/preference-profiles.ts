@@ -382,7 +382,8 @@ export function suggestPairings(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
   count: number = 3,
-  learned?: LearnedProfileData
+  learned?: LearnedProfileData,
+  excludePairs?: Set<string>
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
@@ -393,6 +394,10 @@ export function suggestPairings(
   for (let i = 0; i < irs.length; i++) {
     for (let j = 0; j < irs.length; j++) {
       if (i === j) continue;
+      if (excludePairs) {
+        const ck = [irs[i].filename, irs[j].filename].sort().join("||");
+        if (excludePairs.has(ck)) continue;
+      }
       const baseRaw = irs[i].rawEnergy;
       const featRaw = irs[j].rawEnergy;
       const raw = {
