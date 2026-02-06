@@ -718,7 +718,7 @@ function cullIRs(
   const getPreferenceRole = (idx: number): string | undefined => {
     if (!preferenceMap) return undefined;
     const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref || pref.bestScore < 60) return undefined;
+    if (!pref || pref.bestScore < 35) return undefined;
     return pref.bestProfile === "Featured" ? "Feature element" : "Body element";
   };
 
@@ -727,7 +727,7 @@ function cullIRs(
     if (!preferenceMap) return baseScore;
     const pref = preferenceMap.get(irs[idx].filename);
     if (!pref) return baseScore;
-    const prefBoost = Math.max(0, (pref.bestScore - 60) / 40) * 8;
+    const prefBoost = Math.max(0, (pref.bestScore - 35) / 65) * 8;
     const penalty = pref.avoidPenalty;
     return baseScore + prefBoost - penalty;
   };
