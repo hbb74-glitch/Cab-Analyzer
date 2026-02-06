@@ -45,6 +45,8 @@ Preferred communication style: Simple, everyday language.
 - **Miking Guide**: A curated reference of close-miking techniques for 14 microphones, sourced from professional recording engineering references, including distance ranges, best positions, switch settings, and blending recommendations.
 - **IR Culling**: A batch tool that reduces an IR collection to a target count while maximizing variety (mic types, positions) and quality. Uses spectral similarity analysis and greedy selection algorithm to recommend which IRs to keep vs cut.
 - **IR Mixer**: A client-side tool for previewing blend permutations of a base IR + multiple feature IRs at 5 configurable ratios (70/30 through 30/70). Uses raw energy blending (not rounded percentages) for accurate tonal predictions. Displays 6-band breakdown and HiMid/Mid ratio for each blend.
+- **Preference Profiles**: Two hardcoded tonal profiles derived from user's real IR data: Featured (Mid 19-26%, Presence 28-39%, ratio 1.4-1.9) and Body (Mid 30-39%, Presence 5-18%, ratio 1.0-1.4). Match scoring evaluates each IR against both profiles with deviation tracking.
+- **Foundation Finder**: Analyzes a batch of IRs and ranks them by foundation potential -- how well-balanced they are between the user's two profiles, giving feature IRs room to push blends in either direction. Scores based on tonal balance centering and profile flexibility.
 
 ## External Dependencies
 

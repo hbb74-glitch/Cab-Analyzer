@@ -1,25 +1,24 @@
 import { useState, useCallback, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
-
-interface RawBands {
-  subBass: number;
-  bass: number;
-  lowMid: number;
-  mid: number;
-  highMid: number;
-  presence: number;
-}
+import { Badge } from "@/components/ui/badge";
+import {
+  type TonalBands,
+  type MatchResult,
+  scoreAgainstAllProfiles,
+  findFoundationIR,
+  DEFAULT_PROFILES,
+} from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
   filename: string;
   metrics: AudioMetrics;
-  rawEnergy: RawBands;
-  bands: RawBands;
+  rawEnergy: TonalBands;
+  bands: TonalBands;
 }
 
 const BAND_COLORS = [
@@ -39,7 +38,7 @@ const BLEND_RATIOS = [
   { label: "30/70", base: 0.3, feature: 0.7 },
 ];
 
-function extractRawEnergy(m: AudioMetrics): RawBands {
+function extractRawEnergy(m: AudioMetrics): TonalBands {
   return {
     subBass: m.subBassEnergy,
     bass: m.bassEnergy,
@@ -50,7 +49,7 @@ function extractRawEnergy(m: AudioMetrics): RawBands {
   };
 }
 
-function energyToPercent(raw: RawBands): RawBands {
+function energyToPercent(raw: TonalBands): TonalBands {
   const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence;
   if (total === 0) return { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
   return {
@@ -64,12 +63,12 @@ function energyToPercent(raw: RawBands): RawBands {
 }
 
 function blendFromRaw(
-  baseRaw: RawBands,
-  featureRaw: RawBands,
+  baseRaw: TonalBands,
+  featureRaw: TonalBands,
   baseRatio: number,
   featureRatio: number
-): RawBands {
-  const blendedRaw: RawBands = {
+): TonalBands {
+  const blendedRaw: TonalBands = {
     subBass: baseRaw.subBass * baseRatio + featureRaw.subBass * featureRatio,
     bass: baseRaw.bass * baseRatio + featureRaw.bass * featureRatio,
     lowMid: baseRaw.lowMid * baseRatio + featureRaw.lowMid * featureRatio,
@@ -80,7 +79,40 @@ function blendFromRaw(
   return energyToPercent(blendedRaw);
 }
 
-function BandChart({ bands, height = 20, compact = false }: { bands: RawBands; height?: number; compact?: boolean }) {
+function MatchBadge({ match }: { match: MatchResult }) {
+  const colorMap = {
+    strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    miss: "bg-white/5 text-muted-foreground border-white/10",
+  };
+  const iconMap = {
+    strong: Target,
+    close: Target,
+    partial: Zap,
+    miss: Zap,
+  };
+  const Icon = iconMap[match.label];
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[match.label])} data-testid={`badge-match-${match.profile.toLowerCase()}`}>
+      <Icon className="w-2.5 h-2.5" />
+      {match.profile} {match.score}
+    </span>
+  );
+}
+
+function ProfileScores({ bands }: { bands: TonalBands }) {
+  const { results } = scoreAgainstAllProfiles(bands);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {results.map((r) => (
+        <MatchBadge key={r.profile} match={r} />
+      ))}
+    </div>
+  );
+}
+
+function BandChart({ bands, height = 20, compact = false, showScores = false }: { bands: TonalBands; height?: number; compact?: boolean; showScores?: boolean }) {
   const hiMidMidRatio = bands.mid > 0 ? Math.round((bands.highMid / bands.mid) * 100) / 100 : 0;
   return (
     <div className="space-y-1">
@@ -98,7 +130,7 @@ function BandChart({ bands, height = 20, compact = false }: { bands: RawBands; h
           </div>
         ))}
       </div>
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-1">
         <span className={cn(
           "text-xs font-mono px-2 py-0.5 rounded",
           hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
@@ -108,6 +140,7 @@ function BandChart({ bands, height = 20, compact = false }: { bands: RawBands; h
           HiMid/Mid: {hiMidMidRatio.toFixed(2)}
           {hiMidMidRatio < 1.0 ? " (dark)" : hiMidMidRatio > 2.0 ? " (bright)" : ""}
         </span>
+        {showScores && <ProfileScores bands={bands} />}
       </div>
     </div>
   );
@@ -118,11 +151,13 @@ function DropZone({
   description,
   onFilesAdded,
   isLoading,
+  multiple = true,
 }: {
   label: string;
   description: string;
   onFilesAdded: (files: File[]) => void;
   isLoading: boolean;
+  multiple?: boolean;
 }) {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const wavFiles = acceptedFiles.filter((f) => f.name.toLowerCase().endsWith(".wav"));
@@ -133,6 +168,7 @@ function DropZone({
     onDrop,
     accept: { "audio/wav": [".wav"] },
     disabled: isLoading,
+    multiple,
   });
 
   return (
@@ -156,10 +192,13 @@ function DropZone({
 export default function IRMixer() {
   const [baseIR, setBaseIR] = useState<AnalyzedIR | null>(null);
   const [featureIRs, setFeatureIRs] = useState<AnalyzedIR[]>([]);
+  const [allIRs, setAllIRs] = useState<AnalyzedIR[]>([]);
   const [isLoadingBase, setIsLoadingBase] = useState(false);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
+  const [isLoadingAll, setIsLoadingAll] = useState(false);
   const [selectedRatio, setSelectedRatio] = useState(2);
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
+  const [showFoundation, setShowFoundation] = useState(false);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -193,26 +232,64 @@ export default function IRMixer() {
     setIsLoadingFeatures(false);
   }, []);
 
+  const handleAllFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    setIsLoadingAll(true);
+    setShowFoundation(true);
+    try {
+      const results: AnalyzedIR[] = [];
+      for (const file of files) {
+        const metrics = await analyzeAudioFile(file);
+        const rawEnergy = extractRawEnergy(metrics);
+        const bands = energyToPercent(rawEnergy);
+        results.push({ filename: file.name, metrics, rawEnergy, bands });
+      }
+      setAllIRs(results);
+    } catch (e) {
+      console.error("Failed to analyze IRs:", e);
+    }
+    setIsLoadingAll(false);
+  }, []);
+
   const removeFeature = useCallback((idx: number) => {
     setFeatureIRs((prev) => prev.filter((_, i) => i !== idx));
   }, []);
 
   const currentRatio = BLEND_RATIOS[selectedRatio];
 
+  const foundationResults = useMemo(() => {
+    if (allIRs.length === 0) return [];
+    return findFoundationIR(allIRs, DEFAULT_PROFILES);
+  }, [allIRs]);
+
+  const useAsBase = useCallback((ir: AnalyzedIR) => {
+    setBaseIR(ir);
+    setFeatureIRs(allIRs.filter((a) => a.filename !== ir.filename));
+    setShowFoundation(false);
+  }, [allIRs]);
+
   const blendResults = useMemo(() => {
     if (!baseIR || featureIRs.length === 0) return [];
     return featureIRs.map((feature) => {
-      const allRatioBlends = BLEND_RATIOS.map((r) => ({
-        ratio: r,
-        bands: blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, r.base, r.feature),
-      }));
+      const allRatioBlends = BLEND_RATIOS.map((r) => {
+        const bands = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, r.base, r.feature);
+        const match = scoreAgainstAllProfiles(bands);
+        return { ratio: r, bands, bestMatch: match.best };
+      });
+      const currentBlend = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, currentRatio.base, currentRatio.feature);
+      const currentMatch = scoreAgainstAllProfiles(currentBlend);
       return {
         feature,
-        currentBlend: blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, currentRatio.base, currentRatio.feature),
+        currentBlend,
+        currentMatch,
         allRatioBlends,
       };
     });
   }, [baseIR, featureIRs, currentRatio]);
+
+  const sortedBlendResults = useMemo(() => {
+    return [...blendResults].sort((a, b) => b.currentMatch.best.score - a.currentMatch.best.score);
+  }, [blendResults]);
 
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
@@ -225,9 +302,102 @@ export default function IRMixer() {
             <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">IR Mixer</h1>
           </div>
           <p className="text-muted-foreground text-sm">
-            Drop a base IR and feature IRs to preview tonal balance of different blend permutations.
+            Drop IRs to preview blend permutations scored against your tonal profiles.
           </p>
         </motion.div>
+
+        <div className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-400" />
+            Foundation Finder
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Drop all your IRs from a speaker set. The algorithm picks the best foundation (base) IR -- one balanced enough to blend toward either your Featured or Body profile.
+          </p>
+          <DropZone
+            label="Drop All IRs"
+            description="Analyze a full set to find the best foundation IR"
+            onFilesAdded={handleAllFiles}
+            isLoading={isLoadingAll}
+          />
+
+          {showFoundation && foundationResults.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by foundation potential ({foundationResults.length} IRs)</p>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                {foundationResults.map((fr, idx) => {
+                  const { results: matchResults } = scoreAgainstAllProfiles(fr.bands);
+                  const ir = allIRs.find((a) => a.filename === fr.filename);
+                  if (!ir) return null;
+                  return (
+                    <div
+                      key={fr.filename}
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        idx === 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.02] border-white/5"
+                      )}
+                      data-testid={`foundation-result-${idx}`}
+                    >
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            {idx === 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-400 border-amber-500/30">
+                                Best Foundation
+                              </Badge>
+                            )}
+                            <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${idx}`}>
+                              {fr.filename.replace(/(_\d{13})?\.wav$/, "")}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[10px] font-mono text-amber-400">
+                              Foundation: {fr.score}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Balance: {fr.balance} / Flex: {fr.flexibility}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                            {matchResults.map((mr) => (
+                              <MatchBadge key={mr.profile} match={mr} />
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                            {fr.reasons.slice(0, 3).map((r, i) => (
+                              <span key={i} className="px-1.5 py-0.5 rounded bg-white/5">{r}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          <div className="text-right text-[10px] font-mono">
+                            <span className="text-green-400">M {fr.bands.mid.toFixed(1)}</span>
+                            <span className="text-yellow-400 ml-1.5">HM {fr.bands.highMid.toFixed(1)}</span>
+                            <span className="text-orange-400 ml-1.5">P {fr.bands.presence.toFixed(1)}</span>
+                            <span className={cn(
+                              "ml-1.5",
+                              fr.ratio < 1.0 ? "text-blue-400" : fr.ratio <= 2.0 ? "text-green-400" : "text-amber-400"
+                            )}>
+                              {fr.ratio.toFixed(2)}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => useAsBase(ir)}
+                            data-testid={`button-use-as-base-${idx}`}
+                          >
+                            Use as Base
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-4">
@@ -239,7 +409,9 @@ export default function IRMixer() {
                 className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20"
               >
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">{baseIR.filename}</span>
+                  <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">
+                    {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}
+                  </span>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -249,7 +421,7 @@ export default function IRMixer() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <BandChart bands={baseIR.bands} />
+                <BandChart bands={baseIR.bands} showScores />
               </motion.div>
             ) : (
               <DropZone
@@ -257,6 +429,7 @@ export default function IRMixer() {
                 description="The foundation tone for your blend"
                 onFilesAdded={handleBaseFile}
                 isLoading={isLoadingBase}
+                multiple={false}
               />
             )}
           </div>
@@ -271,21 +444,27 @@ export default function IRMixer() {
             />
             {featureIRs.length > 0 && (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                {featureIRs.map((ir, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
-                    <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${idx}`}>
-                      {ir.filename}
-                    </span>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removeFeature(idx)}
-                      data-testid={`button-remove-feature-${idx}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
+                {featureIRs.map((ir, idx) => {
+                  const { best } = scoreAgainstAllProfiles(ir.bands);
+                  return (
+                    <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${idx}`}>
+                          {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
+                        </span>
+                        <MatchBadge match={best} />
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeFeature(idx)}
+                        data-testid={`button-remove-feature-${idx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -297,7 +476,7 @@ export default function IRMixer() {
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Layers className="w-4 h-4 text-indigo-400" />
                 Blend Permutations
-                <span className="text-muted-foreground font-normal">({featureIRs.length} combinations)</span>
+                <span className="text-muted-foreground font-normal">({featureIRs.length} combinations, sorted by match)</span>
               </h3>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground">Base/Feature:</span>
@@ -321,7 +500,7 @@ export default function IRMixer() {
 
             <div className="space-y-3">
               <AnimatePresence>
-                {blendResults.map((result, idx) => {
+                {sortedBlendResults.map((result, idx) => {
                   const isExpanded = expandedBlend === result.feature.filename;
                   const hiMidMidRatio = result.currentBlend.mid > 0
                     ? Math.round((result.currentBlend.highMid / result.currentBlend.mid) * 100) / 100
@@ -333,7 +512,12 @@ export default function IRMixer() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="rounded-xl bg-white/[0.02] border border-white/5"
+                      className={cn(
+                        "rounded-xl border",
+                        result.currentMatch.best.label === "strong" ? "bg-emerald-500/[0.03] border-emerald-500/20" :
+                        result.currentMatch.best.label === "close" ? "bg-sky-500/[0.03] border-sky-500/20" :
+                        "bg-white/[0.02] border-white/5"
+                      )}
                     >
                       <Button
                         variant="ghost"
@@ -341,13 +525,14 @@ export default function IRMixer() {
                         className="w-full flex items-center justify-between gap-3 p-4 h-auto text-left rounded-xl"
                         data-testid={`button-expand-blend-${idx}`}
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                           <span className="text-xs font-mono text-indigo-400 truncate" data-testid={`text-blend-name-${idx}`}>
-                            {baseIR.filename.replace(".wav", "")} + {result.feature.filename.replace(".wav", "")}
+                            {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")} + {result.feature.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {currentRatio.label}
                           </span>
+                          <MatchBadge match={result.currentMatch.best} />
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="hidden sm:flex items-center gap-1.5">
@@ -382,19 +567,35 @@ export default function IRMixer() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-base">Base</p>
-                                  <BandChart bands={baseIR.bands} height={14} compact />
+                                  <BandChart bands={baseIR.bands} height={14} compact showScores />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-indigo-400 uppercase tracking-wider text-center font-semibold" data-testid="text-label-blend">
                                     Blend ({currentRatio.label})
                                   </p>
-                                  <BandChart bands={result.currentBlend} height={14} compact />
+                                  <BandChart bands={result.currentBlend} height={14} compact showScores />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-feature">Feature</p>
-                                  <BandChart bands={result.feature.bands} height={14} compact />
+                                  <BandChart bands={result.feature.bands} height={14} compact showScores />
                                 </div>
                               </div>
+
+                              {result.currentMatch.best.deviations.length > 0 && (
+                                <div className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
+                                  <p className="text-[10px] text-muted-foreground mb-1">{result.currentMatch.best.summary}</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {result.currentMatch.best.deviations.map((d, i) => (
+                                      <span key={i} className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                        d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+                                      )}>
+                                        {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
 
                               <div className="border-t border-white/5 pt-3">
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">All Ratios</p>
@@ -413,11 +614,22 @@ export default function IRMixer() {
                                         <p className="text-yellow-400">HM {rb.bands.highMid.toFixed(1)}</p>
                                         <p className="text-orange-400">P {rb.bands.presence.toFixed(1)}</p>
                                         <p className={cn(
-                                          "mt-1 font-mono",
+                                          "mt-0.5 font-mono",
                                           r < 1.0 ? "text-blue-400" : r <= 2.0 ? "text-green-400" : "text-amber-400"
                                         )}>
                                           {r.toFixed(2)}
                                         </p>
+                                        <div className="mt-1">
+                                          <span className={cn(
+                                            "text-[9px] font-mono px-1 py-0.5 rounded",
+                                            rb.bestMatch.label === "strong" ? "bg-emerald-500/20 text-emerald-400" :
+                                            rb.bestMatch.label === "close" ? "bg-sky-500/20 text-sky-400" :
+                                            rb.bestMatch.label === "partial" ? "bg-amber-500/20 text-amber-400" :
+                                            "bg-white/5 text-muted-foreground"
+                                          )}>
+                                            {rb.bestMatch.profile[0]}{rb.bestMatch.score}
+                                          </span>
+                                        </div>
                                       </div>
                                     );
                                   })}
@@ -435,10 +647,10 @@ export default function IRMixer() {
           </motion.div>
         )}
 
-        {!baseIR && featureIRs.length === 0 && (
+        {!baseIR && featureIRs.length === 0 && allIRs.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <Blend className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p className="text-sm">Drop a base IR on the left and feature IRs on the right to preview blend permutations.</p>
+            <p className="text-sm">Use the Foundation Finder above to auto-pick a base IR, or manually drop IRs below.</p>
           </div>
         )}
       </div>
