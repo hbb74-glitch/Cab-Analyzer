@@ -1160,7 +1160,7 @@ interface LearnedProfileData {
     ratio: { shift: number; confidence: number };
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
-  status: "no_data" | "learning" | "confident";
+  status: "no_data" | "learning" | "confident" | "mastered";
 }
 
 function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
@@ -1202,7 +1202,20 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   const baseMid = 28, baseHiMid = 39, basePresence = 23, baseRatio = 1.4;
 
   const confidence = Math.min(liked.length / 8, 1);
-  const status: LearnedProfileData["status"] = liked.length >= 5 ? "confident" : "learning";
+
+  const strongSignals = liked.filter((s) => s.action === "love" || s.action === "like" || s.action === "ranked_1" || s.action === "ranked_2");
+  const stdDev = (arr: number[]) => {
+    if (arr.length < 2) return Infinity;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    return Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
+  };
+  const midStd = stdDev(strongSignals.map((s) => s.mid));
+  const presStd = stdDev(strongSignals.map((s) => s.presence));
+  const ratioStd = stdDev(strongSignals.map((s) => s.ratio));
+  const isConsistent = midStd < 5 && presStd < 6 && ratioStd < 0.4;
+  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent;
+
+  const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
   const adjustments = {
     mid: { shift: Math.round((likedMid - baseMid) * confidence * 10) / 10, confidence },

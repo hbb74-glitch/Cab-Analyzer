@@ -304,7 +304,7 @@ export interface LearnedProfileData {
     ratio: { shift: number; confidence: number };
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
-  status: "no_data" | "learning" | "confident";
+  status: "no_data" | "learning" | "confident" | "mastered";
 }
 
 export function applyLearnedAdjustments(

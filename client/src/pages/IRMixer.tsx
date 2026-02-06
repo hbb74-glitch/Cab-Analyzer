@@ -497,15 +497,18 @@ export default function IRMixer() {
             Drop IRs to preview blend permutations scored against your tonal profiles.
           </p>
           {learnedProfile && learnedProfile.signalCount > 0 && (
-            <div className="mt-3 flex items-center gap-2" data-testid="learning-status">
+            <div className="mt-3 flex items-center gap-2 flex-wrap" data-testid="learning-status">
               <Brain className={cn(
                 "w-4 h-4",
+                learnedProfile.status === "mastered" ? "text-cyan-400" :
                 learnedProfile.status === "confident" ? "text-emerald-400" : "text-amber-400"
               )} />
               <span className="text-xs text-muted-foreground">
-                {learnedProfile.status === "confident"
-                  ? `Learned from ${learnedProfile.likedCount} liked + ${learnedProfile.nopedCount} noped blends -- profiles adjusted`
-                  : `Learning: ${learnedProfile.likedCount} liked, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more likes for confidence)`
+                {learnedProfile.status === "mastered"
+                  ? `Preferences locked in -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. Predictions are highly reliable.`
+                  : learnedProfile.status === "confident"
+                  ? `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted`
+                  : `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`
                 }
               </span>
               {learnedProfile.learnedAdjustments && (

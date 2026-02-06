@@ -1,7 +1,7 @@
 import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, type TonalBands, type MatchResult } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 
 interface BestPosition {
   position: string;
@@ -51,6 +51,22 @@ interface ResultCardProps {
   filename?: string;
   spectralDeviation?: SpectralDeviation | null;
   tonalBalance?: TonalBalance | null;
+  activeProfiles?: PreferenceProfile[];
+  learnedProfile?: LearnedProfileData | null;
+}
+
+interface LearnedProfileData {
+  signalCount: number;
+  likedCount: number;
+  nopedCount: number;
+  learnedAdjustments: {
+    mid: { shift: number; confidence: number };
+    highMid: { shift: number; confidence: number };
+    presence: { shift: number; confidence: number };
+    ratio: { shift: number; confidence: number };
+  } | null;
+  avoidZones: { band: string; direction: string; threshold: number }[];
+  status: "no_data" | "learning" | "confident" | "mastered";
 }
 
 function ProfileMatchBadge({ match }: { match: MatchResult }) {
@@ -75,7 +91,7 @@ function ProfileMatchBadge({ match }: { match: MatchResult }) {
   );
 }
 
-function ProfileMatchSection({ tonalBalance }: { tonalBalance: TonalBalance }) {
+function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: { tonalBalance: TonalBalance; activeProfiles?: PreferenceProfile[]; learnedProfile?: LearnedProfileData | null }) {
   if (tonalBalance.midPercent == null || tonalBalance.highMidPercent == null || tonalBalance.presencePercent == null) return null;
   const bands: TonalBands = {
     subBass: tonalBalance.subBassPercent || 0,
@@ -87,7 +103,11 @@ function ProfileMatchSection({ tonalBalance }: { tonalBalance: TonalBalance }) {
   };
   const total = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
   if (total === 0) return null;
-  const { results, best } = scoreAgainstAllProfiles(bands);
+  const { results, best } = learnedProfile && learnedProfile.avoidZones.length > 0 && activeProfiles
+    ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
+    : activeProfiles
+    ? scoreAgainstAllProfiles(bands, activeProfiles)
+    : scoreAgainstAllProfiles(bands);
   return (
     <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
       <div className="flex items-center gap-2 mb-2">
@@ -133,7 +153,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap_OffCenter",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation, tonalBalance }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation, tonalBalance, activeProfiles, learnedProfile }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -383,7 +403,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                 </div>
               ))}
             </div>
-            <ProfileMatchSection tonalBalance={tonalBalance} />
+            <ProfileMatchSection tonalBalance={tonalBalance} activeProfiles={activeProfiles} learnedProfile={learnedProfile} />
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, type TonalBands } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, applyLearnedAdjustments, DEFAULT_PROFILES, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { Brain } from "lucide-react";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -1035,6 +1036,15 @@ export default function Analyzer() {
     setAnalyzerMode: setMode
   } = useResults();
   
+  const { data: learnedProfile } = useQuery<LearnedProfileData>({
+    queryKey: ["/api/preferences/learned"],
+  });
+
+  const activeProfiles = useMemo(() => {
+    if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
+    return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
+  }, [learnedProfile]);
+
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
   const redundancyRef = useRef<HTMLDivElement>(null);
@@ -2143,6 +2153,24 @@ export default function Analyzer() {
               Batch Analysis
             </button>
           </div>
+
+          {learnedProfile && learnedProfile.signalCount > 0 && (
+            <div className="flex items-center justify-center gap-2 pt-2" data-testid="analyzer-learning-status">
+              <Brain className={cn(
+                "w-3.5 h-3.5",
+                learnedProfile.status === "mastered" ? "text-cyan-400" :
+                learnedProfile.status === "confident" ? "text-emerald-400" : "text-amber-400"
+              )} />
+              <span className="text-xs text-muted-foreground">
+                {learnedProfile.status === "mastered"
+                  ? "Preferences locked in -- scoring reflects your taste"
+                  : learnedProfile.status === "confident"
+                  ? "Profiles adjusted from your mixer feedback"
+                  : `Learning your taste (${learnedProfile.likedCount} rated so far)`
+                }
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Batch Analysis Mode */}
@@ -2679,7 +2707,9 @@ export default function Analyzer() {
                                 highMid: r.highMidPercent || 0,
                                 presence: r.presencePercent || 0,
                               };
-                              const { results: matchResults, best } = scoreAgainstAllProfiles(bands);
+                              const { results: matchResults, best } = learnedProfile && learnedProfile.avoidZones.length > 0
+                                ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
+                                : scoreAgainstAllProfiles(bands, activeProfiles);
                               const matchColorMap: Record<string, string> = {
                                 strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
                                 close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
@@ -3890,6 +3920,8 @@ export default function Analyzer() {
                       ultraHighPercent: (result as any).ultraHighPercent,
                       highMidMidRatio: (result as any).highMidMidRatio,
                     }}
+                    activeProfiles={activeProfiles}
+                    learnedProfile={learnedProfile}
                   />
                 </motion.div>
               )}
