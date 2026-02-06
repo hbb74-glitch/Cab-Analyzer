@@ -1,6 +1,7 @@
-import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { scoreAgainstAllProfiles, type TonalBands, type MatchResult } from "@/lib/preference-profiles";
 
 interface BestPosition {
   position: string;
@@ -50,6 +51,71 @@ interface ResultCardProps {
   filename?: string;
   spectralDeviation?: SpectralDeviation | null;
   tonalBalance?: TonalBalance | null;
+}
+
+function ProfileMatchBadge({ match }: { match: MatchResult }) {
+  const colorMap = {
+    strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    miss: "bg-white/5 text-muted-foreground border-white/10",
+  };
+  const iconMap = {
+    strong: Target,
+    close: Target,
+    partial: Zap,
+    miss: Zap,
+  };
+  const Icon = iconMap[match.label];
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-xs font-mono px-2 py-1 rounded border", colorMap[match.label])} data-testid={`badge-profile-${match.profile.toLowerCase()}`}>
+      <Icon className="w-3 h-3" />
+      {match.profile} {match.score}
+    </span>
+  );
+}
+
+function ProfileMatchSection({ tonalBalance }: { tonalBalance: TonalBalance }) {
+  if (tonalBalance.midPercent == null || tonalBalance.highMidPercent == null || tonalBalance.presencePercent == null) return null;
+  const bands: TonalBands = {
+    subBass: tonalBalance.subBassPercent || 0,
+    bass: tonalBalance.bassPercent || 0,
+    lowMid: tonalBalance.lowMidPercent || 0,
+    mid: tonalBalance.midPercent,
+    highMid: tonalBalance.highMidPercent,
+    presence: tonalBalance.presencePercent,
+  };
+  const total = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
+  if (total === 0) return null;
+  const { results, best } = scoreAgainstAllProfiles(bands);
+  return (
+    <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
+      <div className="flex items-center gap-2 mb-2">
+        <Target className="w-4 h-4 text-indigo-400" />
+        <span className="text-xs font-semibold text-indigo-400">Preference Match</span>
+      </div>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {results.map((r) => (
+          <ProfileMatchBadge key={r.profile} match={r} />
+        ))}
+      </div>
+      {best.deviations.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground">{best.summary}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {best.deviations.map((d, i) => (
+              <span key={i} className={cn(
+                "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+              )}>
+                {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const POSITION_LABELS: Record<string, string> = {
@@ -317,6 +383,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                 </div>
               ))}
             </div>
+            <ProfileMatchSection tonalBalance={tonalBalance} />
           </div>
         </div>
       )}

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import { Button } from "@/components/ui/button";
+import { scoreAgainstAllProfiles, type TonalBands } from "@/lib/preference-profiles";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -2669,6 +2670,48 @@ export default function Analyzer() {
                                 </div>
                               ))}
                             </div>
+                            {(() => {
+                              const bands: TonalBands = {
+                                subBass: r.subBassPercent || 0,
+                                bass: r.bassPercent || 0,
+                                lowMid: r.lowMidPercent || 0,
+                                mid: r.midPercent || 0,
+                                highMid: r.highMidPercent || 0,
+                                presence: r.presencePercent || 0,
+                              };
+                              const { results: matchResults, best } = scoreAgainstAllProfiles(bands);
+                              const matchColorMap: Record<string, string> = {
+                                strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+                                close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+                                partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                                miss: "bg-white/5 text-muted-foreground border-white/10",
+                              };
+                              return (
+                                <div className="mt-2 pt-2 border-t border-white/5">
+                                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                    <Target className="w-3.5 h-3.5 text-indigo-400" />
+                                    <span className="text-[10px] font-semibold text-indigo-400">Preference Match</span>
+                                    {matchResults.map((mr) => (
+                                      <span key={mr.profile} className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", matchColorMap[mr.label])} data-testid={`badge-batch-match-${index}-${mr.profile.toLowerCase()}`}>
+                                        {mr.profile} {mr.score}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  {best.deviations.length > 0 && (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {best.deviations.map((d, di) => (
+                                        <span key={di} className={cn(
+                                          "text-[9px] font-mono px-1 py-0.5 rounded",
+                                          d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+                                        )}>
+                                          {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
