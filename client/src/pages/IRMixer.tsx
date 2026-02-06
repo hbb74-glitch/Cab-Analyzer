@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import {
   type TonalBands,
   type MatchResult,
+  type SuggestedPairing,
   scoreAgainstAllProfiles,
   findFoundationIR,
   rankBlendPartners,
+  suggestPairings,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
 
@@ -200,6 +202,8 @@ export default function IRMixer() {
   const [selectedRatio, setSelectedRatio] = useState(2);
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
   const [showFoundation, setShowFoundation] = useState(false);
+  const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
+  const [rankingSubmitted, setRankingSubmitted] = useState(false);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -237,6 +241,8 @@ export default function IRMixer() {
     if (files.length === 0) return;
     setIsLoadingAll(true);
     setShowFoundation(true);
+    setPairingRankings({});
+    setRankingSubmitted(false);
     try {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
@@ -267,6 +273,38 @@ export default function IRMixer() {
     if (!baseIR || featureIRs.length === 0) return [];
     return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, DEFAULT_PROFILES);
   }, [baseIR, featureIRs]);
+
+  const suggestedPairs = useMemo(() => {
+    if (allIRs.length < 2) return [];
+    return suggestPairings(allIRs, DEFAULT_PROFILES, 3);
+  }, [allIRs]);
+
+  const pairKey = useCallback((p: SuggestedPairing) =>
+    `${p.baseFilename}||${p.featureFilename}`, []);
+
+  const assignRank = useCallback((key: string, rank: number) => {
+    setPairingRankings((prev) => {
+      const next = { ...prev };
+      if (next[key] === rank) {
+        delete next[key];
+        return next;
+      }
+      Object.keys(next).forEach((k) => {
+        if (next[k] === rank) delete next[k];
+      });
+      next[key] = rank;
+      return next;
+    });
+  }, []);
+
+  const ranksNeeded = Math.min(suggestedPairs.length, 3);
+  const assignedRanks = new Set(Object.values(pairingRankings));
+  const allRanksAssigned = assignedRanks.size === ranksNeeded &&
+    [1, 2, 3].slice(0, ranksNeeded).every((r) => assignedRanks.has(r));
+
+  const handleSubmitRankings = useCallback(() => {
+    setRankingSubmitted(true);
+  }, []);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -402,6 +440,128 @@ export default function IRMixer() {
             </motion.div>
           )}
         </div>
+
+        {showFoundation && suggestedPairs.length > 0 && !rankingSubmitted && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
+            <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              Suggested Pairings
+            </h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              These are the 3 best 50/50 blends from your set. Rank them 1-2-3 and your #1 pick gets loaded into the mixer.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {suggestedPairs.map((pair, idx) => {
+                const pk = pairKey(pair);
+                const assignedRank = pairingRankings[pk];
+                const hiMidMidRatio = pair.blendBands.mid > 0
+                  ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
+                  : 0;
+                return (
+                  <div
+                    key={`${pair.baseFilename}-${pair.featureFilename}`}
+                    className={cn(
+                      "p-3 rounded-lg border space-y-3",
+                      assignedRank === 1 ? "bg-amber-500/10 border-amber-500/20" :
+                      assignedRank !== undefined ? "bg-violet-500/[0.03] border-violet-500/10" :
+                      "bg-white/[0.02] border-white/5"
+                    )}
+                    data-testid={`suggested-pairing-${idx}`}
+                  >
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pairing {idx + 1}</p>
+                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
+                        {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
+                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
+                        {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
+                      </p>
+                    </div>
+
+                    <BandChart bands={pair.blendBands} height={12} compact />
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <MatchBadge match={pair.bestMatch} />
+                      <span className={cn(
+                        "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                        hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                        hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                        "bg-amber-500/20 text-amber-400"
+                      )}>
+                        {hiMidMidRatio.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
+                      {[1, 2, 3].map((r) => (
+                        <Button
+                          key={r}
+                          size="sm"
+                          variant={assignedRank === r ? "default" : "ghost"}
+                          onClick={() => assignRank(pk, r)}
+                          className={cn(
+                            "font-mono text-xs flex-1",
+                            assignedRank === r && (
+                              r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                              r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
+                              "bg-orange-800/20 text-orange-400 border border-orange-800/30"
+                            )
+                          )}
+                          data-testid={`button-rank-${idx}-${r}`}
+                        >
+                          {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {allRanksAssigned && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  Rankings set -- your #1 pick will be loaded as base + feature
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const topKey = Object.entries(pairingRankings).find(([, rank]) => rank === 1)?.[0];
+                    if (topKey) {
+                      const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
+                      if (pair) {
+                        const baseIrData = allIRs.find((ir) => ir.filename === pair.baseFilename);
+                        const featIrData = allIRs.find((ir) => ir.filename === pair.featureFilename);
+                        if (baseIrData && featIrData) {
+                          setBaseIR(baseIrData);
+                          setFeatureIRs([featIrData]);
+                          setShowFoundation(false);
+                          handleSubmitRankings();
+                        }
+                      }
+                    }
+                  }}
+                  className="bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                  data-testid="button-confirm-rankings"
+                >
+                  Confirm & Load #1
+                </Button>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {rankingSubmitted && (
+          <div className="mb-8 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              Rankings saved for this session. Your #1 pairing is loaded below.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-4">
@@ -542,13 +702,14 @@ export default function IRMixer() {
             <div className="space-y-3">
               <AnimatePresence>
                 {sortedBlendResults.map((result, idx) => {
+                  const blendKey = `${result.feature.filename}-${idx}`;
                   const isExpanded = expandedBlend === result.feature.filename;
                   const hiMidMidRatio = result.currentBlend.mid > 0
                     ? Math.round((result.currentBlend.highMid / result.currentBlend.mid) * 100) / 100
                     : 0;
                   return (
                     <motion.div
-                      key={result.feature.filename}
+                      key={blendKey}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}

@@ -280,3 +280,75 @@ export function rankBlendPartners(
   scored.forEach((s, i) => { s.rank = i + 1; });
   return scored;
 }
+
+export interface SuggestedPairing {
+  baseFilename: string;
+  featureFilename: string;
+  blendBands: TonalBands;
+  bestMatch: MatchResult;
+  score: number;
+  rank: number;
+}
+
+export function suggestPairings(
+  irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+  count: number = 3
+): SuggestedPairing[] {
+  if (irs.length < 2) return [];
+
+  const fiftyFifty = { base: 0.5, feature: 0.5 };
+
+  const allCombos: SuggestedPairing[] = [];
+
+  for (let i = 0; i < irs.length; i++) {
+    for (let j = 0; j < irs.length; j++) {
+      if (i === j) continue;
+      const baseRaw = irs[i].rawEnergy;
+      const featRaw = irs[j].rawEnergy;
+      const raw = {
+        subBass: baseRaw.subBass * fiftyFifty.base + featRaw.subBass * fiftyFifty.feature,
+        bass: baseRaw.bass * fiftyFifty.base + featRaw.bass * fiftyFifty.feature,
+        lowMid: baseRaw.lowMid * fiftyFifty.base + featRaw.lowMid * fiftyFifty.feature,
+        mid: baseRaw.mid * fiftyFifty.base + featRaw.mid * fiftyFifty.feature,
+        highMid: baseRaw.highMid * fiftyFifty.base + featRaw.highMid * fiftyFifty.feature,
+        presence: baseRaw.presence * fiftyFifty.base + featRaw.presence * fiftyFifty.feature,
+      };
+      const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence;
+      if (total === 0) continue;
+      const blendBands: TonalBands = {
+        subBass: Math.round((raw.subBass / total) * 1000) / 10,
+        bass: Math.round((raw.bass / total) * 1000) / 10,
+        lowMid: Math.round((raw.lowMid / total) * 1000) / 10,
+        mid: Math.round((raw.mid / total) * 1000) / 10,
+        highMid: Math.round((raw.highMid / total) * 1000) / 10,
+        presence: Math.round((raw.presence / total) * 1000) / 10,
+      };
+      const { best } = scoreAgainstAllProfiles(blendBands, profiles);
+      allCombos.push({
+        baseFilename: irs[i].filename,
+        featureFilename: irs[j].filename,
+        blendBands,
+        bestMatch: best,
+        score: best.score,
+        rank: 0,
+      });
+    }
+  }
+
+  allCombos.sort((a, b) => b.score - a.score);
+
+  const selected: SuggestedPairing[] = [];
+  const usedPairs = new Set<string>();
+
+  for (const combo of allCombos) {
+    if (selected.length >= count) break;
+    const pairKey = [combo.baseFilename, combo.featureFilename].sort().join("||");
+    if (usedPairs.has(pairKey)) continue;
+    usedPairs.add(pairKey);
+    selected.push(combo);
+  }
+
+  selected.forEach((s, i) => { s.rank = i + 1; });
+  return selected;
+}
