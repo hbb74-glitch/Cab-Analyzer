@@ -1212,7 +1212,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   const midStd = stdDev(strongSignals.map((s) => s.mid));
   const presStd = stdDev(strongSignals.map((s) => s.presence));
   const ratioStd = stdDev(strongSignals.map((s) => s.ratio));
-  const isConsistent = midStd < 5 && presStd < 6 && ratioStd < 0.4;
+  const isConsistent = midStd < 8 && presStd < 10 && ratioStd < 0.6;
   const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent;
 
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
