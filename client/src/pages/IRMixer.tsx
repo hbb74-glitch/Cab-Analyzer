@@ -233,6 +233,17 @@ export default function IRMixer() {
     return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
   }, [learnedProfile]);
 
+  const resetPairingState = useCallback(() => {
+    setPairingRankings({});
+    setDismissedPairings(new Set());
+    setEvaluatedPairs(new Set());
+    setPairingRound(0);
+    setTotalRoundsCompleted(0);
+    setCumulativeSignals({ liked: 0, noped: 0 });
+    setDoneRefining(false);
+    setNoMorePairs(false);
+  }, []);
+
   const handleBaseFile = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingBase(true);
@@ -242,11 +253,12 @@ export default function IRMixer() {
       const rawEnergy = extractRawEnergy(metrics);
       const bands = energyToPercent(rawEnergy);
       setBaseIR({ filename: file.name, metrics, rawEnergy, bands });
+      resetPairingState();
     } catch (e) {
       console.error("Failed to analyze base IR:", e);
     }
     setIsLoadingBase(false);
-  }, []);
+  }, [resetPairingState]);
 
   const handleFeatureFiles = useCallback(async (files: File[]) => {
     setIsLoadingFeatures(true);
@@ -259,24 +271,18 @@ export default function IRMixer() {
         results.push({ filename: file.name, metrics, rawEnergy, bands });
       }
       setFeatureIRs((prev) => [...prev, ...results]);
+      resetPairingState();
     } catch (e) {
       console.error("Failed to analyze feature IRs:", e);
     }
     setIsLoadingFeatures(false);
-  }, []);
+  }, [resetPairingState]);
 
   const handleAllFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingAll(true);
     setShowFoundation(true);
-    setPairingRankings({});
-    setDismissedPairings(new Set());
-    setEvaluatedPairs(new Set());
-    setPairingRound(0);
-    setTotalRoundsCompleted(0);
-    setCumulativeSignals({ liked: 0, noped: 0 });
-    setDoneRefining(false);
-    setNoMorePairs(false);
+    resetPairingState();
     try {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
@@ -290,11 +296,12 @@ export default function IRMixer() {
       console.error("Failed to analyze IRs:", e);
     }
     setIsLoadingAll(false);
-  }, []);
+  }, [resetPairingState]);
 
   const removeFeature = useCallback((idx: number) => {
     setFeatureIRs((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
+    resetPairingState();
+  }, [resetPairingState]);
 
   const currentRatio = BLEND_RATIOS[selectedRatio];
 
@@ -308,17 +315,29 @@ export default function IRMixer() {
     return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, activeProfiles, learnedProfile || undefined);
   }, [baseIR, featureIRs, activeProfiles, learnedProfile]);
 
+  const pairingPool = useMemo(() => {
+    if (allIRs.length >= 2) return allIRs;
+    const pool: AnalyzedIR[] = [];
+    if (baseIR) pool.push(baseIR);
+    for (const f of featureIRs) {
+      if (!pool.some((p) => p.filename === f.filename)) pool.push(f);
+    }
+    return pool.length >= 2 ? pool : [];
+  }, [allIRs, baseIR, featureIRs]);
+
   const suggestedPairs = useMemo(() => {
-    if (allIRs.length < 2) return [];
-    return suggestPairings(allIRs, activeProfiles, 3, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined);
+    if (pairingPool.length < 2) return [];
+    return suggestPairings(pairingPool, activeProfiles, 3, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allIRs, activeProfiles, learnedProfile, pairingRound]);
+  }, [pairingPool, activeProfiles, learnedProfile, pairingRound]);
+
+  const hasPairingPool = pairingPool.length >= 2;
 
   useEffect(() => {
-    if (allIRs.length >= 2 && evaluatedPairs.size > 0 && suggestedPairs.length === 0) {
+    if (hasPairingPool && evaluatedPairs.size > 0 && suggestedPairs.length === 0) {
       setNoMorePairs(true);
     }
-  }, [suggestedPairs, evaluatedPairs, allIRs]);
+  }, [suggestedPairs, evaluatedPairs, hasPairingPool]);
 
   const pairKey = useCallback((p: SuggestedPairing) =>
     `${p.baseFilename}||${p.featureFilename}`, []);
@@ -416,8 +435,9 @@ export default function IRMixer() {
       if (topKey) {
         const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
         if (pair) {
-          const baseIrData = allIRs.find((ir) => ir.filename === pair.baseFilename);
-          const featIrData = allIRs.find((ir) => ir.filename === pair.featureFilename);
+          const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+          const baseIrData = pool.find((ir) => ir.filename === pair.baseFilename);
+          const featIrData = pool.find((ir) => ir.filename === pair.featureFilename);
           if (baseIrData && featIrData) {
             setBaseIR(baseIrData);
             setFeatureIRs([featIrData]);
@@ -431,13 +451,14 @@ export default function IRMixer() {
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation, evaluatedPairs, allIRs, pairKey]);
+  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation, evaluatedPairs, allIRs, baseIR, featureIRs, pairKey]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
     setFeatureIRs(allIRs.filter((a) => a.filename !== ir.filename));
     setShowFoundation(false);
-  }, [allIRs]);
+    resetPairingState();
+  }, [allIRs, resetPairingState]);
 
   const blendResults = useMemo(() => {
     if (!baseIR || featureIRs.length === 0) return [];
@@ -512,174 +533,6 @@ export default function IRMixer() {
             onFilesAdded={handleAllFiles}
             isLoading={isLoadingAll}
           />
-
-          {showFoundation && suggestedPairs.length > 0 && !doneRefining && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-4 rounded-lg bg-violet-500/5 border border-violet-500/20">
-              <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-violet-400" />
-                  Suggested Pairings
-                  {totalRoundsCompleted > 0 && (
-                    <Badge variant="secondary" className="text-[10px] font-mono" data-testid="badge-round">
-                      Round {totalRoundsCompleted + 1}
-                    </Badge>
-                  )}
-                </h4>
-                {totalRoundsCompleted > 0 && (
-                  <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
-                    {cumulativeSignals.liked} liked / {cumulativeSignals.noped} noped so far
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                {totalRoundsCompleted === 0
-                  ? "Top 3 blends from your set. Rank the ones you like, nope the rest. Keep refining until the profiles match your taste."
-                  : "Fresh suggestions based on what you've taught so far. Keep going or load your #1 pick into the mixer."
-                }
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {suggestedPairs.map((pair, idx) => {
-                  const pk = pairKey(pair);
-                  const isDismissed = dismissedPairings.has(pk);
-                  const assignedRank = pairingRankings[pk];
-                  const hiMidMidRatio = pair.blendBands.mid > 0
-                    ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
-                    : 0;
-                  return (
-                    <div
-                      key={`${pair.baseFilename}-${pair.featureFilename}`}
-                      className={cn(
-                        "p-3 rounded-lg border space-y-3 transition-opacity",
-                        isDismissed ? "opacity-40 bg-red-500/[0.03] border-red-500/10" :
-                        assignedRank === 1 ? "bg-amber-500/10 border-amber-500/20" :
-                        assignedRank !== undefined ? "bg-violet-500/[0.03] border-violet-500/10" :
-                        "bg-white/[0.02] border-white/5"
-                      )}
-                      data-testid={`suggested-pairing-${idx}`}
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                            {isDismissed ? "Nope" : `Pairing ${idx + 1}`}
-                          </p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => dismissPairing(pk)}
-                            className={cn(
-                              "text-[10px] font-mono h-6 px-2",
-                              isDismissed ? "text-muted-foreground" : "text-red-400"
-                            )}
-                            data-testid={`button-dismiss-${idx}`}
-                          >
-                            {isDismissed ? "Undo" : "Nope"}
-                          </Button>
-                        </div>
-                        <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
-                          {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
-                        <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
-                          {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
-                        </p>
-                      </div>
-
-                      {!isDismissed && (
-                        <>
-                          <BandChart bands={pair.blendBands} height={12} compact />
-
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <MatchBadge match={pair.bestMatch} />
-                            <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                              hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                              hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                              "bg-amber-500/20 text-amber-400"
-                            )}>
-                              {hiMidMidRatio.toFixed(2)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 pt-1">
-                            <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
-                            {[1, 2, 3].map((r) => (
-                              <Button
-                                key={r}
-                                size="sm"
-                                variant={assignedRank === r ? "default" : "ghost"}
-                                onClick={() => assignRank(pk, r)}
-                                className={cn(
-                                  "font-mono text-xs flex-1",
-                                  assignedRank === r && (
-                                    r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                                    r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
-                                    "bg-orange-800/20 text-orange-400 border border-orange-800/30"
-                                  )
-                                )}
-                                data-testid={`button-rank-${idx}-${r}`}
-                              >
-                                {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
-                              </Button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {canConfirm && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Target className="w-3.5 h-3.5 text-violet-400" />
-                    {hasFirstPick ? "Submit & refine, or load your #1 into the mixer" : "Submit nopes to keep refining"}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      onClick={() => handleSubmitRankings(false)}
-                      className="bg-violet-500/20 text-violet-400 border border-violet-500/30"
-                      data-testid="button-next-round"
-                    >
-                      {hasFirstPick ? "Submit & Show More" : "Submit & Next Round"}
-                    </Button>
-                    {hasFirstPick && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleSubmitRankings(true)}
-                        className="bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                        data-testid="button-confirm-load"
-                      >
-                        <Trophy className="w-3.5 h-3.5 mr-1" />
-                        Load #1 into Mixer
-                      </Button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>
-          )}
-
-          {showFoundation && noMorePairs && !doneRefining && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-amber-400 shrink-0" />
-                <p className="text-xs text-muted-foreground">
-                  All pairings evaluated ({cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). Pick a base from the ranked list below to continue in the mixer.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {doneRefining && (
-            <div className="mt-4 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
-              <Brain className="w-4 h-4 text-emerald-400 shrink-0" />
-              <p className="text-xs text-muted-foreground">
-                {totalRoundsCompleted} round{totalRoundsCompleted !== 1 ? "s" : ""} complete -- {cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped. Profiles refined. #1 pairing loaded below.
-              </p>
-            </div>
-          )}
 
           {showFoundation && foundationResults.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
@@ -757,6 +610,174 @@ export default function IRMixer() {
           )}
         </div>
 
+        {hasPairingPool && suggestedPairs.length > 0 && !doneRefining && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
+            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+              <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-violet-400" />
+                Suggested Pairings
+                {totalRoundsCompleted > 0 && (
+                  <Badge variant="secondary" className="text-[10px] font-mono" data-testid="badge-round">
+                    Round {totalRoundsCompleted + 1}
+                  </Badge>
+                )}
+              </h4>
+              {totalRoundsCompleted > 0 && (
+                <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
+                  {cumulativeSignals.liked} liked / {cumulativeSignals.noped} noped so far
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              {totalRoundsCompleted === 0
+                ? "Top 3 blends from your set. Rank the ones you like, nope the rest. Keep refining until the profiles match your taste."
+                : "Fresh suggestions based on what you've taught so far. Keep going or load your #1 pick into the mixer."
+              }
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {suggestedPairs.map((pair, idx) => {
+                const pk = pairKey(pair);
+                const isDismissed = dismissedPairings.has(pk);
+                const assignedRank = pairingRankings[pk];
+                const hiMidMidRatio = pair.blendBands.mid > 0
+                  ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
+                  : 0;
+                return (
+                  <div
+                    key={`${pair.baseFilename}-${pair.featureFilename}`}
+                    className={cn(
+                      "p-3 rounded-lg border space-y-3 transition-opacity",
+                      isDismissed ? "opacity-40 bg-red-500/[0.03] border-red-500/10" :
+                      assignedRank === 1 ? "bg-amber-500/10 border-amber-500/20" :
+                      assignedRank !== undefined ? "bg-violet-500/[0.03] border-violet-500/10" :
+                      "bg-white/[0.02] border-white/5"
+                    )}
+                    data-testid={`suggested-pairing-${idx}`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                          {isDismissed ? "Nope" : `Pairing ${idx + 1}`}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => dismissPairing(pk)}
+                          className={cn(
+                            "text-[10px] font-mono h-6 px-2",
+                            isDismissed ? "text-muted-foreground" : "text-red-400"
+                          )}
+                          data-testid={`button-dismiss-${idx}`}
+                        >
+                          {isDismissed ? "Undo" : "Nope"}
+                        </Button>
+                      </div>
+                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
+                        {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
+                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
+                        {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
+                      </p>
+                    </div>
+
+                    {!isDismissed && (
+                      <>
+                        <BandChart bands={pair.blendBands} height={12} compact />
+
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <MatchBadge match={pair.bestMatch} />
+                          <span className={cn(
+                            "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                            hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                            hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                            "bg-amber-500/20 text-amber-400"
+                          )}>
+                            {hiMidMidRatio.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-muted-foreground shrink-0">Rank:</span>
+                          {[1, 2, 3].map((r) => (
+                            <Button
+                              key={r}
+                              size="sm"
+                              variant={assignedRank === r ? "default" : "ghost"}
+                              onClick={() => assignRank(pk, r)}
+                              className={cn(
+                                "font-mono text-xs flex-1",
+                                assignedRank === r && (
+                                  r === 1 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                                  r === 2 ? "bg-slate-400/20 text-slate-300 border border-slate-400/30" :
+                                  "bg-orange-800/20 text-orange-400 border border-orange-800/30"
+                                )
+                              )}
+                              data-testid={`button-rank-${idx}-${r}`}
+                            >
+                              {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
+                            </Button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {canConfirm && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Target className="w-3.5 h-3.5 text-violet-400" />
+                  {hasFirstPick ? "Submit & refine, or load your #1 into the mixer" : "Submit nopes to keep refining"}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    onClick={() => handleSubmitRankings(false)}
+                    className="bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                    data-testid="button-next-round"
+                  >
+                    {hasFirstPick ? "Submit & Show More" : "Submit & Next Round"}
+                  </Button>
+                  {hasFirstPick && (
+                    <Button
+                      size="sm"
+                      onClick={() => handleSubmitRankings(true)}
+                      className="bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                      data-testid="button-confirm-load"
+                    >
+                      <Trophy className="w-3.5 h-3.5 mr-1" />
+                      Load #1 into Mixer
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {hasPairingPool && noMorePairs && !doneRefining && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-8 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-amber-400 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                All pairings evaluated ({cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). {showFoundation ? "Pick a base from the ranked list above to continue in the mixer." : "Your preferences have been recorded."}
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {doneRefining && (
+          <div className="mb-8 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
+            <Brain className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              {totalRoundsCompleted} round{totalRoundsCompleted !== 1 ? "s" : ""} complete -- {cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped. Profiles refined. #1 pairing loaded below.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground">Base IR (foundation tone)</h3>
@@ -773,7 +794,7 @@ export default function IRMixer() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => setBaseIR(null)}
+                    onClick={() => { setBaseIR(null); resetPairingState(); }}
                     data-testid="button-remove-base"
                   >
                     <X className="w-4 h-4" />
