@@ -505,7 +505,7 @@ export default function IRMixer() {
               )} />
               <span className="text-xs text-muted-foreground">
                 {learnedProfile.status === "mastered"
-                  ? `Preferences locked in -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. Predictions are highly reliable.`
+                  ? `Preferences mastered -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. Taste profile locked in.`
                   : learnedProfile.status === "confident"
                   ? `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted`
                   : `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`
