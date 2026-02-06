@@ -11,6 +11,7 @@ import {
   type MatchResult,
   scoreAgainstAllProfiles,
   findFoundationIR,
+  rankBlendPartners,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
 
@@ -262,6 +263,11 @@ export default function IRMixer() {
     return findFoundationIR(allIRs, DEFAULT_PROFILES);
   }, [allIRs]);
 
+  const blendPartnerResults = useMemo(() => {
+    if (!baseIR || featureIRs.length === 0) return [];
+    return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, DEFAULT_PROFILES);
+  }, [baseIR, featureIRs]);
+
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
     setFeatureIRs(allIRs.filter((a) => a.filename !== ir.filename));
@@ -312,7 +318,7 @@ export default function IRMixer() {
             Foundation Finder
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
-            Drop all your IRs from a speaker set. The algorithm picks the best foundation (base) IR -- one balanced enough to blend toward either your Featured or Body profile.
+            Drop all your IRs from a speaker set. The algorithm ranks them by Body score -- the highest-scoring Body IR makes the best base, giving you warmth and weight to blend from.
           </p>
           <DropZone
             label="Drop All IRs"
@@ -323,45 +329,43 @@ export default function IRMixer() {
 
           {showFoundation && foundationResults.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by foundation potential ({foundationResults.length} IRs)</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by Body score -- best base IRs ({foundationResults.length} IRs)</p>
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                {foundationResults.map((fr, idx) => {
-                  const { results: matchResults } = scoreAgainstAllProfiles(fr.bands);
+                {foundationResults.map((fr) => {
                   const ir = allIRs.find((a) => a.filename === fr.filename);
                   if (!ir) return null;
+                  const rankLabel = fr.rank === 1 ? "Best Base" : fr.rank === 2 ? "#2 Base" : fr.rank === 3 ? "#3 Base" : `#${fr.rank}`;
+                  const rankColor = fr.rank === 1 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                    fr.rank <= 3 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
+                    "bg-white/5 text-muted-foreground border-white/10";
                   return (
                     <div
                       key={fr.filename}
                       className={cn(
                         "p-3 rounded-lg border",
-                        idx === 0 ? "bg-amber-500/10 border-amber-500/20" : "bg-white/[0.02] border-white/5"
+                        fr.rank === 1 ? "bg-amber-500/10 border-amber-500/20" :
+                        fr.rank <= 3 ? "bg-sky-500/[0.03] border-sky-500/10" :
+                        "bg-white/[0.02] border-white/5"
                       )}
-                      data-testid={`foundation-result-${idx}`}
+                      data-testid={`foundation-result-${fr.rank - 1}`}
                     >
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            {idx === 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-400 border-amber-500/30">
-                                Best Foundation
-                              </Badge>
-                            )}
-                            <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${idx}`}>
+                            <Badge variant="outline" className={cn("text-[10px]", rankColor)}>
+                              {rankLabel}
+                            </Badge>
+                            <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${fr.rank - 1}`}>
                               {fr.filename.replace(/(_\d{13})?\.wav$/, "")}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] font-mono text-amber-400">
-                              Foundation: {fr.score}
+                              Body: {fr.bodyScore}
                             </span>
-                            <span className="text-[10px] text-muted-foreground">
-                              Balance: {fr.balance} / Flex: {fr.flexibility}
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              Featured: {fr.featuredScore}
                             </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                            {matchResults.map((mr) => (
-                              <MatchBadge key={mr.profile} match={mr} />
-                            ))}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
                             {fr.reasons.slice(0, 3).map((r, i) => (
@@ -385,7 +389,7 @@ export default function IRMixer() {
                             size="sm"
                             variant="outline"
                             onClick={() => useAsBase(ir)}
-                            data-testid={`button-use-as-base-${idx}`}
+                            data-testid={`button-use-as-base-${fr.rank - 1}`}
                           >
                             Use as Base
                           </Button>
@@ -442,7 +446,44 @@ export default function IRMixer() {
               onFilesAdded={handleFeatureFiles}
               isLoading={isLoadingFeatures}
             />
-            {featureIRs.length > 0 && (
+            {featureIRs.length > 0 && baseIR && blendPartnerResults.length > 0 ? (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ranked by best blend with {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                {blendPartnerResults.map((bp) => {
+                  const origIdx = featureIRs.findIndex((f) => f.filename === bp.filename);
+                  const rankLabel = bp.rank === 1 ? "Best Blend" : bp.rank === 2 ? "#2 Blend" : bp.rank === 3 ? "#3 Blend" : `#${bp.rank}`;
+                  const rankColor = bp.rank === 1 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                    bp.rank <= 3 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
+                    "bg-white/5 text-muted-foreground border-white/10";
+                  return (
+                    <div key={bp.filename} className={cn(
+                      "flex items-center justify-between gap-2 p-2 rounded-lg border",
+                      bp.rank === 1 ? "bg-emerald-500/[0.03] border-emerald-500/10" : "bg-white/5 border-white/5"
+                    )}>
+                      <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                        <Badge variant="outline" className={cn("text-[9px] shrink-0", rankColor)}>
+                          {rankLabel}
+                        </Badge>
+                        <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${origIdx}`}>
+                          {bp.filename.replace(/(_\d{13})?\.wav$/, "")}
+                        </span>
+                        <span className="text-[9px] font-mono text-muted-foreground shrink-0">
+                          best @ {bp.bestRatio.label} = {bp.bestBlendScore} ({bp.bestBlendProfile})
+                        </span>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeFeature(origIdx)}
+                        data-testid={`button-remove-feature-${origIdx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : featureIRs.length > 0 ? (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {featureIRs.map((ir, idx) => {
                   const { best } = scoreAgainstAllProfiles(ir.bands);
@@ -466,7 +507,7 @@ export default function IRMixer() {
                   );
                 })}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

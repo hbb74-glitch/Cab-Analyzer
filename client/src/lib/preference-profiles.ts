@@ -35,11 +35,12 @@ export interface MatchResult {
 export interface FoundationScore {
   filename: string;
   score: number;
+  bodyScore: number;
+  featuredScore: number;
   reasons: string[];
   bands: TonalBands;
   ratio: number;
-  flexibility: number;
-  balance: number;
+  rank: number;
 }
 
 export const FEATURED_PROFILE: PreferenceProfile = {
@@ -158,60 +159,124 @@ export function findFoundationIR(
 ): FoundationScore[] {
   if (irs.length === 0) return [];
 
-  const midpoints = {
-    mid: (profiles[0].targets.mid.ideal + profiles[1].targets.mid.ideal) / 2,
-    highMid: (profiles[0].targets.highMid.ideal + profiles[1].targets.highMid.ideal) / 2,
-    presence: (profiles[0].targets.presence.ideal + profiles[1].targets.presence.ideal) / 2,
-    ratio: (profiles[0].targets.ratio.ideal + profiles[1].targets.ratio.ideal) / 2,
-  };
+  const bodyProfile = profiles.find((p) => p.name === "Body") || profiles[1];
+  const featuredProfile = profiles.find((p) => p.name === "Featured") || profiles[0];
 
   const scored = irs.map((ir) => {
     const ratio = ir.bands.mid > 0 ? ir.bands.highMid / ir.bands.mid : 0;
-    const lowEnd = ir.bands.subBass + ir.bands.bass;
-
-    const midDist = Math.abs(ir.bands.mid - midpoints.mid);
-    const hiMidDist = Math.abs(ir.bands.highMid - midpoints.highMid);
-    const presDist = Math.abs(ir.bands.presence - midpoints.presence);
-    const ratioDist = Math.abs(ratio - midpoints.ratio);
-
-    const balance = 100 - Math.min(midDist * 2 + hiMidDist * 1.5 + presDist * 1.5 + ratioDist * 10, 100);
-
-    const featuredMatch = scoreAgainstProfile(ir.bands, profiles[0]);
-    const bodyMatch = scoreAgainstProfile(ir.bands, profiles[1]);
-    const flexibility = Math.min(featuredMatch.score, bodyMatch.score) +
-      (Math.max(featuredMatch.score, bodyMatch.score) - Math.min(featuredMatch.score, bodyMatch.score)) * 0.2;
-
-    const lowEndPenalty = lowEnd > 5 ? (lowEnd - 5) * 5 : 0;
-    const lowMidPenalty = ir.bands.lowMid > 7 ? (ir.bands.lowMid - 7) * 3 : 0;
-
-    const extremeRatioPenalty = ratio > 2.5 ? (ratio - 2.5) * 15 : ratio < 0.8 ? (0.8 - ratio) * 15 : 0;
-
-    const rawScore = (balance * 0.5) + (flexibility * 0.5) - lowEndPenalty - lowMidPenalty - extremeRatioPenalty;
-    const score = Math.max(0, Math.round(Math.min(rawScore, 100)));
+    const bodyMatch = scoreAgainstProfile(ir.bands, bodyProfile);
+    const featuredMatch = scoreAgainstProfile(ir.bands, featuredProfile);
 
     const reasons: string[] = [];
-    if (balance >= 70) reasons.push("Tonally centered between profiles");
-    if (flexibility >= 60) reasons.push("Blends well toward either profile");
+    if (bodyMatch.label === "strong") reasons.push("Strong Body match");
+    else if (bodyMatch.label === "close") reasons.push("Close Body match");
+
+    const lowEnd = ir.bands.subBass + ir.bands.bass;
     if (lowEnd <= 3) reasons.push("Tight low end");
     if (ir.bands.lowMid <= 5) reasons.push("Clean low-mids");
-    if (ratio >= 1.2 && ratio <= 1.8) reasons.push("Moderate HiMid/Mid ratio");
+    if (ir.bands.mid >= 30 && ir.bands.mid <= 39) reasons.push("Mid in Body sweet spot");
+    if (ratio >= 1.0 && ratio <= 1.4) reasons.push("Ratio in Body range");
     if (ir.bands.highMid >= 35 && ir.bands.highMid <= 43) reasons.push("HiMid in sweet spot");
 
-    if (ratio > 2.5) reasons.push("Ratio too aggressive for foundation");
-    if (ratio < 0.8) reasons.push("Ratio too dark for foundation");
     if (lowEnd > 8) reasons.push("Low end too loose");
     if (ir.bands.lowMid > 10) reasons.push("Muddy low-mids");
+    if (bodyMatch.label === "miss") reasons.push("Outside Body range");
 
     return {
       filename: ir.filename,
-      score,
+      score: bodyMatch.score,
+      bodyScore: bodyMatch.score,
+      featuredScore: featuredMatch.score,
       reasons,
       bands: ir.bands,
       ratio: Math.round(ratio * 100) / 100,
-      flexibility: Math.round(flexibility),
-      balance: Math.round(balance),
+      rank: 0,
     };
   });
 
-  return scored.sort((a, b) => b.score - a.score);
+  scored.sort((a, b) => b.score - a.score);
+  scored.forEach((s, i) => { s.rank = i + 1; });
+  return scored;
+}
+
+export interface BlendPartnerScore {
+  filename: string;
+  bands: TonalBands;
+  bestBlendScore: number;
+  bestBlendLabel: MatchResult["label"];
+  bestBlendProfile: string;
+  bestRatio: { label: string; base: number; feature: number };
+  bestBlendBands: TonalBands;
+  rank: number;
+}
+
+export function rankBlendPartners(
+  baseIR: { rawEnergy: TonalBands },
+  candidates: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
+  ratios: { label: string; base: number; feature: number }[] = [
+    { label: "70/30", base: 0.7, feature: 0.3 },
+    { label: "60/40", base: 0.6, feature: 0.4 },
+    { label: "50/50", base: 0.5, feature: 0.5 },
+    { label: "40/60", base: 0.4, feature: 0.6 },
+    { label: "30/70", base: 0.3, feature: 0.7 },
+  ],
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES
+): BlendPartnerScore[] {
+  if (candidates.length === 0) return [];
+
+  function blendRaw(baseRaw: TonalBands, featRaw: TonalBands, bR: number, fR: number): TonalBands {
+    const raw = {
+      subBass: baseRaw.subBass * bR + featRaw.subBass * fR,
+      bass: baseRaw.bass * bR + featRaw.bass * fR,
+      lowMid: baseRaw.lowMid * bR + featRaw.lowMid * fR,
+      mid: baseRaw.mid * bR + featRaw.mid * fR,
+      highMid: baseRaw.highMid * bR + featRaw.highMid * fR,
+      presence: baseRaw.presence * bR + featRaw.presence * fR,
+    };
+    const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence;
+    if (total === 0) return { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
+    return {
+      subBass: Math.round((raw.subBass / total) * 1000) / 10,
+      bass: Math.round((raw.bass / total) * 1000) / 10,
+      lowMid: Math.round((raw.lowMid / total) * 1000) / 10,
+      mid: Math.round((raw.mid / total) * 1000) / 10,
+      highMid: Math.round((raw.highMid / total) * 1000) / 10,
+      presence: Math.round((raw.presence / total) * 1000) / 10,
+    };
+  }
+
+  const scored = candidates.map((cand) => {
+    let bestScore = -1;
+    let bestLabel: MatchResult["label"] = "miss";
+    let bestProfile = "";
+    let bestRatio = ratios[0];
+    let bestBands: TonalBands = cand.bands;
+
+    for (const r of ratios) {
+      const blendedBands = blendRaw(baseIR.rawEnergy, cand.rawEnergy, r.base, r.feature);
+      const { best } = scoreAgainstAllProfiles(blendedBands, profiles);
+      if (best.score > bestScore) {
+        bestScore = best.score;
+        bestLabel = best.label;
+        bestProfile = best.profile;
+        bestRatio = r;
+        bestBands = blendedBands;
+      }
+    }
+
+    return {
+      filename: cand.filename,
+      bands: cand.bands,
+      bestBlendScore: bestScore,
+      bestBlendLabel: bestLabel,
+      bestBlendProfile: bestProfile,
+      bestRatio: bestRatio,
+      bestBlendBands: bestBands,
+      rank: 0,
+    };
+  });
+
+  scored.sort((a, b) => b.bestBlendScore - a.bestBlendScore);
+  scored.forEach((s, i) => { s.rank = i + 1; });
+  return scored;
 }
