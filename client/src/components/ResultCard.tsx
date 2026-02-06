@@ -103,7 +103,7 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
   };
   const total = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
   if (total === 0) return null;
-  const { results, best } = learnedProfile && learnedProfile.avoidZones.length > 0 && activeProfiles
+  const { results, best } = learnedProfile && activeProfiles
     ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
     : activeProfiles
     ? scoreAgainstAllProfiles(bands, activeProfiles)

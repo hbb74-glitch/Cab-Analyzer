@@ -2169,6 +2169,14 @@ export default function Analyzer() {
                   : `Learning your taste (${learnedProfile.likedCount} rated so far)`
                 }
               </span>
+              {learnedProfile.avoidZones.length > 0 && (
+                <span className="text-[10px] font-mono text-red-400/70">
+                  Penalizing: {learnedProfile.avoidZones.map((z) => 
+                    z.band === "muddy_composite" ? "muddy tones"
+                    : `${z.direction === "high" ? "excess" : "low"} ${z.band}`
+                  ).join(", ")}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -2707,7 +2715,7 @@ export default function Analyzer() {
                                 highMid: r.highMidPercent || 0,
                                 presence: r.presencePercent || 0,
                               };
-                              const { results: matchResults, best } = learnedProfile && learnedProfile.avoidZones.length > 0
+                              const { results: matchResults, best } = learnedProfile
                                 ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
                                 : scoreAgainstAllProfiles(bands, activeProfiles);
                               const matchColorMap: Record<string, string> = {

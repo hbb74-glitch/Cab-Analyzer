@@ -1213,7 +1213,17 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   const presStd = stdDev(strongSignals.map((s) => s.presence));
   const ratioStd = stdDev(strongSignals.map((s) => s.ratio));
   const isConsistent = midStd < 8 && presStd < 10 && ratioStd < 0.6;
-  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent;
+
+  const sortedByRecent = [...signals].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const recentSignals = sortedByRecent.slice(0, 9);
+  const predictionMisses = recentSignals.filter((s) =>
+    (s.action === "nope" || s.action === "meh") && typeof s.score === "number" && s.score >= 80
+  );
+  const hasPredictionMisses = predictionMisses.length >= 1;
+
+  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses;
 
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
@@ -1234,6 +1244,69 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     if (nopedPresAvg > 30) avoidZones.push({ band: "presence", direction: "high", threshold: Math.round(nopedPresAvg) });
     if (nopedPresAvg < 10) avoidZones.push({ band: "presence", direction: "low", threshold: Math.round(nopedPresAvg) });
     if (nopedRatioAvg > 2.0) avoidZones.push({ band: "ratio", direction: "high", threshold: Math.round(nopedRatioAvg * 100) / 100 });
+  }
+
+  const loves = signals.filter((s) => s.action === "love");
+  const likes = signals.filter((s) => s.action === "like");
+  const mehs = signals.filter((s) => s.action === "meh");
+
+  if (loves.length >= 3 && mehs.length >= 2) {
+    const loveMidAvg = loves.reduce((s, l) => s + l.mid, 0) / loves.length;
+    const lovePresAvg = loves.reduce((s, l) => s + l.presence, 0) / loves.length;
+    const loveRatioAvg = loves.reduce((s, l) => s + l.ratio, 0) / loves.length;
+    const mehMidAvg = mehs.reduce((s, m) => s + m.mid, 0) / mehs.length;
+    const mehPresAvg = mehs.reduce((s, m) => s + m.presence, 0) / mehs.length;
+    const mehRatioAvg = mehs.reduce((s, m) => s + m.ratio, 0) / mehs.length;
+
+    if (loveMidAvg < mehMidAvg - 3) {
+      const mudFloor = Math.round(mehMidAvg + (mehMidAvg - loveMidAvg) * 0.3);
+      if (!avoidZones.some((z) => z.band === "mid" && z.direction === "high")) {
+        avoidZones.push({ band: "mid", direction: "high", threshold: mudFloor });
+      }
+    }
+    if (lovePresAvg > mehPresAvg + 3) {
+      const dullCeiling = Math.round(mehPresAvg - (lovePresAvg - mehPresAvg) * 0.3);
+      if (!avoidZones.some((z) => z.band === "presence" && z.direction === "low")) {
+        avoidZones.push({ band: "presence", direction: "low", threshold: Math.max(dullCeiling, 5) });
+      }
+    }
+    if (loveRatioAvg > mehRatioAvg + 0.2) {
+      const dullRatioCeiling = Math.round((mehRatioAvg - (loveRatioAvg - mehRatioAvg) * 0.2) * 100) / 100;
+      if (!avoidZones.some((z) => z.band === "ratio" && z.direction === "low")) {
+        avoidZones.push({ band: "ratio", direction: "low", threshold: Math.max(dullRatioCeiling, 0.5) });
+      }
+    }
+  }
+
+  if (loves.length >= 5 && mehs.length === 0 && noped.length === 0) {
+    const loveMidAvg = loves.reduce((s, l) => s + l.mid, 0) / loves.length;
+    const lovePresAvg = loves.reduce((s, l) => s + l.presence, 0) / loves.length;
+    const loveMidMax = Math.max(...loves.map((l) => l.mid));
+    const lovePresMin = Math.min(...loves.map((l) => l.presence));
+    const mudFloor = Math.round(loveMidMax + (loveMidMax - loveMidAvg) * 0.5);
+    const dullCeiling = Math.round(lovePresMin - (lovePresAvg - lovePresMin) * 0.5);
+    if (!avoidZones.some((z) => z.band === "mid" && z.direction === "high")) {
+      avoidZones.push({ band: "mid", direction: "high", threshold: mudFloor });
+    }
+    if (dullCeiling > 3 && !avoidZones.some((z) => z.band === "presence" && z.direction === "low")) {
+      avoidZones.push({ band: "presence", direction: "low", threshold: dullCeiling });
+    }
+  }
+
+  if (loves.length >= 3 || (likes.length >= 3 && mehs.length >= 2)) {
+    const positives = [...loves, ...likes];
+    const posLowMidAvg = positives.reduce((s, p) => s + p.lowMid, 0) / positives.length;
+    const posPresAvg = positives.reduce((s, p) => s + p.presence, 0) / positives.length;
+    const posMidAvg = positives.reduce((s, p) => s + p.mid, 0) / positives.length;
+
+    if (posPresAvg > 25 && posMidAvg < 28) {
+      const lowMidMax = Math.max(...positives.map((p) => p.lowMid));
+      const midMax = Math.max(...positives.map((p) => p.mid));
+      const muddyThreshold = Math.round(lowMidMax + midMax);
+      if (!avoidZones.some((z) => z.band === "muddy_composite" && z.direction === "high")) {
+        avoidZones.push({ band: "muddy_composite", direction: "high", threshold: muddyThreshold });
+      }
+    }
   }
 
   return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status };

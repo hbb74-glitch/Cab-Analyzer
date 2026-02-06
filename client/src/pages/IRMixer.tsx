@@ -518,6 +518,14 @@ export default function IRMixer() {
                   {" / "}Ratio {learnedProfile.learnedAdjustments.ratio.shift > 0 ? "+" : ""}{learnedProfile.learnedAdjustments.ratio.shift.toFixed(2)}
                 </span>
               )}
+              {learnedProfile.avoidZones.length > 0 && (
+                <span className="text-[10px] font-mono text-red-400/70">
+                  Penalizing: {learnedProfile.avoidZones.map((z) => 
+                    z.band === "muddy_composite" ? "muddy tones"
+                    : `${z.direction === "high" ? "excess" : "low"} ${z.band}`
+                  ).join(", ")}
+                </span>
+              )}
             </div>
           )}
         </motion.div>
@@ -633,7 +641,9 @@ export default function IRMixer() {
             </div>
             <p className="text-xs text-muted-foreground mb-4">
               {totalRoundsCompleted === 0
-                ? "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
+                ? learnedProfile && learnedProfile.status !== "no_data"
+                  ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
+                  : "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
                 : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>

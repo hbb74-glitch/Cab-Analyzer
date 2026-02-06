@@ -350,25 +350,39 @@ export function scoreWithAvoidPenalty(
   learned: LearnedProfileData
 ) {
   const base = scoreAgainstAllProfiles(bands, profiles);
-  if (learned.avoidZones.length === 0) return base;
 
   const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+  const lowMidPlusMid = bands.lowMid + bands.mid;
 
   let penalty = 0;
   for (const zone of learned.avoidZones) {
+    if (zone.band === "muddy_composite") {
+      if (zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
+        const overshoot = lowMidPlusMid - zone.threshold;
+        penalty += Math.min(5 + overshoot * 1.5, 25);
+      }
+      continue;
+    }
+
     const val = zone.band === "mid" ? bands.mid
       : zone.band === "presence" ? bands.presence
       : zone.band === "ratio" ? ratio : 0;
 
     if (zone.direction === "high" && val >= zone.threshold) {
-      penalty += 10;
+      const overshoot = val - zone.threshold;
+      penalty += Math.min(5 + overshoot * 1.2, 20);
     } else if (zone.direction === "low" && val <= zone.threshold) {
-      penalty += 10;
+      const undershoot = zone.threshold - val;
+      penalty += Math.min(5 + undershoot * 1.2, 20);
     }
   }
 
+  if (bands.mid > 30 && bands.presence < 18 && ratio < 1.1) {
+    penalty += 8;
+  }
+
   if (penalty > 0) {
-    const adjusted = { ...base.best, score: Math.max(0, base.best.score - penalty) };
+    const adjusted = { ...base.best, score: Math.max(0, Math.round(base.best.score - penalty)) };
     if (adjusted.score >= 85) adjusted.label = "strong";
     else if (adjusted.score >= 70) adjusted.label = "close";
     else if (adjusted.score >= 50) adjusted.label = "partial";
@@ -418,7 +432,7 @@ export function suggestPairings(
         highMid: Math.round((raw.highMid / total) * 1000) / 10,
         presence: Math.round((raw.presence / total) * 1000) / 10,
       };
-      const result = learned && learned.avoidZones.length > 0
+      const result = learned
         ? scoreWithAvoidPenalty(blendBands, profiles, learned)
         : scoreAgainstAllProfiles(blendBands, profiles);
       allCombos.push({
@@ -434,17 +448,52 @@ export function suggestPairings(
 
   allCombos.sort((a, b) => b.score - a.score);
 
-  const selected: SuggestedPairing[] = [];
   const usedPairs = new Set<string>();
-
+  const dedupedCombos: SuggestedPairing[] = [];
   for (const combo of allCombos) {
+    const pk = [combo.baseFilename, combo.featureFilename].sort().join("||");
+    if (usedPairs.has(pk)) continue;
+    usedPairs.add(pk);
+    dedupedCombos.push(combo);
+  }
+
+  if (dedupedCombos.length <= count) {
+    dedupedCombos.forEach((s, i) => { s.rank = i + 1; });
+    return dedupedCombos;
+  }
+
+  const selected: SuggestedPairing[] = [];
+
+  const profileGroups: Record<string, SuggestedPairing[]> = {};
+  for (const combo of dedupedCombos) {
+    const pName = combo.bestMatch.profile;
+    if (!profileGroups[pName]) profileGroups[pName] = [];
+    profileGroups[pName].push(combo);
+  }
+
+  const profileNames = Object.keys(profileGroups);
+
+  selected.push(dedupedCombos[0]);
+
+  if (profileNames.length > 1) {
+    const firstProfile = selected[0].bestMatch.profile;
+    for (const pName of profileNames) {
+      if (pName === firstProfile) continue;
+      const best = profileGroups[pName][0];
+      if (best && best.score >= 50) {
+        selected.push(best);
+        break;
+      }
+    }
+  }
+
+  for (const combo of dedupedCombos) {
     if (selected.length >= count) break;
-    const pairKey = [combo.baseFilename, combo.featureFilename].sort().join("||");
-    if (usedPairs.has(pairKey)) continue;
-    usedPairs.add(pairKey);
+    if (selected.some((s) => s.baseFilename === combo.baseFilename && s.featureFilename === combo.featureFilename)) continue;
     selected.push(combo);
   }
 
+  selected.sort((a, b) => b.score - a.score);
   selected.forEach((s, i) => { s.rank = i + 1; });
-  return selected;
+  return selected.slice(0, count);
 }
