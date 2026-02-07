@@ -225,6 +225,17 @@ export default function IRMixer() {
   const [showCrossCab, setShowCrossCab] = useState(false);
   const [expandedCrossCab, setExpandedCrossCab] = useState<string | null>(null);
   const [crossCabRatio, setCrossCabRatio] = useState(2);
+  const [crossCabRankings, setCrossCabRankings] = useState<Record<string, number>>({});
+  const [crossCabFeedback, setCrossCabFeedback] = useState<Record<string, string[]>>({});
+  const [crossCabFeedbackText, setCrossCabFeedbackText] = useState<Record<string, string>>({});
+  const [crossCabDismissed, setCrossCabDismissed] = useState<Set<string>>(new Set());
+
+  const clearCrossCabRatings = useCallback(() => {
+    setCrossCabRankings({});
+    setCrossCabFeedback({});
+    setCrossCabFeedbackText({});
+    setCrossCabDismissed(new Set());
+  }, []);
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -344,6 +355,7 @@ export default function IRMixer() {
     if (files.length === 0) return;
     setIsLoadingCabA(true);
     setShowCrossCab(true);
+    clearCrossCabRatings();
     try {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
@@ -357,12 +369,13 @@ export default function IRMixer() {
       console.error("Failed to analyze Cabinet A IRs:", e);
     }
     setIsLoadingCabA(false);
-  }, []);
+  }, [clearCrossCabRatings]);
 
   const handleCabBFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingCabB(true);
     setShowCrossCab(true);
+    clearCrossCabRatings();
     try {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
@@ -376,7 +389,7 @@ export default function IRMixer() {
       console.error("Failed to analyze Cabinet B IRs:", e);
     }
     setIsLoadingCabB(false);
-  }, []);
+  }, [clearCrossCabRatings]);
 
   const currentRatio = BLEND_RATIOS[selectedRatio];
 
@@ -472,6 +485,64 @@ export default function IRMixer() {
       return next;
     });
   }, []);
+
+  const assignCrossCabRank = useCallback((key: string, rank: number) => {
+    setCrossCabRankings((prev) => {
+      const next = { ...prev };
+      if (next[key] === rank) {
+        delete next[key];
+        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
+      } else {
+        next[key] = rank;
+        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
+      }
+      return next;
+    });
+    setCrossCabDismissed((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const assignCrossCabFeedback = useCallback((key: string, tag: string) => {
+    setCrossCabFeedback((prev) => {
+      const current = prev[key] || [];
+      if (current.includes(tag)) {
+        const updated = current.filter((t) => t !== tag);
+        if (updated.length === 0) {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: updated };
+      }
+      return { ...prev, [key]: [...current, tag] };
+    });
+  }, []);
+
+  const dismissCrossCab = useCallback((key: string) => {
+    setCrossCabDismissed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
+      }
+      return next;
+    });
+    setCrossCabRankings((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const crossCabHasRatings = Object.keys(crossCabRankings).length > 0 || crossCabDismissed.size > 0;
 
   const hasAnyRank = Object.keys(pairingRankings).length > 0;
   const hasLoveOrLike = Object.values(pairingRankings).some((r) => r === 1 || r === 2);
@@ -611,6 +682,44 @@ export default function IRMixer() {
     results.sort((a, b) => b.match.best.score - a.match.best.score);
     return results;
   }, [cabAIRs, cabBIRs, crossCabCurrentRatio, activeProfiles]);
+
+  const handleSubmitCrossCabRatings = useCallback(() => {
+    const signals: any[] = [];
+    for (const cr of crossCabResults) {
+      const bk = `${cr.irA.filename}||${cr.irB.filename}`;
+      const isDismissed = crossCabDismissed.has(bk);
+      const rank = crossCabRankings[bk];
+      if (!isDismissed && !rank) continue;
+      const r = cr.blend.mid > 0 ? cr.blend.highMid / cr.blend.mid : 0;
+      const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
+      const fbTags = crossCabFeedback[bk];
+      const fb = fbTags && fbTags.length > 0 ? fbTags.join(",") : null;
+      const fbText = crossCabFeedbackText[bk]?.trim() || null;
+      signals.push({
+        action: actionLabel,
+        feedback: fb,
+        feedbackText: fbText,
+        baseFilename: cr.irA.filename,
+        featureFilename: cr.irB.filename,
+        subBass: cr.blend.subBass,
+        bass: cr.blend.bass,
+        lowMid: cr.blend.lowMid,
+        mid: cr.blend.mid,
+        highMid: cr.blend.highMid,
+        presence: cr.blend.presence,
+        ratio: Math.round(r * 100) / 100,
+        score: cr.match.best.score,
+        profileMatch: cr.match.best.profile,
+      });
+    }
+    if (signals.length > 0) {
+      submitSignalsMutation.mutate(signals);
+    }
+    setCrossCabRankings({});
+    setCrossCabFeedback({});
+    setCrossCabFeedbackText({});
+    setCrossCabDismissed(new Set());
+  }, [crossCabResults, crossCabRankings, crossCabFeedback, crossCabFeedbackText, crossCabDismissed, submitSignalsMutation]);
 
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
@@ -844,7 +953,7 @@ export default function IRMixer() {
               {cabAIRs.length > 0 && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono text-muted-foreground">{cabAIRs.length} IR{cabAIRs.length !== 1 ? "s" : ""} loaded</span>
-                  <Button size="sm" variant="ghost" onClick={() => setCabAIRs([])} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-a">Clear</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setCabAIRs([]); clearCrossCabRatings(); }} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-a">Clear</Button>
                 </div>
               )}
             </div>
@@ -859,7 +968,7 @@ export default function IRMixer() {
               {cabBIRs.length > 0 && (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-mono text-muted-foreground">{cabBIRs.length} IR{cabBIRs.length !== 1 ? "s" : ""} loaded</span>
-                  <Button size="sm" variant="ghost" onClick={() => setCabBIRs([])} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-b">Clear</Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setCabBIRs([]); clearCrossCabRatings(); }} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-b">Clear</Button>
                 </div>
               )}
             </div>
@@ -878,7 +987,7 @@ export default function IRMixer() {
                       key={r.label}
                       size="sm"
                       variant={crossCabRatio === idx ? "default" : "ghost"}
-                      onClick={() => setCrossCabRatio(idx)}
+                      onClick={() => { setCrossCabRatio(idx); clearCrossCabRatings(); }}
                       className={cn(
                         "font-mono text-xs",
                         crossCabRatio === idx && "bg-teal-500/20 text-teal-400 border border-teal-500/30"
@@ -1031,22 +1140,118 @@ export default function IRMixer() {
                                   })}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 pt-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setBaseIR(cr.irA);
-                                    setFeatureIRs([cr.irB]);
-                                    setShowFoundation(false);
-                                    setShowCrossCab(false);
-                                    resetPairingState();
-                                  }}
-                                  className="text-[10px]"
-                                  data-testid={`button-load-crosscab-${idx}`}
-                                >
-                                  Load into Mixer
-                                </Button>
+                              <div className="border-t border-white/5 pt-2 space-y-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-1.5">
+                                    {[
+                                      { rank: 1, label: "Love", color: "bg-amber-500/20 text-amber-400 border border-amber-500/30" },
+                                      { rank: 2, label: "Like", color: "bg-violet-500/20 text-violet-400 border border-violet-500/30" },
+                                      { rank: 3, label: "Meh", color: "bg-slate-400/20 text-slate-300 border border-slate-400/30" },
+                                    ].map(({ rank: r, label, color }) => (
+                                      <Button
+                                        key={r}
+                                        size="sm"
+                                        variant={crossCabRankings[blendKey] === r ? "default" : "ghost"}
+                                        onClick={() => assignCrossCabRank(blendKey, r)}
+                                        className={cn(
+                                          "text-xs",
+                                          crossCabRankings[blendKey] === r && color
+                                        )}
+                                        data-testid={`button-ccrank-${idx}-${r}`}
+                                      >
+                                        {label}
+                                      </Button>
+                                    ))}
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => dismissCrossCab(blendKey)}
+                                      className={cn(
+                                        "text-xs",
+                                        crossCabDismissed.has(blendKey) ? "text-muted-foreground" : "text-red-400"
+                                      )}
+                                      data-testid={`button-ccdismiss-${idx}`}
+                                    >
+                                      {crossCabDismissed.has(blendKey) ? "Undo" : "Nope"}
+                                    </Button>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setBaseIR(cr.irA);
+                                      setFeatureIRs([cr.irB]);
+                                      setShowFoundation(false);
+                                      setShowCrossCab(false);
+                                      resetPairingState();
+                                    }}
+                                    className="text-[10px]"
+                                    data-testid={`button-load-crosscab-${idx}`}
+                                  >
+                                    Load into Mixer
+                                  </Button>
+                                </div>
+
+                                {crossCabRankings[blendKey] !== undefined && !crossCabDismissed.has(blendKey) && (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-[9px] text-muted-foreground mr-0.5">
+                                        {crossCabRankings[blendKey] === 1 ? "why?" : crossCabRankings[blendKey] === 2 ? "improve?" : "issue?"}
+                                      </span>
+                                      {(crossCabRankings[blendKey] === 1
+                                        ? [
+                                            { tag: "perfect", label: "Perfect" },
+                                            { tag: "balanced", label: "Balanced" },
+                                            { tag: "punchy", label: "Punchy" },
+                                            { tag: "warm", label: "Warm" },
+                                            { tag: "aggressive", label: "Aggressive" },
+                                          ]
+                                        : crossCabRankings[blendKey] === 2
+                                        ? [
+                                            { tag: "more_bottom", label: "More bottom" },
+                                            { tag: "less_harsh", label: "Less harsh" },
+                                            { tag: "more_bite", label: "More bite" },
+                                            { tag: "tighter", label: "Tighter" },
+                                            { tag: "more_air", label: "More air" },
+                                          ]
+                                        : [
+                                            { tag: "thin", label: "Thin" },
+                                            { tag: "muddy", label: "Muddy" },
+                                            { tag: "harsh", label: "Harsh" },
+                                            { tag: "dull", label: "Dull" },
+                                            { tag: "boomy", label: "Boomy" },
+                                            { tag: "fizzy", label: "Fizzy" },
+                                          ]
+                                      ).map(({ tag, label }) => (
+                                        <Button
+                                          key={tag}
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => assignCrossCabFeedback(blendKey, tag)}
+                                          className={cn(
+                                            "text-[10px] h-5 px-1.5 rounded-sm",
+                                            (crossCabFeedback[blendKey] || []).includes(tag)
+                                              ? crossCabRankings[blendKey] === 1 ? "bg-amber-500/20 text-amber-400"
+                                                : crossCabRankings[blendKey] === 2 ? "bg-violet-500/20 text-violet-400"
+                                                : "bg-slate-400/20 text-slate-300"
+                                              : "text-muted-foreground"
+                                          )}
+                                          data-testid={`button-ccfb-${idx}-${tag}`}
+                                        >
+                                          {label}
+                                        </Button>
+                                      ))}
+                                    </div>
+                                    <input
+                                      type="text"
+                                      placeholder={crossCabRankings[blendKey] === 1 ? "What makes it great..." : crossCabRankings[blendKey] === 2 ? "What would make it better..." : "Describe the issue..."}
+                                      value={crossCabFeedbackText[blendKey] || ""}
+                                      onChange={(e) => setCrossCabFeedbackText((prev) => ({ ...prev, [blendKey]: e.target.value }))}
+                                      className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                                      data-testid={`input-ccfb-text-${idx}`}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </motion.div>
@@ -1056,6 +1261,23 @@ export default function IRMixer() {
                   );
                 })}
               </div>
+
+              {crossCabHasRatings && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between gap-3 flex-wrap pt-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Brain className="w-3.5 h-3.5 text-teal-400" />
+                    Submit ratings to refine your taste profile
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmitCrossCabRatings}
+                    className="bg-teal-500/20 text-teal-400 border border-teal-500/30"
+                    data-testid="button-submit-crosscab-ratings"
+                  >
+                    Submit Ratings
+                  </Button>
+                </motion.div>
+              )}
             </motion.div>
           )}
         </div>
