@@ -1799,6 +1799,83 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights };
 }
 
+function buildGearPreferencePrompt(learned: LearnedProfileData, micType?: string, speakerModel?: string): string {
+  if (!learned.gearInsights) return '';
+
+  const lines: string[] = [];
+  const { mics, speakers, positions, combos } = learned.gearInsights;
+
+  const lovedMics = mics.filter(m => m.score.net >= 3);
+  const avoidedMics = mics.filter(m => m.score.net <= -2);
+  const lovedPositions = positions.filter(p => p.score.net >= 3);
+  const avoidedPositions = positions.filter(p => p.score.net <= -2);
+  const lovedSpeakers = speakers.filter(s => s.score.net >= 3);
+
+  if (lovedMics.length > 0) {
+    const micLines = lovedMics.map(m => {
+      const desc = m.descriptors.length > 0 ? ` (${m.descriptors.map(d => d.label).join(', ')})` : '';
+      return `${m.name}${desc} -- loved ${m.score.loved}x, liked ${m.score.liked}x`;
+    });
+    lines.push(`Preferred mics: ${micLines.join('; ')}`);
+  }
+
+  if (avoidedMics.length > 0) {
+    lines.push(`Avoided mics: ${avoidedMics.map(m => `${m.name} (noped ${m.score.noped}x)`).join('; ')}`);
+  }
+
+  if (lovedPositions.length > 0) {
+    const posLines = lovedPositions.map(p => {
+      const desc = p.descriptors.length > 0 ? ` (${p.descriptors.map(d => d.label).join(', ')})` : '';
+      return `${p.name}${desc}`;
+    });
+    lines.push(`Preferred positions: ${posLines.join('; ')}`);
+  }
+
+  if (avoidedPositions.length > 0) {
+    lines.push(`Avoided positions: ${avoidedPositions.map(p => p.name).join(', ')}`);
+  }
+
+  if (lovedSpeakers.length > 0) {
+    lines.push(`Preferred speakers: ${lovedSpeakers.map(s => s.name).join(', ')}`);
+  }
+
+  const relevantCombos = combos.filter(c => {
+    if (c.sentiment < 1.5 && c.sentiment > -1.5) return false;
+    if (micType) {
+      const micLower = micType.toLowerCase();
+      if (c.combo.toLowerCase().includes(micLower)) return true;
+    }
+    if (speakerModel) {
+      const spkLower = speakerModel.toLowerCase();
+      if (c.combo.toLowerCase().includes(spkLower)) return true;
+    }
+    return c.sampleSize >= 5 && Math.abs(c.sentiment) >= 2;
+  });
+
+  if (relevantCombos.length > 0) {
+    const comboLines = relevantCombos.slice(0, 5).map(c => {
+      const desc = c.descriptors.length > 0 ? ` -- ${c.descriptors.map(d => d.label).join(', ')}` : '';
+      const label = c.sentiment > 0 ? 'loved' : 'avoided';
+      return `${c.combo}: ${label} (score ${c.sentiment})${desc}`;
+    });
+    lines.push(`Gear combos: ${comboLines.join('; ')}`);
+  }
+
+  if (learned.avoidZones.length > 0) {
+    const zoneDescs = learned.avoidZones.map(z => `avoid ${z.direction} ${z.band}`);
+    lines.push(`Tonal avoid zones: ${zoneDescs.join(', ')}`);
+  }
+
+  if (lines.length === 0) return '';
+
+  return `\n\n=== USER'S LEARNED GEAR PREFERENCES (from ${learned.signalCount} rated blends) ===
+These preferences were learned from the user's actual ratings of IR blends.
+Use them to bias your recommendations toward gear/positions/combos the user has historically preferred.
+If a mic or position is listed as "avoided", deprioritize it unless there's a strong technical reason.
+If a mic or position is listed as "preferred", favor it when multiple options are equally valid.
+${lines.join('\n')}`;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2164,6 +2241,19 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
         userMessage += positionInstruction;
       }
 
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length >= 5) {
+          const learned = computeLearnedProfile(signals);
+          const gearPrompt = buildGearPreferencePrompt(learned, micType, speakerModel);
+          if (gearPrompt) {
+            userMessage += gearPrompt;
+          }
+        }
+      } catch (e) {
+        console.log('[Recommendations] Could not load gear preferences:', e);
+      }
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -2484,6 +2574,19 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       if (positionInstruction) {
         userMessage += positionInstruction;
+      }
+
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length >= 5) {
+          const learned = computeLearnedProfile(signals);
+          const gearPrompt = buildGearPreferencePrompt(learned, undefined, speakerModel);
+          if (gearPrompt) {
+            userMessage += gearPrompt;
+          }
+        }
+      } catch (e) {
+        console.log('[BySpeaker Recommendations] Could not load gear preferences:', e);
       }
 
       const response = await openai.chat.completions.create({
@@ -3817,6 +3920,19 @@ Output JSON:
         userMessage += ` My tonal goal is: ${expandedGoal}. Every recommendation must be specifically optimized for this sound.`;
       }
       userMessage += ` Consider classic amp/speaker pairings and what would work best.`;
+
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length >= 5) {
+          const learned = computeLearnedProfile(signals);
+          const gearPrompt = buildGearPreferencePrompt(learned);
+          if (gearPrompt) {
+            userMessage += gearPrompt;
+          }
+        }
+      } catch (e) {
+        console.log('[ByAmp Recommendations] Could not load gear preferences:', e);
+      }
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o",

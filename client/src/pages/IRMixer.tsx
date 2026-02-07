@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
@@ -218,6 +218,13 @@ export default function IRMixer() {
   const [doneRefining, setDoneRefining] = useState(false);
   const [noMorePairs, setNoMorePairs] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [cabAIRs, setCabAIRs] = useState<AnalyzedIR[]>([]);
+  const [cabBIRs, setCabBIRs] = useState<AnalyzedIR[]>([]);
+  const [isLoadingCabA, setIsLoadingCabA] = useState(false);
+  const [isLoadingCabB, setIsLoadingCabB] = useState(false);
+  const [showCrossCab, setShowCrossCab] = useState(false);
+  const [expandedCrossCab, setExpandedCrossCab] = useState<string | null>(null);
+  const [crossCabRatio, setCrossCabRatio] = useState(2);
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -332,6 +339,44 @@ export default function IRMixer() {
     setFeatureIRs((prev) => prev.filter((_, i) => i !== idx));
     resetPairingState();
   }, [resetPairingState]);
+
+  const handleCabAFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    setIsLoadingCabA(true);
+    setShowCrossCab(true);
+    try {
+      const results: AnalyzedIR[] = [];
+      for (const file of files) {
+        const metrics = await analyzeAudioFile(file);
+        const rawEnergy = extractRawEnergy(metrics);
+        const bands = energyToPercent(rawEnergy);
+        results.push({ filename: file.name, metrics, rawEnergy, bands });
+      }
+      setCabAIRs(results);
+    } catch (e) {
+      console.error("Failed to analyze Cabinet A IRs:", e);
+    }
+    setIsLoadingCabA(false);
+  }, []);
+
+  const handleCabBFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    setIsLoadingCabB(true);
+    setShowCrossCab(true);
+    try {
+      const results: AnalyzedIR[] = [];
+      for (const file of files) {
+        const metrics = await analyzeAudioFile(file);
+        const rawEnergy = extractRawEnergy(metrics);
+        const bands = energyToPercent(rawEnergy);
+        results.push({ filename: file.name, metrics, rawEnergy, bands });
+      }
+      setCabBIRs(results);
+    } catch (e) {
+      console.error("Failed to analyze Cabinet B IRs:", e);
+    }
+    setIsLoadingCabB(false);
+  }, []);
 
   const currentRatio = BLEND_RATIOS[selectedRatio];
 

@@ -541,7 +541,8 @@ function cullIRs(
   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
   targetCount: number,
   userOverrides: Map<string, string[]> = new Map(),
-  preferenceMap?: Map<string, IRPreferenceInfo>
+  preferenceMap?: Map<string, IRPreferenceInfo>,
+  gearSentimentMap?: Map<string, number>
 ): { result: CullResult; closeCalls: CullCloseCall[] } {
   if (irs.length <= targetCount) {
     return {
@@ -722,14 +723,31 @@ function cullIRs(
     return pref.bestProfile === "Featured" ? "Feature element" : "Body element";
   };
 
+  const getGearSentimentBoost = (idx: number): number => {
+    if (!gearSentimentMap || gearSentimentMap.size === 0) return 0;
+    const filename = irs[idx].filename.toLowerCase();
+    let totalSentiment = 0;
+    let gearMatches = 0;
+    for (const [gear, sentiment] of Array.from(gearSentimentMap.entries())) {
+      if (filename.includes(gear.toLowerCase())) {
+        totalSentiment += sentiment;
+        gearMatches++;
+      }
+    }
+    if (gearMatches === 0) return 0;
+    const avgSentiment = totalSentiment / gearMatches;
+    return Math.max(-5, Math.min(5, avgSentiment * 1.5));
+  };
+
   const getEffectiveScore = (idx: number): number => {
     const baseScore = irs[idx].score || 85;
-    if (!preferenceMap) return baseScore;
+    const gearBoost = getGearSentimentBoost(idx);
+    if (!preferenceMap) return baseScore + gearBoost;
     const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref) return baseScore;
+    if (!pref) return baseScore + gearBoost;
     const prefBoost = Math.max(0, (pref.bestScore - 35) / 65) * 8;
     const penalty = pref.avoidPenalty;
-    return baseScore + prefBoost - penalty;
+    return baseScore + prefBoost - penalty + gearBoost;
   };
 
   const selected: number[] = [];
@@ -2211,7 +2229,18 @@ export default function Analyzer() {
         prefMap.set(ir.filename, { featuredScore: fScore, bodyScore: bScore, bestProfile, bestScore, avoidPenalty: Math.max(0, avoidPenalty) });
       }
     }
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined);
+    let gearSentMap: Map<string, number> | undefined;
+    if (learnedProfile?.gearInsights) {
+      const gi = learnedProfile.gearInsights;
+      gearSentMap = new Map<string, number>();
+      for (const entry of [...gi.mics, ...gi.speakers, ...gi.positions]) {
+        if (entry.score.net !== 0) {
+          gearSentMap.set(entry.name, entry.score.net);
+        }
+      }
+      if (gearSentMap.size === 0) gearSentMap = undefined;
+    }
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined, gearSentMap);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
