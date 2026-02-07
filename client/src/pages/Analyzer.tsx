@@ -519,10 +519,19 @@ interface CullCloseCall {
   selectedFilename: string | null; // User's choice, null if not yet decided
 }
 
-// Culling result type
+interface BlendRedundancyInfo {
+  isBlend: boolean;
+  blendMics: string[];
+  componentMatches: { mic: string; filename: string; similarity: number }[];
+  maxComponentSimilarity: number;
+  uniqueContribution: number;
+  verdict: 'essential' | 'adds-value' | 'redundant';
+  explanation: string;
+}
+
 interface CullResult {
-  keep: { filename: string; reason: string; score: number; diversityContribution: number; preferenceRole?: string }[];
-  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number; preferenceRole?: string }[];
+  keep: { filename: string; reason: string; score: number; diversityContribution: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo }[];
+  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo }[];
   closeCallsResolved?: boolean;
 }
 
@@ -596,6 +605,75 @@ function cullIRs(
       similarityMatrix[i][j] = similarity;
       similarityMatrix[j][i] = similarity;
     }
+  }
+
+  const detectBlendMics = (filename: string): string[] => {
+    const lower = filename.toLowerCase();
+    const detected: string[] = [];
+    const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    for (const mic of mics) {
+      if (lower.includes(mic)) detected.push(mic);
+    }
+    return detected;
+  };
+
+  const blendInfoMap = new Map<number, BlendRedundancyInfo>();
+  for (let i = 0; i < n; i++) {
+    const blendMics = detectBlendMics(irs[i].filename);
+    if (blendMics.length < 2) continue;
+
+    const componentMatches: BlendRedundancyInfo['componentMatches'] = [];
+    for (const mic of blendMics) {
+      let bestSim = 0;
+      let bestFile = '';
+      for (let j = 0; j < n; j++) {
+        if (j === i) continue;
+        const jMics = detectBlendMics(irs[j].filename);
+        if (jMics.length === 1 && jMics[0] === mic) {
+          const sim = similarityMatrix[i][j];
+          if (sim > bestSim) {
+            bestSim = sim;
+            bestFile = irs[j].filename;
+          }
+        }
+      }
+      if (bestFile) {
+        componentMatches.push({ mic, filename: bestFile, similarity: bestSim });
+      }
+    }
+
+    if (componentMatches.length === 0) {
+      blendInfoMap.set(i, {
+        isBlend: true, blendMics, componentMatches: [],
+        maxComponentSimilarity: 0, uniqueContribution: 1,
+        verdict: 'essential',
+        explanation: `${blendMics.map(m => m.toUpperCase()).join('+')} blend — no matching single-mic captures in batch to compare`
+      });
+      continue;
+    }
+
+    const maxSim = Math.max(...componentMatches.map(c => c.similarity));
+    const uniqueContribution = 1 - maxSim;
+    const closestComponent = componentMatches.reduce((a, b) => a.similarity > b.similarity ? a : b);
+    const simPct = Math.round(closestComponent.similarity * 100);
+
+    let verdict: BlendRedundancyInfo['verdict'];
+    let explanation: string;
+    if (maxSim >= 0.90) {
+      verdict = 'redundant';
+      explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — blend adds minimal tonal value`;
+    } else if (maxSim >= 0.78) {
+      verdict = 'adds-value';
+      explanation = `${Math.round(uniqueContribution * 100)}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — blend adds moderate tonal value`;
+    } else {
+      verdict = 'essential';
+      explanation = `${Math.round(uniqueContribution * 100)}% unique character — blend creates distinct tone not achievable with individual mics`;
+    }
+
+    blendInfoMap.set(i, {
+      isBlend: true, blendMics, componentMatches,
+      maxComponentSimilarity: maxSim, uniqueContribution, verdict, explanation
+    });
   }
 
   // Group IRs by mic type
@@ -739,15 +817,24 @@ function cullIRs(
     return Math.max(-5, Math.min(5, avgSentiment * 1.5));
   };
 
+  const getBlendRedundancyPenalty = (idx: number): number => {
+    const info = blendInfoMap.get(idx);
+    if (!info) return 0;
+    if (info.verdict === 'redundant') return 8;
+    if (info.verdict === 'adds-value') return 3;
+    return 0;
+  };
+
   const getEffectiveScore = (idx: number): number => {
     const baseScore = irs[idx].score || 85;
     const gearBoost = getGearSentimentBoost(idx);
-    if (!preferenceMap) return baseScore + gearBoost;
+    const blendPenalty = getBlendRedundancyPenalty(idx);
+    if (!preferenceMap) return baseScore + gearBoost - blendPenalty;
     const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref) return baseScore + gearBoost;
+    if (!pref) return baseScore + gearBoost - blendPenalty;
     const prefBoost = Math.max(0, (pref.bestScore - 35) / 65) * 8;
     const penalty = pref.avoidPenalty;
-    return baseScore + prefBoost - penalty + gearBoost;
+    return baseScore + prefBoost - penalty + gearBoost - blendPenalty;
   };
 
   const selected: number[] = [];
@@ -997,7 +1084,8 @@ function cullIRs(
       reason,
       score: ir.score || 85,
       diversityContribution,
-      preferenceRole: getPreferenceRole(idx)
+      preferenceRole: getPreferenceRole(idx),
+      blendInfo: blendInfoMap.get(idx)
     });
   }
 
@@ -1048,7 +1136,8 @@ function cullIRs(
       score: ir.score || 85,
       mostSimilarTo: irs[mostSimilarIdx].filename,
       similarity: maxSim,
-      preferenceRole: getPreferenceRole(idx)
+      preferenceRole: getPreferenceRole(idx),
+      blendInfo: blendInfoMap.get(idx)
     });
   }
 
@@ -4028,7 +4117,35 @@ export default function Analyzer() {
                                         {ir.preferenceRole}
                                       </span>
                                     )}
+                                    {ir.blendInfo && (
+                                      <span className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                                        ir.blendInfo.verdict === 'essential'
+                                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                          : ir.blendInfo.verdict === 'adds-value'
+                                          ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                                          : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                      )} data-testid={`badge-blend-keep-${idx}`}>
+                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? 'Blend adds value' : 'Blend overlap'}
+                                      </span>
+                                    )}
                                   </div>
+                                  {ir.blendInfo && (
+                                    <div className="mt-1.5 text-[11px] text-muted-foreground/80 pl-0.5">
+                                      <span>{ir.blendInfo.explanation}</span>
+                                      {ir.blendInfo.componentMatches.length > 0 && (
+                                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                          {ir.blendInfo.componentMatches.map(c => (
+                                            <span key={c.mic} className="text-[10px]">
+                                              vs {c.mic.toUpperCase()}: <span className={cn(
+                                                c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                              )}>{Math.round(c.similarity * 100)}%</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-xs text-muted-foreground">Score</div>
@@ -4087,7 +4204,35 @@ export default function Analyzer() {
                                         {ir.preferenceRole}
                                       </span>
                                     )}
+                                    {ir.blendInfo && (
+                                      <span className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                                        ir.blendInfo.verdict === 'essential'
+                                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                          : ir.blendInfo.verdict === 'adds-value'
+                                          ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                                          : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                      )} data-testid={`badge-blend-cut-${idx}`}>
+                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? 'Blend adds value' : 'Blend redundant'}
+                                      </span>
+                                    )}
                                   </div>
+                                  {ir.blendInfo && (
+                                    <div className="mt-1.5 text-[11px] text-muted-foreground/80 pl-0.5">
+                                      <span>{ir.blendInfo.explanation}</span>
+                                      {ir.blendInfo.componentMatches.length > 0 && (
+                                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                                          {ir.blendInfo.componentMatches.map(c => (
+                                            <span key={c.mic} className="text-[10px]">
+                                              vs {c.mic.toUpperCase()}: <span className={cn(
+                                                c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                              )}>{Math.round(c.similarity * 100)}%</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   <p className="text-xs text-muted-foreground">
                                     Similar to: <span className="text-foreground/70">{ir.mostSimilarTo}</span> ({Math.round(ir.similarity * 100)}%)
                                   </p>
