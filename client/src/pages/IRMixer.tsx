@@ -207,7 +207,8 @@ export default function IRMixer() {
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
   const [showFoundation, setShowFoundation] = useState(false);
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
-  const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
+  const [pairingFeedback, setPairingFeedback] = useState<Record<string, string[]>>({});
+  const [pairingFeedbackText, setPairingFeedbackText] = useState<Record<string, string>>({});
   const [dismissedPairings, setDismissedPairings] = useState<Set<string>>(new Set());
   const [evaluatedPairs, setEvaluatedPairs] = useState<Set<string>>(new Set());
   const [exposureCounts, setExposureCounts] = useState<Map<string, number>>(new Map());
@@ -238,6 +239,7 @@ export default function IRMixer() {
   const resetPairingState = useCallback(() => {
     setPairingRankings({});
     setPairingFeedback({});
+    setPairingFeedbackText({});
     setDismissedPairings(new Set());
     setEvaluatedPairs(new Set());
     setExposureCounts(new Map());
@@ -352,9 +354,11 @@ export default function IRMixer() {
       if (next[key] === rank) {
         delete next[key];
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
       } else {
         next[key] = rank;
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
       }
       return next;
     });
@@ -367,12 +371,17 @@ export default function IRMixer() {
 
   const assignFeedback = useCallback((key: string, tag: string) => {
     setPairingFeedback((prev) => {
-      if (prev[key] === tag) {
-        const next = { ...prev };
-        delete next[key];
-        return next;
+      const current = prev[key] || [];
+      if (current.includes(tag)) {
+        const updated = current.filter((t) => t !== tag);
+        if (updated.length === 0) {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        }
+        return { ...prev, [key]: updated };
       }
-      return { ...prev, [key]: tag };
+      return { ...prev, [key]: [...current, tag] };
     });
   }, []);
 
@@ -384,6 +393,7 @@ export default function IRMixer() {
       } else {
         next.add(key);
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
+        setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
       }
       return next;
     });
@@ -420,10 +430,13 @@ export default function IRMixer() {
 
       const r = pair.blendBands.mid > 0 ? pair.blendBands.highMid / pair.blendBands.mid : 0;
       const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
-      const fb = pairingFeedback[pk] || null;
+      const fbTags = pairingFeedback[pk];
+      const fb = fbTags && fbTags.length > 0 ? fbTags.join(",") : null;
+      const fbText = pairingFeedbackText[pk]?.trim() || null;
       signals.push({
         action: actionLabel,
         feedback: fb,
+        feedbackText: fbText,
         baseFilename: pair.baseFilename,
         featureFilename: pair.featureFilename,
         subBass: pair.blendBands.subBass,
@@ -473,10 +486,11 @@ export default function IRMixer() {
     } else {
       setPairingRankings({});
       setPairingFeedback({});
+      setPairingFeedbackText({});
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -832,53 +846,63 @@ export default function IRMixer() {
                         </div>
 
                         {assignedRank !== undefined && (
-                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                            <span className="text-[9px] text-muted-foreground mr-0.5">
-                              {assignedRank === 1 ? "why?" : assignedRank === 2 ? "improve?" : "issue?"}
-                            </span>
-                            {(assignedRank === 1
-                              ? [
-                                  { tag: "perfect", label: "Perfect" },
-                                  { tag: "balanced", label: "Balanced" },
-                                  { tag: "punchy", label: "Punchy" },
-                                  { tag: "warm", label: "Warm" },
-                                  { tag: "aggressive", label: "Aggressive" },
-                                ]
-                              : assignedRank === 2
-                              ? [
-                                  { tag: "more_bottom", label: "More bottom" },
-                                  { tag: "less_harsh", label: "Less harsh" },
-                                  { tag: "more_bite", label: "More bite" },
-                                  { tag: "tighter", label: "Tighter" },
-                                  { tag: "more_air", label: "More air" },
-                                ]
-                              : [
-                                  { tag: "thin", label: "Thin" },
-                                  { tag: "muddy", label: "Muddy" },
-                                  { tag: "harsh", label: "Harsh" },
-                                  { tag: "dull", label: "Dull" },
-                                  { tag: "boomy", label: "Boomy" },
-                                  { tag: "fizzy", label: "Fizzy" },
-                                ]
-                            ).map(({ tag, label }) => (
-                              <Button
-                                key={tag}
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => assignFeedback(pk, tag)}
-                                className={cn(
-                                  "text-[10px] h-5 px-1.5 rounded-sm",
-                                  pairingFeedback[pk] === tag
-                                    ? assignedRank === 1 ? "bg-amber-500/20 text-amber-400"
-                                      : assignedRank === 2 ? "bg-violet-500/20 text-violet-400"
-                                      : "bg-slate-400/20 text-slate-300"
-                                    : "text-muted-foreground"
-                                )}
-                                data-testid={`button-feedback-${idx}-${tag}`}
-                              >
-                                {label}
-                              </Button>
-                            ))}
+                          <div className="space-y-1 pt-0.5">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[9px] text-muted-foreground mr-0.5">
+                                {assignedRank === 1 ? "why?" : assignedRank === 2 ? "improve?" : "issue?"}
+                              </span>
+                              {(assignedRank === 1
+                                ? [
+                                    { tag: "perfect", label: "Perfect" },
+                                    { tag: "balanced", label: "Balanced" },
+                                    { tag: "punchy", label: "Punchy" },
+                                    { tag: "warm", label: "Warm" },
+                                    { tag: "aggressive", label: "Aggressive" },
+                                  ]
+                                : assignedRank === 2
+                                ? [
+                                    { tag: "more_bottom", label: "More bottom" },
+                                    { tag: "less_harsh", label: "Less harsh" },
+                                    { tag: "more_bite", label: "More bite" },
+                                    { tag: "tighter", label: "Tighter" },
+                                    { tag: "more_air", label: "More air" },
+                                  ]
+                                : [
+                                    { tag: "thin", label: "Thin" },
+                                    { tag: "muddy", label: "Muddy" },
+                                    { tag: "harsh", label: "Harsh" },
+                                    { tag: "dull", label: "Dull" },
+                                    { tag: "boomy", label: "Boomy" },
+                                    { tag: "fizzy", label: "Fizzy" },
+                                  ]
+                              ).map(({ tag, label }) => (
+                                <Button
+                                  key={tag}
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => assignFeedback(pk, tag)}
+                                  className={cn(
+                                    "text-[10px] h-5 px-1.5 rounded-sm",
+                                    (pairingFeedback[pk] || []).includes(tag)
+                                      ? assignedRank === 1 ? "bg-amber-500/20 text-amber-400"
+                                        : assignedRank === 2 ? "bg-violet-500/20 text-violet-400"
+                                        : "bg-slate-400/20 text-slate-300"
+                                      : "text-muted-foreground"
+                                  )}
+                                  data-testid={`button-feedback-${idx}-${tag}`}
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                            <input
+                              type="text"
+                              placeholder={assignedRank === 1 ? "What makes it great..." : assignedRank === 2 ? "What would make it better..." : "Describe the issue..."}
+                              value={pairingFeedbackText[pk] || ""}
+                              onChange={(e) => setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))}
+                              className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                              data-testid={`input-feedback-text-${idx}`}
+                            />
                           </div>
                         )}
                       </>

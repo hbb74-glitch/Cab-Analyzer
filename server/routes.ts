@@ -1401,22 +1401,68 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     perfect:     {},
     balanced:    {},
   };
+  const textKeywordMap: Record<string, Partial<typeof feedbackNudges>> = {
+    bright: { highMid: 1, presence: 0.5 },
+    dark: { highMid: -1, presence: -0.5 },
+    scooped: { mid: -1.5, highMid: 0.5, bass: 0.5 },
+    honky: { mid: 2, highMid: -0.5 },
+    nasal: { mid: 1.5, highMid: 1 },
+    boxy: { lowMid: 1.5, mid: 1 },
+    crisp: { presence: 1, highMid: 0.5 },
+    smooth: { highMid: -0.5, presence: -0.5 },
+    tight: { bass: -1, lowMid: -1 },
+    loose: { bass: 1, lowMid: 1 },
+    wooly: { lowMid: 1.5, bass: 1 },
+    sizzle: { presence: 1.5 },
+    shrill: { highMid: 2, presence: 1.5 },
+    flat: { mid: -0.5, highMid: -0.5, presence: -0.5 },
+    full: { bass: 0.5, lowMid: 0.5, mid: 0.3 },
+    sterile: { mid: -1, highMid: -0.5 },
+    fat: { bass: 1, lowMid: 0.8 },
+    chunky: { lowMid: 1, mid: 0.5, bass: 0.5 },
+    glassy: { highMid: 1.5, presence: 1 },
+    brittle: { highMid: 2, presence: 1, bass: -1 },
+    thick: { lowMid: 1, mid: 0.8, bass: 0.5 },
+    airy: { presence: 1.5, highMid: 0.5 },
+    ice: { presence: 2, highMid: 1 },
+    spank: { highMid: 1, ratio: 0.1 },
+    compressed: { mid: 0.5, ratio: -0.05 },
+    open: { presence: 0.5, highMid: 0.3, ratio: 0.05 },
+    closed: { presence: -1, highMid: -0.5 },
+  };
   let feedbackCount = 0;
+  const allResolvedTags: string[] = [];
   for (const s of signals) {
-    if (!s.feedback) continue;
-    const nudge = feedbackMap[s.feedback];
-    if (!nudge) continue;
-    feedbackCount++;
     const isNegative = s.action === "nope" || s.action === "meh";
     const dir = isNegative ? -1 : 1;
-    for (const [band, val] of Object.entries(nudge)) {
-      (feedbackNudges as any)[band] += val * dir;
+    if (s.feedback) {
+      const tags = s.feedback.split(",").map((t) => t.trim()).filter(Boolean);
+      for (const tag of tags) {
+        allResolvedTags.push(tag);
+        const nudge = feedbackMap[tag];
+        if (!nudge || Object.keys(nudge).length === 0) continue;
+        feedbackCount++;
+        for (const [band, val] of Object.entries(nudge)) {
+          (feedbackNudges as any)[band] += val * dir;
+        }
+      }
+    }
+    if (s.feedbackText) {
+      const lower = s.feedbackText.toLowerCase();
+      for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
+        if (lower.includes(keyword)) {
+          feedbackCount++;
+          allResolvedTags.push(`text:${keyword}`);
+          for (const [band, val] of Object.entries(nudge)) {
+            (feedbackNudges as any)[band] += val * dir * 0.7;
+          }
+        }
+      }
     }
   }
   const feedbackScale = feedbackCount > 0 ? Math.min(feedbackCount / 5, 1) * confidence : 0;
-  const allFeedbackTags = signals.filter((s) => s.feedback).map((s) => s.feedback!);
-  if (allFeedbackTags.length > 0) {
-    const uniqueTags = Array.from(new Set(allFeedbackTags));
+  if (allResolvedTags.length > 0) {
+    const uniqueTags = Array.from(new Set(allResolvedTags));
     courseCorrections.push(`tonal feedback applied: ${uniqueTags.join(", ")}`);
   }
 
@@ -1447,11 +1493,14 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     const tagCounts: Record<string, { count: number; avgBands: Record<string, number> }> = {};
     for (const s of taggedNopes) {
       if (!s.feedback) continue;
-      if (!tagCounts[s.feedback]) tagCounts[s.feedback] = { count: 0, avgBands: { bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 } };
-      const tc = tagCounts[s.feedback];
-      tc.count++;
-      tc.avgBands.bass += s.bass; tc.avgBands.lowMid += s.lowMid; tc.avgBands.mid += s.mid;
-      tc.avgBands.highMid += s.highMid; tc.avgBands.presence += s.presence;
+      const tags = s.feedback.split(",").map((t) => t.trim()).filter(Boolean);
+      for (const tag of tags) {
+        if (!tagCounts[tag]) tagCounts[tag] = { count: 0, avgBands: { bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 } };
+        const tc = tagCounts[tag];
+        tc.count++;
+        tc.avgBands.bass += s.bass; tc.avgBands.lowMid += s.lowMid; tc.avgBands.mid += s.mid;
+        tc.avgBands.highMid += s.highMid; tc.avgBands.presence += s.presence;
+      }
     }
     for (const [tag, data] of Object.entries(tagCounts)) {
       if (data.count < 2) continue;
