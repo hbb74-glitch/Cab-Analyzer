@@ -633,7 +633,7 @@ const GEAR_MIC_PATTERNS: Record<string, string> = {
 };
 
 const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
-  "g12m25": "G12M25", "greenback": "G12M25", "gb": "G12M25",
+  "g12m25": "G12M25", "greenback": "G12M25", "gb": "G12M25", "g12m": "G12M25",
   "v30china": "V30-China", "v30c": "V30-China", "v30": "V30-China",
   "v30blackcat": "V30-Blackcat", "blackcat": "V30-Blackcat", "v30bc": "V30-Blackcat",
   "k100": "K100", "g12k100": "K100",
