@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, getGearContext, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain } from "lucide-react";
 
 // Validation schema for the form
@@ -3111,6 +3111,47 @@ export default function Analyzer() {
                             })()}
                           </div>
                         )}
+
+                        {/* Gear Tonal Context */}
+                        {learnedProfile?.gearInsights && (() => {
+                          const bands: TonalBands = {
+                            subBass: r.subBassPercent || 0,
+                            bass: r.bassPercent || 0,
+                            lowMid: r.lowMidPercent || 0,
+                            mid: r.midPercent || 0,
+                            highMid: r.highMidPercent || 0,
+                            presence: r.presencePercent || 0,
+                          };
+                          const ctx = getGearContext(r.filename, learnedProfile.gearInsights, bands);
+                          if (ctx.items.length === 0 && !ctx.parsed) return null;
+                          if (ctx.items.length === 0) return null;
+                          return (
+                            <div className="mt-2 pt-2 border-t border-white/5" data-testid={`gear-context-${index}`}>
+                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                <Brain className="w-3 h-3 text-violet-400" />
+                                <span className="text-[10px] font-semibold text-violet-400">Learned Gear Profile</span>
+                                {ctx.items.map((item) => (
+                                  <span key={item.gearName} className={cn(
+                                    "text-[9px] font-mono px-1 py-0.5 rounded",
+                                    item.sentiment > 0 ? "bg-emerald-500/10 text-emerald-400" : item.sentiment < 0 ? "bg-red-500/10 text-red-400" : "bg-white/5 text-muted-foreground"
+                                  )}>
+                                    {item.gearName.replace('+', ' + ').replace('@', ' @ ')}
+                                    {item.descriptors.length > 0 && `: ${item.descriptors.map(d => d.label).join(', ')}`}
+                                  </span>
+                                ))}
+                              </div>
+                              {ctx.commentary.length > 0 && (
+                                <div className="space-y-0.5">
+                                  {ctx.commentary.map((c, ci) => (
+                                    <p key={ci} className="text-[9px] font-mono text-muted-foreground/70 italic ml-4">
+                                      {c}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Tonal Modifier Suggestion */}
                         {r.renameSuggestion && (

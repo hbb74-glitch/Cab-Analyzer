@@ -613,3 +613,179 @@ export function suggestPairings(
   selected.forEach((s, i) => { s.rank = i + 1; });
   return selected.slice(0, count);
 }
+
+const GEAR_MIC_PATTERNS: Record<string, string> = {
+  "sm57": "SM57", "57": "SM57",
+  "r121": "R121", "121": "R121",
+  "e609": "e609", "609": "e609",
+  "i5": "i5",
+  "r92": "R92", "aear92": "R92",
+  "m160": "M160", "160": "M160",
+  "md421": "MD421", "421": "MD421", "421kompakt": "MD421", "421kmp": "MD421",
+  "md441boost": "MD441", "md441flat": "MD441", "md441": "MD441", "441": "MD441",
+  "r10": "R10",
+  "m88": "M88", "88": "M88",
+  "pr30": "PR30",
+  "e906boost": "e906", "e906presence": "e906", "e906flat": "e906", "e906": "e906",
+  "m201": "M201", "201": "M201",
+  "sm7b": "SM7B", "sm7": "SM7B",
+  "c414": "C414", "414": "C414",
+};
+
+const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
+  "g12m25": "G12M25", "greenback": "G12M25", "gb": "G12M25",
+  "v30china": "V30-China", "v30c": "V30-China", "v30": "V30-China",
+  "v30blackcat": "V30-Blackcat", "blackcat": "V30-Blackcat", "v30bc": "V30-Blackcat",
+  "k100": "K100", "g12k100": "K100",
+  "g12t75": "G12T75", "t75": "G12T75",
+  "g1265": "G12-65", "65": "G12-65", "g1265her": "G12-65",
+  "g12h30": "G12H30-Anniversary", "anniversary": "G12H30-Anniversary", "h30": "G12H30-Anniversary", "g12hann": "G12H30-Anniversary",
+  "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
+  "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
+  "g10sc64": "G10-SC64", "g10": "G10-SC64",
+};
+
+const GEAR_POSITION_PATTERNS: Record<string, string> = {
+  "capedgebr": "CapEdge-Bright", "capedge_br": "CapEdge-Bright",
+  "capedgedk": "CapEdge-Dark", "capedge_dk": "CapEdge-Dark",
+  "capedgeconetr": "Cap-Cone Transition", "cap_cone_tr": "Cap-Cone Transition", "cone_tr": "Cap-Cone Transition", "capconetr": "Cap-Cone Transition",
+  "capoffcenter": "Cap Off-Center", "cap_offcenter": "Cap Off-Center", "offcenter": "Cap Off-Center",
+  "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
+  "cap": "Cap", "center": "Cap",
+  "cone": "Cone",
+};
+
+export function parseGearFromFilename(filename: string): { mic?: string; speaker?: string; position?: string } {
+  const name = filename.toLowerCase().replace('.wav', '');
+  const parts = name.split(/[_\-\s]+/);
+  const result: { mic?: string; speaker?: string; position?: string } = {};
+
+  const speakerKeys = Object.keys(GEAR_SPEAKER_PATTERNS).sort((a, b) => b.length - a.length);
+  const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
+  const posKeys = Object.keys(GEAR_POSITION_PATTERNS).sort((a, b) => b.length - a.length);
+
+  for (const part of parts) {
+    if (!result.speaker) {
+      const sk = speakerKeys.find((k) => part === k || part.startsWith(k));
+      if (sk) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; continue; }
+    }
+    if (!result.mic) {
+      const mk = micKeys.find((k) => part === k);
+      if (mk) { result.mic = GEAR_MIC_PATTERNS[mk]; continue; }
+    }
+    if (!result.position) {
+      const pk = posKeys.find((k) => part === k);
+      if (pk) { result.position = GEAR_POSITION_PATTERNS[pk]; continue; }
+    }
+  }
+
+  const joined = parts.join('');
+  if (!result.mic) {
+    for (const mk of micKeys) {
+      if (joined.includes(mk)) { result.mic = GEAR_MIC_PATTERNS[mk]; break; }
+    }
+  }
+  if (!result.speaker) {
+    for (const sk of speakerKeys) {
+      if (joined.includes(sk)) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; break; }
+    }
+  }
+  if (!result.position) {
+    for (const pk of posKeys) {
+      if (joined.includes(pk)) { result.position = GEAR_POSITION_PATTERNS[pk]; break; }
+    }
+  }
+
+  return result;
+}
+
+export interface GearContextItem {
+  gearName: string;
+  category: "mic" | "speaker" | "position" | "combo";
+  descriptors: TonalDescriptor[];
+  sentiment: number;
+  sampleSize: number;
+}
+
+export interface GearContextResult {
+  parsed: boolean;
+  gear: { mic?: string; speaker?: string; position?: string };
+  items: GearContextItem[];
+  commentary: string[];
+}
+
+export function getGearContext(filename: string, gearInsights: GearInsights | null | undefined, bands?: TonalBands): GearContextResult {
+  const gear = parseGearFromFilename(filename);
+  const parsed = !!(gear.mic || gear.speaker || gear.position);
+  const items: GearContextItem[] = [];
+  const commentary: string[] = [];
+
+  if (!gearInsights || !parsed) {
+    return { parsed, gear, items, commentary };
+  }
+
+  const lookupGear = (name: string | undefined, list: GearTonalEntry[], category: "mic" | "speaker" | "position") => {
+    if (!name) return;
+    const entry = list.find((e) => e.name === name);
+    if (!entry) return;
+    items.push({
+      gearName: name,
+      category,
+      descriptors: entry.descriptors,
+      sentiment: entry.score.net,
+      sampleSize: entry.tonal?.sampleSize ?? 0,
+    });
+    if (entry.descriptors.length > 0) {
+      const labels = entry.descriptors.map((d) => d.label).join(", ");
+      commentary.push(`${name} typically: ${labels}`);
+    }
+  };
+
+  lookupGear(gear.mic, gearInsights.mics, "mic");
+  lookupGear(gear.speaker, gearInsights.speakers, "speaker");
+  lookupGear(gear.position, gearInsights.positions, "position");
+
+  const comboKeys: string[] = [];
+  if (gear.mic && gear.speaker) comboKeys.push(`${gear.mic}+${gear.speaker}`);
+  if (gear.mic && gear.position) comboKeys.push(`${gear.mic}@${gear.position}`);
+  if (gear.speaker && gear.position) comboKeys.push(`${gear.speaker}@${gear.position}`);
+
+  for (const key of comboKeys) {
+    const combo = gearInsights.combos.find((c) => c.combo === key);
+    if (combo && combo.descriptors.length > 0) {
+      items.push({
+        gearName: key,
+        category: "combo",
+        descriptors: combo.descriptors,
+        sentiment: combo.sentiment,
+        sampleSize: combo.sampleSize,
+      });
+      const labels = combo.descriptors.map((d) => d.label).join(", ");
+      commentary.push(`${key.replace('+', ' + ').replace('@', ' @ ')} tends: ${labels}`);
+    }
+  }
+
+  if (bands && items.length > 0) {
+    const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+    const dominantItem = items.find((i) => i.category === "combo" && i.descriptors.length > 0) || items.find((i) => i.descriptors.length > 0);
+    if (dominantItem) {
+      const bright = dominantItem.descriptors.find((d) => d.label === "Bright/Forward" || d.label === "Crisp/Articulate");
+      const dark = dominantItem.descriptors.find((d) => d.label === "Dark/Warm" || d.label === "Smooth");
+      const thick = dominantItem.descriptors.find((d) => d.label === "Thick/Muddy");
+      const lean = dominantItem.descriptors.find((d) => d.label === "Lean/Tight");
+
+      if (bright && bands.presence < 25) {
+        commentary.push(`This IR is darker than typical for ${dominantItem.gearName.replace('+', ' + ').replace('@', ' @ ')}`);
+      } else if (dark && bands.presence > 30) {
+        commentary.push(`This IR is brighter than typical for ${dominantItem.gearName.replace('+', ' + ').replace('@', ' @ ')}`);
+      }
+      if (thick && (bands.lowMid + bands.mid) < 35) {
+        commentary.push(`Leaner than expected from ${dominantItem.gearName.replace('+', ' + ').replace('@', ' @ ')}`);
+      } else if (lean && (bands.lowMid + bands.mid) > 45) {
+        commentary.push(`Thicker than typical for ${dominantItem.gearName.replace('+', ' + ').replace('@', ' @ ')}`);
+      }
+    }
+  }
+
+  return { parsed, gear, items, commentary };
+}

@@ -1,7 +1,7 @@
 import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, getGearContext, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 
 interface BestPosition {
   position: string;
@@ -92,7 +92,7 @@ function ProfileMatchBadge({ match }: { match: MatchResult }) {
   );
 }
 
-function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: { tonalBalance: TonalBalance; activeProfiles?: PreferenceProfile[]; learnedProfile?: LearnedProfileData | null }) {
+function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, filename }: { tonalBalance: TonalBalance; activeProfiles?: PreferenceProfile[]; learnedProfile?: LearnedProfileData | null; filename?: string }) {
   if (tonalBalance.midPercent == null || tonalBalance.highMidPercent == null || tonalBalance.presencePercent == null) return null;
   const bands: TonalBands = {
     subBass: tonalBalance.subBassPercent || 0,
@@ -224,6 +224,36 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
           </div>
         </div>
       )}
+      {learnedProfile?.gearInsights && filename && (() => {
+        const ctx = getGearContext(filename, learnedProfile.gearInsights, bands);
+        if (ctx.items.length === 0) return null;
+        return (
+          <div className="mt-2 pt-2 border-t border-white/5" data-testid="gear-context-single">
+            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+              <Zap className="w-3 h-3 text-violet-400" />
+              <span className="text-[10px] font-semibold text-violet-400">Learned Gear Profile</span>
+              {ctx.items.map((item) => (
+                <span key={item.gearName} className={cn(
+                  "text-[9px] font-mono px-1 py-0.5 rounded",
+                  item.sentiment > 0 ? "bg-emerald-500/10 text-emerald-400" : item.sentiment < 0 ? "bg-red-500/10 text-red-400" : "bg-white/5 text-muted-foreground"
+                )}>
+                  {item.gearName.replace('+', ' + ').replace('@', ' @ ')}
+                  {item.descriptors.length > 0 && `: ${item.descriptors.map(d => d.label).join(', ')}`}
+                </span>
+              ))}
+            </div>
+            {ctx.commentary.length > 0 && (
+              <div className="space-y-0.5">
+                {ctx.commentary.map((c, ci) => (
+                  <p key={ci} className="text-[9px] font-mono text-muted-foreground/70 italic ml-4">
+                    {c}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -493,7 +523,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
                 </div>
               ))}
             </div>
-            <ProfileMatchSection tonalBalance={tonalBalance} activeProfiles={activeProfiles} learnedProfile={learnedProfile} />
+            <ProfileMatchSection tonalBalance={tonalBalance} activeProfiles={activeProfiles} learnedProfile={learnedProfile} filename={filename} />
           </div>
         </div>
       )}
