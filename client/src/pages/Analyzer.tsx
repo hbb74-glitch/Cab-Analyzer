@@ -1066,6 +1066,12 @@ export default function Analyzer() {
     return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
   }, [learnedProfile]);
 
+  interface PairingSuggestion {
+    filename: string;
+    index: number;
+    reason: string;
+  }
+
   interface BatchIRRole {
     role: "Feature element" | "Body element" | null;
     featuredScore: number;
@@ -1074,19 +1080,24 @@ export default function Analyzer() {
     unlikelyToUse: boolean;
     unlikelyReason: string | null;
     avoidHits: string[];
+    avoidTypes: string[];
+    pairingSuggestions: PairingSuggestion[];
+    pairingGuidance: string | null;
   }
 
   const batchPreferenceRoles = useMemo(() => {
     if (!batchResult || !learnedProfile || learnedProfile.status === "no_data") return null;
-    const roles: BatchIRRole[] = batchResult.results.map((r) => {
-      const bands: TonalBands = {
-        subBass: r.subBassPercent || 0,
-        bass: r.bassPercent || 0,
-        lowMid: r.lowMidPercent || 0,
-        mid: r.midPercent || 0,
-        highMid: r.highMidPercent || 0,
-        presence: r.presencePercent || 0,
-      };
+
+    const allBands: TonalBands[] = batchResult.results.map((r) => ({
+      subBass: r.subBassPercent || 0,
+      bass: r.bassPercent || 0,
+      lowMid: r.lowMidPercent || 0,
+      mid: r.midPercent || 0,
+      highMid: r.highMidPercent || 0,
+      presence: r.presencePercent || 0,
+    }));
+
+    const firstPass = allBands.map((bands, idx) => {
       const { results: matchResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
       const featured = matchResults.find((m) => m.profile === "Featured");
       const body = matchResults.find((m) => m.profile === "Body");
@@ -1098,17 +1109,22 @@ export default function Analyzer() {
         : null;
 
       const avoidHits: string[] = [];
+      const avoidTypes: string[] = [];
       const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
       const lowMidPlusMid = bands.lowMid + bands.mid;
       for (const zone of learnedProfile.avoidZones) {
         if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
           avoidHits.push(`LowMid+Mid ${Math.round(lowMidPlusMid)}% (blend limit ${zone.threshold}%)`);
+          avoidTypes.push("muddy");
         } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
           avoidHits.push(`Mid ${Math.round(bands.mid)}% (blend limit ${zone.threshold}%)`);
+          avoidTypes.push("mid_heavy");
         } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
           avoidHits.push(`Presence ${Math.round(bands.presence)}% (blend min ${zone.threshold}%)`);
+          avoidTypes.push("low_presence");
         } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
           avoidHits.push(`Ratio ${ratio.toFixed(2)} (blend min ${zone.threshold})`);
+          avoidTypes.push("low_ratio");
         }
       }
 
@@ -1119,8 +1135,87 @@ export default function Analyzer() {
         unlikelyReason = "Very far from both your preferred tonal profiles — hard to blend toward your target";
       }
 
-      return { role, featuredScore: fScore, bodyScore: bScore, bestScore, unlikelyToUse, unlikelyReason, avoidHits };
+      return { role, featuredScore: fScore, bodyScore: bScore, bestScore, unlikelyToUse, unlikelyReason, avoidHits, avoidTypes, bands };
     });
+
+    const roles: BatchIRRole[] = firstPass.map((item, idx) => {
+      const pairingSuggestions: PairingSuggestion[] = [];
+      let pairingGuidance: string | null = null;
+
+      if (item.avoidTypes.length > 0) {
+        const guidanceParts: string[] = [];
+        const needsLowMid = item.avoidTypes.includes("muddy") || item.avoidTypes.includes("mid_heavy");
+        const needsHighPresence = item.avoidTypes.includes("low_presence") || item.avoidTypes.includes("low_ratio");
+
+        if (needsLowMid && needsHighPresence) {
+          guidanceParts.push("Look for bright, articulate IRs — low mids, high presence, strong HiMid/Mid ratio");
+        } else if (needsLowMid) {
+          guidanceParts.push("Look for lean IRs with less low-mid and mid weight to balance this out");
+        } else if (needsHighPresence) {
+          guidanceParts.push("Look for IRs with strong presence and high-mid content to add clarity");
+        }
+        pairingGuidance = guidanceParts.join(". ");
+
+        const scored = firstPass.map((other, otherIdx) => {
+          if (otherIdx === idx || other.unlikelyToUse) return { otherIdx, score: -1 };
+          const ob = other.bands;
+          let complementScore = 0;
+
+          if (needsLowMid) {
+            const otherLowMidMid = ob.lowMid + ob.mid;
+            const thisLowMidMid = item.bands.lowMid + item.bands.mid;
+            if (otherLowMidMid < thisLowMidMid) {
+              complementScore += (thisLowMidMid - otherLowMidMid) * 2;
+            }
+          }
+          if (needsHighPresence) {
+            if (ob.presence > item.bands.presence) {
+              complementScore += (ob.presence - item.bands.presence) * 2;
+            }
+            const otherRatio = ob.mid > 0 ? ob.highMid / ob.mid : 0;
+            const thisRatio = item.bands.mid > 0 ? item.bands.highMid / item.bands.mid : 0;
+            if (otherRatio > thisRatio) {
+              complementScore += (otherRatio - thisRatio) * 15;
+            }
+          }
+
+          if (other.bestScore >= 35) complementScore += 10;
+          if (other.avoidTypes.length === 0) complementScore += 5;
+
+          return { otherIdx, score: complementScore };
+        }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
+
+        for (const s of scored.slice(0, 3)) {
+          const ob = firstPass[s.otherIdx].bands;
+          const reasons: string[] = [];
+          if (needsLowMid && (ob.lowMid + ob.mid) < (item.bands.lowMid + item.bands.mid)) {
+            reasons.push(`leaner mids (${Math.round(ob.lowMid + ob.mid)}%)`);
+          }
+          if (needsHighPresence && ob.presence > item.bands.presence) {
+            reasons.push(`higher presence (${Math.round(ob.presence)}%)`);
+          }
+          pairingSuggestions.push({
+            filename: batchResult.results[s.otherIdx].filename,
+            index: s.otherIdx,
+            reason: reasons.length > 0 ? reasons.join(", ") : "complementary balance",
+          });
+        }
+      }
+
+      return {
+        role: item.role,
+        featuredScore: item.featuredScore,
+        bodyScore: item.bodyScore,
+        bestScore: item.bestScore,
+        unlikelyToUse: item.unlikelyToUse,
+        unlikelyReason: item.unlikelyReason,
+        avoidHits: item.avoidHits,
+        avoidTypes: item.avoidTypes,
+        pairingSuggestions,
+        pairingGuidance,
+      };
+    });
+
     return roles;
   }, [batchResult, learnedProfile, activeProfiles]);
 
@@ -2815,12 +2910,27 @@ export default function Analyzer() {
                           </div>
                         )}
                         {batchPreferenceRoles && batchPreferenceRoles[index]?.avoidHits?.length > 0 && !batchPreferenceRoles[index]?.unlikelyToUse && (
-                          <div className="flex items-start gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid={`warning-avoid-${index}`}>
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — may need a complementary pairing</p>
-                              <p className="text-[11px] text-amber-400/70">{batchPreferenceRoles[index].avoidHits.join(" | ")}</p>
+                          <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 space-y-2" data-testid={`warning-avoid-${index}`}>
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — pair with a complement</p>
+                                <p className="text-[11px] text-amber-400/70">{batchPreferenceRoles[index].avoidHits.join(" | ")}</p>
+                              </div>
                             </div>
+                            {batchPreferenceRoles[index].pairingGuidance && (
+                              <p className="text-[11px] text-amber-300/60 pl-5">{batchPreferenceRoles[index].pairingGuidance}</p>
+                            )}
+                            {batchPreferenceRoles[index].pairingSuggestions.length > 0 && (
+                              <div className="pl-5 space-y-1">
+                                <p className="text-[10px] text-amber-400/50 font-medium">Try pairing with:</p>
+                                {batchPreferenceRoles[index].pairingSuggestions.map((s, si) => (
+                                  <p key={si} className="text-[11px] text-amber-300/80 font-mono truncate" data-testid={`suggestion-pair-${index}-${si}`}>
+                                    {s.filename} <span className="text-amber-400/50 font-sans">— {s.reason}</span>
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 

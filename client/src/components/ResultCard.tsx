@@ -113,6 +113,7 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
   let unlikelyToUse = false;
   let unlikelyReason: string | null = null;
   const avoidHits: string[] = [];
+  let pairingGuidance: string | null = null;
 
   if (learnedProfile && learnedProfile.status !== "no_data" && activeProfiles) {
     const { results: indResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
@@ -127,21 +128,38 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
 
     const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
     const lowMidPlusMid = bands.lowMid + bands.mid;
+    const avoidTypes: string[] = [];
     for (const zone of learnedProfile.avoidZones) {
       if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
         avoidHits.push(`LowMid+Mid ${Math.round(lowMidPlusMid)}% (blend limit ${zone.threshold}%)`);
+        avoidTypes.push("muddy");
       } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
         avoidHits.push(`Mid ${Math.round(bands.mid)}% (blend limit ${zone.threshold}%)`);
+        avoidTypes.push("mid_heavy");
       } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
         avoidHits.push(`Presence ${Math.round(bands.presence)}% (blend min ${zone.threshold}%)`);
+        avoidTypes.push("low_presence");
       } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
         avoidHits.push(`Ratio ${ratio.toFixed(2)} (blend min ${zone.threshold})`);
+        avoidTypes.push("low_ratio");
       }
     }
 
     if (bestScore < 15) {
       unlikelyToUse = true;
       unlikelyReason = "Very far from both your preferred tonal profiles — hard to blend toward your target";
+    }
+
+    if (avoidTypes.length > 0) {
+      const needsLowMid = avoidTypes.includes("muddy") || avoidTypes.includes("mid_heavy");
+      const needsHighPresence = avoidTypes.includes("low_presence") || avoidTypes.includes("low_ratio");
+      if (needsLowMid && needsHighPresence) {
+        pairingGuidance = "Look for bright, articulate IRs — low mids, high presence, strong HiMid/Mid ratio";
+      } else if (needsLowMid) {
+        pairingGuidance = "Look for lean IRs with less low-mid and mid weight to balance this out";
+      } else if (needsHighPresence) {
+        pairingGuidance = "Look for IRs with strong presence and high-mid content to add clarity";
+      }
     }
   }
 
@@ -177,12 +195,17 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
         </div>
       )}
       {avoidHits.length > 0 && !unlikelyToUse && (
-        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid="warning-avoid-zone">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — may need a complementary pairing</p>
-            <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
+        <div className="p-2.5 mb-2 rounded bg-amber-500/10 border border-amber-500/20 space-y-1.5" data-testid="warning-avoid-zone">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — pair with a complement</p>
+              <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
+            </div>
           </div>
+          {pairingGuidance && (
+            <p className="text-[11px] text-amber-300/60 pl-5">{pairingGuidance}</p>
+          )}
         </div>
       )}
       {best.deviations.length > 0 && (
