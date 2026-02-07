@@ -293,6 +293,13 @@ export interface SuggestedPairing {
   rank: number;
 }
 
+interface GearScore { loved: number; liked: number; noped: number; net: number }
+export interface GearInsights {
+  mics: { name: string; score: GearScore }[];
+  speakers: { name: string; score: GearScore }[];
+  positions: { name: string; score: GearScore }[];
+}
+
 export interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -305,6 +312,7 @@ export interface LearnedProfileData {
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  gearInsights?: GearInsights | null;
 }
 
 export function applyLearnedAdjustments(

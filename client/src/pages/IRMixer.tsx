@@ -552,6 +552,49 @@ export default function IRMixer() {
                   ).join(", ")}
                 </span>
               )}
+              {learnedProfile.gearInsights && (
+                <div className="w-full mt-2 space-y-1" data-testid="gear-insights">
+                  {learnedProfile.gearInsights.mics.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Mics:</span>
+                      {learnedProfile.gearInsights.mics.slice(0, 5).map((m) => (
+                        <span key={m.name} className={cn(
+                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                          m.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                        )}>
+                          {m.name} {m.score.net > 0 ? "+" : ""}{m.score.net}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {learnedProfile.gearInsights.speakers.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Speakers:</span>
+                      {learnedProfile.gearInsights.speakers.slice(0, 5).map((s) => (
+                        <span key={s.name} className={cn(
+                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                          s.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                        )}>
+                          {s.name} {s.score.net > 0 ? "+" : ""}{s.score.net}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {learnedProfile.gearInsights.positions.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Positions:</span>
+                      {learnedProfile.gearInsights.positions.slice(0, 5).map((p) => (
+                        <span key={p.name} className={cn(
+                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                          p.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                        )}>
+                          {p.name} {p.score.net > 0 ? "+" : ""}{p.score.net}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </motion.div>

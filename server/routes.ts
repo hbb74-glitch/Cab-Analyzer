@@ -1149,6 +1149,98 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
 
 import type { PreferenceSignal } from "@shared/schema";
 
+const GEAR_MIC_PATTERNS: Record<string, string> = {
+  "sm57": "SM57", "57": "SM57",
+  "r121": "R121", "121": "R121",
+  "e609": "e609", "609": "e609",
+  "i5": "i5",
+  "r92": "R92", "aear92": "R92",
+  "m160": "M160", "160": "M160",
+  "md421": "MD421", "421": "MD421", "421kompakt": "MD421", "421kmp": "MD421",
+  "md441boost": "MD441", "md441flat": "MD441", "md441": "MD441", "441": "MD441",
+  "r10": "R10",
+  "m88": "M88", "88": "M88",
+  "pr30": "PR30",
+  "e906boost": "e906", "e906presence": "e906", "e906flat": "e906", "e906": "e906",
+  "m201": "M201", "201": "M201",
+  "sm7b": "SM7B", "sm7": "SM7B",
+  "c414": "C414", "414": "C414",
+};
+
+const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
+  "g12m25": "G12M25", "greenback": "G12M25", "gb": "G12M25",
+  "v30china": "V30-China", "v30c": "V30-China", "v30": "V30-China",
+  "v30blackcat": "V30-Blackcat", "blackcat": "V30-Blackcat", "v30bc": "V30-Blackcat",
+  "k100": "K100", "g12k100": "K100",
+  "g12t75": "G12T75", "t75": "G12T75",
+  "g1265": "G12-65", "65": "G12-65", "g1265her": "G12-65",
+  "g12h30": "G12H30-Anniversary", "anniversary": "G12H30-Anniversary", "h30": "G12H30-Anniversary", "g12hann": "G12H30-Anniversary",
+  "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
+  "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
+  "g10sc64": "G10-SC64", "g10": "G10-SC64",
+};
+
+const GEAR_POSITION_PATTERNS: Record<string, string> = {
+  "capedgebr": "CapEdge-Bright", "capedge_br": "CapEdge-Bright",
+  "capedgedk": "CapEdge-Dark", "capedge_dk": "CapEdge-Dark",
+  "capedgeconetr": "Cap-Cone Transition", "cap_cone_tr": "Cap-Cone Transition", "cone_tr": "Cap-Cone Transition", "capconetr": "Cap-Cone Transition",
+  "capoffcenter": "Cap Off-Center", "cap_offcenter": "Cap Off-Center", "offcenter": "Cap Off-Center",
+  "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
+  "cap": "Cap", "center": "Cap",
+  "cone": "Cone",
+};
+
+function parseGearFromFilename(filename: string): { mic?: string; speaker?: string; position?: string } {
+  const name = filename.toLowerCase().replace('.wav', '');
+  const parts = name.split(/[_\-\s]+/);
+  const result: { mic?: string; speaker?: string; position?: string } = {};
+
+  const speakerKeys = Object.keys(GEAR_SPEAKER_PATTERNS).sort((a, b) => b.length - a.length);
+  const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
+  const posKeys = Object.keys(GEAR_POSITION_PATTERNS).sort((a, b) => b.length - a.length);
+
+  for (const part of parts) {
+    if (!result.speaker) {
+      const sk = speakerKeys.find((k) => part === k || part.startsWith(k));
+      if (sk) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; continue; }
+    }
+    if (!result.mic) {
+      const mk = micKeys.find((k) => part === k);
+      if (mk) { result.mic = GEAR_MIC_PATTERNS[mk]; continue; }
+    }
+    if (!result.position) {
+      const pk = posKeys.find((k) => part === k);
+      if (pk) { result.position = GEAR_POSITION_PATTERNS[pk]; continue; }
+    }
+  }
+
+  const joined = parts.join('');
+  if (!result.mic) {
+    for (const mk of micKeys) {
+      if (joined.includes(mk)) { result.mic = GEAR_MIC_PATTERNS[mk]; break; }
+    }
+  }
+  if (!result.speaker) {
+    for (const sk of speakerKeys) {
+      if (joined.includes(sk)) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; break; }
+    }
+  }
+  if (!result.position) {
+    for (const pk of posKeys) {
+      if (joined.includes(pk)) { result.position = GEAR_POSITION_PATTERNS[pk]; break; }
+    }
+  }
+
+  return result;
+}
+
+interface GearScore { loved: number; liked: number; noped: number; net: number }
+interface GearInsights {
+  mics: { name: string; score: GearScore }[];
+  speakers: { name: string; score: GearScore }[];
+  positions: { name: string; score: GearScore }[];
+}
+
 interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -1161,18 +1253,19 @@ interface LearnedProfileData {
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  gearInsights: GearInsights | null;
 }
 
 function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data" };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", gearInsights: null };
   }
 
   const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning" };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", gearInsights: null };
   }
 
   const signalWeight = (action: string): number => {
@@ -1320,7 +1413,45 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     }
   }
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status };
+  let gearInsights: GearInsights | null = null;
+  if (signals.length >= 5) {
+    const gearAccum: Record<string, Record<string, GearScore>> = { mics: {}, speakers: {}, positions: {} };
+
+    const addGear = (category: string, name: string | undefined, action: string) => {
+      if (!name) return;
+      if (!gearAccum[category][name]) gearAccum[category][name] = { loved: 0, liked: 0, noped: 0, net: 0 };
+      const entry = gearAccum[category][name];
+      if (action === "love") { entry.loved++; entry.net += 3; }
+      else if (action === "like") { entry.liked++; entry.net += 1.5; }
+      else if (action === "meh") { entry.net += 0.2; }
+      else if (action === "nope") { entry.noped++; entry.net -= 2; }
+    };
+
+    for (const sig of signals) {
+      for (const fn of [sig.baseFilename, sig.featureFilename]) {
+        const gear = parseGearFromFilename(fn);
+        addGear("mics", gear.mic, sig.action);
+        addGear("speakers", gear.speaker, sig.action);
+        addGear("positions", gear.position, sig.action);
+      }
+    }
+
+    const toSorted = (map: Record<string, GearScore>) =>
+      Object.entries(map)
+        .filter(([, s]) => s.loved + s.liked + s.noped >= 2)
+        .map(([name, score]) => ({ name, score: { ...score, net: Math.round(score.net * 10) / 10 } }))
+        .sort((a, b) => b.score.net - a.score.net);
+
+    const mics = toSorted(gearAccum.mics);
+    const speakers = toSorted(gearAccum.speakers);
+    const positions = toSorted(gearAccum.positions);
+
+    if (mics.length > 0 || speakers.length > 0 || positions.length > 0) {
+      gearInsights = { mics, speakers, positions };
+    }
+  }
+
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status, gearInsights };
 }
 
 export async function registerRoutes(
