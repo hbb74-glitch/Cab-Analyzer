@@ -1066,6 +1066,132 @@ export default function Analyzer() {
     return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
   }, [learnedProfile]);
 
+  interface BatchIRRole {
+    role: "Feature element" | "Body element" | null;
+    featuredScore: number;
+    bodyScore: number;
+    bestScore: number;
+    unlikelyToUse: boolean;
+    unlikelyReason: string | null;
+    avoidHits: string[];
+  }
+
+  const batchPreferenceRoles = useMemo(() => {
+    if (!batchResult || !learnedProfile || learnedProfile.status === "no_data") return null;
+    const roles: BatchIRRole[] = batchResult.results.map((r) => {
+      const bands: TonalBands = {
+        subBass: r.subBassPercent || 0,
+        bass: r.bassPercent || 0,
+        lowMid: r.lowMidPercent || 0,
+        mid: r.midPercent || 0,
+        highMid: r.highMidPercent || 0,
+        presence: r.presencePercent || 0,
+      };
+      const { results: matchResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+      const featured = matchResults.find((m) => m.profile === "Featured");
+      const body = matchResults.find((m) => m.profile === "Body");
+      const fScore = featured?.score ?? 0;
+      const bScore = body?.score ?? 0;
+      const bestScore = Math.max(fScore, bScore);
+      const role = bestScore >= 35
+        ? (fScore >= bScore ? "Feature element" as const : "Body element" as const)
+        : null;
+
+      const avoidHits: string[] = [];
+      const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+      const lowMidPlusMid = bands.lowMid + bands.mid;
+      for (const zone of learnedProfile.avoidZones) {
+        if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
+          avoidHits.push(`Muddy (lowMid+mid ${Math.round(lowMidPlusMid)}% vs limit ${zone.threshold}%)`);
+        } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
+          avoidHits.push(`Mid too high (${Math.round(bands.mid)}% vs limit ${zone.threshold}%)`);
+        } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
+          avoidHits.push(`Presence too low (${Math.round(bands.presence)}% vs min ${zone.threshold}%)`);
+        } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
+          avoidHits.push(`HiMid/Mid ratio too low (${ratio.toFixed(2)} vs min ${zone.threshold})`);
+        }
+      }
+
+      let unlikelyToUse = false;
+      let unlikelyReason: string | null = null;
+      if (avoidHits.length >= 2) {
+        unlikelyToUse = true;
+        unlikelyReason = "Hits multiple avoid zones from your feedback history";
+      } else if (bestScore < 20) {
+        unlikelyToUse = true;
+        unlikelyReason = "Very low match to both your preferred tonal profiles";
+      } else if (avoidHits.length >= 1 && bestScore < 35) {
+        unlikelyToUse = true;
+        unlikelyReason = "Low profile match and hits an avoid zone";
+      }
+
+      return { role, featuredScore: fScore, bodyScore: bScore, bestScore, unlikelyToUse, unlikelyReason, avoidHits };
+    });
+    return roles;
+  }, [batchResult, learnedProfile, activeProfiles]);
+
+  const collectionCoverage = useMemo(() => {
+    if (!batchPreferenceRoles || !learnedProfile || learnedProfile.status === "no_data") return null;
+    const total = batchPreferenceRoles.length;
+    const featureCount = batchPreferenceRoles.filter((r) => r.role === "Feature element").length;
+    const bodyCount = batchPreferenceRoles.filter((r) => r.role === "Body element").length;
+    const unlikelyCount = batchPreferenceRoles.filter((r) => r.unlikelyToUse).length;
+    const unmatched = total - featureCount - bodyCount;
+    const avgFeatured = featureCount > 0
+      ? Math.round(batchPreferenceRoles.filter((r) => r.role === "Feature element").reduce((s, r) => s + r.featuredScore, 0) / featureCount)
+      : 0;
+    const avgBody = bodyCount > 0
+      ? Math.round(batchPreferenceRoles.filter((r) => r.role === "Body element").reduce((s, r) => s + r.bodyScore, 0) / bodyCount)
+      : 0;
+
+    const minForRole = Math.max(2, Math.ceil(total * 0.15));
+    const hasEnoughFeature = featureCount >= minForRole;
+    const hasEnoughBody = bodyCount >= minForRole;
+
+    let verdict: string;
+    let verdictColor: string;
+    const suggestions: string[] = [];
+
+    if (hasEnoughFeature && hasEnoughBody) {
+      verdict = "Good coverage";
+      verdictColor = "text-emerald-400";
+      suggestions.push(`${featureCount} feature-type and ${bodyCount} body-type IRs give you solid blending range for your preferred tones.`);
+    } else if (!hasEnoughFeature && !hasEnoughBody) {
+      verdict = "Limited coverage";
+      verdictColor = "text-red-400";
+      suggestions.push("Few IRs match your preferred tonal profiles. Consider capturing more shots with varied mic positions.");
+      suggestions.push("For brighter/feature tones: try condenser or ribbon mics at cap or cap-edge positions.");
+      suggestions.push("For warmer/body tones: try dynamic mics at cone or edge positions, slightly off-axis.");
+    } else if (!hasEnoughFeature) {
+      verdict = "Needs more feature-type shots";
+      verdictColor = "text-amber-400";
+      suggestions.push(`Only ${featureCount} IR${featureCount !== 1 ? 's' : ''} lean toward the brighter, presence-forward character you tend to prefer in feature elements.`);
+      suggestions.push("Try cap or cap-edge positions with condensers or ribbons for more articulation and air.");
+    } else {
+      verdict = "Needs more body-type shots";
+      verdictColor = "text-amber-400";
+      suggestions.push(`Only ${bodyCount} IR${bodyCount !== 1 ? 's' : ''} lean toward the warmer, mid-forward character you prefer for foundation/body tones.`);
+      suggestions.push("Try cone or edge positions with dynamic mics for more weight and warmth.");
+    }
+
+    if (unlikelyCount > 0) {
+      suggestions.push(`${unlikelyCount} IR${unlikelyCount !== 1 ? 's' : ''} flagged as unlikely to match your taste — consider skipping these when building blends.`);
+    }
+
+    return {
+      featureCount,
+      bodyCount,
+      unlikelyCount,
+      unmatched,
+      avgFeatured,
+      avgBody,
+      verdict,
+      verdictColor,
+      suggestions,
+      total,
+    };
+  }, [batchPreferenceRoles, learnedProfile]);
+
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
   const redundancyRef = useRef<HTMLDivElement>(null);
