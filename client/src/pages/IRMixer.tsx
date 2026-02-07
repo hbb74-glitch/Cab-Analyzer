@@ -333,7 +333,9 @@ export default function IRMixer() {
 
   const suggestedPairs = useMemo(() => {
     if (pairingPool.length < 2) return [];
-    return suggestPairings(pairingPool, activeProfiles, 3, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined, exposureCounts.size > 0 ? exposureCounts : undefined);
+    const poolSize = pairingPool.length;
+    const dynamicCount = poolSize <= 3 ? 3 : poolSize <= 5 ? 4 : poolSize <= 8 ? 5 : Math.min(7, Math.ceil(poolSize * 0.7));
+    return suggestPairings(pairingPool, activeProfiles, dynamicCount, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined, exposureCounts.size > 0 ? exposureCounts : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts]);
 

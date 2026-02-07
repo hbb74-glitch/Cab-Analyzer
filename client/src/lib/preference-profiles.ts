@@ -565,6 +565,23 @@ export function suggestPairings(
   }
 
   const selected: SuggestedPairing[] = [];
+  const irUsage = new Map<string, number>();
+
+  const trackUsage = (combo: SuggestedPairing) => {
+    irUsage.set(combo.baseFilename, (irUsage.get(combo.baseFilename) ?? 0) + 1);
+    irUsage.set(combo.featureFilename, (irUsage.get(combo.featureFilename) ?? 0) + 1);
+  };
+
+  const maxAppearances = Math.max(2, Math.ceil(count / Math.max(irs.length - 1, 1)) + 1);
+
+  const isOverused = (combo: SuggestedPairing) => {
+    const baseUse = irUsage.get(combo.baseFilename) ?? 0;
+    const featUse = irUsage.get(combo.featureFilename) ?? 0;
+    return baseUse >= maxAppearances && featUse >= maxAppearances;
+  };
+
+  const isDuplicate = (combo: SuggestedPairing) =>
+    selected.some((s) => s.baseFilename === combo.baseFilename && s.featureFilename === combo.featureFilename);
 
   const profileGroups: Record<string, SuggestedPairing[]> = {};
   for (const combo of dedupedCombos) {
@@ -572,35 +589,36 @@ export function suggestPairings(
     if (!profileGroups[pName]) profileGroups[pName] = [];
     profileGroups[pName].push(combo);
   }
-
   const profileNames = Object.keys(profileGroups);
 
   selected.push(dedupedCombos[0]);
+  trackUsage(dedupedCombos[0]);
 
   if (profileNames.length > 1) {
     const firstProfile = selected[0].bestMatch.profile;
     for (const pName of profileNames) {
       if (pName === firstProfile) continue;
       const best = profileGroups[pName][0];
-      if (best && best.score >= 50) {
+      if (best && best.score >= 50 && !isDuplicate(best)) {
         selected.push(best);
+        trackUsage(best);
         break;
       }
     }
   }
 
   if (exposureCounts && exposureCounts.size > 0 && selected.length < count) {
-    const allFilenames = irs.map((ir) => ir.filename);
-    const uniqueFilenames = Array.from(new Set(allFilenames));
+    const uniqueFilenames = Array.from(new Set(irs.map((ir) => ir.filename)));
     const unexposed = uniqueFilenames.filter((f) => (exposureCounts.get(f) ?? 0) === 0);
     if (unexposed.length > 0) {
       const novelSlots = Math.min(count - 1, Math.ceil(unexposed.length / 2));
       let novelAdded = 0;
       for (const combo of dedupedCombos) {
-        if (novelAdded >= novelSlots) break;
-        if (selected.some((s) => s.baseFilename === combo.baseFilename && s.featureFilename === combo.featureFilename)) continue;
+        if (novelAdded >= novelSlots || selected.length >= count) break;
+        if (isDuplicate(combo) || isOverused(combo)) continue;
         if (unexposed.includes(combo.baseFilename) || unexposed.includes(combo.featureFilename)) {
           selected.push(combo);
+          trackUsage(combo);
           novelAdded++;
         }
       }
@@ -609,8 +627,18 @@ export function suggestPairings(
 
   for (const combo of dedupedCombos) {
     if (selected.length >= count) break;
-    if (selected.some((s) => s.baseFilename === combo.baseFilename && s.featureFilename === combo.featureFilename)) continue;
+    if (isDuplicate(combo) || isOverused(combo)) continue;
     selected.push(combo);
+    trackUsage(combo);
+  }
+
+  if (selected.length < count) {
+    for (const combo of dedupedCombos) {
+      if (selected.length >= count) break;
+      if (isDuplicate(combo)) continue;
+      selected.push(combo);
+      trackUsage(combo);
+    }
   }
 
   selected.sort((a, b) => b.score - a.score);
