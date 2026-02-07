@@ -207,6 +207,7 @@ export default function IRMixer() {
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
   const [showFoundation, setShowFoundation] = useState(false);
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
+  const [pairingFeedback, setPairingFeedback] = useState<Record<string, string>>({});
   const [dismissedPairings, setDismissedPairings] = useState<Set<string>>(new Set());
   const [evaluatedPairs, setEvaluatedPairs] = useState<Set<string>>(new Set());
   const [exposureCounts, setExposureCounts] = useState<Map<string, number>>(new Map());
@@ -236,6 +237,7 @@ export default function IRMixer() {
 
   const resetPairingState = useCallback(() => {
     setPairingRankings({});
+    setPairingFeedback({});
     setDismissedPairings(new Set());
     setEvaluatedPairs(new Set());
     setExposureCounts(new Map());
@@ -349,8 +351,10 @@ export default function IRMixer() {
       const next = { ...prev };
       if (next[key] === rank) {
         delete next[key];
+        setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
       } else {
         next[key] = rank;
+        setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
       }
       return next;
     });
@@ -361,6 +365,17 @@ export default function IRMixer() {
     });
   }, []);
 
+  const assignFeedback = useCallback((key: string, tag: string) => {
+    setPairingFeedback((prev) => {
+      if (prev[key] === tag) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: tag };
+    });
+  }, []);
+
   const dismissPairing = useCallback((key: string) => {
     setDismissedPairings((prev) => {
       const next = new Set(prev);
@@ -368,6 +383,7 @@ export default function IRMixer() {
         next.delete(key);
       } else {
         next.add(key);
+        setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
       }
       return next;
     });
@@ -404,8 +420,10 @@ export default function IRMixer() {
 
       const r = pair.blendBands.mid > 0 ? pair.blendBands.highMid / pair.blendBands.mid : 0;
       const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
+      const fb = pairingFeedback[pk] || null;
       signals.push({
         action: actionLabel,
+        feedback: fb,
         baseFilename: pair.baseFilename,
         featureFilename: pair.featureFilename,
         subBass: pair.blendBands.subBass,
@@ -454,10 +472,11 @@ export default function IRMixer() {
       }
     } else {
       setPairingRankings({});
+      setPairingFeedback({});
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -811,6 +830,57 @@ export default function IRMixer() {
                             </Button>
                           ))}
                         </div>
+
+                        {assignedRank !== undefined && (
+                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                            <span className="text-[9px] text-muted-foreground mr-0.5">
+                              {assignedRank === 1 ? "why?" : assignedRank === 2 ? "improve?" : "issue?"}
+                            </span>
+                            {(assignedRank === 1
+                              ? [
+                                  { tag: "perfect", label: "Perfect" },
+                                  { tag: "balanced", label: "Balanced" },
+                                  { tag: "punchy", label: "Punchy" },
+                                  { tag: "warm", label: "Warm" },
+                                  { tag: "aggressive", label: "Aggressive" },
+                                ]
+                              : assignedRank === 2
+                              ? [
+                                  { tag: "more_bottom", label: "More bottom" },
+                                  { tag: "less_harsh", label: "Less harsh" },
+                                  { tag: "more_bite", label: "More bite" },
+                                  { tag: "tighter", label: "Tighter" },
+                                  { tag: "more_air", label: "More air" },
+                                ]
+                              : [
+                                  { tag: "thin", label: "Thin" },
+                                  { tag: "muddy", label: "Muddy" },
+                                  { tag: "harsh", label: "Harsh" },
+                                  { tag: "dull", label: "Dull" },
+                                  { tag: "boomy", label: "Boomy" },
+                                  { tag: "fizzy", label: "Fizzy" },
+                                ]
+                            ).map(({ tag, label }) => (
+                              <Button
+                                key={tag}
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => assignFeedback(pk, tag)}
+                                className={cn(
+                                  "text-[10px] h-5 px-1.5 rounded-sm",
+                                  pairingFeedback[pk] === tag
+                                    ? assignedRank === 1 ? "bg-amber-500/20 text-amber-400"
+                                      : assignedRank === 2 ? "bg-violet-500/20 text-violet-400"
+                                      : "bg-slate-400/20 text-slate-300"
+                                    : "text-muted-foreground"
+                                )}
+                                data-testid={`button-feedback-${idx}-${tag}`}
+                              >
+                                {label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>

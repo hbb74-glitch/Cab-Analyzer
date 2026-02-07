@@ -1380,14 +1380,54 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     if (recentNopeSurge) courseCorrections.push(`${recentNopeCount} nopes in recent ratings -- narrowing targets`);
     if (!isConsistent) courseCorrections.push("wide variance in liked blends -- still converging");
   }
-
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
+  const feedbackNudges = { mid: 0, highMid: 0, presence: 0, ratio: 0, bass: 0, lowMid: 0 };
+  const feedbackMap: Record<string, Partial<typeof feedbackNudges>> = {
+    thin:        { bass: -2, lowMid: -1.5 },
+    muddy:       { lowMid: 2, mid: 1.5 },
+    harsh:       { highMid: 2, presence: 1 },
+    dull:        { presence: -2, highMid: -1.5, ratio: -0.15 },
+    boomy:       { bass: 2, lowMid: 1 },
+    fizzy:       { presence: 2, highMid: 1.5 },
+    more_bottom: { bass: 1.5, lowMid: 1 },
+    less_harsh:  { highMid: -1.5, presence: -1 },
+    more_bite:   { highMid: 1.5, ratio: 0.1 },
+    tighter:     { bass: -1, lowMid: -1.5 },
+    more_air:    { presence: 1.5, highMid: 0.5 },
+    punchy:      { highMid: 0.5, ratio: 0.05 },
+    warm:        { bass: 0.5, lowMid: 0.5, highMid: -0.5 },
+    aggressive:  { highMid: 1, presence: 0.5, ratio: 0.1 },
+    perfect:     {},
+    balanced:    {},
+  };
+  let feedbackCount = 0;
+  for (const s of signals) {
+    if (!s.feedback) continue;
+    const nudge = feedbackMap[s.feedback];
+    if (!nudge) continue;
+    feedbackCount++;
+    const isNegative = s.action === "nope" || s.action === "meh";
+    const dir = isNegative ? -1 : 1;
+    for (const [band, val] of Object.entries(nudge)) {
+      (feedbackNudges as any)[band] += val * dir;
+    }
+  }
+  const feedbackScale = feedbackCount > 0 ? Math.min(feedbackCount / 5, 1) * confidence : 0;
+  const allFeedbackTags = signals.filter((s) => s.feedback).map((s) => s.feedback!);
+  if (allFeedbackTags.length > 0) {
+    const uniqueTags = Array.from(new Set(allFeedbackTags));
+    courseCorrections.push(`tonal feedback applied: ${uniqueTags.join(", ")}`);
+  }
+
+  const effectiveMidNudge = feedbackNudges.mid + feedbackNudges.lowMid * 0.6;
+  const effectiveRatioNudge = feedbackNudges.ratio - feedbackNudges.bass * 0.03;
+
   const adjustments = {
-    mid: { shift: Math.round((likedMid - baseMid) * confidence * 10) / 10, confidence },
-    highMid: { shift: Math.round((likedHiMid - baseHiMid) * confidence * 10) / 10, confidence },
-    presence: { shift: Math.round((likedPresence - basePresence) * confidence * 10) / 10, confidence },
-    ratio: { shift: Math.round((likedRatio - baseRatio) * confidence * 100) / 100, confidence },
+    mid: { shift: Math.round(((likedMid - baseMid) * confidence + effectiveMidNudge * feedbackScale) * 10) / 10, confidence },
+    highMid: { shift: Math.round(((likedHiMid - baseHiMid) * confidence + feedbackNudges.highMid * feedbackScale) * 10) / 10, confidence },
+    presence: { shift: Math.round(((likedPresence - basePresence) * confidence + feedbackNudges.presence * feedbackScale) * 10) / 10, confidence },
+    ratio: { shift: Math.round(((likedRatio - baseRatio) * confidence + effectiveRatioNudge * feedbackScale) * 100) / 100, confidence },
   };
 
   const avoidZones: LearnedProfileData["avoidZones"] = [];
@@ -1400,6 +1440,41 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     if (nopedPresAvg > 30) avoidZones.push({ band: "presence", direction: "high", threshold: Math.round(nopedPresAvg) });
     if (nopedPresAvg < 10) avoidZones.push({ band: "presence", direction: "low", threshold: Math.round(nopedPresAvg) });
     if (nopedRatioAvg > 2.0) avoidZones.push({ band: "ratio", direction: "high", threshold: Math.round(nopedRatioAvg * 100) / 100 });
+  }
+
+  const taggedNopes = noped.filter((s) => s.feedback);
+  if (taggedNopes.length >= 2) {
+    const tagCounts: Record<string, { count: number; avgBands: Record<string, number> }> = {};
+    for (const s of taggedNopes) {
+      if (!s.feedback) continue;
+      if (!tagCounts[s.feedback]) tagCounts[s.feedback] = { count: 0, avgBands: { bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 } };
+      const tc = tagCounts[s.feedback];
+      tc.count++;
+      tc.avgBands.bass += s.bass; tc.avgBands.lowMid += s.lowMid; tc.avgBands.mid += s.mid;
+      tc.avgBands.highMid += s.highMid; tc.avgBands.presence += s.presence;
+    }
+    for (const [tag, data] of Object.entries(tagCounts)) {
+      if (data.count < 2) continue;
+      for (const b of Object.keys(data.avgBands)) data.avgBands[b] /= data.count;
+      if (tag === "muddy" && !avoidZones.some((z) => z.band === "lowMid" && z.direction === "high")) {
+        avoidZones.push({ band: "lowMid", direction: "high", threshold: Math.round(data.avgBands.lowMid) });
+      }
+      if (tag === "harsh" && !avoidZones.some((z) => z.band === "highMid" && z.direction === "high")) {
+        avoidZones.push({ band: "highMid", direction: "high", threshold: Math.round(data.avgBands.highMid) });
+      }
+      if (tag === "thin" && !avoidZones.some((z) => z.band === "bass" && z.direction === "low")) {
+        avoidZones.push({ band: "bass", direction: "low", threshold: Math.round(data.avgBands.bass) });
+      }
+      if (tag === "boomy" && !avoidZones.some((z) => z.band === "bass" && z.direction === "high")) {
+        avoidZones.push({ band: "bass", direction: "high", threshold: Math.round(data.avgBands.bass) });
+      }
+      if (tag === "dull" && !avoidZones.some((z) => z.band === "presence" && z.direction === "low")) {
+        avoidZones.push({ band: "presence", direction: "low", threshold: Math.round(data.avgBands.presence) });
+      }
+      if (tag === "fizzy" && !avoidZones.some((z) => z.band === "presence" && z.direction === "high")) {
+        avoidZones.push({ band: "presence", direction: "high", threshold: Math.round(data.avgBands.presence) });
+      }
+    }
   }
 
   const loves = signals.filter((s) => s.action === "love");
