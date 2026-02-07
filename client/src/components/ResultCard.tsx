@@ -1,7 +1,7 @@
-import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 
 interface BestPosition {
   position: string;
@@ -108,6 +108,49 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
     : activeProfiles
     ? scoreAgainstAllProfiles(bands, activeProfiles)
     : scoreAgainstAllProfiles(bands);
+
+  let role: string | null = null;
+  let unlikelyToUse = false;
+  let unlikelyReason: string | null = null;
+  const avoidHits: string[] = [];
+
+  if (learnedProfile && learnedProfile.status !== "no_data" && activeProfiles) {
+    const { results: indResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+    const featured = indResults.find((m) => m.profile === "Featured");
+    const body = indResults.find((m) => m.profile === "Body");
+    const fScore = featured?.score ?? 0;
+    const bScore = body?.score ?? 0;
+    const bestScore = Math.max(fScore, bScore);
+    if (bestScore >= 35) {
+      role = fScore >= bScore ? "Feature element" : "Body element";
+    }
+
+    const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
+    const lowMidPlusMid = bands.lowMid + bands.mid;
+    for (const zone of learnedProfile.avoidZones) {
+      if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
+        avoidHits.push(`Muddy (lowMid+mid ${Math.round(lowMidPlusMid)}% vs limit ${zone.threshold}%)`);
+      } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
+        avoidHits.push(`Mid too high (${Math.round(bands.mid)}% vs limit ${zone.threshold}%)`);
+      } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
+        avoidHits.push(`Presence too low (${Math.round(bands.presence)}% vs min ${zone.threshold}%)`);
+      } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
+        avoidHits.push(`HiMid/Mid ratio too low (${ratio.toFixed(2)} vs min ${zone.threshold})`);
+      }
+    }
+
+    if (avoidHits.length >= 2) {
+      unlikelyToUse = true;
+      unlikelyReason = "Hits multiple avoid zones from your feedback history";
+    } else if (bestScore < 20) {
+      unlikelyToUse = true;
+      unlikelyReason = "Very low match to both your preferred tonal profiles";
+    } else if (avoidHits.length >= 1 && bestScore < 35) {
+      unlikelyToUse = true;
+      unlikelyReason = "Low profile match and hits an avoid zone";
+    }
+  }
+
   return (
     <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
       <div className="flex items-center gap-2 mb-2">
@@ -118,7 +161,33 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
         {results.map((r) => (
           <ProfileMatchBadge key={r.profile} match={r} />
         ))}
+        {role && (
+          <span className={cn(
+            "inline-flex items-center gap-1 text-xs font-mono px-2 py-1 rounded border",
+            role === "Feature element"
+              ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/25"
+              : "bg-amber-500/15 text-amber-400 border-amber-500/25"
+          )} data-testid={`badge-role-${role === "Feature element" ? "feature" : "body"}`}>
+            <Layers className="w-3 h-3" />
+            {role}
+          </span>
+        )}
       </div>
+      {unlikelyToUse && unlikelyReason && (
+        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-red-500/10 border border-red-500/20" data-testid="warning-unlikely-to-use">
+          <ShieldAlert className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-red-400">Unlikely to use</p>
+            <p className="text-[11px] text-red-400/70">{unlikelyReason}</p>
+          </div>
+        </div>
+      )}
+      {avoidHits.length > 0 && !unlikelyToUse && (
+        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid="warning-avoid-zone">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
+        </div>
+      )}
       {best.deviations.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">{best.summary}</p>

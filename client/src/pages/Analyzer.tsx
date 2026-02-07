@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap, ShieldAlert, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -2702,6 +2702,45 @@ export default function Analyzer() {
 
                   <p className="text-muted-foreground">{batchResult.summary}</p>
 
+                  {collectionCoverage && (
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3" data-testid="collection-coverage-panel">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-indigo-400" />
+                          <span className="text-sm font-semibold text-indigo-400">Preference Coverage</span>
+                        </div>
+                        <span className={cn("text-sm font-medium", collectionCoverage.verdictColor)} data-testid="text-coverage-verdict">
+                          {collectionCoverage.verdict}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs">
+                        <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 font-mono" data-testid="text-feature-count">
+                          {collectionCoverage.featureCount} feature-type
+                          {collectionCoverage.avgFeatured > 0 && ` (avg ${collectionCoverage.avgFeatured})`}
+                        </span>
+                        <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-body-count">
+                          {collectionCoverage.bodyCount} body-type
+                          {collectionCoverage.avgBody > 0 && ` (avg ${collectionCoverage.avgBody})`}
+                        </span>
+                        {collectionCoverage.unmatched > 0 && (
+                          <span className="px-2 py-1 rounded bg-white/5 text-muted-foreground font-mono">
+                            {collectionCoverage.unmatched} unmatched
+                          </span>
+                        )}
+                        {collectionCoverage.unlikelyCount > 0 && (
+                          <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 font-mono" data-testid="text-unlikely-count">
+                            {collectionCoverage.unlikelyCount} unlikely to use
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        {collectionCoverage.suggestions.map((s, i) => (
+                          <p key={i} className="text-xs text-muted-foreground">{s}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     {batchResult.results.map((r, index) => (
                       <motion.div
@@ -2737,6 +2776,28 @@ export default function Analyzer() {
                                     {r.parsedInfo.distance}
                                   </span>
                                 )}
+                                {batchPreferenceRoles?.[index]?.role && (
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 text-xs rounded font-mono",
+                                    batchPreferenceRoles[index].role === "Feature element"
+                                      ? "bg-cyan-500/15 text-cyan-400"
+                                      : "bg-amber-500/15 text-amber-400"
+                                  )} data-testid={`badge-batch-role-${index}`}>
+                                    {batchPreferenceRoles[index].role}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {!r.parsedInfo && batchPreferenceRoles?.[index]?.role && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                <span className={cn(
+                                  "px-1.5 py-0.5 text-xs rounded font-mono",
+                                  batchPreferenceRoles[index].role === "Feature element"
+                                    ? "bg-cyan-500/15 text-cyan-400"
+                                    : "bg-amber-500/15 text-amber-400"
+                                )} data-testid={`badge-batch-role-${index}`}>
+                                  {batchPreferenceRoles[index].role}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -2749,6 +2810,22 @@ export default function Analyzer() {
                             {r.score}
                           </div>
                         </div>
+
+                        {batchPreferenceRoles?.[index]?.unlikelyToUse && (
+                          <div className="flex items-start gap-2 p-2 rounded bg-red-500/10 border border-red-500/20" data-testid={`warning-unlikely-${index}`}>
+                            <ShieldAlert className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs font-medium text-red-400">Unlikely to use</p>
+                              <p className="text-[11px] text-red-400/70">{batchPreferenceRoles[index].unlikelyReason}</p>
+                            </div>
+                          </div>
+                        )}
+                        {batchPreferenceRoles?.[index]?.avoidHits?.length > 0 && !batchPreferenceRoles?.[index]?.unlikelyToUse && (
+                          <div className="flex items-start gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid={`warning-avoid-${index}`}>
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-[11px] text-amber-400/70">{batchPreferenceRoles[index].avoidHits.join(" | ")}</p>
+                          </div>
+                        )}
 
                         <p className="text-sm text-foreground/80">{r.advice}</p>
 
