@@ -1286,7 +1286,7 @@ export default function Analyzer() {
 
     const batchGear = batchResult.results.map((r) => parseGearFromFilename(r.filename));
     const batchSpeakers = new Set(batchGear.map((g) => g.speaker).filter(Boolean) as string[]);
-    const batchMics = new Set(batchGear.map((g) => g.mic).filter(Boolean) as string[]);
+    const batchMics = new Set(batchGear.flatMap((g) => [g.mic, g.mic2].filter(Boolean)) as string[]);
     const batchPositions = new Set(batchGear.map((g) => g.position).filter(Boolean) as string[]);
 
     if (batchSpeakers.size === 0 && batchMics.size === 0) return null;
@@ -1304,7 +1304,7 @@ export default function Analyzer() {
         newGear.push({ name, category: "speaker", count: batchGear.filter((g) => g.speaker === name).length });
       }
       for (const name of Array.from(batchMics)) {
-        newGear.push({ name, category: "mic", count: batchGear.filter((g) => g.mic === name).length });
+        newGear.push({ name, category: "mic", count: batchGear.filter((g) => g.mic === name || g.mic2 === name).length });
       }
       for (const name of Array.from(batchPositions)) {
         newGear.push({ name, category: "position", count: batchGear.filter((g) => g.position === name).length });
@@ -1316,7 +1316,9 @@ export default function Analyzer() {
         category: "speaker" | "mic" | "position"
       ) => {
         for (const name of names) {
-          const batchCount = batchGear.filter((g) => g[category] === name).length;
+          const batchCount = category === "mic"
+            ? batchGear.filter((g) => g.mic === name || g.mic2 === name).length
+            : batchGear.filter((g) => g[category] === name).length;
           if (!knownList) {
             newGear.push({ name, category, count: batchCount });
             continue;

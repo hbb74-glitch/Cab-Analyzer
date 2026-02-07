@@ -630,6 +630,7 @@ const GEAR_MIC_PATTERNS: Record<string, string> = {
   "m201": "M201", "201": "M201",
   "sm7b": "SM7B", "sm7": "SM7B",
   "c414": "C414", "414": "C414",
+  "roswell": "Roswell", "roswelldyna": "Roswell",
 };
 
 const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
@@ -655,10 +656,10 @@ const GEAR_POSITION_PATTERNS: Record<string, string> = {
   "cone": "Cone",
 };
 
-export function parseGearFromFilename(filename: string): { mic?: string; speaker?: string; position?: string } {
+export function parseGearFromFilename(filename: string): { mic?: string; mic2?: string; speaker?: string; position?: string } {
   const name = filename.toLowerCase().replace('.wav', '');
   const parts = name.split(/[_\-\s]+/);
-  const result: { mic?: string; speaker?: string; position?: string } = {};
+  const result: { mic?: string; mic2?: string; speaker?: string; position?: string } = {};
 
   const speakerKeys = Object.keys(GEAR_SPEAKER_PATTERNS).sort((a, b) => b.length - a.length);
   const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
@@ -669,9 +670,12 @@ export function parseGearFromFilename(filename: string): { mic?: string; speaker
       const sk = speakerKeys.find((k) => part === k || part.startsWith(k));
       if (sk) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; continue; }
     }
-    if (!result.mic) {
-      const mk = micKeys.find((k) => part === k);
-      if (mk) { result.mic = GEAR_MIC_PATTERNS[mk]; continue; }
+    const mk = micKeys.find((k) => part === k);
+    if (mk) {
+      const micName = GEAR_MIC_PATTERNS[mk];
+      if (!result.mic) { result.mic = micName; }
+      else if (!result.mic2 && micName !== result.mic) { result.mic2 = micName; }
+      continue;
     }
     if (!result.position) {
       const pk = posKeys.find((k) => part === k);
@@ -683,6 +687,12 @@ export function parseGearFromFilename(filename: string): { mic?: string; speaker
   if (!result.mic) {
     for (const mk of micKeys) {
       if (joined.includes(mk)) { result.mic = GEAR_MIC_PATTERNS[mk]; break; }
+    }
+  }
+  if (!result.mic2 && result.mic) {
+    for (const mk of micKeys) {
+      const micName = GEAR_MIC_PATTERNS[mk];
+      if (micName !== result.mic && joined.includes(mk)) { result.mic2 = micName; break; }
     }
   }
   if (!result.speaker) {
@@ -742,13 +752,18 @@ export function getGearContext(filename: string, gearInsights: GearInsights | nu
   };
 
   lookupGear(gear.mic, gearInsights.mics, "mic");
+  lookupGear(gear.mic2, gearInsights.mics, "mic");
   lookupGear(gear.speaker, gearInsights.speakers, "speaker");
   lookupGear(gear.position, gearInsights.positions, "position");
 
   const comboKeys: string[] = [];
-  if (gear.mic && gear.speaker) comboKeys.push(`${gear.mic}+${gear.speaker}`);
-  if (gear.mic && gear.position) comboKeys.push(`${gear.mic}@${gear.position}`);
+  const allMics = [gear.mic, gear.mic2].filter(Boolean) as string[];
+  for (const mic of allMics) {
+    if (gear.speaker) comboKeys.push(`${mic}+${gear.speaker}`);
+    if (gear.position) comboKeys.push(`${mic}@${gear.position}`);
+  }
   if (gear.speaker && gear.position) comboKeys.push(`${gear.speaker}@${gear.position}`);
+  if (gear.mic && gear.mic2) comboKeys.push(`${gear.mic}+${gear.mic2}`);
 
   for (const key of comboKeys) {
     const combo = gearInsights.combos.find((c) => c.combo === key);

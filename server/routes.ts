@@ -1165,6 +1165,7 @@ const GEAR_MIC_PATTERNS: Record<string, string> = {
   "m201": "M201", "201": "M201",
   "sm7b": "SM7B", "sm7": "SM7B",
   "c414": "C414", "414": "C414",
+  "roswell": "Roswell", "roswelldyna": "Roswell",
 };
 
 const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
@@ -1190,10 +1191,10 @@ const GEAR_POSITION_PATTERNS: Record<string, string> = {
   "cone": "Cone",
 };
 
-function parseGearFromFilename(filename: string): { mic?: string; speaker?: string; position?: string } {
+function parseGearFromFilename(filename: string): { mic?: string; mic2?: string; speaker?: string; position?: string } {
   const name = filename.toLowerCase().replace('.wav', '');
   const parts = name.split(/[_\-\s]+/);
-  const result: { mic?: string; speaker?: string; position?: string } = {};
+  const result: { mic?: string; mic2?: string; speaker?: string; position?: string } = {};
 
   const speakerKeys = Object.keys(GEAR_SPEAKER_PATTERNS).sort((a, b) => b.length - a.length);
   const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
@@ -1204,9 +1205,12 @@ function parseGearFromFilename(filename: string): { mic?: string; speaker?: stri
       const sk = speakerKeys.find((k) => part === k || part.startsWith(k));
       if (sk) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; continue; }
     }
-    if (!result.mic) {
-      const mk = micKeys.find((k) => part === k);
-      if (mk) { result.mic = GEAR_MIC_PATTERNS[mk]; continue; }
+    const mk = micKeys.find((k) => part === k);
+    if (mk) {
+      const micName = GEAR_MIC_PATTERNS[mk];
+      if (!result.mic) { result.mic = micName; }
+      else if (!result.mic2 && micName !== result.mic) { result.mic2 = micName; }
+      continue;
     }
     if (!result.position) {
       const pk = posKeys.find((k) => part === k);
@@ -1218,6 +1222,12 @@ function parseGearFromFilename(filename: string): { mic?: string; speaker?: stri
   if (!result.mic) {
     for (const mk of micKeys) {
       if (joined.includes(mk)) { result.mic = GEAR_MIC_PATTERNS[mk]; break; }
+    }
+  }
+  if (!result.mic2 && result.mic) {
+    for (const mk of micKeys) {
+      const micName = GEAR_MIC_PATTERNS[mk];
+      if (micName !== result.mic && joined.includes(mk)) { result.mic2 = micName; break; }
     }
   }
   if (!result.speaker) {
@@ -1482,6 +1492,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
       const seenPositions = new Set<string>();
       for (const gear of [baseGear, featGear]) {
         if (gear.mic) { addGearScore("mics", gear.mic, sig.action); seenMics.add(gear.mic); }
+        if (gear.mic2) { addGearScore("mics", gear.mic2, sig.action); seenMics.add(gear.mic2); }
         if (gear.speaker) { addGearScore("speakers", gear.speaker, sig.action); seenSpeakers.add(gear.speaker); }
         if (gear.position) { addGearScore("positions", gear.position, sig.action); seenPositions.add(gear.position); }
       }
@@ -1492,9 +1503,13 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
 
       const seenCombos = new Set<string>();
       for (const gear of [baseGear, featGear]) {
-        if (gear.mic && gear.speaker) seenCombos.add(`${gear.mic}+${gear.speaker}`);
-        if (gear.mic && gear.position) seenCombos.add(`${gear.mic}@${gear.position}`);
+        const allMics = [gear.mic, gear.mic2].filter(Boolean) as string[];
+        for (const mic of allMics) {
+          if (gear.speaker) seenCombos.add(`${mic}+${gear.speaker}`);
+          if (gear.position) seenCombos.add(`${mic}@${gear.position}`);
+        }
         if (gear.speaker && gear.position) seenCombos.add(`${gear.speaker}@${gear.position}`);
+        if (gear.mic && gear.mic2) seenCombos.add(`${gear.mic}+${gear.mic2}`);
       }
       Array.from(seenCombos).forEach(key => addTonal(key, comboAccum, sig, true));
     }
