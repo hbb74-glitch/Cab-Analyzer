@@ -60,6 +60,7 @@ export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;
 export const preferenceSignals = pgTable("preference_signals", {
   id: serial("id").primaryKey(),
   action: text("action").notNull(), // "love", "like", "meh", "nope"
+  feedback: text("feedback"), // optional tonal feedback tag e.g. "thin", "muddy", "harsh", "perfect"
   baseFilename: text("base_filename").notNull(),
   featureFilename: text("feature_filename").notNull(),
   subBass: real("sub_bass").notNull(),
