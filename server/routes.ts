@@ -1288,19 +1288,20 @@ interface LearnedProfileData {
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  courseCorrections: string[];
   gearInsights: GearInsights | null;
 }
 
 function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", gearInsights: null };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null };
   }
 
   const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", gearInsights: null };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null };
   }
 
   const signalWeight = (action: string): number => {
@@ -1345,24 +1346,40 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   const sortedByRecent = [...signals].sort((a, b) =>
     new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
   );
-  const recentSignals = sortedByRecent.slice(0, 9);
+  const recentSignals = sortedByRecent.slice(0, 12);
   const predictionMisses = recentSignals.filter((s) =>
-    (s.action === "nope" || s.action === "meh") && typeof s.score === "number" && s.score >= 80
+    (s.action === "nope") && typeof s.score === "number" && s.score >= 80
   );
-  const hasPredictionMisses = predictionMisses.length >= 1;
+  const hasPredictionMisses = predictionMisses.length >= 3;
 
   const recentLiked = recentSignals.filter((s) => s.action === "love" || s.action === "like" || s.action === "ranked_1" || s.action === "ranked_2");
   let isDrifting = false;
+  const driftReasons: string[] = [];
   if (recentLiked.length >= 3) {
     const recentMidAvg = recentLiked.reduce((s, v) => s + v.mid, 0) / recentLiked.length;
     const recentPresAvg = recentLiked.reduce((s, v) => s + v.presence, 0) / recentLiked.length;
     const recentRatioAvg = recentLiked.reduce((s, v) => s + v.ratio, 0) / recentLiked.length;
-    isDrifting = Math.abs(recentMidAvg - likedMid) > 5 || Math.abs(recentPresAvg - likedPresence) > 7 || Math.abs(recentRatioAvg - likedRatio) > 0.4;
+    const midDelta = Math.abs(recentMidAvg - likedMid);
+    const presDelta = Math.abs(recentPresAvg - likedPresence);
+    const ratioDelta = Math.abs(recentRatioAvg - likedRatio);
+    if (midDelta > 7) driftReasons.push("mid preference shifting");
+    if (presDelta > 9) driftReasons.push("presence preference shifting");
+    if (ratioDelta > 0.5) driftReasons.push("ratio preference shifting");
+    isDrifting = driftReasons.length >= 2;
   }
 
-  const recentNopeSurge = recentSignals.filter((s) => s.action === "nope").length >= 4;
+  const recentNopeCount = recentSignals.filter((s) => s.action === "nope").length;
+  const recentNopeSurge = recentNopeCount >= 5;
 
   const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses && !isDrifting && !recentNopeSurge;
+
+  const courseCorrections: string[] = [];
+  if (!isMastered && strongSignals.length >= 10) {
+    if (hasPredictionMisses) courseCorrections.push(`${predictionMisses.length} high-scored blends noped -- recalibrating scoring`);
+    if (isDrifting) courseCorrections.push(driftReasons.join(", "));
+    if (recentNopeSurge) courseCorrections.push(`${recentNopeCount} nopes in recent ratings -- narrowing targets`);
+    if (!isConsistent) courseCorrections.push("wide variance in liked blends -- still converging");
+  }
 
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
@@ -1597,7 +1614,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     }
   }
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status, gearInsights };
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status, courseCorrections, gearInsights };
 }
 
 export async function registerRoutes(

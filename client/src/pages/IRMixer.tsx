@@ -528,11 +528,11 @@ export default function IRMixer() {
                     const coverageNote = poolSize > 0 && exposedCount < poolSize
                       ? ` (${poolSize - exposedCount} unseen IRs will be prioritized)`
                       : "";
-                    const wasLikelyMastered = learnedProfile.likedCount >= 10;
-                    const label = wasLikelyMastered
-                      ? `Readjusting -- ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped -- taste shift detected, profiles updating${coverageNote}`
-                      : `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted${coverageNote}`;
-                    return label;
+                    const corrections = learnedProfile.courseCorrections ?? [];
+                    if (corrections.length > 0) {
+                      return `Refining: ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped -- ${corrections.join("; ")}${coverageNote}`;
+                    }
+                    return `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted${coverageNote}`;
                   }
                   return `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`;
                 })()}

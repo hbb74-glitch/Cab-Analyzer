@@ -336,6 +336,7 @@ export interface LearnedProfileData {
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  courseCorrections: string[];
   gearInsights?: GearInsights | null;
 }
 
