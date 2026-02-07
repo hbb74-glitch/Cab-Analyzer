@@ -209,6 +209,7 @@ export default function IRMixer() {
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
   const [dismissedPairings, setDismissedPairings] = useState<Set<string>>(new Set());
   const [evaluatedPairs, setEvaluatedPairs] = useState<Set<string>>(new Set());
+  const [exposureCounts, setExposureCounts] = useState<Map<string, number>>(new Map());
   const [pairingRound, setPairingRound] = useState(0);
   const [totalRoundsCompleted, setTotalRoundsCompleted] = useState(0);
   const [cumulativeSignals, setCumulativeSignals] = useState({ liked: 0, noped: 0 });
@@ -237,6 +238,7 @@ export default function IRMixer() {
     setPairingRankings({});
     setDismissedPairings(new Set());
     setEvaluatedPairs(new Set());
+    setExposureCounts(new Map());
     setPairingRound(0);
     setTotalRoundsCompleted(0);
     setCumulativeSignals({ liked: 0, noped: 0 });
@@ -327,9 +329,9 @@ export default function IRMixer() {
 
   const suggestedPairs = useMemo(() => {
     if (pairingPool.length < 2) return [];
-    return suggestPairings(pairingPool, activeProfiles, 3, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined);
+    return suggestPairings(pairingPool, activeProfiles, 3, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined, exposureCounts.size > 0 ? exposureCounts : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pairingPool, activeProfiles, learnedProfile, pairingRound]);
+  }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts]);
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -386,6 +388,7 @@ export default function IRMixer() {
     let roundLiked = 0;
     let roundNoped = 0;
     const newEvaluated = new Set(evaluatedPairs);
+    const newExposure = new Map(exposureCounts);
 
     for (const pair of suggestedPairs) {
       const pk = `${pair.baseFilename}||${pair.featureFilename}`;
@@ -394,6 +397,8 @@ export default function IRMixer() {
       const rank = pairingRankings[pk];
 
       newEvaluated.add(sortedKey);
+      newExposure.set(pair.baseFilename, (newExposure.get(pair.baseFilename) ?? 0) + 1);
+      newExposure.set(pair.featureFilename, (newExposure.get(pair.featureFilename) ?? 0) + 1);
 
       if (!isDismissed && !rank) continue;
 
@@ -423,6 +428,7 @@ export default function IRMixer() {
     }
 
     setEvaluatedPairs(newEvaluated);
+    setExposureCounts(newExposure);
     setCumulativeSignals((prev) => ({
       liked: prev.liked + roundLiked,
       noped: prev.noped + roundNoped,
@@ -451,7 +457,7 @@ export default function IRMixer() {
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation, evaluatedPairs, allIRs, baseIR, featureIRs, pairKey]);
+  }, [suggestedPairs, pairingRankings, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -504,12 +510,28 @@ export default function IRMixer() {
                 learnedProfile.status === "confident" ? "text-emerald-400" : "text-amber-400"
               )} />
               <span className="text-xs text-muted-foreground">
-                {learnedProfile.status === "mastered"
-                  ? `Preferences mastered -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. Taste profile locked in.`
-                  : learnedProfile.status === "confident"
-                  ? `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted`
-                  : `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`
-                }
+                {(() => {
+                  const poolSize = pairingPool.length;
+                  const exposedCount = poolSize > 0
+                    ? pairingPool.filter((ir) => (exposureCounts.get(ir.filename) ?? 0) > 0).length
+                    : 0;
+                  const allCovered = poolSize > 0 && exposedCount === poolSize;
+                  const effectiveMastered = learnedProfile.status === "mastered" && allCovered;
+
+                  if (effectiveMastered) {
+                    return `Preferences mastered -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. All ${poolSize} IRs evaluated. Taste profile locked in.`;
+                  }
+                  if (learnedProfile.status === "mastered" && poolSize > 0 && !allCovered) {
+                    return `Near mastery -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. ${poolSize - exposedCount} of ${poolSize} IRs still unseen -- presenting novel options first.`;
+                  }
+                  if (learnedProfile.status === "confident") {
+                    const coverageNote = poolSize > 0 && exposedCount < poolSize
+                      ? ` (${poolSize - exposedCount} unseen IRs will be prioritized)`
+                      : "";
+                    return `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted${coverageNote}`;
+                  }
+                  return `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`;
+                })()}
               </span>
               {learnedProfile.learnedAdjustments && (
                 <span className="text-[10px] font-mono text-muted-foreground/70">

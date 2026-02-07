@@ -1215,7 +1215,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   const isConsistent = midStd < 8 && presStd < 10 && ratioStd < 0.6;
 
   const sortedByRecent = [...signals].sort((a, b) =>
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
   );
   const recentSignals = sortedByRecent.slice(0, 9);
   const predictionMisses = recentSignals.filter((s) =>

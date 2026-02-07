@@ -450,11 +450,16 @@ export function suggestPairings(
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
   count: number = 3,
   learned?: LearnedProfileData,
-  excludePairs?: Set<string>
+  excludePairs?: Set<string>,
+  exposureCounts?: Map<string, number>
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
   const fiftyFifty = { base: 0.5, feature: 0.5 };
+
+  const maxExposure = exposureCounts
+    ? Math.max(...Array.from(exposureCounts.values()), 1)
+    : 0;
 
   const allCombos: SuggestedPairing[] = [];
 
@@ -488,12 +493,20 @@ export function suggestPairings(
       const result = learned
         ? scoreWithAvoidPenalty(blendBands, profiles, learned)
         : scoreAgainstAllProfiles(blendBands, profiles);
+      let noveltyBoost = 0;
+      if (exposureCounts && maxExposure > 0) {
+        const baseExp = exposureCounts.get(irs[i].filename) ?? 0;
+        const featExp = exposureCounts.get(irs[j].filename) ?? 0;
+        const minExp = Math.min(baseExp, featExp);
+        const underExposure = 1 - (minExp / maxExposure);
+        noveltyBoost = underExposure * 15;
+      }
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
         blendBands,
         bestMatch: result.best,
-        score: result.best.score,
+        score: result.best.score + noveltyBoost,
         rank: 0,
       });
     }
@@ -536,6 +549,24 @@ export function suggestPairings(
       if (best && best.score >= 50) {
         selected.push(best);
         break;
+      }
+    }
+  }
+
+  if (exposureCounts && exposureCounts.size > 0 && selected.length < count) {
+    const allFilenames = irs.map((ir) => ir.filename);
+    const uniqueFilenames = Array.from(new Set(allFilenames));
+    const unexposed = uniqueFilenames.filter((f) => (exposureCounts.get(f) ?? 0) === 0);
+    if (unexposed.length > 0) {
+      const novelSlots = Math.min(count - 1, Math.ceil(unexposed.length / 2));
+      let novelAdded = 0;
+      for (const combo of dedupedCombos) {
+        if (novelAdded >= novelSlots) break;
+        if (selected.some((s) => s.baseFilename === combo.baseFilename && s.featureFilename === combo.featureFilename)) continue;
+        if (unexposed.includes(combo.baseFilename) || unexposed.includes(combo.featureFilename)) {
+          selected.push(combo);
+          novelAdded++;
+        }
       }
     }
   }
