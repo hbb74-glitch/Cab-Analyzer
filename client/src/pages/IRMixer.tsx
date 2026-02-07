@@ -591,6 +591,27 @@ export default function IRMixer() {
     return [...blendResults].sort((a, b) => b.currentMatch.best.score - a.currentMatch.best.score);
   }, [blendResults]);
 
+  const crossCabCurrentRatio = BLEND_RATIOS[crossCabRatio];
+
+  const crossCabResults = useMemo(() => {
+    if (cabAIRs.length === 0 || cabBIRs.length === 0) return [];
+    const results: {
+      irA: AnalyzedIR;
+      irB: AnalyzedIR;
+      blend: TonalBands;
+      match: ReturnType<typeof scoreAgainstAllProfiles>;
+    }[] = [];
+    for (const a of cabAIRs) {
+      for (const b of cabBIRs) {
+        const blend = blendFromRaw(a.rawEnergy, b.rawEnergy, crossCabCurrentRatio.base, crossCabCurrentRatio.feature);
+        const match = scoreAgainstAllProfiles(blend, activeProfiles);
+        results.push({ irA: a, irB: b, blend, match });
+      }
+    }
+    results.sort((a, b) => b.match.best.score - a.match.best.score);
+    return results;
+  }, [cabAIRs, cabBIRs, crossCabCurrentRatio, activeProfiles]);
+
   return (
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -795,6 +816,242 @@ export default function IRMixer() {
                           </Button>
                         </div>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        <div className="mb-8 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <ArrowLeftRight className="w-4 h-4 text-teal-400" />
+            Cross-Cab Pairing
+          </h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Drop IRs from two different speaker cabinets. The algorithm blends every combination across cabinets and ranks them by tonal profile match.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="space-y-2">
+              <p className="text-[10px] text-teal-400 uppercase tracking-wider font-semibold">Cabinet A</p>
+              <DropZone
+                label="Drop Cabinet A IRs"
+                description="IRs from your first speaker"
+                onFilesAdded={handleCabAFiles}
+                isLoading={isLoadingCabA}
+              />
+              {cabAIRs.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground">{cabAIRs.length} IR{cabAIRs.length !== 1 ? "s" : ""} loaded</span>
+                  <Button size="sm" variant="ghost" onClick={() => setCabAIRs([])} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-a">Clear</Button>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <p className="text-[10px] text-teal-400 uppercase tracking-wider font-semibold">Cabinet B</p>
+              <DropZone
+                label="Drop Cabinet B IRs"
+                description="IRs from your second speaker"
+                onFilesAdded={handleCabBFiles}
+                isLoading={isLoadingCabB}
+              />
+              {cabBIRs.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono text-muted-foreground">{cabBIRs.length} IR{cabBIRs.length !== 1 ? "s" : ""} loaded</span>
+                  <Button size="sm" variant="ghost" onClick={() => setCabBIRs([])} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-b">Clear</Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {crossCabResults.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                  {crossCabResults.length} cross-cab blend{crossCabResults.length !== 1 ? "s" : ""} ranked by match
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground">A/B ratio:</span>
+                  {BLEND_RATIOS.map((r, idx) => (
+                    <Button
+                      key={r.label}
+                      size="sm"
+                      variant={crossCabRatio === idx ? "default" : "ghost"}
+                      onClick={() => setCrossCabRatio(idx)}
+                      className={cn(
+                        "font-mono text-xs",
+                        crossCabRatio === idx && "bg-teal-500/20 text-teal-400 border border-teal-500/30"
+                      )}
+                      data-testid={`button-crosscab-ratio-${r.label}`}
+                    >
+                      {r.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {crossCabResults.map((cr, idx) => {
+                  const blendKey = `${cr.irA.filename}||${cr.irB.filename}`;
+                  const isExpanded = expandedCrossCab === blendKey;
+                  const hiMidMidRatio = cr.blend.mid > 0
+                    ? Math.round((cr.blend.highMid / cr.blend.mid) * 100) / 100
+                    : 0;
+                  const rankLabel = idx === 0 ? "Best" : idx === 1 ? "#2" : idx === 2 ? "#3" : `#${idx + 1}`;
+                  const rankColor = idx === 0 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                    idx <= 2 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
+                    "bg-white/5 text-muted-foreground border-white/10";
+                  return (
+                    <div
+                      key={blendKey}
+                      className={cn(
+                        "rounded-lg border",
+                        idx === 0 ? "bg-emerald-500/[0.03] border-emerald-500/20" :
+                        idx <= 2 ? "bg-teal-500/[0.02] border-teal-500/10" :
+                        "bg-white/[0.02] border-white/5"
+                      )}
+                      data-testid={`crosscab-result-${idx}`}
+                    >
+                      <Button
+                        variant="ghost"
+                        onClick={() => setExpandedCrossCab(isExpanded ? null : blendKey)}
+                        className="w-full flex items-center justify-between gap-3 p-3 h-auto text-left rounded-lg"
+                        data-testid={`button-expand-crosscab-${idx}`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                          <Badge variant="outline" className={cn("text-[9px] shrink-0", rankColor)}>
+                            {rankLabel}
+                          </Badge>
+                          <span className="text-xs font-mono text-teal-400 truncate">
+                            {cr.irA.filename.replace(/(_\d{13})?\.wav$/, "")}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">+</span>
+                          <span className="text-xs font-mono text-teal-400 truncate">
+                            {cr.irB.filename.replace(/(_\d{13})?\.wav$/, "")}
+                          </span>
+                          <MatchBadge match={cr.match.best} />
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="hidden sm:flex items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground">Mid</span>
+                            <span className="text-xs font-mono text-green-400">{cr.blend.mid.toFixed(1)}%</span>
+                            <span className="text-[10px] text-muted-foreground ml-1">Pres</span>
+                            <span className="text-xs font-mono text-orange-400">{cr.blend.presence.toFixed(1)}%</span>
+                            <span className={cn(
+                              "text-[10px] font-mono px-1.5 py-0.5 rounded ml-1",
+                              hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                              hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                              "bg-amber-500/20 text-amber-400"
+                            )}>
+                              {hiMidMidRatio.toFixed(2)}
+                            </span>
+                          </div>
+                          {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                      </Button>
+
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-3 pb-3 space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab A</p>
+                                  <BandChart bands={cr.irA.bands} height={12} compact showScores profiles={activeProfiles} />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] text-teal-400 uppercase tracking-wider text-center font-semibold">
+                                    Blend ({crossCabCurrentRatio.label})
+                                  </p>
+                                  <BandChart bands={cr.blend} height={12} compact showScores profiles={activeProfiles} />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab B</p>
+                                  <BandChart bands={cr.irB.bands} height={12} compact showScores profiles={activeProfiles} />
+                                </div>
+                              </div>
+                              {cr.match.best.deviations.length > 0 && (
+                                <div className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
+                                  <p className="text-[10px] text-muted-foreground mb-1">{cr.match.best.summary}</p>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {cr.match.best.deviations.map((d, i) => (
+                                      <span key={i} className={cn(
+                                        "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                        d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+                                      )}>
+                                        {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <div className="border-t border-white/5 pt-2">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">All Ratios</p>
+                                <div className="grid grid-cols-5 gap-2">
+                                  {BLEND_RATIOS.map((ratio) => {
+                                    const rb = blendFromRaw(cr.irA.rawEnergy, cr.irB.rawEnergy, ratio.base, ratio.feature);
+                                    const rbMatch = scoreAgainstAllProfiles(rb, activeProfiles);
+                                    const r = rb.mid > 0 ? Math.round((rb.highMid / rb.mid) * 100) / 100 : 0;
+                                    return (
+                                      <div key={ratio.label} className={cn(
+                                        "p-2 rounded-lg text-center text-[10px] border",
+                                        ratio.label === crossCabCurrentRatio.label
+                                          ? "bg-teal-500/10 border-teal-500/20"
+                                          : "bg-white/[0.02] border-white/5"
+                                      )}>
+                                        <p className="font-mono text-foreground mb-1">{ratio.label}</p>
+                                        <p className="text-green-400">M {rb.mid.toFixed(1)}</p>
+                                        <p className="text-yellow-400">HM {rb.highMid.toFixed(1)}</p>
+                                        <p className="text-orange-400">P {rb.presence.toFixed(1)}</p>
+                                        <p className={cn(
+                                          "mt-0.5 font-mono",
+                                          r < 1.0 ? "text-blue-400" : r <= 2.0 ? "text-green-400" : "text-amber-400"
+                                        )}>
+                                          {r.toFixed(2)}
+                                        </p>
+                                        <div className="mt-1">
+                                          <span className={cn(
+                                            "text-[9px] font-mono px-1 py-0.5 rounded",
+                                            rbMatch.best.label === "strong" ? "bg-emerald-500/20 text-emerald-400" :
+                                            rbMatch.best.label === "close" ? "bg-sky-500/20 text-sky-400" :
+                                            rbMatch.best.label === "partial" ? "bg-amber-500/20 text-amber-400" :
+                                            "bg-white/5 text-muted-foreground"
+                                          )}>
+                                            {rbMatch.best.profile[0]}{rbMatch.best.score}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 pt-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setBaseIR(cr.irA);
+                                    setFeatureIRs([cr.irB]);
+                                    setShowFoundation(false);
+                                    setShowCrossCab(false);
+                                    resetPairingState();
+                                  }}
+                                  className="text-[10px]"
+                                  data-testid={`button-load-crosscab-${idx}`}
+                                >
+                                  Load into Mixer
+                                </Button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   );
                 })}
