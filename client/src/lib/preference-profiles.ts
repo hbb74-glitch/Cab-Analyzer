@@ -324,16 +324,19 @@ export interface GearInsights {
   combos: GearComboEntry[];
 }
 
+export type ProfileAdjustment = {
+  mid: { shift: number; confidence: number };
+  highMid: { shift: number; confidence: number };
+  presence: { shift: number; confidence: number };
+  ratio: { shift: number; confidence: number };
+};
+
 export interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
   nopedCount: number;
-  learnedAdjustments: {
-    mid: { shift: number; confidence: number };
-    highMid: { shift: number; confidence: number };
-    presence: { shift: number; confidence: number };
-    ratio: { shift: number; confidence: number };
-  } | null;
+  learnedAdjustments: ProfileAdjustment | null;
+  perProfileAdjustments?: Record<string, ProfileAdjustment> | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
   courseCorrections: string[];
@@ -346,21 +349,21 @@ export function applyLearnedAdjustments(
 ): PreferenceProfile[] {
   if (!learned.learnedAdjustments || learned.status === "no_data") return profiles;
 
-  const adj = learned.learnedAdjustments;
+  const shiftTarget = (
+    orig: { min: number; max: number; ideal: number },
+    shift: number,
+    conf: number
+  ) => {
+    const s = shift * conf * 0.5;
+    return {
+      min: Math.round((orig.min + s) * 10) / 10,
+      max: Math.round((orig.max + s) * 10) / 10,
+      ideal: Math.round((orig.ideal + s) * 10) / 10,
+    };
+  };
 
   return profiles.map((p) => {
-    const shiftTarget = (
-      orig: { min: number; max: number; ideal: number },
-      shift: number,
-      conf: number
-    ) => {
-      const s = shift * conf * 0.5;
-      return {
-        min: Math.round((orig.min + s) * 10) / 10,
-        max: Math.round((orig.max + s) * 10) / 10,
-        ideal: Math.round((orig.ideal + s) * 10) / 10,
-      };
-    };
+    const adj = learned.perProfileAdjustments?.[p.name] ?? learned.learnedAdjustments!;
 
     return {
       ...p,

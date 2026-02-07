@@ -65,8 +65,15 @@ interface LearnedProfileData {
     presence: { shift: number; confidence: number };
     ratio: { shift: number; confidence: number };
   } | null;
+  perProfileAdjustments?: Record<string, {
+    mid: { shift: number; confidence: number };
+    highMid: { shift: number; confidence: number };
+    presence: { shift: number; confidence: number };
+    ratio: { shift: number; confidence: number };
+  }> | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  courseCorrections: string[];
   gearInsights?: import("@/lib/preference-profiles").GearInsights | null;
 }
 

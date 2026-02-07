@@ -1276,16 +1276,19 @@ interface GearInsights {
   combos: GearComboEntry[];
 }
 
+type ProfileAdjustment = {
+  mid: { shift: number; confidence: number };
+  highMid: { shift: number; confidence: number };
+  presence: { shift: number; confidence: number };
+  ratio: { shift: number; confidence: number };
+};
+
 interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
   nopedCount: number;
-  learnedAdjustments: {
-    mid: { shift: number; confidence: number };
-    highMid: { shift: number; confidence: number };
-    presence: { shift: number; confidence: number };
-    ratio: { shift: number; confidence: number };
-  } | null;
+  learnedAdjustments: ProfileAdjustment | null;
+  perProfileAdjustments?: Record<string, ProfileAdjustment> | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
   courseCorrections: string[];
@@ -1475,6 +1478,61 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     presence: { shift: Math.round(((likedPresence - basePresence) * confidence + feedbackNudges.presence * feedbackScale) * 10) / 10, confidence },
     ratio: { shift: Math.round(((likedRatio - baseRatio) * confidence + effectiveRatioNudge * feedbackScale) * 100) / 100, confidence },
   };
+
+  const profileBaseTargets: Record<string, { mid: number; hiMid: number; presence: number; ratio: number }> = {
+    Featured: { mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
+    Body: { mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
+  };
+  const perProfileAdjustments: Record<string, ProfileAdjustment> = {};
+  for (const [profileName, baseTargets] of Object.entries(profileBaseTargets)) {
+    const profileLiked = liked.filter((s) => s.profileMatch === profileName);
+    const profileSignals = signals.filter((s) => s.profileMatch === profileName);
+    if (profileLiked.length < 2) continue;
+    const pConf = Math.min(profileLiked.length / 8, 1);
+    const pMid = weightedAvg(profileLiked, "mid");
+    const pHiMid = weightedAvg(profileLiked, "highMid");
+    const pPres = weightedAvg(profileLiked, "presence");
+    const pRatio = weightedAvg(profileLiked, "ratio");
+
+    const pFeedback = { mid: 0, highMid: 0, presence: 0, ratio: 0, bass: 0, lowMid: 0 };
+    let pFeedbackCount = 0;
+    for (const s of profileSignals) {
+      const isNeg = s.action === "nope" || s.action === "meh";
+      const dir = isNeg ? -1 : 1;
+      if (s.feedback) {
+        const tags = s.feedback.split(",").map((t) => t.trim()).filter(Boolean);
+        for (const tag of tags) {
+          const nudge = feedbackMap[tag];
+          if (!nudge || Object.keys(nudge).length === 0) continue;
+          pFeedbackCount++;
+          for (const [band, val] of Object.entries(nudge)) {
+            (pFeedback as any)[band] += val * dir;
+          }
+        }
+      }
+      if (s.feedbackText) {
+        const lower = s.feedbackText.toLowerCase();
+        for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
+          if (lower.includes(keyword)) {
+            pFeedbackCount++;
+            for (const [band, val] of Object.entries(nudge)) {
+              (pFeedback as any)[band] += val * dir * 0.7;
+            }
+          }
+        }
+      }
+    }
+    const pFeedbackScale = pFeedbackCount > 0 ? Math.min(pFeedbackCount / 5, 1) * pConf : 0;
+    const pEffMid = pFeedback.mid + pFeedback.lowMid * 0.6;
+    const pEffRatio = pFeedback.ratio - pFeedback.bass * 0.03;
+
+    perProfileAdjustments[profileName] = {
+      mid: { shift: Math.round(((pMid - baseTargets.mid) * pConf + pEffMid * pFeedbackScale) * 10) / 10, confidence: pConf },
+      highMid: { shift: Math.round(((pHiMid - baseTargets.hiMid) * pConf + pFeedback.highMid * pFeedbackScale) * 10) / 10, confidence: pConf },
+      presence: { shift: Math.round(((pPres - baseTargets.presence) * pConf + pFeedback.presence * pFeedbackScale) * 10) / 10, confidence: pConf },
+      ratio: { shift: Math.round(((pRatio - baseTargets.ratio) * pConf + pEffRatio * pFeedbackScale) * 100) / 100, confidence: pConf },
+    };
+  }
 
   const avoidZones: LearnedProfileData["avoidZones"] = [];
   if (noped.length >= 3) {
@@ -1738,7 +1796,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     }
   }
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, avoidZones, status, courseCorrections, gearInsights };
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights };
 }
 
 export async function registerRoutes(
