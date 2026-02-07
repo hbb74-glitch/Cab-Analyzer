@@ -561,7 +561,7 @@ export default function IRMixer() {
                   ].filter(g => g.items.length > 0).map(({ label, items }) => (
                     <div key={label} className="space-y-0.5">
                       <span className="text-[10px] font-mono text-muted-foreground/70">{label}:</span>
-                      {items.slice(0, 5).map((item) => (
+                      {items.map((item) => (
                         <div key={item.name} className="flex items-center gap-1.5 flex-wrap ml-2">
                           <span className={cn(
                             "text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0",
@@ -584,7 +584,7 @@ export default function IRMixer() {
                   {learnedProfile.gearInsights.combos.length > 0 && (
                     <div className="space-y-0.5 pt-1 border-t border-white/5">
                       <span className="text-[10px] font-mono text-muted-foreground/70">Gear combos:</span>
-                      {learnedProfile.gearInsights.combos.slice(0, 5).map((c) => (
+                      {learnedProfile.gearInsights.combos.map((c) => (
                         <div key={c.combo} className="flex items-center gap-1.5 flex-wrap ml-2">
                           <span className={cn(
                             "text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0",
