@@ -217,10 +217,35 @@ export default function IRMixer() {
   const [cumulativeSignals, setCumulativeSignals] = useState({ liked: 0, noped: 0 });
   const [doneRefining, setDoneRefining] = useState(false);
   const [noMorePairs, setNoMorePairs] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
   });
+
+  const { data: existingSignals } = useQuery<any[]>({
+    queryKey: ["/api/preferences/signals"],
+  });
+
+  useEffect(() => {
+    if (!existingSignals || historyLoaded) return;
+    const pairs = new Set<string>();
+    const exposure = new Map<string, number>();
+    let liked = 0;
+    let noped = 0;
+    for (const s of existingSignals) {
+      const sortedKey = [s.baseFilename, s.featureFilename].sort().join("||");
+      pairs.add(sortedKey);
+      exposure.set(s.baseFilename, (exposure.get(s.baseFilename) ?? 0) + 1);
+      exposure.set(s.featureFilename, (exposure.get(s.featureFilename) ?? 0) + 1);
+      if (s.action === "nope") noped++;
+      else liked++;
+    }
+    setEvaluatedPairs(pairs);
+    setExposureCounts(exposure);
+    setCumulativeSignals({ liked, noped });
+    setHistoryLoaded(true);
+  }, [existingSignals, historyLoaded]);
 
   const submitSignalsMutation = useMutation({
     mutationFn: async (signals: any[]) => {
@@ -228,6 +253,7 @@ export default function IRMixer() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
     },
   });
 
@@ -241,13 +267,11 @@ export default function IRMixer() {
     setPairingFeedback({});
     setPairingFeedbackText({});
     setDismissedPairings(new Set());
-    setEvaluatedPairs(new Set());
-    setExposureCounts(new Map());
     setPairingRound(0);
     setTotalRoundsCompleted(0);
-    setCumulativeSignals({ liked: 0, noped: 0 });
     setDoneRefining(false);
     setNoMorePairs(false);
+    setHistoryLoaded(false);
   }, []);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
