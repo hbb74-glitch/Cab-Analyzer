@@ -15,8 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, getGearContext, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
-import { Brain } from "lucide-react";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { Brain, Sparkles } from "lucide-react";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -1280,6 +1280,65 @@ export default function Analyzer() {
       total,
     };
   }, [batchPreferenceRoles, learnedProfile]);
+
+  const gearGaps = useMemo(() => {
+    if (!batchResult) return null;
+
+    const batchGear = batchResult.results.map((r) => parseGearFromFilename(r.filename));
+    const batchSpeakers = new Set(batchGear.map((g) => g.speaker).filter(Boolean) as string[]);
+    const batchMics = new Set(batchGear.map((g) => g.mic).filter(Boolean) as string[]);
+    const batchPositions = new Set(batchGear.map((g) => g.position).filter(Boolean) as string[]);
+
+    if (batchSpeakers.size === 0 && batchMics.size === 0) return null;
+
+    const insights = learnedProfile?.gearInsights;
+    const hasAnyData = learnedProfile && learnedProfile.signalCount > 0;
+
+    const newGear: { name: string; category: "speaker" | "mic" | "position"; count: number }[] = [];
+    const underRepresented: { name: string; category: "speaker" | "mic" | "position"; samples: number }[] = [];
+    let noDataYet = false;
+
+    if (!hasAnyData) {
+      noDataYet = true;
+      for (const name of Array.from(batchSpeakers)) {
+        newGear.push({ name, category: "speaker", count: batchGear.filter((g) => g.speaker === name).length });
+      }
+      for (const name of Array.from(batchMics)) {
+        newGear.push({ name, category: "mic", count: batchGear.filter((g) => g.mic === name).length });
+      }
+      for (const name of Array.from(batchPositions)) {
+        newGear.push({ name, category: "position", count: batchGear.filter((g) => g.position === name).length });
+      }
+    } else {
+      const checkGear = (
+        names: string[],
+        knownList: { name: string; tonal: { sampleSize: number } | null }[] | undefined,
+        category: "speaker" | "mic" | "position"
+      ) => {
+        for (const name of names) {
+          const batchCount = batchGear.filter((g) => g[category] === name).length;
+          if (!knownList) {
+            newGear.push({ name, category, count: batchCount });
+            continue;
+          }
+          const known = knownList.find((k) => k.name === name);
+          if (!known) {
+            newGear.push({ name, category, count: batchCount });
+          } else if (!known.tonal || known.tonal.sampleSize < 3) {
+            underRepresented.push({ name, category, samples: known.tonal?.sampleSize ?? 0 });
+          }
+        }
+      };
+
+      checkGear(Array.from(batchSpeakers), insights?.speakers, "speaker");
+      checkGear(Array.from(batchMics), insights?.mics, "mic");
+      checkGear(Array.from(batchPositions), insights?.positions, "position");
+    }
+
+    if (newGear.length === 0 && underRepresented.length === 0) return null;
+
+    return { newGear, underRepresented, noDataYet };
+  }, [batchResult, learnedProfile]);
 
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
@@ -2827,6 +2886,72 @@ export default function Analyzer() {
                           <p key={i} className="text-xs text-muted-foreground">{s}</p>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {gearGaps && (
+                    <div className="p-4 rounded-xl bg-violet-500/[0.06] border border-violet-500/20 space-y-3" data-testid="gear-gaps-panel">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Sparkles className="w-4 h-4 text-violet-400" />
+                        <span className="text-sm font-semibold text-violet-400">
+                          {gearGaps.noDataYet ? "Teach the App Your Gear" : "New Gear Detected"}
+                        </span>
+                      </div>
+                      {gearGaps.newGear.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground">
+                            {gearGaps.noDataYet
+                              ? "The app doesn't know your gear yet. Rate some blends in the IR Mixer to teach it what this gear sounds like:"
+                              : gearGaps.newGear.length === 1
+                                ? "This gear hasn't been rated yet — the app can't offer tonal insights until you teach it:"
+                                : "This gear hasn't been rated yet — rate some blends to teach the app:"}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {gearGaps.newGear.map((g) => (
+                              <span
+                                key={`${g.category}-${g.name}`}
+                                className={cn(
+                                  "px-2 py-1 text-xs font-mono rounded",
+                                  g.category === "speaker" ? "bg-orange-500/15 text-orange-400" :
+                                  g.category === "mic" ? "bg-blue-500/15 text-blue-400" :
+                                  "bg-purple-500/15 text-purple-400"
+                                )}
+                                data-testid={`badge-new-gear-${g.category}-${g.name}`}
+                              >
+                                {g.name}
+                                <span className="text-[10px] ml-1 opacity-60">({g.count} IR{g.count !== 1 ? 's' : ''})</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {gearGaps.underRepresented.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs text-muted-foreground">
+                            Under-represented gear — needs more rated blends for reliable tonal profiles:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {gearGaps.underRepresented.map((g) => (
+                              <span
+                                key={`${g.category}-${g.name}`}
+                                className={cn(
+                                  "px-2 py-1 text-xs font-mono rounded",
+                                  g.category === "speaker" ? "bg-orange-500/10 text-orange-400/70" :
+                                  g.category === "mic" ? "bg-blue-500/10 text-blue-400/70" :
+                                  "bg-purple-500/10 text-purple-400/70"
+                                )}
+                                data-testid={`badge-underrep-gear-${g.category}-${g.name}`}
+                              >
+                                {g.name}
+                                <span className="text-[10px] ml-1 opacity-60">({g.samples}/3 samples)</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-xs text-violet-400/70">
+                        Head to the <a href="/mixer" className="underline font-medium text-violet-400 hover:text-violet-300">IR Mixer</a> and rate some blends with this gear to build tonal profiles.
+                      </p>
                     </div>
                   )}
 
