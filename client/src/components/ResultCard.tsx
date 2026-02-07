@@ -67,7 +67,7 @@ interface LearnedProfileData {
   } | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
-  gearInsights?: { mics: { name: string; score: { loved: number; liked: number; noped: number; net: number } }[]; speakers: { name: string; score: { loved: number; liked: number; noped: number; net: number } }[]; positions: { name: string; score: { loved: number; liked: number; noped: number; net: number } }[] } | null;
+  gearInsights?: import("@/lib/preference-profiles").GearInsights | null;
 }
 
 function ProfileMatchBadge({ match }: { match: MatchResult }) {

@@ -553,43 +553,54 @@ export default function IRMixer() {
                 </span>
               )}
               {learnedProfile.gearInsights && (
-                <div className="w-full mt-2 space-y-1" data-testid="gear-insights">
-                  {learnedProfile.gearInsights.mics.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Mics:</span>
-                      {learnedProfile.gearInsights.mics.slice(0, 5).map((m) => (
-                        <span key={m.name} className={cn(
-                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                          m.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-                        )}>
-                          {m.name} {m.score.net > 0 ? "+" : ""}{m.score.net}
-                        </span>
+                <div className="w-full mt-2 space-y-2" data-testid="gear-insights">
+                  {[
+                    { label: "Mics", items: learnedProfile.gearInsights.mics },
+                    { label: "Speakers", items: learnedProfile.gearInsights.speakers },
+                    { label: "Positions", items: learnedProfile.gearInsights.positions },
+                  ].filter(g => g.items.length > 0).map(({ label, items }) => (
+                    <div key={label} className="space-y-0.5">
+                      <span className="text-[10px] font-mono text-muted-foreground/70">{label}:</span>
+                      {items.slice(0, 5).map((item) => (
+                        <div key={item.name} className="flex items-center gap-1.5 flex-wrap ml-2">
+                          <span className={cn(
+                            "text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0",
+                            item.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                          )}>
+                            {item.name} {item.score.net > 0 ? "+" : ""}{item.score.net}
+                          </span>
+                          {item.descriptors.length > 0 && item.descriptors.map((d, i) => (
+                            <span key={i} className="text-[9px] font-mono text-muted-foreground/60 italic">
+                              {d.label}
+                            </span>
+                          ))}
+                          {!item.tonal && (
+                            <span className="text-[9px] font-mono text-muted-foreground/40">needs more data</span>
+                          )}
+                        </div>
                       ))}
                     </div>
-                  )}
-                  {learnedProfile.gearInsights.speakers.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Speakers:</span>
-                      {learnedProfile.gearInsights.speakers.slice(0, 5).map((s) => (
-                        <span key={s.name} className={cn(
-                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                          s.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-                        )}>
-                          {s.name} {s.score.net > 0 ? "+" : ""}{s.score.net}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {learnedProfile.gearInsights.positions.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">Positions:</span>
-                      {learnedProfile.gearInsights.positions.slice(0, 5).map((p) => (
-                        <span key={p.name} className={cn(
-                          "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                          p.score.net > 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
-                        )}>
-                          {p.name} {p.score.net > 0 ? "+" : ""}{p.score.net}
-                        </span>
+                  ))}
+                  {learnedProfile.gearInsights.combos.length > 0 && (
+                    <div className="space-y-0.5 pt-1 border-t border-white/5">
+                      <span className="text-[10px] font-mono text-muted-foreground/70">Gear combos:</span>
+                      {learnedProfile.gearInsights.combos.slice(0, 5).map((c) => (
+                        <div key={c.combo} className="flex items-center gap-1.5 flex-wrap ml-2">
+                          <span className={cn(
+                            "text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0",
+                            c.sentiment > 0 ? "bg-emerald-500/10 text-emerald-400" : c.sentiment < 0 ? "bg-red-500/10 text-red-400" : "bg-white/5 text-muted-foreground"
+                          )}>
+                            {c.combo.replace('+', ' + ').replace('@', ' @ ')}
+                          </span>
+                          {c.descriptors.map((d, i) => (
+                            <span key={i} className="text-[9px] font-mono text-muted-foreground/60 italic">
+                              {d.label}
+                            </span>
+                          ))}
+                          <span className="text-[9px] font-mono text-muted-foreground/40">
+                            n={c.sampleSize}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   )}

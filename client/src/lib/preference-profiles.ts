@@ -294,10 +294,34 @@ export interface SuggestedPairing {
 }
 
 interface GearScore { loved: number; liked: number; noped: number; net: number }
+export interface TonalProfile {
+  subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number;
+  sampleSize: number;
+}
+export interface TonalDescriptor {
+  label: string;
+  direction: "high" | "low";
+  band: string;
+  delta: number;
+}
+export interface GearTonalEntry {
+  name: string;
+  score: GearScore;
+  tonal: TonalProfile | null;
+  descriptors: TonalDescriptor[];
+}
+export interface GearComboEntry {
+  combo: string;
+  tonal: TonalProfile;
+  descriptors: TonalDescriptor[];
+  sampleSize: number;
+  sentiment: number;
+}
 export interface GearInsights {
-  mics: { name: string; score: GearScore }[];
-  speakers: { name: string; score: GearScore }[];
-  positions: { name: string; score: GearScore }[];
+  mics: GearTonalEntry[];
+  speakers: GearTonalEntry[];
+  positions: GearTonalEntry[];
+  combos: GearComboEntry[];
 }
 
 export interface LearnedProfileData {

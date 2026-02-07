@@ -1235,10 +1235,34 @@ function parseGearFromFilename(filename: string): { mic?: string; speaker?: stri
 }
 
 interface GearScore { loved: number; liked: number; noped: number; net: number }
+interface TonalProfile {
+  subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number;
+  sampleSize: number;
+}
+interface TonalDescriptor {
+  label: string;
+  direction: "high" | "low";
+  band: string;
+  delta: number;
+}
+interface GearTonalEntry {
+  name: string;
+  score: GearScore;
+  tonal: TonalProfile | null;
+  descriptors: TonalDescriptor[];
+}
+interface GearComboEntry {
+  combo: string;
+  tonal: TonalProfile;
+  descriptors: TonalDescriptor[];
+  sampleSize: number;
+  sentiment: number;
+}
 interface GearInsights {
-  mics: { name: string; score: GearScore }[];
-  speakers: { name: string; score: GearScore }[];
-  positions: { name: string; score: GearScore }[];
+  mics: GearTonalEntry[];
+  speakers: GearTonalEntry[];
+  positions: GearTonalEntry[];
+  combos: GearComboEntry[];
 }
 
 interface LearnedProfileData {
@@ -1415,39 +1439,145 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
 
   let gearInsights: GearInsights | null = null;
   if (signals.length >= 5) {
-    const gearAccum: Record<string, Record<string, GearScore>> = { mics: {}, speakers: {}, positions: {} };
+    const gearScoreAccum: Record<string, Record<string, GearScore>> = { mics: {}, speakers: {}, positions: {} };
+    const gearTonalAccum: Record<string, Record<string, { sums: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number }; count: number }>> = { mics: {}, speakers: {}, positions: {} };
 
-    const addGear = (category: string, name: string | undefined, action: string) => {
+    const addGearScore = (category: string, name: string | undefined, action: string) => {
       if (!name) return;
-      if (!gearAccum[category][name]) gearAccum[category][name] = { loved: 0, liked: 0, noped: 0, net: 0 };
-      const entry = gearAccum[category][name];
+      if (!gearScoreAccum[category][name]) gearScoreAccum[category][name] = { loved: 0, liked: 0, noped: 0, net: 0 };
+      const entry = gearScoreAccum[category][name];
       if (action === "love") { entry.loved++; entry.net += 3; }
       else if (action === "like") { entry.liked++; entry.net += 1.5; }
       else if (action === "meh") { entry.net += 0.2; }
       else if (action === "nope") { entry.noped++; entry.net -= 2; }
     };
 
+    const addGearTonal = (category: string, name: string | undefined, sig: PreferenceSignal) => {
+      if (!name) return;
+      if (!gearTonalAccum[category][name]) gearTonalAccum[category][name] = { sums: { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0, ratio: 0 }, count: 0 };
+      const entry = gearTonalAccum[category][name];
+      entry.sums.subBass += sig.subBass; entry.sums.bass += sig.bass; entry.sums.lowMid += sig.lowMid;
+      entry.sums.mid += sig.mid; entry.sums.highMid += sig.highMid; entry.sums.presence += sig.presence;
+      entry.sums.ratio += sig.ratio; entry.count++;
+    };
+
+    const comboAccum: Record<string, { sums: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number }; count: number; sentimentSum: number }> = {};
+    const sentimentVal = (a: string) => a === "love" ? 3 : a === "like" ? 1.5 : a === "meh" ? 0.2 : -2;
+
+    const addTonal = (key: string, map: Record<string, { sums: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number }; count: number; sentimentSum?: number }>, sig: PreferenceSignal, withSentiment?: boolean) => {
+      if (!map[key]) map[key] = { sums: { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0, ratio: 0 }, count: 0, sentimentSum: 0 };
+      const e = map[key];
+      e.sums.subBass += sig.subBass; e.sums.bass += sig.bass; e.sums.lowMid += sig.lowMid;
+      e.sums.mid += sig.mid; e.sums.highMid += sig.highMid; e.sums.presence += sig.presence;
+      e.sums.ratio += sig.ratio; e.count++;
+      if (withSentiment) e.sentimentSum = (e.sentimentSum || 0) + sentimentVal(sig.action);
+    };
+
     for (const sig of signals) {
-      for (const fn of [sig.baseFilename, sig.featureFilename]) {
-        const gear = parseGearFromFilename(fn);
-        addGear("mics", gear.mic, sig.action);
-        addGear("speakers", gear.speaker, sig.action);
-        addGear("positions", gear.position, sig.action);
+      const baseGear = parseGearFromFilename(sig.baseFilename);
+      const featGear = parseGearFromFilename(sig.featureFilename);
+
+      const seenMics = new Set<string>();
+      const seenSpeakers = new Set<string>();
+      const seenPositions = new Set<string>();
+      for (const gear of [baseGear, featGear]) {
+        if (gear.mic) { addGearScore("mics", gear.mic, sig.action); seenMics.add(gear.mic); }
+        if (gear.speaker) { addGearScore("speakers", gear.speaker, sig.action); seenSpeakers.add(gear.speaker); }
+        if (gear.position) { addGearScore("positions", gear.position, sig.action); seenPositions.add(gear.position); }
       }
+
+      Array.from(seenMics).forEach(mic => addTonal(mic, gearTonalAccum.mics, sig));
+      Array.from(seenSpeakers).forEach(spk => addTonal(spk, gearTonalAccum.speakers, sig));
+      Array.from(seenPositions).forEach(pos => addTonal(pos, gearTonalAccum.positions, sig));
+
+      const seenCombos = new Set<string>();
+      for (const gear of [baseGear, featGear]) {
+        if (gear.mic && gear.speaker) seenCombos.add(`${gear.mic}+${gear.speaker}`);
+        if (gear.mic && gear.position) seenCombos.add(`${gear.mic}@${gear.position}`);
+        if (gear.speaker && gear.position) seenCombos.add(`${gear.speaker}@${gear.position}`);
+      }
+      Array.from(seenCombos).forEach(key => addTonal(key, comboAccum, sig, true));
     }
 
-    const toSorted = (map: Record<string, GearScore>) =>
-      Object.entries(map)
+    const globalAvg = {
+      subBass: signals.reduce((s, v) => s + v.subBass, 0) / signals.length,
+      bass: signals.reduce((s, v) => s + v.bass, 0) / signals.length,
+      lowMid: signals.reduce((s, v) => s + v.lowMid, 0) / signals.length,
+      mid: signals.reduce((s, v) => s + v.mid, 0) / signals.length,
+      highMid: signals.reduce((s, v) => s + v.highMid, 0) / signals.length,
+      presence: signals.reduce((s, v) => s + v.presence, 0) / signals.length,
+      ratio: signals.reduce((s, v) => s + v.ratio, 0) / signals.length,
+    };
+
+    const TONAL_LABELS: { band: string; field: keyof typeof globalAvg; highLabel: string; lowLabel: string; threshold: number }[] = [
+      { band: "lowMid", field: "lowMid", highLabel: "Thick/Muddy", lowLabel: "Lean/Tight", threshold: 2.5 },
+      { band: "mid", field: "mid", highLabel: "Dense Mids", lowLabel: "Scooped", threshold: 2.5 },
+      { band: "highMid", field: "highMid", highLabel: "Bite/Cut", lowLabel: "Smooth", threshold: 2.5 },
+      { band: "presence", field: "presence", highLabel: "Bright/Forward", lowLabel: "Dark/Warm", threshold: 3.0 },
+      { band: "bass", field: "bass", highLabel: "Full Low-End", lowLabel: "Thin Low-End", threshold: 2.0 },
+      { band: "ratio", field: "ratio", highLabel: "Crisp/Articulate", lowLabel: "Warm/Round", threshold: 0.15 },
+    ];
+
+    const deriveTonalDescriptors = (profile: TonalProfile): TonalDescriptor[] => {
+      const descs: TonalDescriptor[] = [];
+      for (const tl of TONAL_LABELS) {
+        const val = profile[tl.field as keyof TonalProfile] as number;
+        const ref = globalAvg[tl.field];
+        const delta = val - ref;
+        if (Math.abs(delta) >= tl.threshold) {
+          descs.push({
+            label: delta > 0 ? tl.highLabel : tl.lowLabel,
+            direction: delta > 0 ? "high" : "low",
+            band: tl.band,
+            delta: Math.round(delta * 10) / 10,
+          });
+        }
+      }
+      descs.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      return descs.slice(0, 3);
+    }
+
+    const computeTonalProfile = (accum: { sums: typeof globalAvg; count: number }): TonalProfile => {
+      const n = accum.count;
+      return {
+        subBass: Math.round((accum.sums.subBass / n) * 10) / 10,
+        bass: Math.round((accum.sums.bass / n) * 10) / 10,
+        lowMid: Math.round((accum.sums.lowMid / n) * 10) / 10,
+        mid: Math.round((accum.sums.mid / n) * 10) / 10,
+        highMid: Math.round((accum.sums.highMid / n) * 10) / 10,
+        presence: Math.round((accum.sums.presence / n) * 10) / 10,
+        ratio: Math.round((accum.sums.ratio / n) * 100) / 100,
+        sampleSize: n,
+      };
+    }
+
+    const buildTonalEntries = (scoreMap: Record<string, GearScore>, tonalMap: Record<string, { sums: typeof globalAvg; count: number }>): GearTonalEntry[] =>
+      Object.entries(scoreMap)
         .filter(([, s]) => s.loved + s.liked + s.noped >= 2)
-        .map(([name, score]) => ({ name, score: { ...score, net: Math.round(score.net * 10) / 10 } }))
+        .map(([name, score]) => {
+          const tonalData = tonalMap[name];
+          const tonal = tonalData && tonalData.count >= 3 ? computeTonalProfile(tonalData) : null;
+          const descriptors = tonal ? deriveTonalDescriptors(tonal) : [];
+          return { name, score: { ...score, net: Math.round(score.net * 10) / 10 }, tonal, descriptors };
+        })
         .sort((a, b) => b.score.net - a.score.net);
 
-    const mics = toSorted(gearAccum.mics);
-    const speakers = toSorted(gearAccum.speakers);
-    const positions = toSorted(gearAccum.positions);
+    const mics = buildTonalEntries(gearScoreAccum.mics, gearTonalAccum.mics);
+    const speakers = buildTonalEntries(gearScoreAccum.speakers, gearTonalAccum.speakers);
+    const positions = buildTonalEntries(gearScoreAccum.positions, gearTonalAccum.positions);
+
+    const combos: GearComboEntry[] = Object.entries(comboAccum)
+      .filter(([, v]) => v.count >= 3)
+      .map(([combo, v]) => {
+        const tonal = computeTonalProfile(v);
+        const descriptors = deriveTonalDescriptors(tonal);
+        return { combo, tonal, descriptors, sampleSize: v.count, sentiment: Math.round((v.sentimentSum / v.count) * 10) / 10 };
+      })
+      .sort((a, b) => Math.abs(b.sentiment) - Math.abs(a.sentiment))
+      .slice(0, 8);
 
     if (mics.length > 0 || speakers.length > 0 || positions.length > 0) {
-      gearInsights = { mics, speakers, positions };
+      gearInsights = { mics, speakers, positions, combos };
     }
   }
 
