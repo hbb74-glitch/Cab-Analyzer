@@ -129,25 +129,19 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
     const lowMidPlusMid = bands.lowMid + bands.mid;
     for (const zone of learnedProfile.avoidZones) {
       if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
-        avoidHits.push(`Muddy (lowMid+mid ${Math.round(lowMidPlusMid)}% vs limit ${zone.threshold}%)`);
+        avoidHits.push(`LowMid+Mid ${Math.round(lowMidPlusMid)}% (blend limit ${zone.threshold}%)`);
       } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
-        avoidHits.push(`Mid too high (${Math.round(bands.mid)}% vs limit ${zone.threshold}%)`);
+        avoidHits.push(`Mid ${Math.round(bands.mid)}% (blend limit ${zone.threshold}%)`);
       } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
-        avoidHits.push(`Presence too low (${Math.round(bands.presence)}% vs min ${zone.threshold}%)`);
+        avoidHits.push(`Presence ${Math.round(bands.presence)}% (blend min ${zone.threshold}%)`);
       } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
-        avoidHits.push(`HiMid/Mid ratio too low (${ratio.toFixed(2)} vs min ${zone.threshold})`);
+        avoidHits.push(`Ratio ${ratio.toFixed(2)} (blend min ${zone.threshold})`);
       }
     }
 
-    if (avoidHits.length >= 2) {
+    if (bestScore < 15) {
       unlikelyToUse = true;
-      unlikelyReason = "Hits multiple avoid zones from your feedback history";
-    } else if (bestScore < 20) {
-      unlikelyToUse = true;
-      unlikelyReason = "Very low match to both your preferred tonal profiles";
-    } else if (avoidHits.length >= 1 && bestScore < 35) {
-      unlikelyToUse = true;
-      unlikelyReason = "Low profile match and hits an avoid zone";
+      unlikelyReason = "Very far from both your preferred tonal profiles — hard to blend toward your target";
     }
   }
 
@@ -185,7 +179,10 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile }: {
       {avoidHits.length > 0 && !unlikelyToUse && (
         <div className="flex items-start gap-2 p-2 mb-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid="warning-avoid-zone">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-          <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
+          <div>
+            <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — may need a complementary pairing</p>
+            <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
+          </div>
         </div>
       )}
       {best.deviations.length > 0 && (
