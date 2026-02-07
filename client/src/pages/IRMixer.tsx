@@ -519,7 +519,7 @@ export default function IRMixer() {
                   const effectiveMastered = learnedProfile.status === "mastered" && allCovered;
 
                   if (effectiveMastered) {
-                    return `Preferences mastered -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. All ${poolSize} IRs evaluated. Taste profile locked in.`;
+                    return `Preferences mastered -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. All ${poolSize} IRs evaluated. Keep rating to refine further.`;
                   }
                   if (learnedProfile.status === "mastered" && poolSize > 0 && !allCovered) {
                     return `Near mastery -- ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped. ${poolSize - exposedCount} of ${poolSize} IRs still unseen -- presenting novel options first.`;
@@ -528,7 +528,11 @@ export default function IRMixer() {
                     const coverageNote = poolSize > 0 && exposedCount < poolSize
                       ? ` (${poolSize - exposedCount} unseen IRs will be prioritized)`
                       : "";
-                    return `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted${coverageNote}`;
+                    const wasLikelyMastered = learnedProfile.likedCount >= 10;
+                    const label = wasLikelyMastered
+                      ? `Readjusting -- ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped -- taste shift detected, profiles updating${coverageNote}`
+                      : `Learned from ${learnedProfile.likedCount} rated + ${learnedProfile.nopedCount} noped blends -- profiles adjusted${coverageNote}`;
+                    return label;
                   }
                   return `Learning: ${learnedProfile.likedCount} rated, ${learnedProfile.nopedCount} noped (need ${Math.max(0, 5 - learnedProfile.likedCount)} more for confidence)`;
                 })()}

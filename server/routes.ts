@@ -1223,7 +1223,18 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   );
   const hasPredictionMisses = predictionMisses.length >= 1;
 
-  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses;
+  const recentLiked = recentSignals.filter((s) => s.action === "love" || s.action === "like" || s.action === "ranked_1" || s.action === "ranked_2");
+  let isDrifting = false;
+  if (recentLiked.length >= 3) {
+    const recentMidAvg = recentLiked.reduce((s, v) => s + v.mid, 0) / recentLiked.length;
+    const recentPresAvg = recentLiked.reduce((s, v) => s + v.presence, 0) / recentLiked.length;
+    const recentRatioAvg = recentLiked.reduce((s, v) => s + v.ratio, 0) / recentLiked.length;
+    isDrifting = Math.abs(recentMidAvg - likedMid) > 5 || Math.abs(recentPresAvg - likedPresence) > 7 || Math.abs(recentRatioAvg - likedRatio) > 0.4;
+  }
+
+  const recentNopeSurge = recentSignals.filter((s) => s.action === "nope").length >= 4;
+
+  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses && !isDrifting && !recentNopeSurge;
 
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
