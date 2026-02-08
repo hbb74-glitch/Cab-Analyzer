@@ -1764,24 +1764,52 @@ export default function Analyzer() {
     ],
   }), []);
 
+  interface BlendSuggestion {
+    blendType: string;
+    ratio: string;
+    description: string;
+  }
+
   interface MissingSuggestion {
     refFilename: string;
     refLabel: string;
     suggestions: { mic: string; position: string; distance: string; why: string; similarity?: number }[];
     fromLearnedData: boolean;
+    blendSuggestion: BlendSuggestion | null;
   }
+
+  const BLEND_TONAL_DESCRIPTIONS: Record<ComboBlendLabel, string> = {
+    tight: 'SM57-dominant — punchy, aggressive, more bite and high-mid cut',
+    balance: 'Even mix — SM57 attack with R121 warmth smoothing the top end',
+    thick: 'Near-equal — full-bodied, thickened mids, slightly less bite than Balance',
+    smooth: 'R121-leaning — rounded highs, warm midrange, less harsh transients',
+    ribbon_dom: 'Ribbon-dominant — dark, warm, smooth top end, big low-mids',
+  };
 
   const missingSuggestions = useMemo((): MissingSuggestion[] => {
     if (!referenceComparison || referenceComparison.missingFlavors.length === 0) return [];
 
     return referenceComparison.missingFlavors.map(m => {
       const refIR = referenceSet?.irs.find(ir => ir.filename === m.refFilename);
+
+      const parsed = parseFilename(m.refFilename);
+      let blendSuggestion: BlendSuggestion | null = null;
+      if (parsed.isComboIR && parsed.blendLabel) {
+        const info = COMBO_BLEND_INFO[parsed.blendLabel];
+        blendSuggestion = {
+          blendType: info.label,
+          ratio: `${info.sm57}:${info.r121}`,
+          description: BLEND_TONAL_DESCRIPTIONS[parsed.blendLabel],
+        };
+      }
+
       if (!refIR) {
         return {
           refFilename: m.refFilename,
           refLabel: m.refLabel,
           suggestions: LABEL_FALLBACK_SUGGESTIONS[m.refLabel] || LABEL_FALLBACK_SUGGESTIONS['balanced'] || [],
           fromLearnedData: false,
+          blendSuggestion,
         };
       }
 
@@ -1819,6 +1847,7 @@ export default function Analyzer() {
               similarity: tm.similarity,
             })),
             fromLearnedData: true,
+            blendSuggestion,
           };
         }
       }
@@ -1828,6 +1857,7 @@ export default function Analyzer() {
         refLabel: m.refLabel,
         suggestions: LABEL_FALLBACK_SUGGESTIONS[m.refLabel] || LABEL_FALLBACK_SUGGESTIONS['balanced'] || [],
         fromLearnedData: false,
+        blendSuggestion,
       };
     });
   }, [referenceComparison, referenceSet, tonalProfileRows, LABEL_FALLBACK_SUGGESTIONS]);
@@ -3772,7 +3802,20 @@ export default function Analyzer() {
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-xs text-muted-foreground">Try recording:</div>
+                                {ms.blendSuggestion && (
+                                  <div className="p-2.5 rounded-md bg-violet-500/[0.08] border border-violet-500/20 space-y-1" data-testid={`blend-suggestion-${msIdx}`}>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Layers className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                                      <span className="text-xs font-semibold text-violet-300">
+                                        Blend: SM57 + R121 {ms.blendSuggestion.blendType} ({ms.blendSuggestion.ratio})
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground pl-5.5">
+                                      {ms.blendSuggestion.description}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="text-xs text-muted-foreground">{ms.blendSuggestion ? 'Or try single-mic:' : 'Try recording:'}</div>
                                 <div className="space-y-1.5">
                                   {ms.suggestions.map((s, sIdx) => (
                                     <div key={sIdx} className="flex items-start gap-2 text-xs" data-testid={`suggestion-${msIdx}-${sIdx}`}>
