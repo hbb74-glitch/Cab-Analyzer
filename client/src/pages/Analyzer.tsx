@@ -337,8 +337,19 @@ function calculate6BandMatch(m1: AudioMetrics, m2: AudioMetrics): number {
   for (let i = 0; i < 6; i++) {
     totalDiff += Math.abs(bands1[i] - bands2[i]);
   }
-  const maxPossibleDiff = 200;
-  return Math.max(0, 1 - (totalDiff / maxPossibleDiff));
+  const maxRealisticDiff = 60;
+  return Math.max(0, 1 - (totalDiff / maxRealisticDiff));
+}
+
+// Calculate HiMid/Mid ratio similarity (0-1, 1 = identical character)
+function calculateRatioMatch(m1: AudioMetrics, m2: AudioMetrics): number {
+  const mid1 = m1.midEnergy6 || 0;
+  const mid2 = m2.midEnergy6 || 0;
+  const ratio1 = mid1 > 0 ? (m1.highMidEnergy || 0) / mid1 : 0;
+  const ratio2 = mid2 > 0 ? (m2.highMidEnergy || 0) / mid2 : 0;
+  const diff = Math.abs(ratio1 - ratio2);
+  const maxDiff = 1.5;
+  return Math.max(0, 1 - (diff / maxDiff));
 }
 
 // Calculate overall similarity between two IRs
@@ -357,8 +368,9 @@ function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
   );
 
   const bandMatch = calculate6BandMatch(metrics1, metrics2);
+  const ratioMatch = calculateRatioMatch(metrics1, metrics2);
 
-  const similarity = (bandMatch * 0.45) + (frequencyCorrelation * 0.35) + (centroidProximity * 0.20);
+  const similarity = (bandMatch * 0.35) + (ratioMatch * 0.15) + (frequencyCorrelation * 0.30) + (centroidProximity * 0.20);
 
   return {
     similarity,
