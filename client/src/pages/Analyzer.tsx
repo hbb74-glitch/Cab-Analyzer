@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
+import type { TonalProfile as TonalProfileRow } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
@@ -1211,6 +1212,10 @@ export default function Analyzer() {
     queryKey: ["/api/preferences/learned"],
   });
 
+  const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
+    queryKey: ["/api/tonal-profiles"],
+  });
+
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
     return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
@@ -1722,6 +1727,110 @@ export default function Analyzer() {
 
     return { matches, coveredCount, totalCount, coveragePercent, verdict, verdictColor, missingFlavors, bonusFlavors };
   }, [referenceSet, batchResult, batchIRs, referenceThreshold]);
+
+  const LABEL_FALLBACK_SUGGESTIONS: Record<string, { mic: string; position: string; distance: string; why: string }[]> = useMemo(() => ({
+    'bright/forward': [
+      { mic: 'SM57', position: 'Cap', distance: '1in', why: 'Brightest position with a punchy dynamic mic' },
+      { mic: 'PR30', position: 'Cap_OffCenter', distance: '2in', why: 'PR30 is naturally very bright and present' },
+      { mic: 'e906', position: 'Cap', distance: '1in', why: 'e906 presence mode at cap delivers crisp attack' },
+    ],
+    'forward': [
+      { mic: 'SM57', position: 'CapEdge_BR', distance: '1in', why: 'CapEdge bright side adds focused presence' },
+      { mic: 'MD421', position: 'Cap', distance: '2in', why: 'MD421 at cap is punchy and forward' },
+    ],
+    'dark/warm': [
+      { mic: 'R121', position: 'Cone', distance: '2in', why: 'Ribbon mic at cone gives maximum warmth' },
+      { mic: 'R92', position: 'CapEdge_DK', distance: '2in', why: 'R92 favoring dark edge, very smooth and warm' },
+      { mic: 'M160', position: 'Cone', distance: '3in', why: 'Hypercardioid ribbon at cone rolls off highs naturally' },
+    ],
+    'warm': [
+      { mic: 'R121', position: 'CapEdge', distance: '2in', why: 'R121 at the capedge seam is warm and full' },
+      { mic: 'SM7B', position: 'CapEdge_DK', distance: '2in', why: 'SM7B is thick and smooth, dark side adds warmth' },
+    ],
+    'mid-heavy': [
+      { mic: 'MD421', position: 'CapEdge', distance: '1in', why: 'MD421 at capedge emphasizes mid-range punch' },
+      { mic: 'SM57', position: 'CapEdge', distance: '1in', why: 'SM57 at capedge is naturally mid-focused' },
+    ],
+    'scooped/aggressive': [
+      { mic: 'SM57', position: 'Cap', distance: '0.5in', why: 'Very close cap placement scoops mids, boosts extremes' },
+      { mic: 'e906', position: 'Cap', distance: '1in', why: 'e906 presence mode at cap can produce aggressive scoop' },
+    ],
+    'balanced': [
+      { mic: 'SM57', position: 'CapEdge', distance: '2in', why: 'Classic balanced position with moderate distance' },
+      { mic: 'MD421', position: 'CapEdge_BR', distance: '2in', why: 'MD421 slightly bright of capedge, very even response' },
+    ],
+    'neutral': [
+      { mic: 'SM57', position: 'CapEdge', distance: '2in', why: 'Baseline reference position for neutral tone' },
+    ],
+  }), []);
+
+  interface MissingSuggestion {
+    refFilename: string;
+    refLabel: string;
+    suggestions: { mic: string; position: string; distance: string; why: string; similarity?: number }[];
+    fromLearnedData: boolean;
+  }
+
+  const missingSuggestions = useMemo((): MissingSuggestion[] => {
+    if (!referenceComparison || referenceComparison.missingFlavors.length === 0) return [];
+
+    return referenceComparison.missingFlavors.map(m => {
+      const refIR = referenceSet?.irs.find(ir => ir.filename === m.refFilename);
+      if (!refIR) {
+        return {
+          refFilename: m.refFilename,
+          refLabel: m.refLabel,
+          suggestions: LABEL_FALLBACK_SUGGESTIONS[m.refLabel] || LABEL_FALLBACK_SUGGESTIONS['balanced'] || [],
+          fromLearnedData: false,
+        };
+      }
+
+      if (tonalProfileRows && tonalProfileRows.length > 0) {
+        const scored = tonalProfileRows.map(tp => {
+          const tpBands = [tp.subBass, tp.bass, tp.lowMid, tp.mid, tp.highMid, tp.presence];
+          const refBands = [refIR.subBass, refIR.bass, refIR.lowMid, refIR.mid, refIR.highMid, refIR.presence];
+          let totalDiff = 0;
+          for (let i = 0; i < 6; i++) totalDiff += Math.abs(refBands[i] - tpBands[i]);
+          const bandSim = Math.max(0, 1 - (totalDiff / 60));
+
+          const ratioDiff = Math.abs(refIR.ratio - tp.ratio);
+          const ratioSim = Math.max(0, 1 - (ratioDiff / 1.5));
+
+          const centroidDiff = Math.abs(refIR.centroid - tp.centroid);
+          const centroidSim = Math.max(0, 1 - (centroidDiff / 3000));
+
+          const similarity = bandSim * 0.50 + ratioSim * 0.25 + centroidSim * 0.25;
+          return { tp, similarity };
+        });
+
+        scored.sort((a, b) => b.similarity - a.similarity);
+
+        const topMatches = scored.slice(0, 3).filter(s => s.similarity > 0.3);
+
+        if (topMatches.length > 0) {
+          return {
+            refFilename: m.refFilename,
+            refLabel: m.refLabel,
+            suggestions: topMatches.map(tm => ({
+              mic: tm.tp.mic,
+              position: tm.tp.position,
+              distance: tm.tp.distance,
+              why: `${Math.round(tm.similarity * 100)}% tonal match (${tm.tp.sampleCount} sample${tm.tp.sampleCount !== 1 ? 's' : ''})`,
+              similarity: tm.similarity,
+            })),
+            fromLearnedData: true,
+          };
+        }
+      }
+
+      return {
+        refFilename: m.refFilename,
+        refLabel: m.refLabel,
+        suggestions: LABEL_FALLBACK_SUGGESTIONS[m.refLabel] || LABEL_FALLBACK_SUGGESTIONS['balanced'] || [],
+        fromLearnedData: false,
+      };
+    });
+  }, [referenceComparison, referenceSet, tonalProfileRows, LABEL_FALLBACK_SUGGESTIONS]);
 
   // Blend analysis state
   interface BlendAnalysisResult {
@@ -3626,11 +3735,63 @@ export default function Analyzer() {
                         </div>
                       )}
 
-                      {referenceComparison.missingFlavors.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Missing {referenceComparison.missingFlavors.length} flavor{referenceComparison.missingFlavors.length > 1 ? 's' : ''} from your reference. 
-                          Try adjusting the closeness dial or recording additional shots targeting these tonal characters.
-                        </p>
+                      {missingSuggestions.length > 0 && (
+                        <div className="space-y-3" data-testid="missing-suggestions-panel">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Lightbulb className="w-4 h-4 text-amber-400" />
+                            <span className="text-sm font-semibold text-amber-400">
+                              Suggested Shots for Missing Flavors
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              ({missingSuggestions.length} gap{missingSuggestions.length > 1 ? 's' : ''})
+                            </span>
+                          </div>
+                          <div className="space-y-3">
+                            {missingSuggestions.map((ms, msIdx) => (
+                              <div key={msIdx} className="p-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/15 space-y-2" data-testid={`missing-suggestion-${msIdx}`}>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-mono text-foreground/80 truncate max-w-[50%]">{ms.refFilename}</span>
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded text-[10px]",
+                                    ms.refLabel.includes('bright') || ms.refLabel.includes('forward') ? "bg-green-500/20 text-green-400" :
+                                    ms.refLabel.includes('dark') || ms.refLabel.includes('warm') ? "bg-blue-500/20 text-blue-400" :
+                                    ms.refLabel.includes('mid') ? "bg-yellow-500/20 text-yellow-400" :
+                                    ms.refLabel.includes('scoop') ? "bg-pink-500/20 text-pink-400" :
+                                    "bg-white/10 text-muted-foreground"
+                                  )}>
+                                    {ms.refLabel}
+                                  </span>
+                                  {ms.fromLearnedData && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400">
+                                      from learned data
+                                    </span>
+                                  )}
+                                  {!ms.fromLearnedData && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-muted-foreground">
+                                      knowledge base
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">Try recording:</div>
+                                <div className="space-y-1.5">
+                                  {ms.suggestions.map((s, sIdx) => (
+                                    <div key={sIdx} className="flex items-start gap-2 text-xs" data-testid={`suggestion-${msIdx}-${sIdx}`}>
+                                      <Mic2 className="w-3 h-3 text-amber-400/70 mt-0.5 flex-shrink-0" />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="font-mono font-medium text-foreground/90">
+                                          {s.mic} @ {s.position.replace(/_/g, ' ')}, {s.distance}
+                                        </span>
+                                        <span className="text-muted-foreground ml-1.5">
+                                          — {s.why}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
