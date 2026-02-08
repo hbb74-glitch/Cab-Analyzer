@@ -1546,7 +1546,7 @@ export default function Analyzer() {
   interface SmartThinGroup {
     groupKey: string; // e.g., "roswell_cap" or "sm57_r121_a_tight"
     displayName: string;
-    members: { filename: string; centroid: number; label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra'; midRatio?: number }[];
+    members: { filename: string; centroid: number; label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'scooped' | 'thick' | 'smooth' | 'extra'; midRatio?: number; ratio?: number; tonalHint?: string }[];
     suggested: string[]; // Filenames to keep (3-5 tonally unique variants)
     extras: string[]; // Filenames that could be cut
   }
@@ -2270,116 +2270,117 @@ export default function Analyzer() {
     // Find groups with 4+ members (over-represented)
     for (const [key, members] of Array.from(groupMap.entries())) {
       if (members.length >= 4) {
-        // Calculate tonal characteristics for each IR
+        // Use the real 6-band data for tonal characterization
         const withTonalData = members.map(ir => {
-          const centroid = ir.metrics.spectralCentroid;
-          // Estimate midrange energy from frequency data (1k-4k Hz region)
-          const freqData = ir.metrics.frequencyData || [];
-          let midEnergy = 0;
-          let lowEnergy = 0;
-          let highEnergy = 0;
-          
-          // Simple band energy estimation
-          for (let i = 0; i < freqData.length; i++) {
-            const freq = (i / freqData.length) * 22050; // Approx freq
-            const energy = Math.pow(10, freqData[i] / 20);
-            if (freq < 500) lowEnergy += energy;
-            else if (freq < 4000) midEnergy += energy;
-            else highEnergy += energy;
-          }
-          
-          const totalEnergy = lowEnergy + midEnergy + highEnergy || 1;
-          const midRatio = midEnergy / totalEnergy;
-          const smoothness = ir.metrics.frequencySmoothness || 60;
-          
-          return {
-            ...ir,
-            centroid,
-            midRatio,
-            smoothness,
-            // Combined tonal score for clustering
-            tonalVector: [centroid / 5000, midRatio, smoothness / 100]
-          };
+          const m = ir.metrics;
+          const centroid = m.spectralCentroid;
+          const total6 = (m.subBassEnergy || 0) + (m.bassEnergy || 0) + (m.lowMidEnergy || 0) +
+            (m.midEnergy6 || 0) + (m.highMidEnergy || 0) + (m.presenceEnergy || 0);
+          const mid = total6 > 0 ? ((m.midEnergy6 || 0) / total6) * 100 : 0;
+          const highMid = total6 > 0 ? ((m.highMidEnergy || 0) / total6) * 100 : 0;
+          const presence = total6 > 0 ? ((m.presenceEnergy || 0) / total6) * 100 : 0;
+          const lowMid = total6 > 0 ? ((m.lowMidEnergy || 0) / total6) * 100 : 0;
+          const bass = total6 > 0 ? ((m.bassEnergy || 0) / total6) * 100 : 0;
+          const ratio = mid > 0 ? highMid / mid : 0;
+          return { ...ir, centroid, mid, highMid, presence, lowMid, bass, ratio };
         });
-        
+
         // Sort by centroid for initial ordering
         const sorted = [...withTonalData].sort((a, b) => b.centroid - a.centroid);
-        
-        // Use greedy selection: keep IRs that are tonally distinct
-        // Start with brightest and darkest, then add any that are different enough
+
+        // Use the same calculateSimilarity function (35% 6-band, 15% ratio, 30% freq correlation, 20% centroid)
+        // Two IRs are "tonally distinct" if their similarity is below this threshold
+        const DISTINCT_THRESHOLD = 0.85;
+
         const selected: typeof sorted = [];
-        const TONAL_DIFF_THRESHOLD = 0.15; // 15% difference in tonal vector
-        
-        // Helper to calculate tonal distance
-        const tonalDist = (a: typeof sorted[0], b: typeof sorted[0]): number => {
-          const dCentroid = Math.abs(a.centroid - b.centroid) / 2000; // Normalize
-          const dMid = Math.abs(a.midRatio - b.midRatio) * 2; // Weight mids
-          const dSmooth = Math.abs(a.smoothness - b.smoothness) / 30;
-          return Math.sqrt(dCentroid * dCentroid + dMid * dMid + dSmooth * dSmooth);
-        };
-        
+
         // Always include brightest
         selected.push(sorted[0]);
-        
+
         // Always include darkest if different enough
         if (sorted.length > 1) {
           const darkest = sorted[sorted.length - 1];
-          if (tonalDist(sorted[0], darkest) > 0.1) {
+          const { similarity } = calculateSimilarity(sorted[0].metrics, darkest.metrics);
+          if (similarity < 0.90) {
             selected.push(darkest);
           }
         }
-        
+
         // Add mid-point candidate
         const midCandidate = sorted[Math.floor(sorted.length / 2)];
-        const isMidUnique = selected.every(s => tonalDist(s, midCandidate) > TONAL_DIFF_THRESHOLD);
+        const isMidUnique = selected.every(s => {
+          const { similarity } = calculateSimilarity(s.metrics, midCandidate.metrics);
+          return similarity < DISTINCT_THRESHOLD;
+        });
         if (isMidUnique) {
           selected.push(midCandidate);
         }
-        
-        // Check remaining IRs for any that are tonally unique (mids-forward, scooped, etc.)
+
+        // Check remaining IRs for any that are tonally unique
         for (const ir of sorted) {
           if (selected.includes(ir)) continue;
-          const isUnique = selected.every(s => tonalDist(s, ir) > TONAL_DIFF_THRESHOLD);
-          if (isUnique && selected.length < 5) { // Cap at 5 unique variants
+          const isUnique = selected.every(s => {
+            const { similarity } = calculateSimilarity(s.metrics, ir.metrics);
+            return similarity < DISTINCT_THRESHOLD;
+          });
+          if (isUnique && selected.length < 5) {
             selected.push(ir);
           }
         }
-        
+
         // Sort selected by centroid for consistent labeling
         selected.sort((a, b) => b.centroid - a.centroid);
-        
-        // Generate labels based on characteristics
-        const getLabel = (ir: typeof sorted[0], idx: number, total: number): 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra' => {
+
+        // Generate labels based on 6-band characteristics
+        const groupAvgMid = withTonalData.reduce((s, ir) => s + ir.mid, 0) / withTonalData.length;
+        const groupAvgRatio = withTonalData.reduce((s, ir) => s + ir.ratio, 0) / withTonalData.length;
+        const groupAvgLowMid = withTonalData.reduce((s, ir) => s + ir.lowMid, 0) / withTonalData.length;
+        const groupAvgPresence = withTonalData.reduce((s, ir) => s + ir.presence, 0) / withTonalData.length;
+
+        const getLabel = (ir: typeof sorted[0], idx: number, total: number): 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'scooped' | 'thick' | 'smooth' | 'extra' => {
           if (idx === 0) return 'bright';
           if (idx === total - 1) return 'dark';
-          // Check if notably mid-forward
-          if (ir.midRatio > 0.5) return 'mid-fwd';
-          // Check if notably smooth
-          if (ir.smoothness > 70) return 'smooth';
+          if (ir.mid > groupAvgMid * 1.15 && ir.ratio < groupAvgRatio * 0.85) return 'mid-fwd';
+          if (ir.ratio > groupAvgRatio * 1.2 && ir.mid < groupAvgMid * 0.9) return 'scooped';
+          if (ir.lowMid > groupAvgLowMid * 1.15 && ir.presence < groupAvgPresence * 0.85) return 'thick';
+          if ((ir.metrics.frequencySmoothness || 0) > 70) return 'smooth';
           return 'mid';
         };
-        
+
+        const getTonalHint = (ir: typeof sorted[0]): string => {
+          const hints: string[] = [];
+          if (ir.mid > groupAvgMid * 1.1) hints.push('mid+');
+          else if (ir.mid < groupAvgMid * 0.9) hints.push('mid-');
+          if (ir.ratio > groupAvgRatio * 1.15) hints.push('bite');
+          else if (ir.ratio < groupAvgRatio * 0.85) hints.push('smooth');
+          if (ir.lowMid > groupAvgLowMid * 1.1) hints.push('thick');
+          if (ir.presence > groupAvgPresence * 1.15) hints.push('airy');
+          return hints.length > 0 ? hints.join(', ') : 'neutral';
+        };
+
         const suggested = selected.map(s => s.filename);
         const suggestedSet = new Set(suggested);
         const extras = sorted.filter(ir => !suggestedSet.has(ir.filename)).map(ir => ir.filename);
-        
+
         const labeledMembers = sorted.map((ir) => {
           const selIdx = selected.findIndex(s => s.filename === ir.filename);
-          let label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'smooth' | 'extra' = 'extra';
+          let label: 'bright' | 'mid' | 'dark' | 'mid-fwd' | 'scooped' | 'thick' | 'smooth' | 'extra' = 'extra';
           if (selIdx !== -1) {
             label = getLabel(ir, selIdx, selected.length);
           }
-          return { 
-            filename: ir.filename, 
-            centroid: Math.round(ir.centroid), 
+          return {
+            filename: ir.filename,
+            centroid: Math.round(ir.centroid),
             label,
-            midRatio: Math.round(ir.midRatio * 100)
+            midRatio: Math.round(ir.mid),
+            ratio: Math.round(ir.ratio * 100) / 100,
+            tonalHint: getTonalHint(ir)
           };
         });
-        
+
         groups.push({
           groupKey: key,
-          displayName: members[0].filename.includes('_') ? 
+          displayName: members[0].filename.includes('_') ?
             key.replace(/_/g, ' ').replace('combo ', '') : key,
           members: labeledMembers,
           suggested,
@@ -3970,7 +3971,7 @@ export default function Analyzer() {
                   
                   <p className="text-sm text-muted-foreground">
                     Found {smartThinGroups.length} over-represented group{smartThinGroups.length > 1 ? 's' : ''}. 
-                    Keeping tonally unique variants (bright, dark, mid-forward, smooth, etc.):
+                    Keeping tonally unique variants using 6-band analysis (35% EQ shape, 15% HiMid/Mid ratio, 30% frequency curve, 20% centroid):
                   </p>
                   
                   <div className="space-y-4 max-h-96 overflow-y-auto">
@@ -3992,25 +3993,35 @@ export default function Analyzer() {
                                 m.label === 'mid' && "bg-yellow-500/10 border border-yellow-500/20",
                                 m.label === 'dark' && "bg-blue-500/10 border border-blue-500/20",
                                 m.label === 'mid-fwd' && "bg-orange-500/10 border border-orange-500/20",
+                                m.label === 'scooped' && "bg-pink-500/10 border border-pink-500/20",
+                                m.label === 'thick' && "bg-amber-500/10 border border-amber-500/20",
                                 m.label === 'smooth' && "bg-purple-500/10 border border-purple-500/20",
                                 m.label === 'extra' && "bg-red-500/5 border border-red-500/10 opacity-60"
                               )}
                             >
                               <span className={cn(
-                                "font-mono text-xs truncate max-w-[60%]",
+                                "font-mono text-xs truncate max-w-[50%]",
                                 m.label === 'bright' && "text-green-300",
                                 m.label === 'mid' && "text-yellow-300",
                                 m.label === 'dark' && "text-blue-300",
                                 m.label === 'mid-fwd' && "text-orange-300",
+                                m.label === 'scooped' && "text-pink-300",
+                                m.label === 'thick' && "text-amber-300",
                                 m.label === 'smooth' && "text-purple-300",
                                 m.label === 'extra' && "text-red-300 line-through"
                               )}>
                                 {m.filename}
                               </span>
                               <div className="flex items-center gap-2 text-xs">
+                                {m.tonalHint && m.tonalHint !== 'neutral' && (
+                                  <span className="text-muted-foreground/70 italic">{m.tonalHint}</span>
+                                )}
                                 <span className="text-muted-foreground">{m.centroid} Hz</span>
                                 {m.midRatio !== undefined && (
                                   <span className="text-muted-foreground">{m.midRatio}% mid</span>
+                                )}
+                                {m.ratio !== undefined && (
+                                  <span className="text-muted-foreground">r{m.ratio}</span>
                                 )}
                                 <span className={cn(
                                   "px-1.5 py-0.5 rounded text-[10px] uppercase font-medium",
@@ -4018,6 +4029,8 @@ export default function Analyzer() {
                                   m.label === 'mid' && "bg-yellow-500/20 text-yellow-400",
                                   m.label === 'dark' && "bg-blue-500/20 text-blue-400",
                                   m.label === 'mid-fwd' && "bg-orange-500/20 text-orange-400",
+                                  m.label === 'scooped' && "bg-pink-500/20 text-pink-400",
+                                  m.label === 'thick' && "bg-amber-500/20 text-amber-400",
                                   m.label === 'smooth' && "bg-purple-500/20 text-purple-400",
                                   m.label === 'extra' && "bg-red-500/20 text-red-400"
                                 )}>
