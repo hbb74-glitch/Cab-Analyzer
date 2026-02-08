@@ -1904,26 +1904,30 @@ export default function Analyzer() {
       const uniquePct = Math.round((1 - maxSim) * 100);
 
       let dominanceNote: string | undefined;
-      if (componentMatches.length >= 2) {
+      const hasBothSolos = componentMatches.length >= 2;
+      if (hasBothSolos) {
         const sorted = [...componentMatches].sort((a, b) => b.similarity - a.similarity);
-        const dominant = sorted[0];
-        const secondary = sorted[1];
-        const domPct = Math.round(dominant.similarity * 100);
-        const secPct = Math.round(secondary.similarity * 100);
-        const gap = domPct - secPct;
-        if (gap >= 10) {
-          dominanceNote = `${dominant.mic.toUpperCase()} dominates this blend (${domPct}% match) — ${secondary.mic.toUpperCase()} barely contributes (${secPct}% match). You could mix ${secondary.mic.toUpperCase()} in separately for more control.`;
-        } else if (gap >= 4) {
-          dominanceNote = `${dominant.mic.toUpperCase()} leads slightly (${domPct}% match) over ${secondary.mic.toUpperCase()} (${secPct}% match). Both mics contribute — this blend captures their combined character.`;
+        const closest = sorted[0];
+        const other = sorted[1];
+        const closePct = Math.round(closest.similarity * 100);
+        const otherPct = Math.round(other.similarity * 100);
+        if (maxSim >= 0.90) {
+          dominanceNote = `This blend is basically the ${closest.mic.toUpperCase()} solo (${closePct}% match). You have both solo ${closest.mic.toUpperCase()} and ${other.mic.toUpperCase()} in this batch — cut the blend and mix them yourself with full ratio control.`;
+        } else if (maxSim >= 0.78) {
+          if (closePct - otherPct >= 10) {
+            dominanceNote = `Closer to ${closest.mic.toUpperCase()} (${closePct}%) than ${other.mic.toUpperCase()} (${otherPct}%). The ${other.mic.toUpperCase()} adds some color but you could approximate this by mixing the solos — though you'd lose the phase-aligned interaction.`;
+          } else {
+            dominanceNote = `Both ${closest.mic.toUpperCase()} (${closePct}%) and ${other.mic.toUpperCase()} (${otherPct}%) shape this blend. Mixing solos might get you close, but the baked-in phase interaction adds character.`;
+          }
         } else {
-          dominanceNote = `Balanced blend — both ${dominant.mic.toUpperCase()} (${domPct}%) and ${secondary.mic.toUpperCase()} (${secPct}%) contribute roughly equally. This blend bakes in a combination flavor you can't easily recreate by mixing solo captures.`;
+          dominanceNote = `Only ${closePct}% similar to the nearest solo (${closest.mic.toUpperCase()}) — this blend creates a tone you can't recreate by mixing the individual captures. The phase interaction is doing real work here.`;
         }
       } else if (componentMatches.length === 1) {
         const only = componentMatches[0];
         const onlyPct = Math.round(only.similarity * 100);
-        const otherMics = uniqueBlendMics.filter(m => m !== only.mic);
-        if (otherMics.length > 0) {
-          dominanceNote = `Only ${only.mic.toUpperCase()} solo found in batch (${onlyPct}% match). No solo ${otherMics.map(m => m.toUpperCase()).join('/')} to compare — can't fully assess contribution balance.`;
+        const missingMics = uniqueBlendMics.filter(m => m !== only.mic);
+        if (missingMics.length > 0) {
+          dominanceNote = `Only ${only.mic.toUpperCase()} solo found (${onlyPct}% match). No solo ${missingMics.map(m => m.toUpperCase()).join('/')} in batch — can't assess if you could mix the solos instead.`;
         }
       }
 
@@ -1931,13 +1935,13 @@ export default function Analyzer() {
       let explanation: string;
       if (maxSim >= 0.90) {
         verdict = 'redundant';
-        explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — ${blendLabel} blend adds minimal tonal value, safe to cut`;
+        explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — ${hasBothSolos ? 'you have both solos to mix freely, this blend is safe to cut' : `${blendLabel} blend adds minimal tonal value`}`;
       } else if (maxSim >= 0.78) {
         verdict = 'adds-value';
-        explanation = `${uniquePct}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — ${blendLabel} blend contributes moderate tonal value`;
+        explanation = `${uniquePct}% unique character beyond solo captures — ${blendLabel} blend contributes moderate tonal value${hasBothSolos ? ', but you could approximate by mixing solos' : ''}`;
       } else {
         verdict = 'essential';
-        explanation = `${uniquePct}% unique character — ${blendLabel} blend creates distinct tone not achievable with single mic`;
+        explanation = `${uniquePct}% unique character — ${blendLabel} blend creates a tone the solo captures can't replicate`;
       }
 
       results.push({
