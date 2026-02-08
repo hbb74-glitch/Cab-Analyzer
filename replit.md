@@ -56,6 +56,7 @@ Preferred communication style: Simple, everyday language.
 - **Free-Form Text Feedback**: Text input for nuanced descriptions, parsed for tonal descriptors to apply proportional band nudges.
 - **Tonal Intelligence System**: `tonal_profiles` database table stores running averages of 6-band tonal data, ratio, centroid, and smoothness, keyed by mic+position+distance+speaker.
 - **Shot Designer**: Tab on Recommendations page that uses learned tonal profiles to design complete shot lists, predicting tonal characteristics and suggesting mixing pairs.
+- **Gap Finder**: Tab on Recommendations page where users load actual WAV IR files for client-side audio analysis. Sends 6-band tonal data to server which combines it with tonal profiles, preference learning, and gear insights to identify tonal gaps, flag redundancies (including blend overlaps), and suggest specific new shots that would maximize collection variety. Server-side cluster analysis groups IRs by tonal similarity.
 - **Reference Set Comparison**: Client-side feature to save a completed IR batch as a "reference palette" and compare new batches against it. Uses 6-band similarity (50%), HiMid/Mid ratio (25%), and centroid proximity (25%) to determine flavor coverage. Adjustable closeness threshold (55-95%). Shows covered/missing/bonus flavors with per-IR match details and mini band-shape visualizations. Stored in sessionStorage.
 
 ## External Dependencies

@@ -438,5 +438,31 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    gapFinder: {
+      method: 'POST' as const,
+      path: '/api/tonal-profiles/gap-finder',
+      input: z.object({
+        speaker: z.string().min(1),
+        genre: z.string().optional(),
+        targetCount: z.number().min(1).max(20).optional(),
+        existingIrs: z.array(z.object({
+          filename: z.string(),
+          subBass: z.number(),
+          bass: z.number(),
+          lowMid: z.number(),
+          mid: z.number(),
+          highMid: z.number(),
+          presence: z.number(),
+          ratio: z.number(),
+          centroid: z.number(),
+          smoothness: z.number(),
+        })),
+      }),
+      responses: {
+        200: z.any(),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
 };

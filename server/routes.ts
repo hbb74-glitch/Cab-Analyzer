@@ -4871,5 +4871,227 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
     }
   });
 
+  // ── Gap Finder Helpers ────────────────────────
+  function analyzeIrClusters(irs: { filename: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[]): string {
+    if (irs.length < 2) return 'Only one IR -- no clustering possible.';
+
+    const normalize = (val: number, min: number, max: number) => max > min ? (val - min) / (max - min) : 0;
+
+    const metrics = irs.map(ir => ({
+      filename: ir.filename,
+      mid: ir.mid,
+      highMid: ir.highMid,
+      presence: ir.presence,
+      ratio: ir.ratio,
+      centroid: ir.centroid,
+    }));
+
+    const minC = Math.min(...metrics.map(m => m.centroid));
+    const maxC = Math.max(...metrics.map(m => m.centroid));
+    const minR = Math.min(...metrics.map(m => m.ratio));
+    const maxR = Math.max(...metrics.map(m => m.ratio));
+
+    const pairs: { a: string; b: string; dist: number }[] = [];
+    for (let i = 0; i < metrics.length; i++) {
+      for (let j = i + 1; j < metrics.length; j++) {
+        const a = metrics[i], b = metrics[j];
+        const dist = Math.sqrt(
+          Math.pow((a.mid - b.mid) / 100, 2) +
+          Math.pow((a.highMid - b.highMid) / 100, 2) +
+          Math.pow((a.presence - b.presence) / 100, 2) +
+          Math.pow(normalize(a.centroid, minC, maxC) - normalize(b.centroid, minC, maxC), 2) +
+          Math.pow(normalize(a.ratio, minR, maxR) - normalize(b.ratio, minR, maxR), 2)
+        );
+        pairs.push({ a: a.filename, b: b.filename, dist });
+      }
+    }
+
+    pairs.sort((a, b) => a.dist - b.dist);
+    const similar = pairs.filter(p => p.dist < 0.15);
+    const varied = pairs.filter(p => p.dist > 0.5);
+
+    const lines: string[] = [];
+    lines.push(`Total IRs: ${irs.length}`);
+    lines.push(`Centroid range: ${Math.round(minC)}Hz - ${Math.round(maxC)}Hz`);
+    lines.push(`Ratio range: ${minR.toFixed(2)} - ${maxR.toFixed(2)}`);
+
+    if (similar.length > 0) {
+      lines.push(`\nHighly similar pairs (potential redundancy):`);
+      similar.slice(0, 10).forEach(p => lines.push(`  ${p.a} <-> ${p.b} (distance: ${p.dist.toFixed(3)})`));
+    } else {
+      lines.push(`\nNo highly similar pairs detected -- good variety.`);
+    }
+
+    if (varied.length > 0) {
+      lines.push(`\nMost tonally distinct pairs:`);
+      varied.slice(-5).reverse().forEach(p => lines.push(`  ${p.a} <-> ${p.b} (distance: ${p.dist.toFixed(3)})`));
+    }
+
+    const avgMid = irs.reduce((s, ir) => s + ir.mid, 0) / irs.length;
+    const avgHiMid = irs.reduce((s, ir) => s + ir.highMid, 0) / irs.length;
+    const avgPres = irs.reduce((s, ir) => s + ir.presence, 0) / irs.length;
+    const avgRatio = irs.reduce((s, ir) => s + ir.ratio, 0) / irs.length;
+    lines.push(`\nCollection averages: Mid=${avgMid.toFixed(1)}% HiMid=${avgHiMid.toFixed(1)}% Pres=${avgPres.toFixed(1)}% Ratio=${avgRatio.toFixed(2)}`);
+
+    const hasBright = irs.some(ir => ir.ratio > 1.5);
+    const hasWarm = irs.some(ir => ir.ratio < 1.0);
+    const hasSmooth = irs.some(ir => ir.smoothness > 70);
+    const hasAggressive = irs.some(ir => ir.highMid > 35);
+    const hasBody = irs.some(ir => ir.lowMid > 20 && ir.bass > 15);
+
+    lines.push(`\nTonal coverage flags:`);
+    lines.push(`  Bright (ratio>1.5): ${hasBright ? 'YES' : 'MISSING'}`);
+    lines.push(`  Warm (ratio<1.0): ${hasWarm ? 'YES' : 'MISSING'}`);
+    lines.push(`  Smooth (smoothness>70): ${hasSmooth ? 'YES' : 'MISSING'}`);
+    lines.push(`  Aggressive (hiMid>35%): ${hasAggressive ? 'YES' : 'MISSING'}`);
+    lines.push(`  Body (lowMid>20% + bass>15%): ${hasBody ? 'YES' : 'MISSING'}`);
+
+    return lines.join('\n');
+  }
+
+  // ── Gap Finder (Audio-Aware Shot Suggestions) ────────────────────────
+  app.post(api.tonalProfiles.gapFinder.path, async (req, res) => {
+    try {
+      const input = api.tonalProfiles.gapFinder.input.parse(req.body);
+      const profiles = await storage.getTonalProfiles();
+      const signals = await storage.getPreferenceSignals();
+      const learned = computeLearnedProfile(signals);
+      const gearPrompt = buildGearPreferencePrompt(learned);
+      const genreGuidance = input.genre ? expandGenreToTonalGuidance(input.genre) : '';
+
+      const speakerProfiles = profiles.filter(p =>
+        p.speaker.toLowerCase().replace(/[^a-z0-9]/g, '') === input.speaker.toLowerCase().replace(/[^a-z0-9]/g, '')
+      );
+
+      const profileSummary = (speakerProfiles.length > 0 ? speakerProfiles : profiles).map(p =>
+        `${p.mic}@${p.position}_${p.distance} on ${p.speaker}: Mid=${p.mid.toFixed(1)}% HiMid=${p.highMid.toFixed(1)}% Pres=${p.presence.toFixed(1)}% Ratio=${p.ratio.toFixed(2)} Centroid=${Math.round(p.centroid)}Hz Smooth=${p.smoothness.toFixed(0)} (${p.sampleCount} samples)`
+      ).join('\n');
+
+      const existingIrSummary = input.existingIrs.map(ir => {
+        const ratio = ir.mid > 0 ? (ir.highMid / ir.mid).toFixed(2) : '0.00';
+        return `${ir.filename}: SubBass=${ir.subBass.toFixed(1)}% Bass=${ir.bass.toFixed(1)}% LowMid=${ir.lowMid.toFixed(1)}% Mid=${ir.mid.toFixed(1)}% HiMid=${ir.highMid.toFixed(1)}% Pres=${ir.presence.toFixed(1)}% Ratio=${ratio} Centroid=${Math.round(ir.centroid)}Hz Smooth=${ir.smoothness.toFixed(0)}`;
+      }).join('\n');
+
+      const clusterAnalysis = analyzeIrClusters(input.existingIrs);
+
+      let preferenceContext = '';
+      if (learned.status !== 'no_data' && learned.learnedAdjustments) {
+        const adj = learned.learnedAdjustments as any;
+        const midVal = typeof adj.mid === 'object' ? adj.mid.shift : adj.mid;
+        const hiMidVal = typeof adj.highMid === 'object' ? adj.highMid.shift : adj.highMid;
+        const presVal = typeof adj.presence === 'object' ? adj.presence.shift : adj.presence;
+        const ratioVal = typeof adj.ratio === 'object' ? adj.ratio.shift : adj.ratio;
+        preferenceContext = `\n=== USER PREFERENCES (from ${learned.signalCount} rated blends) ===
+Preferred tonal center: Mid=${midVal?.toFixed?.(1) ?? 'n/a'}% HiMid=${hiMidVal?.toFixed?.(1) ?? 'n/a'}% Pres=${presVal?.toFixed?.(1) ?? 'n/a'}% Ratio=${ratioVal?.toFixed?.(2) ?? 'n/a'}
+${learned.avoidZones && learned.avoidZones.length > 0 ? `Avoid zones: ${learned.avoidZones.map((z: any) => z.label || z).join(', ')}` : ''}
+${gearPrompt}`;
+      }
+
+      const gapPrompt = `You are an expert audio engineer analyzing an existing IR collection to find GAPS and REDUNDANCIES.
+You have the ACTUAL tonal analysis of every IR the user currently has. Use this to identify what's missing and suggest specific new shots that would maximize variety and fill tonal holes.
+
+=== EXISTING IR COLLECTION (REAL ANALYZED DATA) ===
+${existingIrSummary}
+
+=== CLUSTER ANALYSIS ===
+${clusterAnalysis}
+
+=== LEARNED TONAL DATA (from previously analyzed IRs) ===
+${profileSummary || 'No prior tonal profiles available'}
+${preferenceContext}
+
+=== TARGET ===
+Speaker: ${input.speaker}
+${input.genre ? `Genre/Tone: ${genreGuidance}` : 'Goal: Versatile mixing palette'}
+Suggest up to ${input.targetCount || 5} additional shots
+
+=== TONAL BANDS ===
+SubBass (20-120Hz): rumble, weight
+Bass (120-250Hz): body, proximity effect
+LowMid (250-500Hz): warmth, mud zone
+Mid (500-2k): punch, clarity, presence
+HighMid (2k-4k): bite, articulation, harshness
+Presence (4k-8k): fizz, sizzle, air
+Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
+
+=== ANALYSIS INSTRUCTIONS ===
+1. IDENTIFY CLUSTERS: Group existing IRs by tonal similarity. Flag IRs that are nearly identical (redundant)
+2. FIND GAPS: What tonal territory is NOT covered? Missing brightness? Missing warmth? No smooth option? No body layer?
+3. SUGGEST SHOTS: For each gap, suggest a specific mic@position_distance that would fill it, based on learned tonal profiles
+4. BLEND AWARENESS: For blends (filenames with two mics), check if blend results overlap with single-mic shots. Flag redundant blends
+5. PRIORITY: Rank suggestions by how much variety they add. Most impactful gap-fill first
+6. Use the user's preference data to bias suggestions toward their taste
+
+=== OUTPUT FORMAT (JSON) ===
+{
+  "coverage": {
+    "bright": { "covered": true, "irCount": 3, "examples": ["SM57_CapEdge_2in.wav"] },
+    "warm": { "covered": false, "irCount": 0, "examples": [] },
+    "aggressive": { "covered": true, "irCount": 2, "examples": ["MD441_Presence_4in.wav"] },
+    "smooth": { "covered": false, "irCount": 0, "examples": [] },
+    "body": { "covered": true, "irCount": 1, "examples": ["R121_Cap_6in.wav"] },
+    "detail": { "covered": false, "irCount": 0, "examples": [] }
+  },
+  "redundancies": [
+    {
+      "irs": ["IR1.wav", "IR2.wav"],
+      "reason": "Nearly identical ratio and mid balance -- both are bright/forward. Keep one, drop the other",
+      "keepSuggestion": "IR1.wav (slightly smoother response)"
+    }
+  ],
+  "suggestedShots": [
+    {
+      "mic": "R121",
+      "position": "Cap",
+      "distance": "6",
+      "priority": 1,
+      "gapFilled": "warm/smooth layer",
+      "predictedTone": {
+        "mid": 30, "highMid": 25, "presence": 12, "ratio": 0.83,
+        "character": "Warm, smooth, dark body layer for blending"
+      },
+      "confidence": "high",
+      "confidenceReason": "8 samples of R121@Cap in database",
+      "blendPotential": "Pairs well with SM57@CapEdge for classic bright+warm blend"
+    }
+  ],
+  "blendRedundancies": [
+    {
+      "blend": "SM57+R121_blend.wav",
+      "overlapsWithSingles": ["SM57_CapEdge.wav has similar ratio"],
+      "verdict": "Blend adds modest warmth but doesn't fill a unique gap"
+    }
+  ],
+  "summary": "Your collection is heavy on bright/aggressive sounds. You're missing a warm body layer and a smooth detail option. Adding an R121@Cap_6 and M201@CapEdge_3 would complete your mixing palette."
+}`;
+
+      const gapResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: gapPrompt },
+          { role: "user", content: `Analyze my ${input.existingIrs.length} existing IRs for ${input.speaker} and suggest up to ${input.targetCount || 5} additional shots to fill tonal gaps.` }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
+
+      const gapResult = JSON.parse(gapResponse.choices[0].message.content || "{}");
+
+      res.json({
+        ...gapResult,
+        irCount: input.existingIrs.length,
+        profileCount: profiles.length,
+        speakerProfileCount: speakerProfiles.length,
+        preferenceSignalCount: signals.length,
+      });
+    } catch (err) {
+      console.error('Gap finder error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      res.status(500).json({ message: "Failed to analyze gaps" });
+    }
+  });
+
   return httpServer;
 }

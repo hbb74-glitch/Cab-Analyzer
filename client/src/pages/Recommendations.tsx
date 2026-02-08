@@ -98,7 +98,7 @@ const TONALITIES = [
   { value: "saturated", label: "Saturated" },
 ];
 
-type Mode = 'by-speaker' | 'by-amp' | 'import-positions' | 'shot-designer';
+type Mode = 'by-speaker' | 'by-amp' | 'import-positions' | 'shot-designer' | 'gap-finder';
 
 // Filename parsing patterns (same as Analyzer.tsx)
 const PREF_MIC_PATTERNS: Record<string, string> = {
@@ -713,6 +713,480 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
             Run batch analysis on your IRs first. Each analysis teaches the system what mic/position/distance combinations actually sound like.
           </p>
         </div>
+      )}
+    </div>
+  );
+}
+
+interface AnalyzedIr {
+  filename: string;
+  subBass: number;
+  bass: number;
+  lowMid: number;
+  mid: number;
+  highMid: number;
+  presence: number;
+  ratio: number;
+  centroid: number;
+  smoothness: number;
+}
+
+function GapFinderPanel({ speakers, genres }: { speakers: { value: string; label: string }[]; genres: { value: string; label: string }[] }) {
+  const [gfSpeaker, setGfSpeaker] = useState("");
+  const [gfGenre, setGfGenre] = useState("");
+  const [gfTargetCount, setGfTargetCount] = useState(5);
+  const [analyzedIrs, setAnalyzedIrs] = useState<AnalyzedIr[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeProgress, setAnalyzeProgress] = useState({ done: 0, total: 0 });
+  const [gapResult, setGapResult] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const wavFiles = acceptedFiles.filter(f => f.name.toLowerCase().endsWith('.wav'));
+    if (wavFiles.length === 0) {
+      toast({ title: "No WAV files found", description: "Please drop WAV impulse response files.", variant: "destructive" });
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalyzeProgress({ done: 0, total: wavFiles.length });
+    const results: AnalyzedIr[] = [...analyzedIrs];
+
+    for (let i = 0; i < wavFiles.length; i++) {
+      const file = wavFiles[i];
+      try {
+        const { analyzeAudioFile } = await import("@/hooks/use-analyses");
+        const metrics = await analyzeAudioFile(file);
+        const totalBandEnergy = metrics.subBassEnergy + metrics.bassEnergy + metrics.lowMidEnergy + metrics.midEnergy6 + metrics.highMidEnergy + metrics.presenceEnergy;
+        const toPercent = (v: number) => totalBandEnergy > 0 ? (v / totalBandEnergy) * 100 : 0;
+        const mid = toPercent(metrics.midEnergy6);
+        const highMid = toPercent(metrics.highMidEnergy);
+        const ratio = mid > 0 ? highMid / mid : 0;
+
+        if (!results.some(r => r.filename === file.name)) {
+          results.push({
+            filename: file.name,
+            subBass: toPercent(metrics.subBassEnergy),
+            bass: toPercent(metrics.bassEnergy),
+            lowMid: toPercent(metrics.lowMidEnergy),
+            mid,
+            highMid,
+            presence: toPercent(metrics.presenceEnergy),
+            ratio,
+            centroid: metrics.spectralCentroid,
+            smoothness: metrics.frequencySmoothness,
+          });
+        }
+      } catch (err) {
+        console.error(`Failed to analyze ${file.name}:`, err);
+      }
+      setAnalyzeProgress({ done: i + 1, total: wavFiles.length });
+    }
+
+    setAnalyzedIrs(results);
+    setAnalyzing(false);
+    toast({ title: `${wavFiles.length} IR${wavFiles.length !== 1 ? 's' : ''} analyzed`, duration: 2000 });
+  }, [analyzedIrs, toast]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'audio/wav': ['.wav'] },
+    disabled: analyzing,
+  });
+
+  const removeIr = (filename: string) => {
+    setAnalyzedIrs(prev => prev.filter(ir => ir.filename !== filename));
+  };
+
+  const clearAll = () => {
+    setAnalyzedIrs([]);
+    setGapResult(null);
+  };
+
+  const gapMutation = useMutation({
+    mutationFn: async (input: { speaker: string; genre?: string; targetCount?: number; existingIrs: AnalyzedIr[] }) => {
+      const res = await apiRequest('POST', '/api/tonal-profiles/gap-finder', input);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGapResult(data);
+    },
+    onError: () => {
+      toast({ title: "Gap analysis failed", variant: "destructive" });
+    },
+  });
+
+  const handleAnalyze = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gfSpeaker || analyzedIrs.length === 0) return;
+    gapMutation.mutate({
+      speaker: gfSpeaker,
+      genre: gfGenre || undefined,
+      targetCount: gfTargetCount,
+      existingIrs: analyzedIrs,
+    });
+  };
+
+  const copySuggestions = () => {
+    if (!gapResult?.suggestedShots) return;
+    const list = gapResult.suggestedShots.map((s: any) =>
+      `${s.mic}@${s.position}_${s.distance}" — ${s.gapFilled}`
+    ).join('\n');
+    navigator.clipboard.writeText(list);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const coverageColor = (covered: boolean) =>
+    covered ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400";
+
+  const avgMid = analyzedIrs.length > 0 ? analyzedIrs.reduce((s, ir) => s + ir.mid, 0) / analyzedIrs.length : 0;
+  const avgHiMid = analyzedIrs.length > 0 ? analyzedIrs.reduce((s, ir) => s + ir.highMid, 0) / analyzedIrs.length : 0;
+  const avgPres = analyzedIrs.length > 0 ? analyzedIrs.reduce((s, ir) => s + ir.presence, 0) / analyzedIrs.length : 0;
+  const avgRatio = analyzedIrs.length > 0 ? analyzedIrs.reduce((s, ir) => s + ir.ratio, 0) / analyzedIrs.length : 0;
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleAnalyze} className="glass-panel p-6 rounded-2xl space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 rounded-lg bg-primary/20">
+            <Target className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Audio-Aware Gap Analysis</h3>
+            <p className="text-xs text-muted-foreground">
+              Load your actual IR files to find tonal gaps and redundancies using real audio data
+            </p>
+          </div>
+        </div>
+
+        <div
+          {...getRootProps()}
+          className={cn(
+            "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all",
+            isDragActive ? "border-primary bg-primary/10" : "border-white/10 hover:border-white/20",
+            analyzing && "opacity-50 cursor-not-allowed"
+          )}
+          data-testid="dropzone-gap-finder"
+        >
+          <input {...getInputProps()} data-testid="input-gap-finder-files" />
+          <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+          {analyzing ? (
+            <div className="space-y-2">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" />
+              <p className="text-sm text-muted-foreground">Analyzing {analyzeProgress.done}/{analyzeProgress.total}...</p>
+            </div>
+          ) : isDragActive ? (
+            <p className="text-sm text-primary font-medium">Drop your IR files here</p>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm text-foreground font-medium">Drop IR files here or click to browse</p>
+              <p className="text-xs text-muted-foreground">WAV files only. Each file will be analyzed for its tonal profile.</p>
+            </div>
+          )}
+        </div>
+
+        {analyzedIrs.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm font-medium text-foreground">{analyzedIrs.length} IR{analyzedIrs.length !== 1 ? 's' : ''} loaded</span>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                data-testid="button-clear-irs"
+              >
+                <Trash2 className="w-3 h-3" /> Clear all
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div className="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div className="text-muted-foreground">Avg Mid</div>
+                <div className="font-mono font-medium">{avgMid.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div className="text-muted-foreground">Avg HiMid</div>
+                <div className="font-mono font-medium">{avgHiMid.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div className="text-muted-foreground">Avg Presence</div>
+                <div className="font-mono font-medium">{avgPres.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white/5 rounded-lg px-3 py-2 text-center">
+                <div className="text-muted-foreground">Avg Ratio</div>
+                <div className="font-mono font-medium">{avgRatio.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin">
+              {analyzedIrs.map((ir) => (
+                <div key={ir.filename} className="flex items-center gap-2 text-xs bg-white/5 rounded-lg px-3 py-2 group" data-testid={`ir-item-${ir.filename}`}>
+                  <span className="flex-1 font-mono truncate text-foreground/80">{ir.filename}</span>
+                  <span className="text-muted-foreground shrink-0">R:{ir.ratio.toFixed(2)}</span>
+                  <span className="text-muted-foreground shrink-0">{Math.round(ir.centroid)}Hz</span>
+                  <button
+                    type="button"
+                    onClick={() => removeIr(ir.filename)}
+                    className="invisible group-hover:visible text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    data-testid={`button-remove-${ir.filename}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Speaker className="w-3 h-3" /> Speaker
+            </label>
+            <select
+              value={gfSpeaker}
+              onChange={(e) => setGfSpeaker(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-gap-speaker"
+            >
+              <option value="">Select speaker...</option>
+              {speakers.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Music className="w-3 h-3" /> Genre / Tone (Optional)
+            </label>
+            <select
+              value={gfGenre}
+              onChange={(e) => setGfGenre(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-gap-genre"
+            >
+              <option value="">Versatile (all genres)</option>
+              {genres.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Lightbulb className="w-3 h-3" /> Max Suggestions: {gfTargetCount}
+          </label>
+          <input
+            type="range"
+            min={1}
+            max={15}
+            value={gfTargetCount}
+            onChange={(e) => setGfTargetCount(Number(e.target.value))}
+            className="w-full accent-primary"
+            data-testid="slider-gap-target"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>1 (quick fill)</span>
+            <span>15 (comprehensive)</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={!gfSpeaker || analyzedIrs.length === 0 || gapMutation.isPending}
+            className={cn(
+              "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+              !gfSpeaker || analyzedIrs.length === 0 || gapMutation.isPending
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+            )}
+            data-testid="button-find-gaps"
+          >
+            {gapMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing Gaps...</>
+            ) : (
+              <><Target className="w-4 h-4" /> Find Gaps</>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {gapResult && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {gapResult.summary && (
+            <div className="glass-panel p-6 rounded-2xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
+                  <Target className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">Gap Analysis</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{gapResult.irCount} IRs analyzed</span>
+                  {gapResult.preferenceSignalCount > 0 && (
+                    <span className="bg-white/5 px-2 py-1 rounded">{gapResult.preferenceSignalCount} preference signals used</span>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground italic">{gapResult.summary}</p>
+            </div>
+          )}
+
+          {gapResult.coverage && (
+            <div className="glass-panel p-4 rounded-xl space-y-3">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Tonal Coverage</h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(gapResult.coverage).map(([key, val]: [string, any]) => (
+                  <span
+                    key={key}
+                    className={cn(
+                      "text-xs px-2 py-1 rounded capitalize",
+                      coverageColor(val?.covered ?? val)
+                    )}
+                    data-testid={`coverage-${key}`}
+                  >
+                    {val?.covered ?? val ? <CheckCircle className="w-3 h-3 inline mr-1" /> : <AlertCircle className="w-3 h-3 inline mr-1" />}
+                    {key} {val?.irCount != null ? `(${val.irCount})` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {gapResult.redundancies && gapResult.redundancies.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-amber-400" />
+                Redundancies Found
+              </h3>
+              <div className="grid gap-3">
+                {gapResult.redundancies.map((r: any, i: number) => (
+                  <div
+                    key={i}
+                    className="glass-panel p-4 rounded-xl space-y-2 border border-amber-500/20"
+                    data-testid={`redundancy-${i}`}
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {(r.irs || []).map((name: string, j: number) => (
+                        <code key={j} className="text-xs font-mono bg-amber-500/10 px-2 py-1 rounded text-amber-300">{name}</code>
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{r.reason}</p>
+                    {r.keepSuggestion && (
+                      <p className="text-xs text-foreground/70">
+                        <ArrowRight className="w-3 h-3 inline mr-1" />
+                        Keep: <span className="font-medium">{r.keepSuggestion}</span>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {gapResult.blendRedundancies && gapResult.blendRedundancies.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <ListFilter className="w-5 h-5 text-amber-400" />
+                Blend Overlap
+              </h3>
+              <div className="grid gap-3">
+                {gapResult.blendRedundancies.map((br: any, i: number) => (
+                  <div key={i} className="glass-panel p-4 rounded-xl space-y-2 border border-amber-500/10" data-testid={`blend-redundancy-${i}`}>
+                    <code className="text-xs font-mono bg-white/5 px-2 py-1 rounded text-foreground">{br.blend}</code>
+                    {br.overlapsWithSingles && br.overlapsWithSingles.length > 0 && (
+                      <div className="flex flex-wrap gap-1 text-xs text-muted-foreground">
+                        {br.overlapsWithSingles.map((o: string, j: number) => (
+                          <span key={j} className="bg-white/5 px-2 py-0.5 rounded">{o}</span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-sm text-muted-foreground">{br.verdict}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {gapResult.suggestedShots && gapResult.suggestedShots.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-green-400" />
+                  Suggested New Shots
+                </h3>
+                <button
+                  onClick={copySuggestions}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                  data-testid="button-copy-suggestions"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  {copied ? "Copied!" : "Copy List"}
+                </button>
+              </div>
+              <div className="grid gap-3">
+                {gapResult.suggestedShots.map((shot: any, i: number) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="glass-panel p-4 rounded-xl space-y-3"
+                    data-testid={`suggested-shot-${i}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-medium">#{shot.priority || i + 1}</span>
+                      <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
+                        {shot.mic}@{shot.position}_{shot.distance}"
+                      </code>
+                      {shot.confidence && (
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded font-medium",
+                          shot.confidence === 'high' ? "text-green-400 bg-green-500/20" :
+                          shot.confidence === 'medium' ? "text-yellow-400 bg-yellow-500/20" :
+                          "text-orange-400 bg-orange-500/20"
+                        )}>
+                          {shot.confidence}
+                        </span>
+                      )}
+                    </div>
+
+                    {shot.gapFilled && (
+                      <div className="text-xs text-primary/80 font-medium flex items-center gap-1">
+                        <ArrowRight className="w-3 h-3" /> Fills: {shot.gapFilled}
+                      </div>
+                    )}
+
+                    {shot.predictedTone && (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="bg-white/5 px-2 py-1 rounded">Mid {shot.predictedTone.mid}%</span>
+                        <span className="bg-white/5 px-2 py-1 rounded">HiMid {shot.predictedTone.highMid}%</span>
+                        <span className="bg-white/5 px-2 py-1 rounded">Pres {shot.predictedTone.presence}%</span>
+                        <span className="bg-white/5 px-2 py-1 rounded">Ratio {shot.predictedTone.ratio}</span>
+                        {shot.predictedTone.centroid && (
+                          <span className="bg-white/5 px-2 py-1 rounded">{Math.round(shot.predictedTone.centroid)} Hz</span>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-sm text-muted-foreground">{shot.predictedTone?.character || shot.blendPotential}</p>
+                    {shot.confidenceReason && (
+                      <p className="text-xs text-muted-foreground/70 italic">{shot.confidenceReason}</p>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </div>
   );
@@ -1571,7 +2045,7 @@ export default function Recommendations() {
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            {mode === 'by-speaker' ? 'Mic Recommendations' : mode === 'by-amp' ? 'Speaker Recommendations' : mode === 'shot-designer' ? 'Shot Designer' : 'Refine Shot List'}
+            {mode === 'by-speaker' ? 'Mic Recommendations' : mode === 'by-amp' ? 'Speaker Recommendations' : mode === 'shot-designer' ? 'Shot Designer' : mode === 'gap-finder' ? 'Gap Finder' : 'Refine Shot List'}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             {mode === 'by-speaker' 
@@ -1580,6 +2054,8 @@ export default function Recommendations() {
               ? 'Describe your amp and get speaker recommendations based on classic amp/speaker pairings from legendary recordings.'
               : mode === 'shot-designer'
               ? 'Design a complete shot list using real tonal data learned from your previous batch analyses. Each shot is predicted from actual IR measurements.'
+              : mode === 'gap-finder'
+              ? 'Load your actual IR files to analyze what tonal territory you already cover. Get targeted suggestions for new shots that fill gaps and flag redundant IRs.'
               : 'Paste your tested IR positions and get AI-powered suggestions to refine and expand your shot list.'}
           </p>
         </div>
@@ -1637,6 +2113,19 @@ export default function Recommendations() {
               data-testid="button-mode-shot-designer"
             >
               <BarChart3 className="w-4 h-4" /> Shot Designer
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('gap-finder')}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                mode === 'gap-finder'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              data-testid="button-mode-gap-finder"
+            >
+              <Target className="w-4 h-4" /> Gap Finder
             </button>
           </div>
         </div>
@@ -2739,6 +3228,10 @@ Or written out:
 
         {mode === 'shot-designer' && (
         <ShotDesignerPanel speakers={SPEAKERS} genres={GENRES} />
+        )}
+
+        {mode === 'gap-finder' && (
+        <GapFinderPanel speakers={SPEAKERS} genres={GENRES} />
         )}
 
         {/* Speaker Clarification Dialog */}
