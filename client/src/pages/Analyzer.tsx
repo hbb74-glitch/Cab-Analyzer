@@ -1545,6 +1545,184 @@ export default function Analyzer() {
   const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
   const [cullUserOverrides, setCullUserOverrides] = useState<Map<string, string[]>>(new Map());
   
+  // Reference Set Comparison state
+  interface ReferenceIR {
+    filename: string;
+    subBass: number;
+    bass: number;
+    lowMid: number;
+    mid: number;
+    highMid: number;
+    presence: number;
+    centroid: number;
+    smoothness: number;
+    ratio: number;
+    label: string;
+  }
+  interface ReferenceSet {
+    name: string;
+    speaker: string;
+    createdAt: string;
+    irs: ReferenceIR[];
+  }
+  const [referenceSet, setReferenceSet] = useState<ReferenceSet | null>(() => {
+    try {
+      const stored = sessionStorage.getItem('ir-reference-set');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+  const [referenceThreshold, setReferenceThreshold] = useState(0.78);
+  const [showReferenceComparison, setShowReferenceComparison] = useState(false);
+  const referenceComparisonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      if (referenceSet) {
+        sessionStorage.setItem('ir-reference-set', JSON.stringify(referenceSet));
+      } else {
+        sessionStorage.removeItem('ir-reference-set');
+      }
+    } catch {}
+  }, [referenceSet]);
+
+  const buildReferenceIRs = useCallback((): ReferenceIR[] | null => {
+    if (!batchResult || !batchIRs.length) return null;
+    const metricsMap = new Map<string, { centroid: number; smoothness: number }>();
+    batchIRs.forEach(ir => {
+      if (ir.metrics) {
+        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.frequencySmoothness });
+      }
+    });
+    return batchResult.results.map((r) => {
+      const mid = r.midPercent || 0;
+      const highMid = r.highMidPercent || 0;
+      const ratio = mid > 0 ? highMid / mid : 0;
+      const matched = metricsMap.get(r.filename);
+      const centroidVal = matched?.centroid || 0;
+      const smoothnessVal = matched?.smoothness || 0;
+
+      let label = 'neutral';
+      if (ratio > 1.5 && (r.presencePercent || 0) > 15) label = 'bright/forward';
+      else if (ratio > 1.2) label = 'forward';
+      else if (ratio < 0.6 && (r.subBassPercent || 0) + (r.bassPercent || 0) > 35) label = 'dark/warm';
+      else if (ratio < 0.8) label = 'warm';
+      else if ((r.midPercent || 0) > 30) label = 'mid-heavy';
+      else if ((r.midPercent || 0) < 15 && highMid > 20) label = 'scooped/aggressive';
+      else label = 'balanced';
+
+      return {
+        filename: r.filename,
+        subBass: r.subBassPercent || 0,
+        bass: r.bassPercent || 0,
+        lowMid: r.lowMidPercent || 0,
+        mid: r.midPercent || 0,
+        highMid: r.highMidPercent || 0,
+        presence: r.presencePercent || 0,
+        centroid: centroidVal,
+        smoothness: smoothnessVal,
+        ratio,
+        label,
+      };
+    });
+  }, [batchResult, batchIRs]);
+
+  const referenceComparison = useMemo(() => {
+    if (!referenceSet || !batchResult || !batchIRs.length) return null;
+
+    const metricsMap = new Map<string, { centroid: number; smoothness: number }>();
+    batchIRs.forEach(ir => {
+      if (ir.metrics) {
+        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.frequencySmoothness });
+      }
+    });
+
+    const candidateBands = batchResult.results.map((r) => {
+      const mid = r.midPercent || 0;
+      const highMid = r.highMidPercent || 0;
+      const matched = metricsMap.get(r.filename);
+      return {
+        filename: r.filename,
+        subBass: r.subBassPercent || 0,
+        bass: r.bassPercent || 0,
+        lowMid: r.lowMidPercent || 0,
+        mid,
+        highMid,
+        presence: r.presencePercent || 0,
+        centroid: matched?.centroid || 0,
+        smoothness: matched?.smoothness || 0,
+        ratio: mid > 0 ? highMid / mid : 0,
+      };
+    });
+
+    const computeFlavorSimilarity = (ref: ReferenceIR, cand: typeof candidateBands[0]): number => {
+      const refBands = [ref.subBass, ref.bass, ref.lowMid, ref.mid, ref.highMid, ref.presence];
+      const candBands = [cand.subBass, cand.bass, cand.lowMid, cand.mid, cand.highMid, cand.presence];
+      let totalDiff = 0;
+      for (let i = 0; i < 6; i++) totalDiff += Math.abs(refBands[i] - candBands[i]);
+      const bandSim = Math.max(0, 1 - (totalDiff / 60));
+
+      const ratioDiff = Math.abs(ref.ratio - cand.ratio);
+      const ratioSim = Math.max(0, 1 - (ratioDiff / 1.5));
+
+      const centroidDiff = Math.abs(ref.centroid - cand.centroid);
+      const centroidSim = Math.max(0, 1 - (centroidDiff / 3000));
+
+      return bandSim * 0.50 + ratioSim * 0.25 + centroidSim * 0.25;
+    };
+
+    const matches: {
+      refFilename: string;
+      refLabel: string;
+      bestMatchFilename: string | null;
+      bestMatchSimilarity: number;
+      covered: boolean;
+      refBands: number[];
+      matchBands: number[] | null;
+    }[] = referenceSet.irs.map(ref => {
+      let bestSim = 0;
+      let bestIdx = -1;
+      candidateBands.forEach((cand, j) => {
+        const sim = computeFlavorSimilarity(ref, cand);
+        if (sim > bestSim) { bestSim = sim; bestIdx = j; }
+      });
+      const covered = bestSim >= referenceThreshold;
+      return {
+        refFilename: ref.filename,
+        refLabel: ref.label,
+        bestMatchFilename: bestIdx >= 0 ? candidateBands[bestIdx].filename : null,
+        bestMatchSimilarity: bestSim,
+        covered,
+        refBands: [ref.subBass, ref.bass, ref.lowMid, ref.mid, ref.highMid, ref.presence],
+        matchBands: bestIdx >= 0 ? [candidateBands[bestIdx].subBass, candidateBands[bestIdx].bass, candidateBands[bestIdx].lowMid, candidateBands[bestIdx].mid, candidateBands[bestIdx].highMid, candidateBands[bestIdx].presence] : null,
+      };
+    });
+
+    const coveredCount = matches.filter(m => m.covered).length;
+    const totalCount = matches.length;
+    const coveragePercent = totalCount > 0 ? Math.round((coveredCount / totalCount) * 100) : 0;
+
+    let verdict: string;
+    let verdictColor: string;
+    if (coveragePercent >= 90) { verdict = 'Comprehensive Coverage'; verdictColor = 'text-green-400'; }
+    else if (coveragePercent >= 70) { verdict = 'Good Coverage'; verdictColor = 'text-blue-400'; }
+    else if (coveragePercent >= 50) { verdict = 'Partial Coverage'; verdictColor = 'text-amber-400'; }
+    else { verdict = 'Significant Gaps'; verdictColor = 'text-red-400'; }
+
+    const missingFlavors = matches
+      .filter(m => !m.covered)
+      .sort((a, b) => a.bestMatchSimilarity - b.bestMatchSimilarity);
+
+    const unusedCandidates = candidateBands.filter(c =>
+      !matches.some(m => m.covered && m.bestMatchFilename === c.filename)
+    );
+
+    const bonusFlavors = unusedCandidates.filter(cand => {
+      return !referenceSet.irs.some(ref => computeFlavorSimilarity(ref, cand) >= referenceThreshold);
+    }).map(c => c.filename);
+
+    return { matches, coveredCount, totalCount, coveragePercent, verdict, verdictColor, missingFlavors, bonusFlavors };
+  }, [referenceSet, batchResult, batchIRs, referenceThreshold]);
+
   // Blend analysis state
   interface BlendAnalysisResult {
     filename: string;
@@ -1657,6 +1835,19 @@ export default function Analyzer() {
 
   const { mutateAsync: createAnalysis, isPending: isSubmitting } = useCreateAnalysis();
   const { toast } = useToast();
+
+  const saveAsReference = useCallback(() => {
+    const refIRs = buildReferenceIRs();
+    if (!refIRs || !batchResult) return;
+    const speaker = batchResult.results[0]?.parsedInfo?.speaker || 'unknown';
+    setReferenceSet({
+      name: `${speaker} Reference (${refIRs.length} IRs)`,
+      speaker,
+      createdAt: new Date().toISOString(),
+      irs: refIRs,
+    });
+    toast({ title: "Reference set saved", description: `${refIRs.length} IRs saved as your reference palette` });
+  }, [buildReferenceIRs, batchResult, toast]);
 
   // Batch analysis mutation
   const { mutate: analyzeBatch, isPending: isBatchAnalyzing } = useMutation({
@@ -3190,7 +3381,36 @@ export default function Analyzer() {
                         Average Score: <span className="text-primary font-bold">{batchResult.averageScore}/100</span>
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={saveAsReference}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-xs font-medium transition-all text-emerald-400"
+                        data-testid="button-save-reference"
+                        title="Save this batch as your reference palette for comparing other batches"
+                      >
+                        <Target className="w-3 h-3" />
+                        {referenceSet ? "Update Reference" : "Save as Reference"}
+                      </button>
+                      {referenceSet && (
+                        <button
+                          onClick={() => {
+                            setShowReferenceComparison(!showReferenceComparison);
+                            if (!showReferenceComparison) {
+                              setTimeout(() => referenceComparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all",
+                            showReferenceComparison
+                              ? "bg-teal-500/30 border-teal-500/50 text-teal-300"
+                              : "bg-teal-500/20 hover:bg-teal-500/30 border-teal-500/30 text-teal-400"
+                          )}
+                          data-testid="button-compare-reference"
+                        >
+                          <Layers className="w-3 h-3" />
+                          Compare to Reference
+                        </button>
+                      )}
                       <button
                         onClick={copySimpleList}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
@@ -3256,6 +3476,180 @@ export default function Analyzer() {
                           <p key={i} className="text-xs text-muted-foreground">{s}</p>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {showReferenceComparison && referenceComparison && referenceSet && (
+                    <div ref={referenceComparisonRef} className="p-4 rounded-xl bg-teal-500/[0.06] border border-teal-500/20 space-y-4" data-testid="reference-comparison-panel">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-teal-400" />
+                          <span className="text-sm font-semibold text-teal-400">Reference Set Comparison</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-sm font-medium", referenceComparison.verdictColor)} data-testid="text-reference-verdict">
+                            {referenceComparison.verdict} ({referenceComparison.coveragePercent}%)
+                          </span>
+                          <button
+                            onClick={() => {
+                              setReferenceSet(null);
+                              setShowReferenceComparison(false);
+                            }}
+                            className="text-muted-foreground hover:text-destructive transition-colors ml-2"
+                            title="Clear reference set"
+                            data-testid="button-clear-reference"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>Reference: <span className="text-foreground font-medium">{referenceSet.name}</span> ({referenceSet.irs.length} IRs)</p>
+                        <p>Comparing tonal flavors -- not exact matches, but similar character across speakers.</p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Looser</span>
+                        <input
+                          type="range"
+                          min={0.55}
+                          max={0.95}
+                          step={0.01}
+                          value={referenceThreshold}
+                          onChange={(e) => setReferenceThreshold(parseFloat(e.target.value))}
+                          className="flex-1 h-1.5 accent-teal-500"
+                          data-testid="slider-reference-threshold"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Tighter</span>
+                        <span className="text-xs font-mono text-teal-400 w-10 text-right" data-testid="text-reference-threshold">
+                          {Math.round(referenceThreshold * 100)}%
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                          <span className="text-muted-foreground">Covered: <span className="text-foreground font-medium">{referenceComparison.coveredCount}</span></span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                          <span className="text-muted-foreground">Missing: <span className="text-foreground font-medium">{referenceComparison.totalCount - referenceComparison.coveredCount}</span></span>
+                        </div>
+                        {referenceComparison.bonusFlavors.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                            <span className="text-muted-foreground">Bonus: <span className="text-foreground font-medium">{referenceComparison.bonusFlavors.length}</span></span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="w-full h-3 rounded-full bg-white/5 overflow-hidden" data-testid="bar-coverage">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-teal-600 to-green-500 transition-all duration-500"
+                          style={{ width: `${referenceComparison.coveragePercent}%` }}
+                        />
+                      </div>
+
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {referenceComparison.matches.map((m, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded-lg text-xs",
+                              m.covered
+                                ? "bg-green-500/10 border border-green-500/20"
+                                : "bg-red-500/10 border border-red-500/20"
+                            )}
+                            data-testid={`reference-match-${i}`}
+                          >
+                            {m.covered ? (
+                              <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono truncate max-w-[40%]">{m.refFilename}</span>
+                                <span className={cn(
+                                  "px-1.5 py-0.5 rounded text-[10px]",
+                                  m.refLabel.includes('bright') || m.refLabel.includes('forward') ? "bg-green-500/20 text-green-400" :
+                                  m.refLabel.includes('dark') || m.refLabel.includes('warm') ? "bg-blue-500/20 text-blue-400" :
+                                  m.refLabel.includes('mid') ? "bg-yellow-500/20 text-yellow-400" :
+                                  m.refLabel.includes('scoop') ? "bg-pink-500/20 text-pink-400" :
+                                  "bg-white/10 text-muted-foreground"
+                                )}>
+                                  {m.refLabel}
+                                </span>
+                              </div>
+                              {m.bestMatchFilename && (
+                                <div className="mt-0.5 text-muted-foreground">
+                                  {m.covered ? "Matched by" : "Closest"}: <span className="font-mono text-foreground/80">{m.bestMatchFilename}</span>
+                                  <span className={cn(
+                                    "ml-2 font-mono",
+                                    m.bestMatchSimilarity >= referenceThreshold ? "text-green-400" :
+                                    m.bestMatchSimilarity >= referenceThreshold - 0.1 ? "text-amber-400" :
+                                    "text-red-400"
+                                  )}>
+                                    {Math.round(m.bestMatchSimilarity * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-0.5 flex-shrink-0" title="6-band shape">
+                              {m.refBands.map((v, bi) => (
+                                <div key={bi} className="w-1.5 bg-white/10 rounded-full overflow-hidden" style={{ height: '24px' }}>
+                                  <div
+                                    className={cn(
+                                      "w-full rounded-full transition-all",
+                                      m.covered ? "bg-teal-400/60" : "bg-red-400/60"
+                                    )}
+                                    style={{ height: `${Math.min(100, v * 3)}%`, marginTop: 'auto' }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {referenceComparison.bonusFlavors.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs text-blue-400 font-medium">New flavors not in your reference:</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {referenceComparison.bonusFlavors.map((f, i) => (
+                              <span key={i} className="px-2 py-1 rounded bg-blue-500/10 text-blue-400 text-xs font-mono" data-testid={`bonus-flavor-${i}`}>
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {referenceComparison.missingFlavors.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Missing {referenceComparison.missingFlavors.length} flavor{referenceComparison.missingFlavors.length > 1 ? 's' : ''} from your reference. 
+                          Try adjusting the closeness dial or recording additional shots targeting these tonal characters.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {showReferenceComparison && !referenceComparison && referenceSet && (
+                    <div className="p-4 rounded-xl bg-teal-500/[0.06] border border-teal-500/20 text-center space-y-2" data-testid="reference-no-data">
+                      <Target className="w-8 h-8 text-teal-400 mx-auto" />
+                      <p className="text-sm text-muted-foreground">
+                        Reference set loaded ({referenceSet.irs.length} IRs). Run batch analysis on a new set to compare.
+                      </p>
+                    </div>
+                  )}
+
+                  {!referenceSet && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.02] border border-white/5">
+                      <Target className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                      <p className="text-xs text-muted-foreground">
+                        Happy with this set? Click <span className="text-emerald-400 font-medium">Save as Reference</span> to use it as your benchmark when evaluating other batches.
+                      </p>
                     </div>
                   )}
 
