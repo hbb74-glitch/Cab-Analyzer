@@ -571,7 +571,8 @@ function cullIRs(
   targetCount: number,
   userOverrides: Map<string, string[]> = new Map(),
   preferenceMap?: Map<string, IRPreferenceInfo>,
-  gearSentimentMap?: Map<string, number>
+  gearSentimentMap?: Map<string, number>,
+  blendThresholdOverride: number = 0.93
 ): { result: CullResult; closeCalls: CullCloseCall[] } {
   if (irs.length <= targetCount) {
     return {
@@ -684,15 +685,15 @@ function cullIRs(
 
     let verdict: BlendRedundancyInfo['verdict'];
     let explanation: string;
-    if (maxSim >= 0.90) {
+    if (maxSim >= blendThresholdOverride) {
       verdict = 'redundant';
-      explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — blend adds minimal tonal value`;
-    } else if (maxSim >= 0.78) {
+      explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — solo covers this tone`;
+    } else if (maxSim >= blendThresholdOverride - 0.15) {
       verdict = 'adds-value';
-      explanation = `${Math.round(uniqueContribution * 100)}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — blend adds moderate tonal value`;
+      explanation = `${Math.round(uniqueContribution * 100)}% unique character vs closest solo (${closestComponent.mic.toUpperCase()}) — unique flavor for layering`;
     } else {
       verdict = 'essential';
-      explanation = `${Math.round(uniqueContribution * 100)}% unique character — blend creates distinct tone not achievable with individual mics`;
+      explanation = `${Math.round(uniqueContribution * 100)}% unique character — standalone tone the solos can't replicate`;
     }
 
     blendInfoMap.set(i, {
@@ -2532,7 +2533,7 @@ export default function Analyzer() {
       }
       if (gearSentMap.size === 0) gearSentMap = undefined;
     }
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined, gearSentMap);
+    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined, gearSentMap, blendThreshold);
     setCullResult(result);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
