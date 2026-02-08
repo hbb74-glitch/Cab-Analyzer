@@ -796,28 +796,45 @@ function cullIRs(
     return 'darkest';
   };
   
-  // Helper to generate midrange/tonal hint based on frequency response
+  // Pre-compute batch 6-band averages once for tonal hints
+  const batchBandAvgs = (() => {
+    let sumMid = 0, sumRatio = 0, sumLowMid = 0, sumPresence = 0;
+    const n = irs.length;
+    for (const ir of irs) {
+      const t = (ir.metrics.subBassEnergy || 0) + (ir.metrics.bassEnergy || 0) + (ir.metrics.lowMidEnergy || 0) +
+        (ir.metrics.midEnergy6 || 0) + (ir.metrics.highMidEnergy || 0) + (ir.metrics.presenceEnergy || 0);
+      if (t === 0) continue;
+      const mV = ((ir.metrics.midEnergy6 || 0) / t) * 100;
+      const hV = ((ir.metrics.highMidEnergy || 0) / t) * 100;
+      sumMid += mV;
+      sumRatio += mV > 0 ? hV / mV : 0;
+      sumLowMid += ((ir.metrics.lowMidEnergy || 0) / t) * 100;
+      sumPresence += ((ir.metrics.presenceEnergy || 0) / t) * 100;
+    }
+    return { mid: sumMid / n, ratio: sumRatio / n, lowMid: sumLowMid / n, presence: sumPresence / n };
+  })();
+
+  // Helper to generate tonal hint from 6-band data (same approach as Smart Thin)
   const getMidrangeHint = (idx: number): string => {
-    const metrics = irs[idx].metrics;
-    const centroid = metrics.spectralCentroid;
-    const smoothness = metrics.frequencySmoothness || 0;
-    
-    // Generate helpful tonal hints based on centroid and smoothness
+    const m = irs[idx].metrics;
+    const total6 = (m.subBassEnergy || 0) + (m.bassEnergy || 0) + (m.lowMidEnergy || 0) +
+      (m.midEnergy6 || 0) + (m.highMidEnergy || 0) + (m.presenceEnergy || 0);
+    if (total6 === 0) return 'neutral';
+
+    const mid = ((m.midEnergy6 || 0) / total6) * 100;
+    const highMid = ((m.highMidEnergy || 0) / total6) * 100;
+    const presence = ((m.presenceEnergy || 0) / total6) * 100;
+    const lowMid = ((m.lowMidEnergy || 0) / total6) * 100;
+    const ratio = mid > 0 ? highMid / mid : 0;
+
     const hints: string[] = [];
-    
-    // Centroid-based hints
-    if (centroid > 2800) hints.push('crisp');
-    else if (centroid > 2200) hints.push('balanced');
-    else if (centroid > 1600) hints.push('warm');
-    else hints.push('thick');
-    
-    // Smoothness-based hints
-    if (smoothness >= 75) hints.push('smooth');
-    else if (smoothness >= 60) hints.push('natural');
-    else if (smoothness >= 45) hints.push('textured');
-    else hints.push('aggressive');
-    
-    return hints.join(', ');
+    if (mid > batchBandAvgs.mid * 1.1) hints.push('mid+');
+    else if (mid < batchBandAvgs.mid * 0.9) hints.push('mid-');
+    if (ratio > batchBandAvgs.ratio * 1.15) hints.push('bite');
+    else if (ratio < batchBandAvgs.ratio * 0.85) hints.push('smooth');
+    if (lowMid > batchBandAvgs.lowMid * 1.1) hints.push('thick');
+    if (presence > batchBandAvgs.presence * 1.15) hints.push('airy');
+    return hints.length > 0 ? hints.join(', ') : 'neutral';
   };
 
   const getPreferenceRole = (idx: number): string | undefined => {
