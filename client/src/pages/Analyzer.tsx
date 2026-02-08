@@ -315,18 +315,30 @@ function calculateCentroidProximity(centroid1: number, centroid2: number): numbe
   return Math.max(0, 1 - (diff / maxDiff));
 }
 
-// Calculate energy distribution match (0-1, 1 = identical)
-function calculateEnergyMatch(
-  low1: number, mid1: number, high1: number,
-  low2: number, mid2: number, high2: number
-): number {
-  // Energy values are 0-1 normalized, so differences are also 0-1
-  const lowDiff = Math.abs(low1 - low2);
-  const midDiff = Math.abs(mid1 - mid2);
-  const highDiff = Math.abs(high1 - high2);
-  const avgDiff = (lowDiff + midDiff + highDiff) / 3;
-  // Clamp to ensure 0-1 range
-  return Math.max(0, Math.min(1, 1 - avgDiff));
+// Calculate 6-band EQ similarity (0-1, 1 = identical tonal balance)
+function calculate6BandMatch(m1: AudioMetrics, m2: AudioMetrics): number {
+  const total1 = (m1.subBassEnergy || 0) + (m1.bassEnergy || 0) + (m1.lowMidEnergy || 0) +
+    (m1.midEnergy6 || 0) + (m1.highMidEnergy || 0) + (m1.presenceEnergy || 0);
+  const total2 = (m2.subBassEnergy || 0) + (m2.bassEnergy || 0) + (m2.lowMidEnergy || 0) +
+    (m2.midEnergy6 || 0) + (m2.highMidEnergy || 0) + (m2.presenceEnergy || 0);
+  if (total1 === 0 || total2 === 0) return 0;
+  const toP = (v: number, t: number) => (v / t) * 100;
+  const bands1 = [
+    toP(m1.subBassEnergy || 0, total1), toP(m1.bassEnergy || 0, total1),
+    toP(m1.lowMidEnergy || 0, total1), toP(m1.midEnergy6 || 0, total1),
+    toP(m1.highMidEnergy || 0, total1), toP(m1.presenceEnergy || 0, total1)
+  ];
+  const bands2 = [
+    toP(m2.subBassEnergy || 0, total2), toP(m2.bassEnergy || 0, total2),
+    toP(m2.lowMidEnergy || 0, total2), toP(m2.midEnergy6 || 0, total2),
+    toP(m2.highMidEnergy || 0, total2), toP(m2.presenceEnergy || 0, total2)
+  ];
+  let totalDiff = 0;
+  for (let i = 0; i < 6; i++) {
+    totalDiff += Math.abs(bands1[i] - bands2[i]);
+  }
+  const maxPossibleDiff = 200;
+  return Math.max(0, 1 - (totalDiff / maxPossibleDiff));
 }
 
 // Calculate overall similarity between two IRs
@@ -338,23 +350,19 @@ function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
     metrics1.frequencyData,
     metrics2.frequencyData
   );
-  
+
   const centroidProximity = calculateCentroidProximity(
     metrics1.spectralCentroid,
     metrics2.spectralCentroid
   );
-  
-  const energyMatch = calculateEnergyMatch(
-    metrics1.lowEnergy, metrics1.midEnergy, metrics1.highEnergy,
-    metrics2.lowEnergy, metrics2.midEnergy, metrics2.highEnergy
-  );
-  
-  // Weighted average: frequency curve is most important (60/25/15)
-  const similarity = (frequencyCorrelation * 0.6) + (centroidProximity * 0.25) + (energyMatch * 0.15);
-  
+
+  const bandMatch = calculate6BandMatch(metrics1, metrics2);
+
+  const similarity = (bandMatch * 0.50) + (frequencyCorrelation * 0.35) + (centroidProximity * 0.15);
+
   return {
     similarity,
-    details: { frequencyCorrelation, centroidProximity, energyMatch }
+    details: { frequencyCorrelation, centroidProximity, energyMatch: bandMatch }
   };
 }
 
