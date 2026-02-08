@@ -607,8 +607,12 @@ function cullIRs(
     }
   }
 
+  const BLEND_TECHNIQUES: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
   const detectBlendMics = (filename: string): string[] => {
     const lower = filename.toLowerCase();
+    for (const [technique, mics] of Object.entries(BLEND_TECHNIQUES)) {
+      if (lower.includes(technique)) return mics;
+    }
     const detected: string[] = [];
     const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
     for (const mic of mics) {
@@ -622,8 +626,9 @@ function cullIRs(
     const blendMics = detectBlendMics(irs[i].filename);
     if (blendMics.length < 2) continue;
 
+    const uniqueMics = Array.from(new Set(blendMics));
     const componentMatches: BlendRedundancyInfo['componentMatches'] = [];
-    for (const mic of blendMics) {
+    for (const mic of uniqueMics) {
       let bestSim = 0;
       let bestFile = '';
       for (let j = 0; j < n; j++) {
@@ -1818,8 +1823,12 @@ export default function Analyzer() {
     }
 
     const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    const blendTechniques: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
     const detectMics = (filename: string): string[] => {
       const lower = filename.toLowerCase();
+      for (const [technique, techMics] of Object.entries(blendTechniques)) {
+        if (lower.includes(technique)) return techMics;
+      }
       const found: string[] = [];
       for (const mic of mics) {
         if (lower.includes(mic)) found.push(mic);
@@ -1833,7 +1842,7 @@ export default function Analyzer() {
     }
 
     if (blendIndices.length === 0) {
-      toast({ title: "No blends found", description: "No multi-mic blend IRs detected in your batch (e.g., SM57+R121 filenames)", variant: "destructive" });
+      toast({ title: "No blends found", description: "No multi-mic blend IRs detected in your batch (e.g., SM57+R121 or Fredman filenames)", variant: "destructive" });
       return;
     }
 
@@ -1850,9 +1859,10 @@ export default function Analyzer() {
     const results: BlendAnalysisResult[] = [];
     for (const bi of blendIndices) {
       const blendMics = detectMics(validIRs[bi].file.name);
+      const uniqueBlendMics = Array.from(new Set(blendMics));
       const componentMatches: { mic: string; filename: string; similarity: number }[] = [];
 
-      for (const mic of blendMics) {
+      for (const mic of uniqueBlendMics) {
         let bestSim = 0;
         let bestFile = '';
         for (let j = 0; j < n; j++) {
@@ -1871,6 +1881,11 @@ export default function Analyzer() {
         }
       }
 
+      const matchedTechnique = Object.keys(blendTechniques).find(t => validIRs[bi].file.name.toLowerCase().includes(t));
+      const blendLabel = matchedTechnique
+        ? matchedTechnique.charAt(0).toUpperCase() + matchedTechnique.slice(1)
+        : blendMics.map(m => m.toUpperCase()).join('+');
+
       if (componentMatches.length === 0) {
         results.push({
           filename: validIRs[bi].file.name,
@@ -1878,11 +1893,10 @@ export default function Analyzer() {
           componentMatches: [],
           maxComponentSimilarity: 0,
           verdict: 'essential',
-          explanation: `${blendMics.map(m => m.toUpperCase()).join('+')} blend — no matching single-mic captures in batch to compare`
+          explanation: `${blendLabel} blend — no matching single-mic captures in batch to compare`
         });
         continue;
       }
-
       const maxSim = Math.max(...componentMatches.map(c => c.similarity));
       const closestComponent = componentMatches.reduce((a, b) => a.similarity > b.similarity ? a : b);
       const simPct = Math.round(closestComponent.similarity * 100);
@@ -1892,13 +1906,13 @@ export default function Analyzer() {
       let explanation: string;
       if (maxSim >= 0.90) {
         verdict = 'redundant';
-        explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — blend adds minimal tonal value, safe to cut`;
+        explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — ${blendLabel} blend adds minimal tonal value, safe to cut`;
       } else if (maxSim >= 0.78) {
         verdict = 'adds-value';
-        explanation = `${uniquePct}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — blend contributes moderate tonal value`;
+        explanation = `${uniquePct}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — ${blendLabel} blend contributes moderate tonal value`;
       } else {
         verdict = 'essential';
-        explanation = `${uniquePct}% unique character — blend creates distinct tone not achievable with individual mics`;
+        explanation = `${uniquePct}% unique character — ${blendLabel} blend creates distinct tone not achievable with single mic`;
       }
 
       results.push({
