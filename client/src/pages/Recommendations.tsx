@@ -21,7 +21,7 @@ const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: stri
   },
 };
 
-const MICS = [
+const SINGLE_MICS = [
   { value: "57", label: "SM57" },
   { value: "121", label: "R121" },
   { value: "r92", label: "R92" },
@@ -38,6 +38,18 @@ const MICS = [
   { value: "c414", label: "C414" },
   { value: "roswell-cab", label: "Roswell Cab Mic" },
 ];
+
+const BLEND_MICS = [
+  { value: "sm57_r121_tight", label: "SM57+R121 Tight (67:33)" },
+  { value: "sm57_r121_balance", label: "SM57+R121 Balance (60:40)" },
+  { value: "sm57_r121_thick", label: "SM57+R121 Thick (51:49)" },
+  { value: "sm57_r121_smooth", label: "SM57+R121 Smooth (45:55)" },
+  { value: "sm57_r121_ribbon_dom", label: "SM57+R121 Ribbon Dom (24:76)" },
+  { value: "fredman", label: "Fredman (Dual SM57)" },
+];
+
+const MICS = [...SINGLE_MICS, ...BLEND_MICS];
+const BLEND_MIC_VALUES = BLEND_MICS.map(m => m.value);
 
 // Mic recipe type for structured input
 type MicRecipeEntry = { mic: string; label: string; count: number; singleDistance: boolean; singlePosition: boolean };
@@ -1357,6 +1369,10 @@ export default function Recommendations() {
           if (isRoswell) {
             return `${countPart} [STRICT: ALL Roswell shots MUST be at Cap position. Vary ONLY the distance. Output ${r.count} shots like: Roswell_Cap_4in, Roswell_Cap_6in, Roswell_Cap_8in. NEVER use any position other than Cap for Roswell.]`;
           }
+          const isBlend = BLEND_MIC_VALUES.includes(r.mic);
+          if (isBlend) {
+            return `${countPart} [STRICT: ALL ${r.label} shots MUST use position "Blend". Vary ONLY the distance (R121 distance for SM57+R121 blends, both-mic distance for Fredman). Output ${r.count} shots with DIFFERENT distances.]`;
+          }
           return `${countPart} [STRICT: Pick ONE position for all ${r.label} shots, but use ${r.count} DIFFERENT distances. Example: ${r.label}_Cap_1in, ${r.label}_Cap_2in, ${r.label}_Cap_3in - same position, different distances]`;
         } else if (!effectiveSinglePosition && effectiveSingleDistance) {
           // Vary positions, one distance (1D)
@@ -1405,9 +1421,10 @@ export default function Recommendations() {
       ));
     } else {
       // Add new - defaults based on mic type
+      // Blend mics: position is "Blend" (fixed), vary distances → single position ON, single distance OFF
       // Ribbon/condenser mics (Roswell, R121, R10, R92, C414): single position ON, single distance OFF (vary distances)
       // Other mics (dynamics): single position OFF (vary positions), single distance ON (one distance)
-      const singlePositionMics = ['roswell-cab', '121', 'r10', 'r92', 'c414'];
+      const singlePositionMics = ['roswell-cab', '121', 'r10', 'r92', 'c414', ...BLEND_MIC_VALUES];
       const defaultSinglePosition = singlePositionMics.includes(selectedMicForRecipe);
       const defaultSingleDistance = !defaultSinglePosition;
       setMicRecipe(prev => [...prev, { 
@@ -1496,6 +1513,7 @@ export default function Recommendations() {
     "capedge_dk": "CapEdge_DK",
     "cap_cone_tr": "CapEdge_Cone_Tr",
     "cone": "Cone",
+    "blend": "Blend",
     // Legacy mappings
     "cap-edge": "CapEdge",
     "cap-edge-favor-cap": "CapEdge_BR",
@@ -1636,9 +1654,16 @@ export default function Recommendations() {
                 data-testid="select-mic"
               >
                 <option value="">Any - Suggest mics for me</option>
-                {MICS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
+                <optgroup label="Single Mics">
+                  {SINGLE_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Blends">
+                  {BLEND_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
               </select>
               <p className="text-xs text-muted-foreground">Leave blank to get mic recommendations for the speaker</p>
             </div>
@@ -2014,9 +2039,16 @@ export default function Recommendations() {
                 data-testid="select-mic-recipe-speaker"
               >
                 <option value="">Select mic...</option>
-                {MICS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
+                <optgroup label="Single Mics">
+                  {SINGLE_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Blends">
+                  {BLEND_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
               </select>
               <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2">
                 <button
@@ -2531,9 +2563,16 @@ Or written out:
                 data-testid="select-mic-recipe"
               >
                 <option value="">Select mic...</option>
-                {MICS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
+                <optgroup label="Single Mics">
+                  {SINGLE_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Blends">
+                  {BLEND_MICS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </optgroup>
               </select>
               <div className="flex items-center gap-1 bg-black/20 border border-white/10 rounded-lg px-2">
                 <button

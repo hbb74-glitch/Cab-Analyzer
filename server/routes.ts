@@ -368,6 +368,12 @@ function validateAndFixRecommendations(
     'c414': 'c414', '414': 'c414', 'akgc414': 'c414', 'akg414': 'c414',
     // Roswell
     'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
+    // SM57+R121 Blends
+    'sm57r121tight': 'sm57r121tight', 'sm57r121balance': 'sm57r121balance',
+    'sm57r121thick': 'sm57r121thick', 'sm57r121smooth': 'sm57r121smooth',
+    'sm57r121ribbondom': 'sm57r121ribbondom', 'sm57r121ribbon_dom': 'sm57r121ribbondom',
+    // Fredman
+    'fredman': 'fredman',
   };
   
   const normalizeMicKey = (mic: string): string => {
@@ -396,6 +402,11 @@ function validateAndFixRecommendations(
     'c414': 4,                         // C414: 4-6", sweet 6"
     // Roswell - purpose-built for cabs
     'roswell': 2, 'roswellcab': 2, 'roswellcabmic': 2,  // Roswell: 2-12", sweet 6"
+    // SM57+R121 Blends - R121 distance, min 4"
+    'sm57r121tight': 4, 'sm57r121balance': 4, 'sm57r121thick': 4,
+    'sm57r121smooth': 4, 'sm57r121ribbondom': 4,
+    // Fredman - dual SM57, min 0.5"
+    'fredman': 0.5,
   };
   
   // 1. Enforce per-mic minimum distances based on guide data
@@ -426,6 +437,7 @@ function validateAndFixRecommendations(
       const posLower = (shot.position || '').toLowerCase()
         .replace(/[^a-z_]/g, '')
         .replace(/capedgeconetr/g, 'capedge_cone_tr');
+      if (posLower === 'blend') return true;
       const isBasic = BASIC_POSITIONS.some(bp => posLower === bp || posLower.startsWith(bp + '_'));
       if (!isBasic) {
         fixes.push(`Removed ${shot.micLabel || shot.mic} at ${shot.position} (non-basic position)`);
@@ -459,6 +471,11 @@ function validateAndFixRecommendations(
     '160': '1', 'm160': '1',
     'c414': '6',
     'roswell': '6', 'roswellcab': '6',
+    // SM57+R121 Blends - sweet spot is R121 at 5"
+    'sm57r121tight': '5', 'sm57r121balance': '5', 'sm57r121thick': '5',
+    'sm57r121smooth': '5', 'sm57r121ribbondom': '5',
+    // Fredman - dual SM57 sweet spot 1"
+    'fredman': '1',
   };
   
   // 4. Enforce single distance per mic - PREFER SWEET SPOT, fall back to AI's choice
@@ -2144,6 +2161,25 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
       - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
+      BLEND SETUPS (SM57 + R121 at fixed ratios, position is always "Blend"):
+      These are dual-mic setups where SM57 and R121 are blended at a specific ratio.
+      The SM57 is typically close-miked (1-2") at CapEdge, the R121 is further back (4-6") at Cap.
+      The "distance" in a blend shot refers to the R121's distance from the speaker — the SM57 stays at its sweet spot.
+      - sm57_r121_tight (SM57+R121 Tight): ratio 67:33 SM57:R121. SM57-dominant — punchy, aggressive, more bite and high-mid cut. Range 4-6".
+      - sm57_r121_balance (SM57+R121 Balance): ratio 60:40 SM57:R121. Even mix — SM57 attack with R121 warmth smoothing the top end. Range 4-6".
+      - sm57_r121_thick (SM57+R121 Thick): ratio 51:49 SM57:R121. Near-equal — full-bodied, thickened mids, slightly less bite than Balance. Range 4-6".
+      - sm57_r121_smooth (SM57+R121 Smooth): ratio 45:55 SM57:R121. R121-leaning — rounded highs, warm midrange, less harsh transients. Range 4-6".
+      - sm57_r121_ribbon_dom (SM57+R121 Ribbon Dom): ratio 24:76 SM57:R121. Ribbon-dominant — dark, warm, smooth top end, big low-mids. Range 4-6".
+      
+      FREDMAN TECHNIQUE (Dual SM57, position is always "Blend"):
+      - fredman (Fredman): Two SM57s aimed at the speaker, one on-axis and one off-axis (angled ~45°), blended 50:50. Classic Meshuggah/Fredrik Thordendal technique. Produces tight, focused, mid-heavy tone with reduced fizz. Both mics at same distance. Range 0.5-2", SWEET SPOT 1".
+      
+      IMPORTANT FOR BLEND SHOTS:
+      - Position MUST always be "Blend" — never Cap, CapEdge, etc.
+      - For SM57+R121 blends, the distance refers to the R121 placement. The SM57 is fixed at its sweet spot.
+      - For Fredman, the distance is where both SM57s are placed.
+      - Vary DISTANCE for tonal variety across blend shots, not position.
+      
       Available Distances (in inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
       Speakers Knowledge:
@@ -2177,7 +2213,8 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
       - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
-      - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest${genre ? `
+      - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
+      - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.${genre ? `
       
       === USER'S TONAL GOAL (HIGHEST PRIORITY) ===
       The user wants: ${expandGenreToTonalGuidance(genre)}
@@ -2214,7 +2251,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
         "shots": [
           {
             "micLabel": "REQUIRED: Display name WITH switch setting for MD441/e906 (e.g. 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'). For other mics, use standard label.",
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
             "expectedTone": "How this exact shot sounds",
@@ -2480,6 +2517,25 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
       - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
+      BLEND SETUPS (SM57 + R121 at fixed ratios, position is always "Blend"):
+      These are dual-mic setups where SM57 and R121 are blended at a specific ratio.
+      The SM57 is typically close-miked (1-2") at CapEdge, the R121 is further back (4-6") at Cap.
+      The "distance" in a blend shot refers to the R121's distance from the speaker — the SM57 stays at its sweet spot.
+      - sm57_r121_tight (SM57+R121 Tight): ratio 67:33 SM57:R121. SM57-dominant — punchy, aggressive, more bite and high-mid cut. Range 4-6".
+      - sm57_r121_balance (SM57+R121 Balance): ratio 60:40 SM57:R121. Even mix — SM57 attack with R121 warmth smoothing the top end. Range 4-6".
+      - sm57_r121_thick (SM57+R121 Thick): ratio 51:49 SM57:R121. Near-equal — full-bodied, thickened mids, slightly less bite than Balance. Range 4-6".
+      - sm57_r121_smooth (SM57+R121 Smooth): ratio 45:55 SM57:R121. R121-leaning — rounded highs, warm midrange, less harsh transients. Range 4-6".
+      - sm57_r121_ribbon_dom (SM57+R121 Ribbon Dom): ratio 24:76 SM57:R121. Ribbon-dominant — dark, warm, smooth top end, big low-mids. Range 4-6".
+      
+      FREDMAN TECHNIQUE (Dual SM57, position is always "Blend"):
+      - fredman (Fredman): Two SM57s aimed at the speaker, one on-axis and one off-axis (angled ~45°), blended 50:50. Classic Meshuggah/Fredrik Thordendal technique. Produces tight, focused, mid-heavy tone with reduced fizz. Both mics at same distance. Range 0.5-2", SWEET SPOT 1".
+      
+      IMPORTANT FOR BLEND SHOTS:
+      - Position MUST always be "Blend" — never Cap, CapEdge, etc.
+      - For SM57+R121 blends, the distance refers to the R121 placement. The SM57 is fixed at its sweet spot.
+      - For Fredman, the distance is where both SM57s are placed.
+      - Vary DISTANCE for tonal variety across blend shots, not position.
+      
       Available Positions:
       - Cap: Dead center of the dust cap, brightest, most high-end detail
       - Cap_OffCenter: Small lateral offset from Cap, still fully on the dust cap, less harsh attack
@@ -2488,6 +2544,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
       - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
+      - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.
       
       Available Distances (inches): 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6
       
@@ -2546,7 +2603,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
           {
             "mic": "mic code (e.g. '57', '121', 'md441', 'e906', 'roswell-cab')",
             "micLabel": "Display name - MUST include switch setting for MD441/e906: 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'",
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
             "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
