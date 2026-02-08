@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -197,6 +198,7 @@ function DropZone({
 }
 
 export default function IRMixer() {
+  const { toast } = useToast();
   const [baseIR, setBaseIR] = useState<AnalyzedIR | null>(null);
   const [featureIRs, setFeatureIRs] = useState<AnalyzedIR[]>([]);
   const [allIRs, setAllIRs] = useState<AnalyzedIR[]>([]);
@@ -269,9 +271,13 @@ export default function IRMixer() {
     mutationFn: async (signals: any[]) => {
       await apiRequest("POST", "/api/preferences/signals", { signals });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
+      toast({ title: `${variables.length} rating${variables.length !== 1 ? "s" : ""} saved`, duration: 2000 });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save ratings", description: error.message || "Your ratings were not saved. Please try again.", variant: "destructive", duration: 5000 });
     },
   });
 
