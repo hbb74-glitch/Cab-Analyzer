@@ -1515,6 +1515,7 @@ export default function Analyzer() {
     maxComponentSimilarity: number;
     verdict: 'essential' | 'adds-value' | 'redundant';
     explanation: string;
+    dominanceNote?: string;
   }
   const [blendAnalysisResults, setBlendAnalysisResults] = useState<BlendAnalysisResult[]>([]);
   const [showBlendAnalysis, setShowBlendAnalysis] = useState(false);
@@ -1902,6 +1903,30 @@ export default function Analyzer() {
       const simPct = Math.round(closestComponent.similarity * 100);
       const uniquePct = Math.round((1 - maxSim) * 100);
 
+      let dominanceNote: string | undefined;
+      if (componentMatches.length >= 2) {
+        const sorted = [...componentMatches].sort((a, b) => b.similarity - a.similarity);
+        const dominant = sorted[0];
+        const secondary = sorted[1];
+        const domPct = Math.round(dominant.similarity * 100);
+        const secPct = Math.round(secondary.similarity * 100);
+        const gap = domPct - secPct;
+        if (gap >= 10) {
+          dominanceNote = `${dominant.mic.toUpperCase()} dominates this blend (${domPct}% match) — ${secondary.mic.toUpperCase()} barely contributes (${secPct}% match). You could mix ${secondary.mic.toUpperCase()} in separately for more control.`;
+        } else if (gap >= 4) {
+          dominanceNote = `${dominant.mic.toUpperCase()} leads slightly (${domPct}% match) over ${secondary.mic.toUpperCase()} (${secPct}% match). Both mics contribute — this blend captures their combined character.`;
+        } else {
+          dominanceNote = `Balanced blend — both ${dominant.mic.toUpperCase()} (${domPct}%) and ${secondary.mic.toUpperCase()} (${secPct}%) contribute roughly equally. This blend bakes in a combination flavor you can't easily recreate by mixing solo captures.`;
+        }
+      } else if (componentMatches.length === 1) {
+        const only = componentMatches[0];
+        const onlyPct = Math.round(only.similarity * 100);
+        const otherMics = uniqueBlendMics.filter(m => m !== only.mic);
+        if (otherMics.length > 0) {
+          dominanceNote = `Only ${only.mic.toUpperCase()} solo found in batch (${onlyPct}% match). No solo ${otherMics.map(m => m.toUpperCase()).join('/')} to compare — can't fully assess contribution balance.`;
+        }
+      }
+
       let verdict: 'essential' | 'adds-value' | 'redundant';
       let explanation: string;
       if (maxSim >= 0.90) {
@@ -1921,7 +1946,8 @@ export default function Analyzer() {
         componentMatches,
         maxComponentSimilarity: maxSim,
         verdict,
-        explanation
+        explanation,
+        dominanceNote
       });
     }
 
@@ -4130,6 +4156,11 @@ export default function Analyzer() {
                             <p className="text-xs text-muted-foreground mt-1.5" data-testid={`text-blend-explanation-${idx}`}>
                               {blend.explanation}
                             </p>
+                            {blend.dominanceNote && (
+                              <p className="text-xs mt-1.5 text-foreground/70 italic" data-testid={`text-blend-dominance-${idx}`}>
+                                {blend.dominanceNote}
+                              </p>
+                            )}
                             {blend.componentMatches.length > 0 && (
                               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2" data-testid={`blend-component-matches-${idx}`}>
                                 {blend.componentMatches.map(c => (
