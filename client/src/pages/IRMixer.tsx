@@ -592,7 +592,7 @@ export default function IRMixer() {
         highMid: pair.blendBands.highMid,
         presence: pair.blendBands.presence,
         ratio: Math.round(r * 100) / 100,
-        score: pair.score,
+        score: Math.round(pair.score),
         profileMatch: pair.bestMatch.profile,
       });
 
@@ -714,7 +714,7 @@ export default function IRMixer() {
         highMid: cr.blend.highMid,
         presence: cr.blend.presence,
         ratio: Math.round(r * 100) / 100,
-        score: cr.match.best.score,
+        score: Math.round(cr.match.best.score),
         profileMatch: cr.match.best.profile,
       });
     }
