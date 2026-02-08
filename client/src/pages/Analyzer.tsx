@@ -1454,6 +1454,7 @@ export default function Analyzer() {
   const redundancyRef = useRef<HTMLDivElement>(null);
   const smartThinRef = useRef<HTMLDivElement>(null);
   const cullerRef = useRef<HTMLDivElement>(null);
+  const blendAnalysisRef = useRef<HTMLDivElement>(null);
   
   const scrollToSection = (ref: React.RefObject<HTMLDivElement | null>) => {
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1500,6 +1501,18 @@ export default function Analyzer() {
   const [cullCloseCalls, setCullCloseCalls] = useState<CullCloseCall[]>([]);
   const [showCloseCallQuery, setShowCloseCallQuery] = useState(false);
   const [cullUserOverrides, setCullUserOverrides] = useState<Map<string, string[]>>(new Map());
+  
+  // Blend analysis state
+  interface BlendAnalysisResult {
+    filename: string;
+    blendMics: string[];
+    componentMatches: { mic: string; filename: string; similarity: number }[];
+    maxComponentSimilarity: number;
+    verdict: 'essential' | 'adds-value' | 'redundant';
+    explanation: string;
+  }
+  const [blendAnalysisResults, setBlendAnalysisResults] = useState<BlendAnalysisResult[]>([]);
+  const [showBlendAnalysis, setShowBlendAnalysis] = useState(false);
   
   // Smart Thin state - auto-detect over-represented groups and suggest keeping tonally unique variants
   interface SmartThinGroup {
@@ -1638,9 +1651,10 @@ export default function Analyzer() {
 
     setBatchIRs(newIRs);
     setBatchResult(null);
-    // Clear redundancy results when new files are uploaded
     setRedundancyGroups([]);
     setShowRedundancies(false);
+    setBlendAnalysisResults([]);
+    setShowBlendAnalysis(false);
 
     for (let i = 0; i < wavFiles.length; i++) {
       const file = wavFiles[i];
@@ -1701,6 +1715,8 @@ export default function Analyzer() {
     setShowRedundancies(false);
     setCullResult(null);
     setShowCuller(false);
+    setBlendAnalysisResults([]);
+    setShowBlendAnalysis(false);
     setPendingPreferences([]);
     setSelectedPreferences({});
     setShowPreferenceQuery(false);
@@ -1791,6 +1807,128 @@ export default function Analyzer() {
       }
     }
     return toRemove;
+  };
+
+  // Standalone blend analysis - analyze just the blends without full culling
+  const handleBlendAnalysis = () => {
+    const validIRs = batchIRs.filter(ir => ir.metrics && !ir.error);
+    if (validIRs.length < 2) {
+      toast({ title: "Need more IRs", description: "Upload at least 2 IRs to analyze blends", variant: "destructive" });
+      return;
+    }
+
+    const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    const detectMics = (filename: string): string[] => {
+      const lower = filename.toLowerCase();
+      const found: string[] = [];
+      for (const mic of mics) {
+        if (lower.includes(mic)) found.push(mic);
+      }
+      return found;
+    };
+
+    const blendIndices: number[] = [];
+    for (let i = 0; i < validIRs.length; i++) {
+      if (detectMics(validIRs[i].file.name).length >= 2) blendIndices.push(i);
+    }
+
+    if (blendIndices.length === 0) {
+      toast({ title: "No blends found", description: "No multi-mic blend IRs detected in your batch (e.g., SM57+R121 filenames)", variant: "destructive" });
+      return;
+    }
+
+    const n = validIRs.length;
+    const simMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const { similarity } = calculateSimilarity(validIRs[i].metrics!, validIRs[j].metrics!);
+        simMatrix[i][j] = similarity;
+        simMatrix[j][i] = similarity;
+      }
+    }
+
+    const results: BlendAnalysisResult[] = [];
+    for (const bi of blendIndices) {
+      const blendMics = detectMics(validIRs[bi].file.name);
+      const componentMatches: { mic: string; filename: string; similarity: number }[] = [];
+
+      for (const mic of blendMics) {
+        let bestSim = 0;
+        let bestFile = '';
+        for (let j = 0; j < n; j++) {
+          if (j === bi) continue;
+          const jMics = detectMics(validIRs[j].file.name);
+          if (jMics.length === 1 && jMics[0] === mic) {
+            const sim = simMatrix[bi][j];
+            if (sim > bestSim) {
+              bestSim = sim;
+              bestFile = validIRs[j].file.name;
+            }
+          }
+        }
+        if (bestFile) {
+          componentMatches.push({ mic, filename: bestFile, similarity: bestSim });
+        }
+      }
+
+      if (componentMatches.length === 0) {
+        results.push({
+          filename: validIRs[bi].file.name,
+          blendMics,
+          componentMatches: [],
+          maxComponentSimilarity: 0,
+          verdict: 'essential',
+          explanation: `${blendMics.map(m => m.toUpperCase()).join('+')} blend — no matching single-mic captures in batch to compare`
+        });
+        continue;
+      }
+
+      const maxSim = Math.max(...componentMatches.map(c => c.similarity));
+      const closestComponent = componentMatches.reduce((a, b) => a.similarity > b.similarity ? a : b);
+      const simPct = Math.round(closestComponent.similarity * 100);
+      const uniquePct = Math.round((1 - maxSim) * 100);
+
+      let verdict: 'essential' | 'adds-value' | 'redundant';
+      let explanation: string;
+      if (maxSim >= 0.90) {
+        verdict = 'redundant';
+        explanation = `${simPct}% similar to ${closestComponent.mic.toUpperCase()} capture — blend adds minimal tonal value, safe to cut`;
+      } else if (maxSim >= 0.78) {
+        verdict = 'adds-value';
+        explanation = `${uniquePct}% unique character vs closest component (${closestComponent.mic.toUpperCase()}) — blend contributes moderate tonal value`;
+      } else {
+        verdict = 'essential';
+        explanation = `${uniquePct}% unique character — blend creates distinct tone not achievable with individual mics`;
+      }
+
+      results.push({
+        filename: validIRs[bi].file.name,
+        blendMics,
+        componentMatches,
+        maxComponentSimilarity: maxSim,
+        verdict,
+        explanation
+      });
+    }
+
+    results.sort((a, b) => {
+      const order = { redundant: 0, 'adds-value': 1, essential: 2 };
+      return order[a.verdict] - order[b.verdict];
+    });
+
+    setBlendAnalysisResults(results);
+    setShowBlendAnalysis(true);
+
+    const redundantCount = results.filter(r => r.verdict === 'redundant').length;
+    const addsValueCount = results.filter(r => r.verdict === 'adds-value').length;
+    const essentialCount = results.filter(r => r.verdict === 'essential').length;
+
+    toast({
+      title: `Analyzed ${results.length} blend${results.length > 1 ? 's' : ''}`,
+      description: `${redundantCount} redundant, ${addsValueCount} adds-value, ${essentialCount} essential`
+    });
+
+    setTimeout(() => scrollToSection(blendAnalysisRef), 100);
   };
 
   // Get IRs already selected to keep from redundancy groups
@@ -2725,6 +2863,18 @@ export default function Analyzer() {
                         Redundancy
                       </Button>
                     )}
+                    {showBlendAnalysis && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => scrollToSection(blendAnalysisRef)}
+                        className="text-sky-400 border-sky-400/30 hover:bg-sky-400/10"
+                        data-testid="button-goto-blend-analysis"
+                      >
+                        <Layers className="w-4 h-4 mr-1" />
+                        Blends
+                      </Button>
+                    )}
                     {(showCuller || showPreferenceQuery) && (
                       <Button
                         variant="outline"
@@ -2843,21 +2993,37 @@ export default function Analyzer() {
                     )}
                   </button>
                   
-                  {/* Find Redundancies Button */}
-                  <button
-                    onClick={handleFindRedundancies}
-                    disabled={validBatchCount < 2 || analyzingBatchCount > 0}
-                    className={cn(
-                      "w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
-                      validBatchCount >= 2 && analyzingBatchCount === 0
-                        ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30"
-                        : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
-                    )}
-                    data-testid="button-find-redundancies"
-                  >
-                    <Target className="w-4 h-4" />
-                    Find Redundancies ({validBatchCount} IRs)
-                  </button>
+                  {/* Find Redundancies & Blend Analysis Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleFindRedundancies}
+                      disabled={validBatchCount < 2 || analyzingBatchCount > 0}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                        validBatchCount >= 2 && analyzingBatchCount === 0
+                          ? "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30"
+                          : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                      )}
+                      data-testid="button-find-redundancies"
+                    >
+                      <Target className="w-4 h-4" />
+                      Find Redundancies
+                    </button>
+                    <button
+                      onClick={handleBlendAnalysis}
+                      disabled={validBatchCount < 2 || analyzingBatchCount > 0}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 text-sm",
+                        validBatchCount >= 2 && analyzingBatchCount === 0
+                          ? "bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 border border-sky-500/30"
+                          : "bg-white/5 text-muted-foreground cursor-not-allowed border border-white/5"
+                      )}
+                      data-testid="button-blend-analysis"
+                    >
+                      <Layers className="w-4 h-4" />
+                      Analyze Blends
+                    </button>
+                  </div>
                   
                   {/* Culler Section with inline target input */}
                   <div className="space-y-2">
@@ -3830,6 +3996,196 @@ export default function Analyzer() {
               )}
             </AnimatePresence>
             
+            {/* Blend Analysis Section */}
+            <div ref={blendAnalysisRef}>
+            <AnimatePresence>
+              {showBlendAnalysis && blendAnalysisResults.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="glass-panel p-6 rounded-2xl space-y-4"
+                  data-testid="panel-blend-analysis"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <Layers className="w-5 h-5 text-sky-400" />
+                      <h3 className="text-lg font-semibold">Blend Analysis</h3>
+                      <span className="text-sm text-muted-foreground">
+                        {blendAnalysisResults.length} blend{blendAnalysisResults.length > 1 ? 's' : ''} found
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {showCuller && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => scrollToSection(cullerRef)}
+                          className="text-purple-400 border-purple-400/30 hover:bg-purple-400/10"
+                          data-testid="button-goto-culler-from-blends"
+                        >
+                          <Scissors className="w-4 h-4 mr-1" />
+                          Culler
+                        </Button>
+                      )}
+                      <button
+                        onClick={handleBlendAnalysis}
+                        className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-xs font-medium transition-all border border-sky-500/30"
+                        data-testid="button-recheck-blends"
+                      >
+                        Re-check
+                      </button>
+                      <button
+                        onClick={() => setShowBlendAnalysis(false)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"
+                        data-testid="button-close-blend-analysis"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Close
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Multi-mic blend IRs compared against their individual single-mic captures. Redundant blends can be safely removed without losing tonal variety.
+                  </p>
+
+                  {/* Summary badges */}
+                  <div className="flex gap-3 flex-wrap">
+                    {(() => {
+                      const redundant = blendAnalysisResults.filter(r => r.verdict === 'redundant').length;
+                      const addsValue = blendAnalysisResults.filter(r => r.verdict === 'adds-value').length;
+                      const essential = blendAnalysisResults.filter(r => r.verdict === 'essential').length;
+                      return (
+                        <>
+                          {redundant > 0 && (
+                            <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-500/20 text-orange-400 border-orange-500/30" data-testid="badge-blend-summary-redundant">
+                              {redundant} redundant — safe to cut
+                            </span>
+                          )}
+                          {addsValue > 0 && (
+                            <span className="text-xs font-mono px-2 py-1 rounded border bg-cyan-500/20 text-cyan-400 border-cyan-500/30" data-testid="badge-blend-summary-adds-value">
+                              {addsValue} adds value
+                            </span>
+                          )}
+                          {essential > 0 && (
+                            <span className="text-xs font-mono px-2 py-1 rounded border bg-emerald-500/20 text-emerald-400 border-emerald-500/30" data-testid="badge-blend-summary-essential">
+                              {essential} essential
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Blend results list */}
+                  <div className="grid gap-2">
+                    {blendAnalysisResults.map((blend, idx) => (
+                      <div
+                        key={blend.filename}
+                        className={cn(
+                          "p-3 rounded-lg border",
+                          blend.verdict === 'redundant'
+                            ? "bg-orange-500/10 border-orange-500/20"
+                            : blend.verdict === 'adds-value'
+                            ? "bg-cyan-500/10 border-cyan-500/20"
+                            : "bg-emerald-500/10 border-emerald-500/20"
+                        )}
+                        data-testid={`blend-result-${idx}`}
+                      >
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className={cn(
+                                "font-mono text-sm truncate",
+                                blend.verdict === 'redundant' ? "text-orange-300" : blend.verdict === 'adds-value' ? "text-cyan-300" : "text-emerald-300"
+                              )} title={blend.filename} data-testid={`text-blend-filename-${idx}`}>
+                                {blend.filename}
+                              </p>
+                              <span className={cn(
+                                "text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0",
+                                blend.verdict === 'essential'
+                                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                  : blend.verdict === 'adds-value'
+                                  ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                                  : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                              )} data-testid={`badge-blend-verdict-${idx}`}>
+                                {blend.verdict === 'essential' ? 'ESSENTIAL' : blend.verdict === 'adds-value' ? 'ADDS VALUE' : 'REDUNDANT'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1.5" data-testid={`text-blend-explanation-${idx}`}>
+                              {blend.explanation}
+                            </p>
+                            {blend.componentMatches.length > 0 && (
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2" data-testid={`blend-component-matches-${idx}`}>
+                                {blend.componentMatches.map(c => (
+                                  <div key={c.mic} className="text-[11px]" data-testid={`blend-match-${idx}-${c.mic}`}>
+                                    <span className="text-muted-foreground">vs </span>
+                                    <span className="font-mono text-foreground/80">{c.mic.toUpperCase()}</span>
+                                    <span className="text-muted-foreground"> ({c.filename.length > 30 ? c.filename.slice(0, 27) + '...' : c.filename}): </span>
+                                    <span className={cn(
+                                      "font-mono font-medium",
+                                      c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                    )} data-testid={`text-blend-similarity-${idx}-${c.mic}`}>{Math.round(c.similarity * 100)}%</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {blend.verdict === 'redundant' && (
+                            <div className="shrink-0">
+                              <span className="text-[10px] text-orange-400/60 font-mono">SAFE TO CUT</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Copy redundant filenames */}
+                  {blendAnalysisResults.some(r => r.verdict === 'redundant') && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const redundantFiles = blendAnalysisResults
+                            .filter(r => r.verdict === 'redundant')
+                            .map(r => r.filename)
+                            .join('\n');
+                          navigator.clipboard.writeText(redundantFiles);
+                          toast({ title: "Copied", description: `${blendAnalysisResults.filter(r => r.verdict === 'redundant').length} redundant blend filenames copied` });
+                        }}
+                        className="h-7 px-2 text-xs text-orange-400 hover:text-orange-300"
+                        data-testid="button-copy-redundant-blends"
+                      >
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copy redundant filenames
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const keepFiles = blendAnalysisResults
+                            .filter(r => r.verdict !== 'redundant')
+                            .map(r => r.filename)
+                            .join('\n');
+                          navigator.clipboard.writeText(keepFiles);
+                          toast({ title: "Copied", description: `${blendAnalysisResults.filter(r => r.verdict !== 'redundant').length} essential/adds-value blend filenames copied` });
+                        }}
+                        className="h-7 px-2 text-xs text-emerald-400 hover:text-emerald-300"
+                        data-testid="button-copy-keep-blends"
+                      >
+                        <Copy className="w-3 h-3 mr-1" />
+                        Copy keeper filenames
+                      </Button>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            </div>
+
             {/* Culler Section (Preferences + Results) */}
             <div ref={cullerRef}>
             {/* Preference Query Panel */}
