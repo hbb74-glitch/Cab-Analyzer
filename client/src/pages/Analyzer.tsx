@@ -1933,22 +1933,22 @@ export default function Analyzer() {
         const closePct = Math.round(closest.similarity * 100);
         const otherPct = Math.round(other.similarity * 100);
         if (maxSim >= blendThreshold) {
-          dominanceNote = `This blend is basically the ${closest.mic.toUpperCase()} solo (${closePct}% match). You have both solo ${closest.mic.toUpperCase()} and ${other.mic.toUpperCase()} in this batch — cut the blend and mix them yourself with full ratio control.`;
+          dominanceNote = `${closePct}% match to ${closest.mic.toUpperCase()} solo — this blend doesn't give you a new tone to work with. The ${closest.mic.toUpperCase()} solo already covers this territory.`;
         } else if (maxSim >= 0.78) {
           if (closePct - otherPct >= 10) {
-            dominanceNote = `Closer to ${closest.mic.toUpperCase()} (${closePct}%) than ${other.mic.toUpperCase()} (${otherPct}%). The ${other.mic.toUpperCase()} adds some color but you could approximate this by mixing the solos — though you'd lose the phase-aligned interaction.`;
+            dominanceNote = `Leans toward ${closest.mic.toUpperCase()} (${closePct}%) but different enough to be its own flavor. Could work as an alternative to the ${closest.mic.toUpperCase()} solo when you want a slightly different texture to layer with other mics.`;
           } else {
-            dominanceNote = `Both ${closest.mic.toUpperCase()} (${closePct}%) and ${other.mic.toUpperCase()} (${otherPct}%) shape this blend. Mixing solos might get you close, but the baked-in phase interaction adds character.`;
+            dominanceNote = `Sits between ${closest.mic.toUpperCase()} (${closePct}%) and ${other.mic.toUpperCase()} (${otherPct}%) — a distinct middle-ground tone that neither solo gives you on its own. Useful as a unique ingredient for layering.`;
           }
         } else {
-          dominanceNote = `Only ${closePct}% similar to the nearest solo (${closest.mic.toUpperCase()}) — this blend creates a tone you can't recreate by mixing the individual captures. The phase interaction is doing real work here.`;
+          dominanceNote = `Only ${closePct}% similar to the nearest solo (${closest.mic.toUpperCase()}) — this is its own thing. A standalone tone you can layer with any other mic for combinations the solos can't produce.`;
         }
       } else if (componentMatches.length === 1) {
         const only = componentMatches[0];
         const onlyPct = Math.round(only.similarity * 100);
         const missingMics = uniqueBlendMics.filter(m => m !== only.mic);
         if (missingMics.length > 0) {
-          dominanceNote = `Only ${only.mic.toUpperCase()} solo found (${onlyPct}% match). No solo ${missingMics.map(m => m.toUpperCase()).join('/')} in batch — can't assess if you could mix the solos instead.`;
+          dominanceNote = `${onlyPct}% match to ${only.mic.toUpperCase()} solo. No solo ${missingMics.map(m => m.toUpperCase()).join('/')} in batch to compare against.`;
         }
       }
 
@@ -1956,13 +1956,13 @@ export default function Analyzer() {
       let explanation: string;
       if (maxSim >= blendThreshold) {
         verdict = 'redundant';
-        explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — ${hasBothSolos ? 'you have both solos to mix freely, this blend is safe to cut' : `${blendLabel} blend adds minimal tonal value`}`;
+        explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — doesn't add a new mixing ingredient, the solo already covers this tone`;
       } else if (maxSim >= 0.78) {
         verdict = 'adds-value';
-        explanation = `${uniquePct}% unique character beyond solo captures — ${blendLabel} blend contributes moderate tonal value${hasBothSolos ? ', but you could approximate by mixing solos' : ''}`;
+        explanation = `${blendLabel} blend offers a different flavor from the solos — a useful alternative tone for layering with other mics`;
       } else {
         verdict = 'essential';
-        explanation = `${uniquePct}% unique character — ${blendLabel} blend creates a tone the solo captures can't replicate`;
+        explanation = `${blendLabel} blend is its own unique tone — a standalone mixing ingredient the solos can't replicate`;
       }
 
       results.push({
@@ -4139,7 +4139,7 @@ export default function Analyzer() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Multi-mic blend IRs compared against their individual single-mic captures. Blends above {Math.round(blendThreshold * 100)}% similarity to a solo capture are flagged as redundant — adjust the threshold to taste.
+                    Does each blend give you a unique tone to layer with other mics? Blends above {Math.round(blendThreshold * 100)}% match to a solo are redundant — the solo already covers that tone.
                   </p>
 
                   {/* Summary badges */}
@@ -4152,17 +4152,17 @@ export default function Analyzer() {
                         <>
                           {redundant > 0 && (
                             <span className="text-xs font-mono px-2 py-1 rounded border bg-orange-500/20 text-orange-400 border-orange-500/30" data-testid="badge-blend-summary-redundant">
-                              {redundant} redundant — safe to cut
+                              {redundant} redundant — solo covers this
                             </span>
                           )}
                           {addsValue > 0 && (
                             <span className="text-xs font-mono px-2 py-1 rounded border bg-cyan-500/20 text-cyan-400 border-cyan-500/30" data-testid="badge-blend-summary-adds-value">
-                              {addsValue} adds value
+                              {addsValue} unique flavor
                             </span>
                           )}
                           {essential > 0 && (
                             <span className="text-xs font-mono px-2 py-1 rounded border bg-emerald-500/20 text-emerald-400 border-emerald-500/30" data-testid="badge-blend-summary-essential">
-                              {essential} essential
+                              {essential} standalone tone
                             </span>
                           )}
                         </>
@@ -4231,7 +4231,7 @@ export default function Analyzer() {
                           </div>
                           {blend.verdict === 'redundant' && (
                             <div className="shrink-0">
-                              <span className="text-[10px] text-orange-400/60 font-mono">SAFE TO CUT</span>
+                              <span className="text-[10px] text-orange-400/60 font-mono">SOLO COVERS THIS</span>
                             </div>
                           )}
                         </div>
