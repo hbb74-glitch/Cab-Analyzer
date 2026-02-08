@@ -358,7 +358,7 @@ function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
 
   const bandMatch = calculate6BandMatch(metrics1, metrics2);
 
-  const similarity = (bandMatch * 0.85) + (frequencyCorrelation * 0.15);
+  const similarity = (bandMatch * 0.45) + (frequencyCorrelation * 0.35) + (centroidProximity * 0.20);
 
   return {
     similarity,
