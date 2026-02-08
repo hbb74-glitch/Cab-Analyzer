@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useDropzone } from "react-dropzone";
 import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { useResults } from "@/context/ResultsContext";
+import { apiRequest } from "@/lib/queryClient";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
 
 // Ambiguous speaker patterns that need clarification
@@ -89,7 +90,7 @@ const TONALITIES = [
   { value: "saturated", label: "Saturated" },
 ];
 
-type Mode = 'by-speaker' | 'by-amp' | 'import-positions';
+type Mode = 'by-speaker' | 'by-amp' | 'import-positions' | 'shot-designer';
 
 // Filename parsing patterns (same as Analyzer.tsx)
 const PREF_MIC_PATTERNS: Record<string, string> = {
@@ -400,6 +401,313 @@ Your goal is to help the user create a COMPLETE, production-ready IR set for mix
 Also blend with professional best practices:
 - If user has multiple positions for the same mic, they likely want full speaker coverage
 - Note patterns (preference for bright vs warm, close vs distant, coverage vs single sweet spot)`;
+}
+
+function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; label: string }[]; genres: { value: string; label: string }[] }) {
+  const [designSpeaker, setDesignSpeaker] = useState("");
+  const [designGenre, setDesignGenre] = useState("");
+  const [targetCount, setTargetCount] = useState(10);
+  const [designResult, setDesignResult] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const { data: profileData, isLoading: profilesLoading } = useQuery({
+    queryKey: ['/api/tonal-profiles'],
+  });
+
+  const designMutation = useMutation({
+    mutationFn: async (input: { speaker: string; genre?: string; targetCount?: number }) => {
+      const res = await apiRequest('POST', '/api/tonal-profiles/design-shots', input);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setDesignResult(data);
+    },
+    onError: () => {
+      toast({ title: "Failed to design shots", variant: "destructive" });
+    },
+  });
+
+  const handleDesign = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!designSpeaker) return;
+    designMutation.mutate({
+      speaker: designSpeaker,
+      genre: designGenre || undefined,
+      targetCount,
+    });
+  };
+
+  const profileCount = Array.isArray(profileData) ? profileData.length : 0;
+  const speakerProfileCount = Array.isArray(profileData)
+    ? profileData.filter((p: any) => p.speaker?.toLowerCase().replace(/[^a-z0-9]/g, '') === designSpeaker.toLowerCase().replace(/[^a-z0-9]/g, '')).length
+    : 0;
+
+  const confidenceColor = (c: string) => {
+    if (c === 'high') return 'text-green-400 bg-green-500/20';
+    if (c === 'medium') return 'text-yellow-400 bg-yellow-500/20';
+    return 'text-orange-400 bg-orange-500/20';
+  };
+
+  const copyShotList = () => {
+    if (!designResult?.shots) return;
+    const list = designResult.shots.map((s: any) =>
+      `${s.mic}@${s.position}_${s.distance}"`
+    ).join('\n');
+    navigator.clipboard.writeText(list);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <form onSubmit={handleDesign} className="glass-panel p-6 rounded-2xl space-y-6">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2 rounded-lg bg-primary/20">
+            <BarChart3 className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Tonal Intelligence</h3>
+            <p className="text-xs text-muted-foreground">
+              {profilesLoading
+                ? 'Loading tonal data...'
+                : profileCount > 0
+                ? `${profileCount} mic/position profiles learned from your batch analyses`
+                : 'No tonal data yet -- run batch analysis to start learning'}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Speaker className="w-3 h-3" /> Speaker
+            </label>
+            <select
+              value={designSpeaker}
+              onChange={(e) => setDesignSpeaker(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-design-speaker"
+            >
+              <option value="">Select speaker...</option>
+              {speakers.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            {designSpeaker && (
+              <p className="text-xs text-muted-foreground">
+                {speakerProfileCount > 0
+                  ? `${speakerProfileCount} profiles for this speaker`
+                  : 'No data for this speaker yet -- will use cross-speaker data'}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Music className="w-3 h-3" /> Genre / Tone (Optional)
+            </label>
+            <select
+              value={designGenre}
+              onChange={(e) => setDesignGenre(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              data-testid="select-design-genre"
+            >
+              <option value="">Versatile (all genres)</option>
+              {genres.map((g) => (
+                <option key={g.value} value={g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Target className="w-3 h-3" /> Target Shot Count: {targetCount}
+          </label>
+          <input
+            type="range"
+            min={3}
+            max={25}
+            value={targetCount}
+            onChange={(e) => setTargetCount(Number(e.target.value))}
+            className="w-full accent-primary"
+            data-testid="slider-target-count"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>3 (focused)</span>
+            <span>25 (comprehensive)</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={!designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0}
+            className={cn(
+              "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
+              !designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
+            )}
+            data-testid="button-design-shots"
+          >
+            {designMutation.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Designing...</>
+            ) : (
+              <><Lightbulb className="w-4 h-4" /> Design Shot List</>
+            )}
+          </button>
+        </div>
+      </form>
+
+      {designResult && designResult.shots && designResult.shots.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <div className="glass-panel p-6 rounded-2xl space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-2 bg-primary/20 px-4 py-2 rounded-full border border-primary/20">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-primary">
+                  {designResult.shots.length} Shots Designed
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-xs px-2 py-1 rounded",
+                  designResult.dataSource === 'speaker-specific'
+                    ? "bg-green-500/20 text-green-400"
+                    : "bg-yellow-500/20 text-yellow-400"
+                )}>
+                  {designResult.dataSource === 'speaker-specific'
+                    ? `${designResult.speakerProfileCount} speaker profiles`
+                    : `${designResult.profileCount} cross-speaker profiles`}
+                </span>
+                <button
+                  onClick={copyShotList}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                  data-testid="button-copy-shot-list"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                  {copied ? "Copied!" : "Copy List"}
+                </button>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground italic">{designResult.summary}</p>
+          </div>
+
+          <div className="grid gap-3">
+            {designResult.shots.map((shot: any, i: number) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="glass-panel p-4 rounded-xl space-y-3"
+                data-testid={`card-shot-${i}`}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
+                    {shot.mic}@{shot.position}_{shot.distance}"
+                  </code>
+                  <span className={cn(
+                    "text-xs px-2 py-0.5 rounded font-medium",
+                    confidenceColor(shot.confidence)
+                  )}>
+                    {shot.confidence}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{shot.mixingRole}</span>
+                </div>
+
+                {shot.predictedTone && (
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="bg-white/5 px-2 py-1 rounded">Mid {shot.predictedTone.mid}%</span>
+                    <span className="bg-white/5 px-2 py-1 rounded">HiMid {shot.predictedTone.highMid}%</span>
+                    <span className="bg-white/5 px-2 py-1 rounded">Pres {shot.predictedTone.presence}%</span>
+                    <span className="bg-white/5 px-2 py-1 rounded">Ratio {shot.predictedTone.ratio}</span>
+                    {shot.predictedTone.centroid && (
+                      <span className="bg-white/5 px-2 py-1 rounded">{Math.round(shot.predictedTone.centroid)} Hz</span>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground">{shot.predictedTone?.character || shot.whyIncluded}</p>
+                <p className="text-xs text-muted-foreground/70 italic">{shot.confidenceReason}</p>
+
+                {shot.blendsWith && shot.blendsWith.length > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="text-foreground/70">Blends with:</span>{' '}
+                    {shot.blendsWith.join(', ')}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+
+          {designResult.mixingPairs && designResult.mixingPairs.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Lightbulb className="w-5 h-5 text-primary" />
+                Mixing Pairs
+              </h3>
+              <div className="grid gap-3">
+                {designResult.mixingPairs.map((pair: any, i: number) => (
+                  <div
+                    key={i}
+                    className="glass-panel p-4 rounded-xl space-y-2"
+                    data-testid={`card-mixing-pair-${i}`}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="text-xs font-mono bg-primary/20 px-2 py-1 rounded text-primary">{pair.shot1}</code>
+                      <span className="text-xs text-muted-foreground">+</span>
+                      <code className="text-xs font-mono bg-primary/20 px-2 py-1 rounded text-primary">{pair.shot2}</code>
+                      {pair.suggestedRatio && (
+                        <span className="text-xs bg-white/5 px-2 py-1 rounded">{pair.suggestedRatio}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{pair.blendResult}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {designResult.tonalCoverage && (
+            <div className="glass-panel p-4 rounded-xl">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Tonal Coverage</h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(designResult.tonalCoverage).map(([key, val]) => (
+                  <span
+                    key={key}
+                    className={cn(
+                      "text-xs px-2 py-1 rounded capitalize",
+                      val ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                    )}
+                  >
+                    {val ? <CheckCircle className="w-3 h-3 inline mr-1" /> : <AlertCircle className="w-3 h-3 inline mr-1" />}
+                    {key}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {designResult && (!designResult.shots || designResult.shots.length === 0) && (
+        <div className="glass-panel p-6 rounded-2xl text-center space-y-3">
+          <BarChart3 className="w-8 h-8 text-muted-foreground mx-auto" />
+          <p className="text-sm text-muted-foreground">{designResult.summary || 'No shot data available yet.'}</p>
+          <p className="text-xs text-muted-foreground/70">
+            Run batch analysis on your IRs first. Each analysis teaches the system what mic/position/distance combinations actually sound like.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Recommendations() {
@@ -1244,13 +1552,15 @@ export default function Recommendations() {
         
         <div className="text-center space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-secondary pb-2">
-            {mode === 'by-speaker' ? 'Mic Recommendations' : mode === 'by-amp' ? 'Speaker Recommendations' : 'Refine Shot List'}
+            {mode === 'by-speaker' ? 'Mic Recommendations' : mode === 'by-amp' ? 'Speaker Recommendations' : mode === 'shot-designer' ? 'Shot Designer' : 'Refine Shot List'}
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             {mode === 'by-speaker' 
               ? 'Get expert recommendations based on curated IR production knowledge. Select just a speaker to get mic/position/distance combos, or pick both mic and speaker for distance-focused advice.'
               : mode === 'by-amp'
               ? 'Describe your amp and get speaker recommendations based on classic amp/speaker pairings from legendary recordings.'
+              : mode === 'shot-designer'
+              ? 'Design a complete shot list using real tonal data learned from your previous batch analyses. Each shot is predicted from actual IR measurements.'
               : 'Paste your tested IR positions and get AI-powered suggestions to refine and expand your shot list.'}
           </p>
         </div>
@@ -1295,6 +1605,19 @@ export default function Recommendations() {
               data-testid="button-mode-import"
             >
               <FileText className="w-4 h-4" /> Import List
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange('shot-designer')}
+              className={cn(
+                "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+                mode === 'shot-designer'
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              data-testid="button-mode-shot-designer"
+            >
+              <BarChart3 className="w-4 h-4" /> Shot Designer
             </button>
           </div>
         </div>
@@ -2372,6 +2695,10 @@ Or written out:
             </button>
           </div>
         </form>
+        )}
+
+        {mode === 'shot-designer' && (
+        <ShotDesignerPanel speakers={SPEAKERS} genres={GENRES} />
         )}
 
         {/* Speaker Clarification Dialog */}

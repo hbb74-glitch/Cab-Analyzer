@@ -4471,6 +4471,39 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const totalScore = scoredResults.reduce((sum, r) => sum + r.score, 0);
       const averageScore = Math.round(totalScore / scoredResults.length);
 
+      // Save tonal profiles for IRs with parseable filenames and 6-band data
+      const profilesToSave: { mic: string; position: string; distance: string; speaker: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[] = [];
+      for (let i = 0; i < scoredResults.length; i++) {
+        const r = scoredResults[i];
+        const ir = irs[i];
+        const pi = r.parsedInfo;
+        if (pi?.mic && pi?.position && pi?.distance && pi?.speaker && r.midPercent != null && r.highMidPercent != null) {
+          profilesToSave.push({
+            mic: pi.mic,
+            position: pi.position,
+            distance: pi.distance,
+            speaker: pi.speaker,
+            subBass: r.subBassPercent ?? 0,
+            bass: r.bassPercent ?? 0,
+            lowMid: r.lowMidPercent ?? 0,
+            mid: r.midPercent ?? 0,
+            highMid: r.highMidPercent ?? 0,
+            presence: r.presencePercent ?? 0,
+            ratio: r.highMidMidRatio ?? 0,
+            centroid: ir.spectralCentroid,
+            smoothness: ir.frequencySmoothness ?? 0,
+          });
+        }
+      }
+      if (profilesToSave.length > 0) {
+        try {
+          const saved = await storage.upsertTonalProfiles(profilesToSave);
+          console.log(`[Tonal Intelligence] Saved ${saved} tonal profiles from batch of ${irs.length} IRs`);
+        } catch (profileErr) {
+          console.error('[Tonal Intelligence] Failed to save profiles (non-fatal):', profileErr);
+        }
+      }
+
       // Extract mics used in this batch for context
       const micsInBatch = Array.from(new Set(scoredResults.map(r => r.parsedInfo.mic).filter((m): m is string => Boolean(m))));
       const positionsInBatch = Array.from(new Set(scoredResults.map(r => r.parsedInfo.position).filter((p): p is string => Boolean(p))));
@@ -4650,6 +4683,137 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     } catch (err) {
       console.error('Learned profile error:', err);
       res.status(500).json({ message: "Failed to compute learned profile" });
+    }
+  });
+
+  // ── Tonal Profiles (Intelligence) ────────────────────────
+  app.get(api.tonalProfiles.list.path, async (_req, res) => {
+    try {
+      const profiles = await storage.getTonalProfiles();
+      res.json(profiles);
+    } catch (err) {
+      console.error('Tonal profiles error:', err);
+      res.status(500).json({ message: "Failed to retrieve tonal profiles" });
+    }
+  });
+
+  app.post(api.tonalProfiles.design.path, async (req, res) => {
+    try {
+      const input = api.tonalProfiles.design.input.parse(req.body);
+      const profiles = await storage.getTonalProfiles();
+
+      if (profiles.length === 0) {
+        return res.json({
+          shots: [],
+          summary: "No tonal data yet. Run batch analysis on some IRs first to build your tonal intelligence database.",
+          profileCount: 0,
+        });
+      }
+
+      const speakerProfiles = profiles.filter(p =>
+        p.speaker.toLowerCase().replace(/[^a-z0-9]/g, '') === input.speaker.toLowerCase().replace(/[^a-z0-9]/g, '')
+      );
+
+      const genreGuidance = input.genre ? expandGenreToTonalGuidance(input.genre) : '';
+
+      const profileSummary = (speakerProfiles.length > 0 ? speakerProfiles : profiles).map(p =>
+        `${p.mic}@${p.position}_${p.distance} on ${p.speaker}: Mid=${p.mid.toFixed(1)}% HiMid=${p.highMid.toFixed(1)}% Pres=${p.presence.toFixed(1)}% Ratio=${p.ratio.toFixed(2)} Centroid=${Math.round(p.centroid)}Hz Smooth=${p.smoothness.toFixed(0)} (${p.sampleCount} samples)`
+      ).join('\n');
+
+      const existingDesc = input.existingShots?.length
+        ? `\nShots the user ALREADY has (do NOT duplicate these):\n${input.existingShots.join('\n')}`
+        : '';
+
+      const designPrompt = `You are an expert audio engineer designing an IR capture session.
+You have REAL tonal data from previously analyzed IRs. Use this data to predict what each shot will sound like and design a set that covers the full tonal spectrum for mixing.
+
+=== LEARNED TONAL DATA (from real IR analysis) ===
+${profileSummary}
+
+=== TARGET ===
+Speaker: ${input.speaker}
+${input.genre ? `Genre/Tone: ${genreGuidance}` : 'Goal: Versatile mixing palette'}
+Target shot count: ${input.targetCount || 10}
+${existingDesc}
+
+=== TONAL BANDS ===
+SubBass (20-120Hz): rumble, weight
+Bass (120-250Hz): body, proximity effect
+LowMid (250-500Hz): warmth, mud zone
+Mid (500-2k): punch, clarity, presence
+HighMid (2k-4k): bite, articulation, harshness
+Presence (4k-8k): fizz, sizzle, air
+Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
+
+=== DESIGN PRINCIPLES ===
+1. MIXING PICTURE: Each shot should serve a distinct mixing role (body layer, attack layer, brightness layer, blend glue)
+2. PREDICT from data: Use the learned tonal profiles to predict what each new shot will sound like
+3. COMPLEMENTARY: Shots should combine well - one bright + one warm = blendable pair
+4. NO REDUNDANCY: Don't suggest two shots that would sound nearly identical based on the data
+5. TONAL GAPS: If the learned data shows a gap (e.g., no smooth dark option), fill it
+6. CONFIDENCE: Indicate confidence level based on how much data backs each prediction
+
+=== OUTPUT FORMAT (JSON) ===
+{
+  "shots": [
+    {
+      "mic": "SM57",
+      "position": "CapEdge",
+      "distance": "1",
+      "mixingRole": "Attack/aggression layer",
+      "predictedTone": {
+        "mid": 22, "highMid": 28, "presence": 18, "ratio": 1.6, "centroid": 2400,
+        "character": "Bright, punchy, forward mids with cutting presence"
+      },
+      "confidence": "high",
+      "confidenceReason": "12 samples of SM57@CapEdge in database",
+      "blendsWith": ["R121@CapEdge_1 (classic smooth+attack pair)"],
+      "whyIncluded": "Essential aggressive layer - combines with ribbon for the industry-standard blend"
+    }
+  ],
+  "mixingPairs": [
+    {
+      "shot1": "SM57@CapEdge_1",
+      "shot2": "R121@CapEdge_6",
+      "blendResult": "Balanced attack + warmth, the most common studio combo",
+      "suggestedRatio": "50/50 to 60/40 SM57-heavy"
+    }
+  ],
+  "tonalCoverage": {
+    "bright": true,
+    "warm": true,
+    "aggressive": true,
+    "smooth": true,
+    "body": true,
+    "detail": true
+  },
+  "summary": "This ${input.targetCount || 10}-shot set covers the full mixing spectrum..."
+}`;
+
+      const designResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: designPrompt },
+          { role: "user", content: `Design an optimal ${input.targetCount || 10}-shot IR capture plan for ${input.speaker} using the learned tonal data.` }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
+
+      const designResult = JSON.parse(designResponse.choices[0].message.content || "{}");
+
+      res.json({
+        ...designResult,
+        profileCount: profiles.length,
+        speakerProfileCount: speakerProfiles.length,
+        dataSource: speakerProfiles.length > 0 ? 'speaker-specific' : 'cross-speaker',
+      });
+    } catch (err) {
+      console.error('Shot design error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      res.status(500).json({ message: "Failed to design shots" });
     }
   });
 

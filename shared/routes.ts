@@ -1,6 +1,6 @@
 
 import { z } from 'zod';
-import { insertAnalysisSchema, analysisRequestSchema, analyses, insertPreferenceSignalSchema } from './schema';
+import { insertAnalysisSchema, analysisRequestSchema, analyses, insertPreferenceSignalSchema, insertTonalProfileSchema } from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -410,6 +410,30 @@ export const api = {
       path: '/api/preferences/learned',
       responses: {
         200: z.any(),
+      },
+    },
+  },
+  tonalProfiles: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/tonal-profiles',
+      responses: {
+        200: z.any(),
+      },
+    },
+    design: {
+      method: 'POST' as const,
+      path: '/api/tonal-profiles/design-shots',
+      input: z.object({
+        speaker: z.string().min(1),
+        genre: z.string().optional(),
+        existingShots: z.array(z.string()).optional(),
+        targetCount: z.number().min(1).max(30).optional(),
+      }),
+      responses: {
+        200: z.any(),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
       },
     },
   },

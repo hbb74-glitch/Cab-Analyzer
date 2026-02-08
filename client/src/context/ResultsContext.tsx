@@ -2,7 +2,7 @@ import { createContext, useContext, useState, ReactNode } from "react";
 import type { RecommendationsResponse, SpeakerRecommendationsResponse, AmpRecommendationsResponse, PositionImportResponse, PairingResponse, BatchAnalysisResponse } from "@shared/routes";
 import type { Analysis } from "@shared/schema";
 
-type RecommendationsMode = 'by-speaker' | 'by-amp' | 'import-positions';
+type RecommendationsMode = 'by-speaker' | 'by-amp' | 'import-positions' | 'shot-designer';
 type AnalyzerMode = 'single' | 'batch';
 
 interface RenameSuggestion {

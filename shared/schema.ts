@@ -83,3 +83,30 @@ export const insertPreferenceSignalSchema = createInsertSchema(preferenceSignals
 
 export type PreferenceSignal = typeof preferenceSignals.$inferSelect;
 export type InsertPreferenceSignal = z.infer<typeof insertPreferenceSignalSchema>;
+
+export const tonalProfiles = pgTable("tonal_profiles", {
+  id: serial("id").primaryKey(),
+  mic: text("mic").notNull(),
+  position: text("position").notNull(),
+  distance: text("distance").notNull(),
+  speaker: text("speaker").notNull(),
+  subBass: real("sub_bass").notNull(),
+  bass: real("bass").notNull(),
+  lowMid: real("low_mid").notNull(),
+  mid: real("mid").notNull(),
+  highMid: real("high_mid").notNull(),
+  presence: real("presence").notNull(),
+  ratio: real("ratio").notNull(),
+  centroid: real("centroid").notNull(),
+  smoothness: real("smoothness").notNull(),
+  sampleCount: integer("sample_count").notNull().default(1),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTonalProfileSchema = createInsertSchema(tonalProfiles).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type TonalProfile = typeof tonalProfiles.$inferSelect;
+export type InsertTonalProfile = z.infer<typeof insertTonalProfileSchema>;
