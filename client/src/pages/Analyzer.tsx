@@ -1448,12 +1448,43 @@ export default function Analyzer() {
 
     const insights = learnedProfile?.gearInsights;
     const hasAnyData = learnedProfile && learnedProfile.signalCount > 0;
+    const hasAnalyzedData = tonalProfileRows && tonalProfileRows.length > 0;
+
+    const tpMics = new Set(tonalProfileRows?.map((tp) => tp.mic.toLowerCase()) ?? []);
+    const tpSpeakers = new Set(tonalProfileRows?.map((tp) => tp.speaker.toLowerCase()) ?? []);
+    const tpPositions = new Set(tonalProfileRows?.map((tp) => tp.position.toLowerCase()) ?? []);
+
+    const isKnownInTonalProfiles = (name: string, category: "speaker" | "mic" | "position"): boolean => {
+      const lower = name.toLowerCase();
+      const tpSet = category === "mic" ? tpMics : category === "speaker" ? tpSpeakers : tpPositions;
+      if (tpSet.has(lower)) return true;
+      const normalizations: Record<string, string[]> = {
+        "SM57": ["sm57"], "R121": ["r121"], "e609": ["e609"], "i5": ["i5"],
+        "R92": ["r92"], "M160": ["m160"], "MD421": ["md421", "md421kompakt"],
+        "MD441": ["md441", "md441_presence"], "R10": ["r10"], "M88": ["m88"],
+        "PR30": ["pr30"], "e906": ["e906", "e906_presence"], "M201": ["m201"],
+        "SM7B": ["sm7b"], "C414": ["c414"], "Roswell": ["roswell"],
+        "G12M25": ["greenback", "g12m25", "g12m"], "V30-China": ["v30", "v30china"],
+        "V30-Blackcat": ["v30blackcat", "blackcat"], "K100": ["k100"],
+        "G12T75": ["g12t75", "t75"], "G12-65": ["g1265"], "G12H": ["g12h"],
+        "G12H30-Anniversary": ["g12h30", "anniversary"], "Celestion-Cream": ["cream"],
+        "GA12-SC64": ["ga12sc64", "sc64"], "G10-SC64": ["g10sc64", "g10"],
+        "Cap": ["cap", "center"], "CapEdge": ["capedge", "cap_edge"],
+        "CapEdge-Bright": ["capedge_br", "capedgebr"], "CapEdge-Dark": ["capedge_dk", "capedgedk"],
+        "Cap-Cone Transition": ["cap_cone_trn", "capconetr", "cone_tr"],
+        "Cap Off-Center": ["cap_offcenter", "capoffcenter", "offcenter"], "Cone": ["cone"],
+        "Blend": ["blend"],
+      };
+      const aliases = normalizations[name];
+      if (aliases) return aliases.some((a) => tpSet.has(a));
+      return tpSet.has(lower.replace(/[^a-z0-9]/g, ''));
+    };
 
     const newGear: { name: string; category: "speaker" | "mic" | "position"; count: number }[] = [];
     const underRepresented: { name: string; category: "speaker" | "mic" | "position"; samples: number }[] = [];
     let noDataYet = false;
 
-    if (!hasAnyData) {
+    if (!hasAnyData && !hasAnalyzedData) {
       noDataYet = true;
       for (const name of Array.from(batchSpeakers)) {
         newGear.push({ name, category: "speaker", count: batchGear.filter((g) => g.speaker === name).length });
@@ -1474,15 +1505,16 @@ export default function Analyzer() {
           const batchCount = category === "mic"
             ? batchGear.filter((g) => g.mic === name || g.mic2 === name).length
             : batchGear.filter((g) => g[category] === name).length;
-          if (!knownList) {
+          const knownInInsights = knownList?.find((k) => k.name === name);
+          const knownInProfiles = isKnownInTonalProfiles(name, category);
+          if (knownInInsights) {
+            if (!knownInInsights.tonal || knownInInsights.tonal.sampleSize < 3) {
+              if (!knownInProfiles) {
+                underRepresented.push({ name, category, samples: knownInInsights.tonal?.sampleSize ?? 0 });
+              }
+            }
+          } else if (!knownInProfiles) {
             newGear.push({ name, category, count: batchCount });
-            continue;
-          }
-          const known = knownList.find((k) => k.name === name);
-          if (!known) {
-            newGear.push({ name, category, count: batchCount });
-          } else if (!known.tonal || known.tonal.sampleSize < 3) {
-            underRepresented.push({ name, category, samples: known.tonal?.sampleSize ?? 0 });
           }
         }
       };
@@ -1495,7 +1527,7 @@ export default function Analyzer() {
     if (newGear.length === 0 && underRepresented.length === 0) return null;
 
     return { newGear, underRepresented, noDataYet };
-  }, [batchResult, learnedProfile]);
+  }, [batchResult, learnedProfile, tonalProfileRows]);
 
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
