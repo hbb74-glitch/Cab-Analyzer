@@ -1519,6 +1519,7 @@ export default function Analyzer() {
   }
   const [blendAnalysisResults, setBlendAnalysisResults] = useState<BlendAnalysisResult[]>([]);
   const [showBlendAnalysis, setShowBlendAnalysis] = useState(false);
+  const [blendThreshold, setBlendThreshold] = useState(0.93);
   
   // Smart Thin state - auto-detect over-represented groups and suggest keeping tonally unique variants
   interface SmartThinGroup {
@@ -1911,7 +1912,7 @@ export default function Analyzer() {
         const other = sorted[1];
         const closePct = Math.round(closest.similarity * 100);
         const otherPct = Math.round(other.similarity * 100);
-        if (maxSim >= 0.90) {
+        if (maxSim >= blendThreshold) {
           dominanceNote = `This blend is basically the ${closest.mic.toUpperCase()} solo (${closePct}% match). You have both solo ${closest.mic.toUpperCase()} and ${other.mic.toUpperCase()} in this batch — cut the blend and mix them yourself with full ratio control.`;
         } else if (maxSim >= 0.78) {
           if (closePct - otherPct >= 10) {
@@ -1933,7 +1934,7 @@ export default function Analyzer() {
 
       let verdict: 'essential' | 'adds-value' | 'redundant';
       let explanation: string;
-      if (maxSim >= 0.90) {
+      if (maxSim >= blendThreshold) {
         verdict = 'redundant';
         explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — ${hasBothSolos ? 'you have both solos to mix freely, this blend is safe to cut' : `${blendLabel} blend adds minimal tonal value`}`;
       } else if (maxSim >= 0.78) {
@@ -4072,6 +4073,33 @@ export default function Analyzer() {
                           Culler
                         </Button>
                       )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Threshold:</span>
+                        <button
+                          onClick={() => setBlendThreshold(Math.max(0.80, blendThreshold - 0.01))}
+                          className="w-6 h-6 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-xs font-bold border border-sky-500/30"
+                          data-testid="button-blend-threshold-decrease"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="range"
+                          min="80"
+                          max="99"
+                          value={blendThreshold * 100}
+                          onChange={(e) => setBlendThreshold(parseInt(e.target.value) / 100)}
+                          className="w-16 h-1 accent-sky-400"
+                          data-testid="slider-blend-threshold"
+                        />
+                        <button
+                          onClick={() => setBlendThreshold(Math.min(0.99, blendThreshold + 0.01))}
+                          className="w-6 h-6 rounded bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-xs font-bold border border-sky-500/30"
+                          data-testid="button-blend-threshold-increase"
+                        >
+                          +
+                        </button>
+                        <span className="text-xs font-mono text-sky-400" data-testid="text-blend-threshold-value">{Math.round(blendThreshold * 100)}%</span>
+                      </div>
                       <button
                         onClick={handleBlendAnalysis}
                         className="px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 text-xs font-medium transition-all border border-sky-500/30"
@@ -4091,7 +4119,7 @@ export default function Analyzer() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    Multi-mic blend IRs compared against their individual single-mic captures. Redundant blends can be safely removed without losing tonal variety.
+                    Multi-mic blend IRs compared against their individual single-mic captures. Blends above {Math.round(blendThreshold * 100)}% similarity to a solo capture are flagged as redundant — adjust the threshold to taste.
                   </p>
 
                   {/* Summary badges */}
@@ -4174,7 +4202,7 @@ export default function Analyzer() {
                                     <span className="text-muted-foreground"> ({c.filename.length > 30 ? c.filename.slice(0, 27) + '...' : c.filename}): </span>
                                     <span className={cn(
                                       "font-mono font-medium",
-                                      c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                      c.similarity >= blendThreshold ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
                                     )} data-testid={`text-blend-similarity-${idx}-${c.mic}`}>{Math.round(c.similarity * 100)}%</span>
                                   </div>
                                 ))}
@@ -4543,7 +4571,7 @@ export default function Analyzer() {
                                           {ir.blendInfo.componentMatches.map(c => (
                                             <span key={c.mic} className="text-[10px]">
                                               vs {c.mic.toUpperCase()}: <span className={cn(
-                                                c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                                c.similarity >= blendThreshold ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
                                               )}>{Math.round(c.similarity * 100)}%</span>
                                             </span>
                                           ))}
@@ -4630,7 +4658,7 @@ export default function Analyzer() {
                                           {ir.blendInfo.componentMatches.map(c => (
                                             <span key={c.mic} className="text-[10px]">
                                               vs {c.mic.toUpperCase()}: <span className={cn(
-                                                c.similarity >= 0.90 ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
+                                                c.similarity >= blendThreshold ? "text-red-400" : c.similarity >= 0.78 ? "text-yellow-400" : "text-green-400"
                                               )}>{Math.round(c.similarity * 100)}%</span>
                                             </span>
                                           ))}
