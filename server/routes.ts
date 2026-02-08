@@ -368,10 +368,11 @@ function validateAndFixRecommendations(
     'c414': 'c414', '414': 'c414', 'akgc414': 'c414', 'akg414': 'c414',
     // Roswell
     'roswell': 'roswellcab', 'roswellcab': 'roswellcab', 'roswellcabmic': 'roswellcab',
-    // SM57+R121 Blends
-    'sm57r121tight': 'sm57r121tight', 'sm57r121balance': 'sm57r121balance',
-    'sm57r121thick': 'sm57r121thick', 'sm57r121smooth': 'sm57r121smooth',
-    'sm57r121ribbondom': 'sm57r121ribbondom', 'sm57r121ribbon_dom': 'sm57r121ribbondom',
+    // SM57+R121 Blend
+    'sm57r121blend': 'sm57r121blend',
+    'sm57r121tight': 'sm57r121blend', 'sm57r121balance': 'sm57r121blend',
+    'sm57r121thick': 'sm57r121blend', 'sm57r121smooth': 'sm57r121blend',
+    'sm57r121ribbondom': 'sm57r121blend', 'sm57r121ribbon_dom': 'sm57r121blend',
     // Fredman
     'fredman': 'fredman',
   };
@@ -402,9 +403,8 @@ function validateAndFixRecommendations(
     'c414': 4,                         // C414: 4-6", sweet 6"
     // Roswell - purpose-built for cabs
     'roswell': 2, 'roswellcab': 2, 'roswellcabmic': 2,  // Roswell: 2-12", sweet 6"
-    // SM57+R121 Blends - R121 distance, min 4"
-    'sm57r121tight': 4, 'sm57r121balance': 4, 'sm57r121thick': 4,
-    'sm57r121smooth': 4, 'sm57r121ribbondom': 4,
+    // SM57+R121 Blend - R121 distance, min 4"
+    'sm57r121blend': 4,
     // Fredman - dual SM57, min 0.5"
     'fredman': 0.5,
   };
@@ -471,9 +471,8 @@ function validateAndFixRecommendations(
     '160': '1', 'm160': '1',
     'c414': '6',
     'roswell': '6', 'roswellcab': '6',
-    // SM57+R121 Blends - sweet spot is R121 at 5"
-    'sm57r121tight': '5', 'sm57r121balance': '5', 'sm57r121thick': '5',
-    'sm57r121smooth': '5', 'sm57r121ribbondom': '5',
+    // SM57+R121 Blend - sweet spot is R121 at 5"
+    'sm57r121blend': '5',
     // Fredman - dual SM57 sweet spot 1"
     'fredman': '1',
   };
@@ -779,19 +778,7 @@ function parseFilenameForExpectations(filename: string): {
   if (hasSM57 && hasR121) {
     isCombo = true;
     micDetected = true;  // Combo mics are always detected
-    // Detect specific blend labels (including "balanced" alias for "balance")
-    if (lower.includes('tight')) {
-      mic = 'sm57_r121_tight';
-    } else if (lower.includes('balanced') || lower.includes('balance')) {
-      mic = 'sm57_r121_balance';
-    } else if (lower.includes('thick')) {
-      mic = 'sm57_r121_thick';
-    } else if (lower.includes('smooth')) {
-      mic = 'sm57_r121_smooth';
-    } else if (lower.includes('ribbon_dom') || lower.includes('ribbondom') || lower.includes('ribbon-dom') || lower.includes('combo')) {
-      // "combo" is legacy name for ribbon_dom (24:76 unattenuated R121)
-      mic = 'sm57_r121_ribbon_dom';
-    }
+    mic = 'sm57_r121_blend';
     // All combo IRs must be labeled - no default fallback
     // Extract shot variant (A, B, C, etc.) - single letter after blend label
     const variantMatch = filename.match(/(?:tight|balance|balanced|thick|smooth|ribbon_dom|ribbondom|combo)[_-]?([a-zA-Z])(?:[_.]|$)/i);
@@ -2161,15 +2148,18 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
       - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
-      BLEND SETUPS (SM57 + R121 at fixed ratios, position is always "Blend"):
-      These are dual-mic setups where SM57 and R121 are blended at a specific ratio.
+      BLEND SETUPS (SM57 + R121, position is always "Blend"):
+      These are dual-mic setups where SM57 and R121 are blended together.
       The SM57 is typically close-miked (1-2") at CapEdge, the R121 is further back (4-6") at Cap.
       The "distance" in a blend shot refers to the R121's distance from the speaker — the SM57 stays at its sweet spot.
-      - sm57_r121_tight (SM57+R121 Tight): ratio 67:33 SM57:R121. SM57-dominant — punchy, aggressive, more bite and high-mid cut. Range 4-6".
-      - sm57_r121_balance (SM57+R121 Balance): ratio 60:40 SM57:R121. Even mix — SM57 attack with R121 warmth smoothing the top end. Range 4-6".
-      - sm57_r121_thick (SM57+R121 Thick): ratio 51:49 SM57:R121. Near-equal — full-bodied, thickened mids, slightly less bite than Balance. Range 4-6".
-      - sm57_r121_smooth (SM57+R121 Smooth): ratio 45:55 SM57:R121. R121-leaning — rounded highs, warm midrange, less harsh transients. Range 4-6".
-      - sm57_r121_ribbon_dom (SM57+R121 Ribbon Dom): ratio 24:76 SM57:R121. Ribbon-dominant — dark, warm, smooth top end, big low-mids. Range 4-6".
+      - sm57_r121_blend (SM57+R121 Blend): The app recommends the best ratio and voicing for each shot. Range 4-6".
+        Available voicings (YOU choose the best one per shot based on genre, speaker, and distance):
+        - Tight (67:33 SM57:R121): SM57-dominant — punchy, aggressive, more bite and high-mid cut
+        - Balance (60:40 SM57:R121): Even mix — SM57 attack with R121 warmth smoothing the top end
+        - Thick (51:49 SM57:R121): Near-equal — full-bodied, thickened mids, slightly less bite
+        - Smooth (45:55 SM57:R121): R121-leaning — rounded highs, warm midrange, less harsh transients
+        - Ribbon Dom (24:76 SM57:R121): Ribbon-dominant — dark, warm, smooth top end, big low-mids
+        For each blend shot, include a "blendRatio" field with your recommended voicing label and ratio (e.g. "Tight (67:33)").
       
       FREDMAN TECHNIQUE (Dual SM57, position is always "Blend"):
       - fredman (Fredman): Two SM57s aimed at the speaker, one on-axis and one off-axis (angled ~45°), blended 50:50. Classic Meshuggah/Fredrik Thordendal technique. Produces tight, focused, mid-heavy tone with reduced fizz. Both mics at same distance. Range 0.5-2", SWEET SPOT 1".
@@ -2177,6 +2167,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       IMPORTANT FOR BLEND SHOTS:
       - Position MUST always be "Blend" — never Cap, CapEdge, etc.
       - For SM57+R121 blends, the distance refers to the R121 placement. The SM57 is fixed at its sweet spot.
+      - For SM57+R121 blends, YOU must recommend the best blend ratio/voicing for each shot and include it in "blendRatio" field.
       - For Fredman, the distance is where both SM57s are placed.
       - Vary DISTANCE for tonal variety across blend shots, not position.
       
@@ -2253,6 +2244,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
             "micLabel": "REQUIRED: Display name WITH switch setting for MD441/e906 (e.g. 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'). For other mics, use standard label.",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
+            "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
             "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
             "expectedTone": "How this exact shot sounds",
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this shot is ideal for'}"
@@ -2517,15 +2509,18 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - c414 (C414): range 4-6", SWEET SPOT 6". Always use pad.
       - roswell-cab (Roswell Cab Mic): range 2-12", SWEET SPOT 6". Cap position ONLY.
       
-      BLEND SETUPS (SM57 + R121 at fixed ratios, position is always "Blend"):
-      These are dual-mic setups where SM57 and R121 are blended at a specific ratio.
+      BLEND SETUPS (SM57 + R121, position is always "Blend"):
+      These are dual-mic setups where SM57 and R121 are blended together.
       The SM57 is typically close-miked (1-2") at CapEdge, the R121 is further back (4-6") at Cap.
       The "distance" in a blend shot refers to the R121's distance from the speaker — the SM57 stays at its sweet spot.
-      - sm57_r121_tight (SM57+R121 Tight): ratio 67:33 SM57:R121. SM57-dominant — punchy, aggressive, more bite and high-mid cut. Range 4-6".
-      - sm57_r121_balance (SM57+R121 Balance): ratio 60:40 SM57:R121. Even mix — SM57 attack with R121 warmth smoothing the top end. Range 4-6".
-      - sm57_r121_thick (SM57+R121 Thick): ratio 51:49 SM57:R121. Near-equal — full-bodied, thickened mids, slightly less bite than Balance. Range 4-6".
-      - sm57_r121_smooth (SM57+R121 Smooth): ratio 45:55 SM57:R121. R121-leaning — rounded highs, warm midrange, less harsh transients. Range 4-6".
-      - sm57_r121_ribbon_dom (SM57+R121 Ribbon Dom): ratio 24:76 SM57:R121. Ribbon-dominant — dark, warm, smooth top end, big low-mids. Range 4-6".
+      - sm57_r121_blend (SM57+R121 Blend): The app recommends the best ratio and voicing for each shot. Range 4-6".
+        Available voicings (YOU choose the best one per shot based on genre, speaker, and distance):
+        - Tight (67:33 SM57:R121): SM57-dominant — punchy, aggressive, more bite and high-mid cut
+        - Balance (60:40 SM57:R121): Even mix — SM57 attack with R121 warmth smoothing the top end
+        - Thick (51:49 SM57:R121): Near-equal — full-bodied, thickened mids, slightly less bite
+        - Smooth (45:55 SM57:R121): R121-leaning — rounded highs, warm midrange, less harsh transients
+        - Ribbon Dom (24:76 SM57:R121): Ribbon-dominant — dark, warm, smooth top end, big low-mids
+        For each blend shot, include a "blendRatio" field with your recommended voicing label and ratio (e.g. "Tight (67:33)").
       
       FREDMAN TECHNIQUE (Dual SM57, position is always "Blend"):
       - fredman (Fredman): Two SM57s aimed at the speaker, one on-axis and one off-axis (angled ~45°), blended 50:50. Classic Meshuggah/Fredrik Thordendal technique. Produces tight, focused, mid-heavy tone with reduced fizz. Both mics at same distance. Range 0.5-2", SWEET SPOT 1".
@@ -2533,6 +2528,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       IMPORTANT FOR BLEND SHOTS:
       - Position MUST always be "Blend" — never Cap, CapEdge, etc.
       - For SM57+R121 blends, the distance refers to the R121 placement. The SM57 is fixed at its sweet spot.
+      - For SM57+R121 blends, YOU must recommend the best blend ratio/voicing for each shot and include it in "blendRatio" field.
       - For Fredman, the distance is where both SM57s are placed.
       - Vary DISTANCE for tonal variety across blend shots, not position.
       
@@ -2601,10 +2597,11 @@ Use these curated recipes as the foundation of your recommendations. You may add
         ${genre ? `"genre": "${genre}",` : ''}
         "micRecommendations": [
           {
-            "mic": "mic code (e.g. '57', '121', 'md441', 'e906', 'roswell-cab')",
+            "mic": "mic code (e.g. '57', '121', 'md441', 'e906', 'roswell-cab', 'sm57_r121_blend')",
             "micLabel": "Display name - MUST include switch setting for MD441/e906: 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
+            "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
             "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this is ideal for'}"

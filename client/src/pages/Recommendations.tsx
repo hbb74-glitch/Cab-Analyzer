@@ -40,11 +40,7 @@ const SINGLE_MICS = [
 ];
 
 const BLEND_MICS = [
-  { value: "sm57_r121_tight", label: "SM57+R121 Tight (67:33)" },
-  { value: "sm57_r121_balance", label: "SM57+R121 Balance (60:40)" },
-  { value: "sm57_r121_thick", label: "SM57+R121 Thick (51:49)" },
-  { value: "sm57_r121_smooth", label: "SM57+R121 Smooth (45:55)" },
-  { value: "sm57_r121_ribbon_dom", label: "SM57+R121 Ribbon Dom (24:76)" },
+  { value: "sm57_r121_blend", label: "SM57+R121 Blend" },
   { value: "fredman", label: "Fredman (Dual SM57)" },
 ];
 
@@ -971,7 +967,9 @@ export default function Recommendations() {
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
         const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
         console.log(`  -> shorthand="${shorthand}"`);
-        text += `${i + 1}. ${shorthand}\n`;
+        text += `${i + 1}. ${shorthand}`;
+        if (shot.blendRatio) text += ` [${shot.blendRatio}]`;
+        text += `\n`;
         text += `   Rationale: ${shot.rationale}\n\n`;
       });
     } else if (mode === 'by-speaker' && speakerResult) {
@@ -986,7 +984,9 @@ export default function Recommendations() {
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
         const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
-        text += `${i + 1}. ${shorthand}\n`;
+        text += `${i + 1}. ${shorthand}`;
+        if (rec.blendRatio) text += ` [${rec.blendRatio}]`;
+        text += `\n`;
         text += `   Tone: ${rec.expectedTone}\n\n`;
       });
     } else if (mode === 'by-amp' && ampResult) {
@@ -1371,7 +1371,8 @@ export default function Recommendations() {
           }
           const isBlend = BLEND_MIC_VALUES.includes(r.mic);
           if (isBlend) {
-            return `${countPart} [STRICT: ALL ${r.label} shots MUST use position "Blend". Vary ONLY the distance (R121 distance for SM57+R121 blends, both-mic distance for Fredman). Output ${r.count} shots with DIFFERENT distances.]`;
+            const isSmR121 = r.mic === 'sm57_r121_blend';
+            return `${countPart} [STRICT: ALL ${r.label} shots MUST use position "Blend". Vary ONLY the distance (R121 distance for SM57+R121 blends, both-mic distance for Fredman). Output ${r.count} shots with DIFFERENT distances.${isSmR121 ? ' For EACH shot, recommend the best SM57:R121 blend ratio and voicing (Tight 67:33, Balance 60:40, Thick 51:49, Smooth 45:55, or Ribbon Dom 24:76) based on the distance and tonal goal. Include blendRatio field in each shot.' : ''}]`;
           }
           return `${countPart} [STRICT: Pick ONE position for all ${r.label} shots, but use ${r.count} DIFFERENT distances. Example: ${r.label}_Cap_1in, ${r.label}_Cap_2in, ${r.label}_Cap_3in - same position, different distances]`;
         } else if (!effectiveSinglePosition && effectiveSingleDistance) {
@@ -2927,6 +2928,14 @@ Or written out:
                           </span>
                         </div>
                       )}
+                      {shot.blendRatio && (
+                        <div className="flex items-center gap-2 bg-violet-500/20 px-3 py-1.5 rounded-full border border-violet-500/30">
+                          <Settings2 className="w-4 h-4 text-violet-400" />
+                          <span className="text-sm font-medium text-violet-400">
+                            {shot.blendRatio}
+                          </span>
+                        </div>
+                      )}
                       {shot.position && (
                         <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                           <Target className="w-4 h-4 text-secondary" />
@@ -3055,6 +3064,14 @@ Or written out:
                           <Settings2 className="w-4 h-4 text-amber-400" />
                           <span className="text-sm font-medium text-amber-400">
                             {rec.micLabel.toLowerCase().includes('presence') ? 'Presence' : 'Flat'}
+                          </span>
+                        </div>
+                      )}
+                      {rec.blendRatio && (
+                        <div className="flex items-center gap-2 bg-violet-500/20 px-3 py-1.5 rounded-full border border-violet-500/30">
+                          <Settings2 className="w-4 h-4 text-violet-400" />
+                          <span className="text-sm font-medium text-violet-400">
+                            {rec.blendRatio}
                           </span>
                         </div>
                       )}
