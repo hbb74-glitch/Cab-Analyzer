@@ -689,16 +689,38 @@ export function suggestPairings(
   return selected.slice(0, count);
 }
 
+export const TASTE_AXES = [
+  { name: "Brightness", compute: (b: TonalBands) => (b.presence + b.highMid) - (b.bass + b.subBass), label: ["Dark", "Bright"] },
+  { name: "Body", compute: (b: TonalBands) => (b.bass + b.lowMid) - (b.highMid + b.presence), label: ["Thin", "Full"] },
+  { name: "Aggression", compute: (b: TonalBands) => b.presence - b.mid, label: ["Smooth", "Aggressive"] },
+  { name: "Warmth", compute: (b: TonalBands) => (b.lowMid + b.bass) - (b.mid + b.highMid), label: ["Cool", "Warm"] },
+] as const;
+
+export interface TasteCheckPick {
+  pickedBands: TonalBands;
+  rejectedBands: TonalBands;
+  axisName: string;
+  axisValuePicked: number;
+  axisValueRejected: number;
+}
+
+export interface TasteCheckRoundResult {
+  options: SuggestedPairing[];
+  pickedIndex: number;
+  axisName: string;
+  roundType: "quad" | "binary";
+}
+
 export function pickTasteCheckCandidates(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
   learned?: LearnedProfileData,
-  excludePairs?: Set<string>
-): { favorite: SuggestedPairing; decoy: SuggestedPairing } | null {
+  excludePairs?: Set<string>,
+  history?: TasteCheckRoundResult[]
+): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string] } | null {
   if (irs.length < 2) return null;
 
   const allCombos: SuggestedPairing[] = [];
-
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
       if (excludePairs) {
@@ -725,15 +747,137 @@ export function pickTasteCheckCandidates(
 
   if (allCombos.length < 2) return null;
 
-  allCombos.sort((a, b) => b.score - a.score);
-  const favorite = allCombos[0];
-  const decoy = allCombos[allCombos.length - 1];
+  const round = history?.length ?? 0;
+  const exploredAxes = new Set(history?.map((h) => h.axisName) ?? []);
 
-  if (favorite.score === decoy.score) return null;
+  const axisWithSpread = TASTE_AXES.map((axis) => {
+    const values = allCombos.map((c) => axis.compute(c.blendBands));
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    return { axis, spread: max - min, min, max };
+  }).sort((a, b) => b.spread - a.spread);
 
-  favorite.rank = 1;
-  decoy.rank = allCombos.length;
-  return { favorite, decoy };
+  let chosenAxis: typeof axisWithSpread[0];
+  let narrowFactor = 1.0;
+  const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
+
+  if (round < 2) {
+    const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
+    chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
+  } else {
+    const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
+    if (unexplored.length > 0 && round % 2 === 0) {
+      chosenAxis = unexplored[0];
+    } else if (lastAxisName) {
+      chosenAxis = axisWithSpread.find((a) => a.axis.name === lastAxisName) ?? axisWithSpread[0];
+      const timesOnAxis = history?.filter((h) => h.axisName === chosenAxis.axis.name).length ?? 0;
+      narrowFactor = Math.pow(0.6, timesOnAxis);
+    } else {
+      chosenAxis = axisWithSpread[0];
+    }
+  }
+
+  const axisCompute = chosenAxis.axis.compute;
+  const scored = allCombos.map((c) => ({ pairing: c, axisVal: axisCompute(c.blendBands) }));
+  scored.sort((a, b) => a.axisVal - b.axisVal);
+
+  const preferredDir = getPreferredDirection(history ?? [], chosenAxis.axis.name, axisCompute);
+
+  if (round < 2 && allCombos.length >= 4) {
+    const candidates = pickSpreadCandidates(scored, 4, 1.0);
+    return {
+      candidates: candidates.map((c) => c.pairing),
+      axisName: chosenAxis.axis.name,
+      roundType: "quad",
+      axisLabels: [...chosenAxis.axis.label] as [string, string],
+    };
+  } else {
+    let pool = scored;
+    if (preferredDir !== null && narrowFactor < 1.0) {
+      const pickedVals = (history ?? [])
+        .filter((h) => h.axisName === chosenAxis.axis.name)
+        .map((h) => axisCompute(h.options[h.pickedIndex].blendBands));
+      if (pickedVals.length > 0) {
+        const avgPicked = pickedVals.reduce((a, b) => a + b, 0) / pickedVals.length;
+        const halfSpan = (chosenAxis.spread / 2) * narrowFactor;
+        pool = scored.filter((s) =>
+          s.axisVal >= avgPicked - halfSpan && s.axisVal <= avgPicked + halfSpan
+        );
+        if (pool.length < 2) pool = scored;
+      }
+    }
+
+    const candidates = pickSpreadCandidates(pool, 2, narrowFactor);
+    return {
+      candidates: candidates.map((c) => c.pairing),
+      axisName: chosenAxis.axis.name,
+      roundType: "binary",
+      axisLabels: [...chosenAxis.axis.label] as [string, string],
+    };
+  }
+}
+
+function getPreferredDirection(
+  history: TasteCheckRoundResult[],
+  axisName: string,
+  axisCompute: (b: TonalBands) => number
+): number | null {
+  const relevant = history.filter((h) => h.axisName === axisName);
+  if (relevant.length === 0) return null;
+  let dirSum = 0;
+  for (const h of relevant) {
+    const picked = h.options[h.pickedIndex];
+    const pickedVal = axisCompute(picked.blendBands);
+    const otherVals = h.options.filter((_, i) => i !== h.pickedIndex).map((o) => axisCompute(o.blendBands));
+    const avgOther = otherVals.reduce((a, b) => a + b, 0) / otherVals.length;
+    dirSum += pickedVal - avgOther;
+  }
+  return dirSum / relevant.length;
+}
+
+function pickSpreadCandidates(
+  sorted: { pairing: SuggestedPairing; axisVal: number }[],
+  count: number,
+  narrowFactor: number
+): { pairing: SuggestedPairing; axisVal: number }[] {
+  if (sorted.length <= count) return sorted;
+
+  const fullRange = sorted[sorted.length - 1].axisVal - sorted[0].axisVal;
+  if (fullRange === 0) return sorted.slice(0, count);
+
+  const center = (sorted[0].axisVal + sorted[sorted.length - 1].axisVal) / 2;
+  const halfSpan = (fullRange / 2) * narrowFactor;
+  const lo = center - halfSpan;
+  const hi = center + halfSpan;
+
+  const inRange = sorted.filter((s) => s.axisVal >= lo && s.axisVal <= hi);
+  const pool = inRange.length >= count ? inRange : sorted;
+
+  if (count === 2) {
+    return [pool[0], pool[pool.length - 1]];
+  }
+
+  if (count === 4 && pool.length >= 4) {
+    const step = (pool.length - 1) / 3;
+    return [
+      pool[0],
+      pool[Math.round(step)],
+      pool[Math.round(step * 2)],
+      pool[pool.length - 1],
+    ];
+  }
+
+  const step = Math.max(1, Math.floor((pool.length - 1) / (count - 1)));
+  const result: typeof pool = [];
+  for (let i = 0; i < count && i * step < pool.length; i++) {
+    result.push(pool[i * step]);
+  }
+  while (result.length < count && result.length < pool.length) {
+    const next = pool.find((p) => !result.includes(p));
+    if (next) result.push(next);
+    else break;
+  }
+  return result;
 }
 
 const GEAR_MIC_PATTERNS: Record<string, string> = {
