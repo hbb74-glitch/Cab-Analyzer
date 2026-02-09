@@ -152,24 +152,35 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const peakAmplitudeDb = peak > 0 ? 20 * Math.log10(peak) : -96;
 
   // 3. Spectral Analysis (Quick FFT approximation via OfflineContext)
-  // We'll create a simplified spectral centroid and freq data for the graph
-  // For short IRs (e.g., 2048 samples), use a smaller FFT size to avoid
-  // artificial smoothing from zero-padding
-  const irLength = channelData.length;
+  //
+  // CRITICAL: Use a FIXED FFT size (8192) for ALL IRs regardless of length.
+  // Variable FFT sizes produce different frequency resolution, which changes
+  // the energy distribution across bands — making identical recordings at
+  // different sample lengths produce wildly different tonal breakdowns.
+  //
+  // Zero-padding short IRs to 8192 is acoustically correct for IRs:
+  // it adds frequency resolution without altering the frequency content.
+  // The IR's spectral character is fully defined by its time-domain samples;
+  // zeros after the signal only interpolate between existing frequency bins.
+  const fftSize = 8192;
   
-  // Find the largest power-of-2 FFT size that fits the IR, clamped to [512, 8192]
-  // This prevents zero-padding from artificially smoothing the frequency response
-  let fftSize = 8192;
-  if (irLength < 8192) {
-    // Find the largest power of 2 <= irLength
-    fftSize = Math.pow(2, Math.floor(Math.log2(irLength)));
-    // Clamp to minimum 512 for reasonable resolution
-    fftSize = Math.max(512, fftSize);
+  // If the IR is shorter than fftSize, create a zero-padded buffer
+  let analysisBuffer = audioBuffer;
+  if (audioBuffer.length < fftSize) {
+    const paddedCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
+    const paddedBuffer = paddedCtx.createBuffer(1, fftSize, audioBuffer.sampleRate);
+    const paddedData = paddedBuffer.getChannelData(0);
+    const srcData = audioBuffer.getChannelData(0);
+    for (let i = 0; i < srcData.length; i++) {
+      paddedData[i] = srcData[i];
+    }
+    // Rest is already zeros (Float32Array default)
+    analysisBuffer = paddedBuffer;
   }
   
   const offlineCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
   const source = offlineCtx.createBufferSource();
-  source.buffer = audioBuffer;
+  source.buffer = analysisBuffer;
   
   const analyser = offlineCtx.createAnalyser();
   analyser.fftSize = fftSize;
@@ -297,19 +308,9 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   // Convert to 0-100 score (lower variance = higher score)
   // The 75Hz-5kHz range focuses on the active midrange where guitar speakers
   // naturally have more peaks/character.
-  // 
-  // IMPORTANT: Scale the expected deviation based on FFT size
-  // Smaller FFTs have coarser frequency resolution, which means:
-  // - Each bin covers a wider frequency range
-  // - More natural variation between adjacent bins
-  // - Higher raw deviation values for the same actual smoothness
-  //
-  // Baseline: FFT 8192 with maxExpectedDeviation = 25
-  // Scale factor: sqrt(8192 / fftSize) to account for resolution difference
+  // FFT size is always 8192, so no scaling needed.
   const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
-  const baselineFFT = 8192;
-  const scaleFactor = Math.sqrt(baselineFFT / fftSize);
-  const maxExpectedDeviation = 25 * scaleFactor; // Scale based on FFT resolution
+  const maxExpectedDeviation = 25;
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
