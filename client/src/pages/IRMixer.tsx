@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight } from "lucide-react";
@@ -242,6 +242,14 @@ export default function IRMixer() {
     downgraded: boolean;
     pendingLoadTopPick: boolean;
   } | null>(null);
+
+  const ratioRefineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ratioRefinePhase?.stage === "select" && ratioRefineRef.current) {
+      ratioRefineRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [ratioRefinePhase?.stage]);
 
   const clearCrossCabRatings = useCallback(() => {
     setCrossCabRankings({});
@@ -1668,6 +1676,7 @@ export default function IRMixer() {
 
             {ratioRefinePhase && (
               <motion.div
+                ref={ratioRefineRef}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-4 p-4 rounded-xl bg-sky-500/5 border border-sky-500/20 space-y-4"
