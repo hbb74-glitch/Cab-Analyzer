@@ -658,7 +658,13 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
-    if (refineCandidates.length > 0) {
+    // Only offer ratio refinement after the system has learned enough from
+    // basic Love/Like/Meh/Nope ratings. For brand new gear with no history,
+    // refining blend ratios is premature — the system needs at least one
+    // completed round of pairing comparisons first to understand preferences.
+    const hasEnoughLearning = totalRoundsCompleted >= 1;
+
+    if (refineCandidates.length > 0 && hasEnoughLearning) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
       setRatioRefinePhase({
         stage: "select",
@@ -673,7 +679,7 @@ export default function IRMixer() {
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted]);
 
   const finishRound = useCallback((loadTopPick: boolean, downgradedPk: string | null) => {
     if (downgradedPk) {
