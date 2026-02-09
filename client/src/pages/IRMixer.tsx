@@ -1450,7 +1450,7 @@ export default function IRMixer() {
           )}
         </div>
 
-        {hasPairingPool && suggestedPairs.length > 0 && !doneRefining && (
+        {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase) && !doneRefining && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -1468,6 +1468,7 @@ export default function IRMixer() {
                 </span>
               )}
             </div>
+            {!ratioRefinePhase && (
             <p className="text-xs text-muted-foreground mb-4">
               {totalRoundsCompleted === 0
                 ? learnedProfile && learnedProfile.status !== "no_data"
@@ -1476,6 +1477,8 @@ export default function IRMixer() {
                 : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>
+            )}
+            {!ratioRefinePhase && suggestedPairs.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {suggestedPairs.map((pair, idx) => {
                 const pk = pairKey(pair);
@@ -1631,6 +1634,7 @@ export default function IRMixer() {
                 );
               })}
             </div>
+            )}
 
             {canConfirm && !ratioRefinePhase && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
