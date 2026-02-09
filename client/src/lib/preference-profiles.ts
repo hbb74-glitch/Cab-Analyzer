@@ -835,6 +835,7 @@ export function pickTasteCheckCandidates(
   if (irs.length < 2) return null;
 
   const confidence = getTasteConfidence(learned);
+  console.log("[pickTasteCheck] learned:", learned ? { status: learned.status, signalCount: learned.signalCount } : "undefined", "confidence:", confidence);
 
   const allCombos: SuggestedPairing[] = [];
   for (let i = 0; i < irs.length; i++) {
@@ -878,6 +879,7 @@ export function pickTasteCheckCandidates(
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
   const quadRounds = confidence === "high" ? 0 : confidence === "moderate" ? 1 : 2;
+  console.log("[pickTasteCheck] round:", round, "quadRounds:", quadRounds, "round < quadRounds:", round < quadRounds);
 
   if (round < quadRounds) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));

@@ -811,7 +811,9 @@ export default function IRMixer() {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
       if (!tasteCheckPassed) {
+        console.log("[IRMixer] calling pickTasteCheckCandidates, learnedProfile:", learnedProfile ? { status: learnedProfile.status, signalCount: learnedProfile.signalCount } : "undefined/null");
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
+        console.log("[IRMixer] tastePick result:", tastePick ? { roundType: tastePick.roundType, confidence: tastePick.confidence, candidateCount: tastePick.candidates.length } : "null");
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
           setTasteCheckPhase({
