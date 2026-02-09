@@ -18,6 +18,7 @@ import {
   findFoundationIR,
   rankBlendPartners,
   suggestPairings,
+  pickTasteCheckCandidates,
   applyLearnedAdjustments,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
@@ -761,10 +762,9 @@ export default function IRMixer() {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
       if (!tasteCheckPassed && tasteCheckAttempts < 2) {
-        const tastePool = suggestPairings(pairingPool, activeProfiles, 6, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, newExposure.size > 0 ? newExposure : undefined);
-        if (tastePool.length >= 2) {
-          const favorite = tastePool[0];
-          const decoy = tastePool[tastePool.length - 1];
+        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
+        if (tastePick) {
+          const { favorite, decoy } = tastePick;
           const coinFlip = Math.random() < 0.5;
           const pairA = coinFlip ? favorite : decoy;
           const pairB = coinFlip ? decoy : favorite;

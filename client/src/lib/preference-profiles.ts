@@ -689,6 +689,53 @@ export function suggestPairings(
   return selected.slice(0, count);
 }
 
+export function pickTasteCheckCandidates(
+  irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+  learned?: LearnedProfileData,
+  excludePairs?: Set<string>
+): { favorite: SuggestedPairing; decoy: SuggestedPairing } | null {
+  if (irs.length < 2) return null;
+
+  const allCombos: SuggestedPairing[] = [];
+
+  for (let i = 0; i < irs.length; i++) {
+    for (let j = i + 1; j < irs.length; j++) {
+      if (excludePairs) {
+        const ck = [irs[i].filename, irs[j].filename].sort().join("||");
+        if (excludePairs.has(ck)) continue;
+      }
+      const baseRaw = irs[i].rawEnergy;
+      const featRaw = irs[j].rawEnergy;
+      const blendBands = blendAtRatio(baseRaw, featRaw, 0.5, 0.5);
+      if (!blendBands) continue;
+      const result = learned
+        ? scoreWithAvoidPenalty(blendBands, profiles, learned)
+        : scoreAgainstAllProfiles(blendBands, profiles);
+      allCombos.push({
+        baseFilename: irs[i].filename,
+        featureFilename: irs[j].filename,
+        blendBands,
+        bestMatch: result.best,
+        score: result.best.score,
+        rank: 0,
+      });
+    }
+  }
+
+  if (allCombos.length < 2) return null;
+
+  allCombos.sort((a, b) => b.score - a.score);
+  const favorite = allCombos[0];
+  const decoy = allCombos[allCombos.length - 1];
+
+  if (favorite.score === decoy.score) return null;
+
+  favorite.rank = 1;
+  decoy.rank = allCombos.length;
+  return { favorite, decoy };
+}
+
 const GEAR_MIC_PATTERNS: Record<string, string> = {
   "sm57": "SM57", "57": "SM57",
   "r121": "R121", "121": "R121",
