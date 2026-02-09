@@ -1059,16 +1059,21 @@ Output JSON format:
   let noiseAdjustment = 0;
   let noiseNote = '';
   if (isTruncated) {
-    // Short IR: noise is almost never a real problem. Only penalize if extreme.
-    if (noiseFloor <= -20) {
+    // Short IR: speaker energy is in first ~40ms, rest is room/ambient.
+    // Still report the measurement but use much softer thresholds —
+    // noise only matters at this length if it's extreme.
+    if (noiseFloor <= -40) {
+      noiseAdjustment = 1;
+      noiseNote = 'Very clean recording (short IR)';
+    } else if (noiseFloor <= -25) {
       noiseAdjustment = 0;
-      noiseNote = 'Noise floor irrelevant at this IR length';
+      noiseNote = 'Normal tail decay for short IR — not a noise concern';
     } else if (noiseFloor <= -10) {
-      noiseAdjustment = -1;
-      noiseNote = 'Unusually high noise for short IR — possible recording issue';
+      noiseAdjustment = 0;
+      noiseNote = 'Elevated tail level — expected for short IR, not audible in use';
     } else {
-      noiseAdjustment = -2;
-      noiseNote = 'Very high noise — likely a recording problem';
+      noiseAdjustment = -1;
+      noiseNote = 'Unusually high noise — possible recording issue';
     }
   } else {
     if (noiseFloor <= -60) {
@@ -1097,7 +1102,7 @@ Filename: "${ir.filename}"
 - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
 - Clipping Detected: ${ir.hasClipping ? `YES (${ir.clippedSamples} clipped samples, crest factor: ${ir.crestFactorDb?.toFixed(1)}dB)` : 'No'}
 - Frequency Smoothness: ${smoothness.toFixed(0)}/100 (${smoothnessNote})
-- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — at this length, speaker energy is concentrated in the first ~40ms and the rest is room/ambient. Noise is effectively irrelevant for amp modeler use. Do NOT mention or penalize noise floor unless the reading is above -10dB.` : ''}
+- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — speaker energy is in the first ~40ms, rest is room/ambient. Report the noise reading but weigh it lightly — at this IR length, only extreme noise (above -10dB) is a real concern.` : ''}
 
 Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
