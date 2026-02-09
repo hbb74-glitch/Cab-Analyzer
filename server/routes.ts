@@ -2017,7 +2017,7 @@ export async function registerRoutes(
       const input = api.recommendations.get.input.parse(req.body);
       const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts, existingShots } = input;
       
-      console.log(`[Recommendations] Mic+Speaker request: mic=${micType}, speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.join(', ') : 'none'}`);
+      console.log(`[Recommendations] Mic+Speaker request: mic=${micType}, speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.map(s => `${s.filename}(c${Math.round(s.centroid)})`).join(', ') : 'none'}`);
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -2269,16 +2269,35 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       }
 
       if (existingShots && existingShots.length > 0) {
-        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS ===
-The user already has these ${existingShots.length} shots recorded:
-${existingShots.map(s => `- ${s}`).join('\n')}
+        const avgCentroid = existingShots.reduce((sum, s) => sum + s.centroid, 0) / existingShots.length;
+        const avgRatio = existingShots.reduce((sum, s) => sum + s.ratio, 0) / existingShots.length;
+        const avgBands = {
+          subBass: existingShots.reduce((sum, s) => sum + s.subBass, 0) / existingShots.length,
+          bass: existingShots.reduce((sum, s) => sum + s.bass, 0) / existingShots.length,
+          lowMid: existingShots.reduce((sum, s) => sum + s.lowMid, 0) / existingShots.length,
+          mid: existingShots.reduce((sum, s) => sum + s.mid, 0) / existingShots.length,
+          highMid: existingShots.reduce((sum, s) => sum + s.highMid, 0) / existingShots.length,
+          presence: existingShots.reduce((sum, s) => sum + s.presence, 0) / existingShots.length,
+        };
+        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS (WITH TONAL ANALYSIS) ===
+The user already has ${existingShots.length} shots recorded. Each has been analyzed for its tonal content.
 
-CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
-1. DO NOT suggest shots that duplicate what the user already has
-2. Analyze the existing shots to understand what tonal territory is already covered
-3. Focus your recommendations on shots that FILL GAPS - positions/distances that complement what's already recorded
-4. If a position+distance combo already exists, suggest a DIFFERENT one that provides tonal variety
-5. Mention in your rationale how each new suggestion complements the existing collection`;
+COLLECTION TONAL SUMMARY:
+- Average centroid: ${Math.round(avgCentroid)}Hz (${avgCentroid < 2700 ? 'dark/warm' : avgCentroid < 3100 ? 'balanced' : 'bright/present'})
+- Average HiMid/Mid ratio: ${avgRatio.toFixed(2)} (${avgRatio < 1.0 ? 'mid-heavy/warm' : avgRatio < 1.5 ? 'balanced' : 'bright/cutting'})
+- Average band distribution: SubBass ${avgBands.subBass.toFixed(1)}% | Bass ${avgBands.bass.toFixed(1)}% | LowMid ${avgBands.lowMid.toFixed(1)}% | Mid ${avgBands.mid.toFixed(1)}% | HiMid ${avgBands.highMid.toFixed(1)}% | Presence ${avgBands.presence.toFixed(1)}%
+
+INDIVIDUAL SHOTS (6-band % | HiMid/Mid ratio | centroid):
+${existingShots.map(s => `- ${s.filename}: [${s.subBass}|${s.bass}|${s.lowMid}|${s.mid}|${s.highMid}|${s.presence}] ratio=${s.ratio} centroid=${s.centroid}Hz smooth=${s.smoothness}`).join('\n')}
+
+CRITICAL INSTRUCTIONS FOR GAP-FILLING:
+1. DO NOT suggest shots that duplicate mic+position+distance combos the user already has
+2. Study the TONAL DATA above to understand exactly what frequency territory is covered
+3. Identify tonal gaps: If the collection is heavy on bright/present shots (high centroid, high presence%), suggest warmer positions. If it's warm-heavy, suggest brighter placements
+4. Look at the HiMid/Mid ratio spread: if all shots cluster in a narrow ratio range, suggest combos that extend the range
+5. Consider centroid diversity: suggest positions/distances that would produce centroids in ranges NOT already represented
+6. For blend suggestions: recommend blends whose expected tonal character fills gaps the single-mic shots don't cover
+7. In your rationale, specifically reference the tonal data to explain WHY each suggestion fills a gap`;
       }
       
       if (positionInstruction) {
@@ -2362,7 +2381,7 @@ CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
       const input = api.recommendations.bySpeaker.input.parse(req.body);
       const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts, existingShots } = input;
       
-      console.log(`[Recommendations] Speaker-only request: speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.join(', ') : 'none'}`);
+      console.log(`[Recommendations] Speaker-only request: speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.map(s => `${s.filename}(c${Math.round(s.centroid)})`).join(', ') : 'none'}`);
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -2644,17 +2663,36 @@ Use these curated recipes as the foundation of your recommendations. You may add
       }
 
       if (existingShots && existingShots.length > 0) {
-        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS ===
-The user already has these ${existingShots.length} shots recorded:
-${existingShots.map(s => `- ${s}`).join('\n')}
+        const avgCentroid = existingShots.reduce((sum, s) => sum + s.centroid, 0) / existingShots.length;
+        const avgRatio = existingShots.reduce((sum, s) => sum + s.ratio, 0) / existingShots.length;
+        const avgBands = {
+          subBass: existingShots.reduce((sum, s) => sum + s.subBass, 0) / existingShots.length,
+          bass: existingShots.reduce((sum, s) => sum + s.bass, 0) / existingShots.length,
+          lowMid: existingShots.reduce((sum, s) => sum + s.lowMid, 0) / existingShots.length,
+          mid: existingShots.reduce((sum, s) => sum + s.mid, 0) / existingShots.length,
+          highMid: existingShots.reduce((sum, s) => sum + s.highMid, 0) / existingShots.length,
+          presence: existingShots.reduce((sum, s) => sum + s.presence, 0) / existingShots.length,
+        };
+        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS (WITH TONAL ANALYSIS) ===
+The user already has ${existingShots.length} shots recorded. Each has been analyzed for its tonal content.
 
-CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
-1. DO NOT suggest shots that duplicate what the user already has
-2. Analyze the existing shot filenames to understand what mics, positions, and distances are already covered
-3. Focus your recommendations on shots that FILL GAPS - mic/position/distance combinations that complement what's already recorded
-4. If a mic+position+distance combo already exists, suggest a DIFFERENT one that provides tonal variety
-5. Mention in your rationale how each new suggestion complements the existing collection
-6. If the user has set a target shot count, that means they want that many ADDITIONAL shots beyond what they already have`;
+COLLECTION TONAL SUMMARY:
+- Average centroid: ${Math.round(avgCentroid)}Hz (${avgCentroid < 2700 ? 'dark/warm' : avgCentroid < 3100 ? 'balanced' : 'bright/present'})
+- Average HiMid/Mid ratio: ${avgRatio.toFixed(2)} (${avgRatio < 1.0 ? 'mid-heavy/warm' : avgRatio < 1.5 ? 'balanced' : 'bright/cutting'})
+- Average band distribution: SubBass ${avgBands.subBass.toFixed(1)}% | Bass ${avgBands.bass.toFixed(1)}% | LowMid ${avgBands.lowMid.toFixed(1)}% | Mid ${avgBands.mid.toFixed(1)}% | HiMid ${avgBands.highMid.toFixed(1)}% | Presence ${avgBands.presence.toFixed(1)}%
+
+INDIVIDUAL SHOTS (6-band % | HiMid/Mid ratio | centroid):
+${existingShots.map(s => `- ${s.filename}: [${s.subBass}|${s.bass}|${s.lowMid}|${s.mid}|${s.highMid}|${s.presence}] ratio=${s.ratio} centroid=${s.centroid}Hz smooth=${s.smoothness}`).join('\n')}
+
+CRITICAL INSTRUCTIONS FOR GAP-FILLING:
+1. DO NOT suggest shots that duplicate mic+position+distance combos the user already has
+2. Study the TONAL DATA above to understand exactly what frequency territory is covered
+3. Identify tonal gaps: If the collection is heavy on bright/present shots (high centroid, high presence%), suggest warmer positions/mics. If it's warm-heavy, suggest brighter placements
+4. Look at the HiMid/Mid ratio spread: if all shots cluster in a narrow ratio range, suggest combos that extend the range
+5. Consider centroid diversity: suggest positions/distances that would produce centroids in ranges NOT already represented
+6. For blend suggestions: recommend blends whose expected tonal character fills gaps the single-mic shots don't cover
+7. In your rationale, specifically reference the tonal data to explain WHY each suggestion fills a gap
+8. If the user has set a target shot count, that means they want that many ADDITIONAL shots beyond what they already have`;
       }
       
       if (positionInstruction) {
@@ -4806,7 +4844,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
       ).join('\n');
 
       const existingDesc = input.existingShots?.length
-        ? `\nShots the user ALREADY has (do NOT duplicate these):\n${input.existingShots.join('\n')}`
+        ? `\nShots the user ALREADY has (do NOT duplicate these):\n${input.existingShots.map(s => `- ${s.filename}: [${s.subBass}|${s.bass}|${s.lowMid}|${s.mid}|${s.highMid}|${s.presence}] ratio=${s.ratio} centroid=${s.centroid}Hz`).join('\n')}`
         : '';
 
       const designPrompt = `You are an expert audio engineer designing an IR capture session.

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useResults } from "@/context/ResultsContext";
 import { apiRequest } from "@/lib/queryClient";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
+import { analyzeAudioFile } from "@/hooks/use-analyses";
 
 // Ambiguous speaker patterns that need clarification
 const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: string }[]; question: string }> = {
@@ -726,8 +727,9 @@ export default function Recommendations() {
   const [otherToneNotes, setOtherToneNotes] = useState<string>("");
   const [preferredShots, setPreferredShots] = useState<string>("");
   const [showPreferences, setShowPreferences] = useState(false);
-  const [existingShots, setExistingShots] = useState<string[]>([]);
+  const [existingShots, setExistingShots] = useState<{ filename: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[]>([]);
   const [showExistingShots, setShowExistingShots] = useState(false);
+  const [analyzingExisting, setAnalyzingExisting] = useState(false);
   const [ampDescription, setAmpDescription] = useState<string>("");
   const [targetShotCount, setTargetShotCount] = useState<number | null>(null);
   const [basicPositionsOnly, setBasicPositionsOnly] = useState(false);
@@ -790,15 +792,45 @@ export default function Recommendations() {
     setLearnedPrefs(null);
   };
 
-  const onDropExistingShots = useCallback((acceptedFiles: File[]) => {
-    const newNames = acceptedFiles.map(f => f.name.replace(/\.wav$/i, ''));
-    const combined = Array.from(new Set([...existingShots, ...newNames]));
-    setExistingShots(combined);
+  const onDropExistingShots = useCallback(async (acceptedFiles: File[]) => {
+    setAnalyzingExisting(true);
     setShowExistingShots(true);
-    toast({
-      title: `${newNames.length} shot${newNames.length !== 1 ? 's' : ''} added`,
-      description: `${combined.length} existing shots total`,
-    });
+    try {
+      const results = await Promise.all(acceptedFiles.map(async (file) => {
+        const filename = file.name.replace(/\.wav$/i, '');
+        const metrics = await analyzeAudioFile(file);
+        const totalEnergy = (metrics.subBassEnergy || 0) + (metrics.bassEnergy || 0) +
+          (metrics.lowMidEnergy || 0) + (metrics.midEnergy6 || 0) +
+          (metrics.highMidEnergy || 0) + (metrics.presenceEnergy || 0);
+        const toP = (e: number) => totalEnergy > 0 ? Math.round((e / totalEnergy) * 1000) / 10 : 0;
+        const hiMid = toP(metrics.highMidEnergy || 0);
+        const mid = toP(metrics.midEnergy6 || 0);
+        return {
+          filename,
+          subBass: toP(metrics.subBassEnergy || 0),
+          bass: toP(metrics.bassEnergy || 0),
+          lowMid: toP(metrics.lowMidEnergy || 0),
+          mid,
+          highMid: hiMid,
+          presence: toP(metrics.presenceEnergy || 0),
+          ratio: mid > 0 ? Math.round((hiMid / mid) * 100) / 100 : 0,
+          centroid: Math.round(metrics.spectralCentroid * 100) / 100,
+          smoothness: metrics.frequencySmoothness,
+        };
+      }));
+      const existingNames = new Set(existingShots.map(s => s.filename));
+      const newResults = results.filter(r => !existingNames.has(r.filename));
+      const combined = [...existingShots, ...newResults];
+      setExistingShots(combined);
+      toast({
+        title: `${newResults.length} shot${newResults.length !== 1 ? 's' : ''} analyzed`,
+        description: `${combined.length} existing shots with tonal data`,
+      });
+    } catch (err) {
+      toast({ title: "Analysis failed", description: "Could not analyze one or more files", variant: "destructive" });
+    } finally {
+      setAnalyzingExisting(false);
+    }
   }, [existingShots, toast]);
 
   const { getRootProps: getExistingRootProps, getInputProps: getExistingInputProps, isDragActive: isExistingDragActive } = useDropzone({
@@ -808,7 +840,7 @@ export default function Recommendations() {
   });
 
   const removeExistingShot = (name: string) => {
-    setExistingShots(prev => prev.filter(s => s !== name));
+    setExistingShots(prev => prev.filter(s => s.filename !== name));
   };
 
   const clearExistingShots = () => {
@@ -1195,7 +1227,7 @@ export default function Recommendations() {
   const isSpeakerOnlyMode = !micType && speaker;
 
   const { mutate: getRecommendations, isPending } = useMutation({
-    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts, existingShots }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; singlePositionForRibbons?: boolean; micShotCounts?: string; existingShots?: string[] }) => {
+    mutationFn: async ({ micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts, existingShots }: { micType?: string; speakerModel: string; genre?: string; preferredShots?: string; targetShotCount?: number; basicPositionsOnly?: boolean; singleDistancePerMic?: boolean; singlePositionForRibbons?: boolean; micShotCounts?: string; existingShots?: { filename: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[] }) => {
       if (micType) {
         const payload: Record<string, any> = { micType, speakerModel };
         if (genre) payload.genre = genre;
@@ -2024,14 +2056,21 @@ export default function Recommendations() {
                           : "Drop the shots you already have, or click to select"}
                       </p>
                       <p className="text-xs text-muted-foreground/60 mt-1">
-                        The AI will see what you have and suggest additional shots to fill gaps
+                        Files are analyzed for tonal content so the AI knows exactly what territory is covered
                       </p>
                     </div>
+                    
+                    {analyzingExisting && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                        <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                        <span className="text-xs text-amber-300">Analyzing audio files...</span>
+                      </div>
+                    )}
                     
                     {existingShots.length > 0 && (
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-foreground">{existingShots.length} existing shot{existingShots.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs font-medium text-foreground">{existingShots.length} shot{existingShots.length !== 1 ? 's' : ''} analyzed</span>
                           <button
                             type="button"
                             onClick={clearExistingShots}
@@ -2044,15 +2083,19 @@ export default function Recommendations() {
                         <div className="flex flex-wrap gap-1.5">
                           {existingShots.map((shot) => (
                             <span
-                              key={shot}
-                              className="inline-flex items-center gap-1 text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-1 rounded-md"
+                              key={shot.filename}
+                              className="group inline-flex items-center gap-1 text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-1 rounded-md"
+                              title={`Mid ${shot.mid}% | HiMid ${shot.highMid}% | Presence ${shot.presence}% | Ratio ${shot.ratio} | Centroid ${shot.centroid}Hz`}
                             >
-                              <span className="truncate max-w-[200px]">{shot}</span>
+                              <span className="truncate max-w-[180px]">{shot.filename}</span>
+                              <span className="text-amber-400/40 text-[10px] hidden sm:inline">
+                                {shot.ratio.toFixed(2)}r
+                              </span>
                               <button
                                 type="button"
-                                onClick={() => removeExistingShot(shot)}
+                                onClick={() => removeExistingShot(shot.filename)}
                                 className="text-amber-400/60 hover:text-amber-300 transition-colors"
-                                data-testid={`button-remove-shot-${shot}`}
+                                data-testid={`button-remove-shot-${shot.filename}`}
                               >
                                 <X className="w-3 h-3" />
                               </button>
@@ -2060,7 +2103,7 @@ export default function Recommendations() {
                           ))}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          The AI will avoid duplicating these and suggest shots that complement what you already have.
+                          Tonal data included. The AI will analyze your collection's coverage and suggest shots that fill real gaps.
                         </p>
                       </div>
                     )}

@@ -15,6 +15,20 @@ export const errorSchemas = {
   }),
 };
 
+// Existing shot with tonal analysis data
+export const existingShotSchema = z.object({
+  filename: z.string(),
+  subBass: z.number(),
+  bass: z.number(),
+  lowMid: z.number(),
+  mid: z.number(),
+  highMid: z.number(),
+  presence: z.number(),
+  ratio: z.number(),
+  centroid: z.number(),
+  smoothness: z.number(),
+});
+
 // Recommendations schemas
 export const recommendationInputSchema = z.object({
   micType: z.string().optional(),
@@ -26,7 +40,7 @@ export const recommendationInputSchema = z.object({
   singleDistancePerMic: z.boolean().optional(),
   singlePositionForRibbons: z.boolean().optional(),
   micShotCounts: z.string().optional(),
-  existingShots: z.array(z.string()).optional(),
+  existingShots: z.array(existingShotSchema).optional(),
 });
 
 export const distanceRecommendationSchema = z.object({
@@ -334,7 +348,7 @@ export const api = {
         singleDistancePerMic: z.boolean().optional(),
         singlePositionForRibbons: z.boolean().optional(),
         micShotCounts: z.string().optional(),
-        existingShots: z.array(z.string()).optional(),
+        existingShots: z.array(existingShotSchema).optional(),
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,
@@ -431,7 +445,7 @@ export const api = {
       input: z.object({
         speaker: z.string().min(1),
         genre: z.string().optional(),
-        existingShots: z.array(z.string()).optional(),
+        existingShots: z.array(existingShotSchema).optional(),
         targetCount: z.number().min(1).max(30).optional(),
       }),
       responses: {
