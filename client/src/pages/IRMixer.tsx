@@ -649,6 +649,9 @@ export default function IRMixer() {
     }
   }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
 
+  const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+  const snapToGrid = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
+
   const startRatioRefine = useCallback((pair: SuggestedPairing) => {
     const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
     const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
@@ -656,9 +659,12 @@ export default function IRMixer() {
     if (!baseData || !featData) return;
 
     const learnedPref = learnedProfile?.ratioPreference?.preferredRatio ?? 0.5;
-    const startCenter = Math.abs(learnedPref - 0.5) > 0.03 ? learnedPref : 0.5;
+    const center = snapToGrid(learnedPref);
+    const centerIdx = RATIO_GRID.indexOf(center);
+    const aIdx = Math.max(0, centerIdx - 2);
+    const bIdx = Math.min(RATIO_GRID.length - 1, centerIdx + 2);
     const matchups = [
-      { a: Math.max(0.3, startCenter - 0.1), b: Math.min(0.7, startCenter + 0.1) },
+      { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] },
       { a: 0, b: 0 },
       { a: 0, b: 0 },
     ];
@@ -680,29 +686,33 @@ export default function IRMixer() {
     const { step, matchups, baseRaw, featRaw } = ratioRefineTarget;
     const current = matchups[step];
     const winner = pickedSide === "a" ? current.a : current.b;
-
-    const ensureDistinct = (a: number, b: number): { a: number; b: number } => {
-      if (Math.abs(a - b) >= 0.03) return { a, b };
-      const nudge = 0.05;
-      return {
-        a: Math.max(0.3, Math.round((Math.min(a, b) - nudge) * 100) / 100),
-        b: Math.min(0.7, Math.round((Math.max(a, b) + nudge) * 100) / 100),
-      };
-    };
+    const winnerIdx = RATIO_GRID.indexOf(snapToGrid(winner));
 
     if (step === 0) {
-      const spread = Math.abs(current.a - current.b) / 2;
-      const rawA = Math.max(0.3, Math.round((winner - spread * 0.5) * 100) / 100);
-      const rawB = Math.min(0.7, Math.round((winner + spread * 0.5) * 100) / 100);
+      const loserIdx = RATIO_GRID.indexOf(snapToGrid(pickedSide === "a" ? current.b : current.a));
+      const narrowA = Math.max(0, Math.min(winnerIdx - 1, loserIdx));
+      const narrowB = Math.min(RATIO_GRID.length - 1, Math.max(winnerIdx + 1, loserIdx));
+      const aIdx = narrowA === narrowB ? Math.max(0, narrowA - 1) : narrowA;
+      const bIdx = narrowA === narrowB ? Math.min(RATIO_GRID.length - 1, narrowB + 1) : narrowB;
       const updated = [...matchups];
-      updated[1] = ensureDistinct(rawA, rawB);
+      updated[1] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
       setRatioRefineTarget({ ...ratioRefineTarget, step: 1, matchups: updated });
     } else if (step === 1) {
-      const delta = Math.abs(current.a - current.b) / 3;
-      const rawA = Math.max(0.3, Math.round((winner - delta) * 100) / 100);
-      const rawB = Math.min(0.7, Math.round((winner + delta) * 100) / 100);
+      const loserIdx = RATIO_GRID.indexOf(snapToGrid(pickedSide === "a" ? current.b : current.a));
+      let aIdx = Math.min(winnerIdx, loserIdx);
+      let bIdx = Math.max(winnerIdx, loserIdx);
+      if (aIdx === bIdx) {
+        aIdx = Math.max(0, aIdx - 1);
+        bIdx = Math.min(RATIO_GRID.length - 1, bIdx + 1);
+      }
+      if (bIdx - aIdx > 2) {
+        const mid = Math.round((aIdx + bIdx) / 2);
+        aIdx = mid === winnerIdx ? Math.max(0, mid - 1) : mid;
+        bIdx = mid === winnerIdx ? Math.min(RATIO_GRID.length - 1, mid + 1) : winnerIdx;
+        if (aIdx > bIdx) [aIdx, bIdx] = [bIdx, aIdx];
+      }
       const updated = [...matchups];
-      updated[2] = ensureDistinct(rawA, rawB);
+      updated[2] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
       setRatioRefineTarget({ ...ratioRefineTarget, step: 2, matchups: updated });
     } else {
       const blendBands = blendFromRaw(baseRaw, featRaw, winner, 1 - winner);

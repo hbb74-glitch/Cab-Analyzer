@@ -526,10 +526,12 @@ export function suggestPairings(
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
+  const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+  const snapRatio = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
   const ratiosToTry: { base: number; feature: number }[] = [{ base: 0.5, feature: 0.5 }];
   if (learned?.ratioPreference && learned.ratioPreference.confidence >= 0.3) {
-    const pr = learned.ratioPreference.preferredRatio;
-    if (Math.abs(pr - 0.5) > 0.03) {
+    const pr = snapRatio(learned.ratioPreference.preferredRatio);
+    if (pr !== 0.5) {
       ratiosToTry.push({ base: pr, feature: Math.round((1 - pr) * 100) / 100 });
     }
   }

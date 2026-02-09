@@ -1829,7 +1829,10 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
       weightedSum += d.ratio * w;
       weightTotal += w;
     }
-    const preferredRatio = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) / 100 : 0.5;
+    const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+    const snapRatio = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
+    const rawPref = weightTotal > 0 ? weightedSum / weightTotal : 0.5;
+    const preferredRatio = snapRatio(rawPref);
     const ratioConfidence = Math.min(ratioSignals.length / 6, 1);
 
     const perProfileRatio: Record<string, { preferredRatio: number; confidence: number }> = {};
@@ -1844,7 +1847,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
           pwt += w;
         }
         perProfileRatio[profileName] = {
-          preferredRatio: pwt > 0 ? Math.round((pws / pwt) * 100) / 100 : 0.5,
+          preferredRatio: snapRatio(pwt > 0 ? pws / pwt : 0.5),
           confidence: Math.min(profileRatioSignals.length / 6, 1),
         };
       }
