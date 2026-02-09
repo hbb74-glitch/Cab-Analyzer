@@ -1560,13 +1560,13 @@ export default function IRMixer() {
                                 {ratioRefineTarget?.pairKey !== pk ? (
                                   <Button
                                     size="sm"
-                                    variant="ghost"
+                                    variant="outline"
                                     onClick={() => startRatioRefine(pair)}
-                                    className="text-[10px] text-sky-400 mt-1"
+                                    className="text-xs text-sky-400 border-sky-500/30 mt-2 w-full"
                                     data-testid={`button-refine-ratio-${idx}`}
                                   >
-                                    <ArrowLeftRight className="w-3 h-3 mr-1" />
-                                    Refine Ratio
+                                    <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
+                                    Refine Blend Ratio
                                   </Button>
                                 ) : ratioRefineTarget.step < 3 ? (
                                   <div className="mt-2 p-2 rounded-md bg-sky-500/5 border border-sky-500/20 space-y-2" data-testid={`ratio-refine-panel-${idx}`}>
