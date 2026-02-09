@@ -291,6 +291,7 @@ export interface SuggestedPairing {
   bestMatch: MatchResult;
   score: number;
   rank: number;
+  suggestedRatio?: { base: number; feature: number };
 }
 
 interface GearScore { loved: number; liked: number; noped: number; net: number }
@@ -331,6 +332,13 @@ export type ProfileAdjustment = {
   ratio: { shift: number; confidence: number };
 };
 
+export interface RatioPreference {
+  preferredRatio: number;
+  confidence: number;
+  distribution: { ratio: number; count: number; sentiment: number }[];
+  perProfile?: Record<string, { preferredRatio: number; confidence: number }>;
+}
+
 export interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -341,6 +349,7 @@ export interface LearnedProfileData {
   status: "no_data" | "learning" | "confident" | "mastered";
   courseCorrections: string[];
   gearInsights?: GearInsights | null;
+  ratioPreference?: RatioPreference | null;
 }
 
 export function applyLearnedAdjustments(
@@ -481,6 +490,32 @@ export function scoreIndividualIR(
   return { results, best };
 }
 
+function blendAtRatio(
+  baseRaw: TonalBands,
+  featRaw: TonalBands,
+  baseR: number,
+  featR: number
+): TonalBands | null {
+  const raw = {
+    subBass: baseRaw.subBass * baseR + featRaw.subBass * featR,
+    bass: baseRaw.bass * baseR + featRaw.bass * featR,
+    lowMid: baseRaw.lowMid * baseR + featRaw.lowMid * featR,
+    mid: baseRaw.mid * baseR + featRaw.mid * featR,
+    highMid: baseRaw.highMid * baseR + featRaw.highMid * featR,
+    presence: baseRaw.presence * baseR + featRaw.presence * featR,
+  };
+  const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence;
+  if (total === 0) return null;
+  return {
+    subBass: Math.round((raw.subBass / total) * 1000) / 10,
+    bass: Math.round((raw.bass / total) * 1000) / 10,
+    lowMid: Math.round((raw.lowMid / total) * 1000) / 10,
+    mid: Math.round((raw.mid / total) * 1000) / 10,
+    highMid: Math.round((raw.highMid / total) * 1000) / 10,
+    presence: Math.round((raw.presence / total) * 1000) / 10,
+  };
+}
+
 export function suggestPairings(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
@@ -491,7 +526,13 @@ export function suggestPairings(
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
-  const fiftyFifty = { base: 0.5, feature: 0.5 };
+  const ratiosToTry: { base: number; feature: number }[] = [{ base: 0.5, feature: 0.5 }];
+  if (learned?.ratioPreference && learned.ratioPreference.confidence >= 0.3) {
+    const pr = learned.ratioPreference.preferredRatio;
+    if (Math.abs(pr - 0.5) > 0.03) {
+      ratiosToTry.push({ base: pr, feature: Math.round((1 - pr) * 100) / 100 });
+    }
+  }
 
   const maxExposure = exposureCounts
     ? Math.max(...Array.from(exposureCounts.values()), 1)
@@ -508,27 +549,26 @@ export function suggestPairings(
       }
       const baseRaw = irs[i].rawEnergy;
       const featRaw = irs[j].rawEnergy;
-      const raw = {
-        subBass: baseRaw.subBass * fiftyFifty.base + featRaw.subBass * fiftyFifty.feature,
-        bass: baseRaw.bass * fiftyFifty.base + featRaw.bass * fiftyFifty.feature,
-        lowMid: baseRaw.lowMid * fiftyFifty.base + featRaw.lowMid * fiftyFifty.feature,
-        mid: baseRaw.mid * fiftyFifty.base + featRaw.mid * fiftyFifty.feature,
-        highMid: baseRaw.highMid * fiftyFifty.base + featRaw.highMid * fiftyFifty.feature,
-        presence: baseRaw.presence * fiftyFifty.base + featRaw.presence * fiftyFifty.feature,
-      };
-      const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence;
-      if (total === 0) continue;
-      const blendBands: TonalBands = {
-        subBass: Math.round((raw.subBass / total) * 1000) / 10,
-        bass: Math.round((raw.bass / total) * 1000) / 10,
-        lowMid: Math.round((raw.lowMid / total) * 1000) / 10,
-        mid: Math.round((raw.mid / total) * 1000) / 10,
-        highMid: Math.round((raw.highMid / total) * 1000) / 10,
-        presence: Math.round((raw.presence / total) * 1000) / 10,
-      };
-      const result = learned
-        ? scoreWithAvoidPenalty(blendBands, profiles, learned)
-        : scoreAgainstAllProfiles(blendBands, profiles);
+
+      let bestBlend: TonalBands | null = null;
+      let bestResult: ReturnType<typeof scoreAgainstAllProfiles> | null = null;
+      let bestRatioUsed = ratiosToTry[0];
+
+      for (const r of ratiosToTry) {
+        const blendBands = blendAtRatio(baseRaw, featRaw, r.base, r.feature);
+        if (!blendBands) continue;
+        const result = learned
+          ? scoreWithAvoidPenalty(blendBands, profiles, learned)
+          : scoreAgainstAllProfiles(blendBands, profiles);
+        if (!bestResult || result.best.score > bestResult.best.score) {
+          bestResult = result;
+          bestBlend = blendBands;
+          bestRatioUsed = r;
+        }
+      }
+
+      if (!bestBlend || !bestResult) continue;
+
       let noveltyBoost = 0;
       if (exposureCounts && maxExposure > 0) {
         const baseExp = exposureCounts.get(irs[i].filename) ?? 0;
@@ -540,10 +580,11 @@ export function suggestPairings(
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
-        blendBands,
-        bestMatch: result.best,
-        score: result.best.score + noveltyBoost,
+        blendBands: bestBlend,
+        bestMatch: bestResult.best,
+        score: bestResult.best.score + noveltyBoost,
         rank: 0,
+        suggestedRatio: bestRatioUsed.base !== 0.5 ? bestRatioUsed : undefined,
       });
     }
   }

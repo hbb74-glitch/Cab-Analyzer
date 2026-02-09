@@ -1287,6 +1287,13 @@ type ProfileAdjustment = {
   ratio: { shift: number; confidence: number };
 };
 
+interface RatioPreference {
+  preferredRatio: number;
+  confidence: number;
+  distribution: { ratio: number; count: number; sentiment: number }[];
+  perProfile?: Record<string, { preferredRatio: number; confidence: number }>;
+}
+
 interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -1297,18 +1304,19 @@ interface LearnedProfileData {
   status: "no_data" | "learning" | "confident" | "mastered";
   courseCorrections: string[];
   gearInsights: GearInsights | null;
+  ratioPreference: RatioPreference | null;
 }
 
 function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null };
   }
 
   const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null, ratioPreference: null };
   }
 
   const signalWeight = (action: string): number => {
@@ -1800,7 +1808,57 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
     }
   }
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights };
+  let ratioPreference: RatioPreference | null = null;
+  const ratioSignals = signals.filter((s) => s.blendRatio != null && (s.action === "ratio_pick" || s.action === "love" || s.action === "like"));
+  if (ratioSignals.length >= 2) {
+    const buckets: Record<number, { count: number; sentimentSum: number }> = {};
+    for (const s of ratioSignals) {
+      const br = Math.round((s.blendRatio ?? 0.5) * 100) / 100;
+      if (!buckets[br]) buckets[br] = { count: 0, sentimentSum: 0 };
+      buckets[br].count++;
+      const sent = s.action === "ratio_pick" ? 2 : s.action === "love" ? 3 : s.action === "like" ? 1.5 : 1;
+      buckets[br].sentimentSum += sent;
+    }
+    const distribution = Object.entries(buckets)
+      .map(([r, d]) => ({ ratio: parseFloat(r), count: d.count, sentiment: Math.round((d.sentimentSum / d.count) * 10) / 10 }))
+      .sort((a, b) => b.sentiment * b.count - a.sentiment * a.count);
+
+    let weightedSum = 0, weightTotal = 0;
+    for (const d of distribution) {
+      const w = d.sentiment * d.count;
+      weightedSum += d.ratio * w;
+      weightTotal += w;
+    }
+    const preferredRatio = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) / 100 : 0.5;
+    const ratioConfidence = Math.min(ratioSignals.length / 6, 1);
+
+    const perProfileRatio: Record<string, { preferredRatio: number; confidence: number }> = {};
+    for (const profileName of ["Featured", "Body"]) {
+      const profileRatioSignals = ratioSignals.filter((s) => s.profileMatch === profileName);
+      if (profileRatioSignals.length >= 2) {
+        let pws = 0, pwt = 0;
+        for (const s of profileRatioSignals) {
+          const sent = s.action === "ratio_pick" ? 2 : s.action === "love" ? 3 : 1.5;
+          const w = sent;
+          pws += (s.blendRatio ?? 0.5) * w;
+          pwt += w;
+        }
+        perProfileRatio[profileName] = {
+          preferredRatio: pwt > 0 ? Math.round((pws / pwt) * 100) / 100 : 0.5,
+          confidence: Math.min(profileRatioSignals.length / 6, 1),
+        };
+      }
+    }
+
+    ratioPreference = {
+      preferredRatio,
+      confidence: ratioConfidence,
+      distribution,
+      perProfile: Object.keys(perProfileRatio).length > 0 ? perProfileRatio : undefined,
+    };
+  }
+
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference };
 }
 
 function buildGearPreferencePrompt(learned: LearnedProfileData, micType?: string, speakerModel?: string): string {

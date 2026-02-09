@@ -59,7 +59,7 @@ export type AnalysisRequest = z.infer<typeof analysisRequestSchema>;
 
 export const preferenceSignals = pgTable("preference_signals", {
   id: serial("id").primaryKey(),
-  action: text("action").notNull(), // "love", "like", "meh", "nope"
+  action: text("action").notNull(), // "love", "like", "meh", "nope", "ratio_pick"
   feedback: text("feedback"), // optional tonal feedback tags, comma-separated e.g. "thin,harsh" or single "muddy"
   feedbackText: text("feedback_text"), // optional free-form text feedback for nuanced learning
   baseFilename: text("base_filename").notNull(),
@@ -73,6 +73,7 @@ export const preferenceSignals = pgTable("preference_signals", {
   ratio: real("ratio").notNull(),
   score: integer("score").notNull(),
   profileMatch: text("profile_match").notNull(), // "Featured", "Body"
+  blendRatio: real("blend_ratio"), // base portion of the blend (0.3-0.7), null means 50:50
   createdAt: timestamp("created_at").defaultNow(),
 });
 

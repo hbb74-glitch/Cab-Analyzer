@@ -232,6 +232,17 @@ export default function IRMixer() {
   const [crossCabFeedbackText, setCrossCabFeedbackText] = useState<Record<string, string>>({});
   const [crossCabDismissed, setCrossCabDismissed] = useState<Set<string>>(new Set());
 
+  const [ratioRefineTarget, setRatioRefineTarget] = useState<{
+    pairKey: string;
+    baseFilename: string;
+    featureFilename: string;
+    baseRaw: TonalBands;
+    featRaw: TonalBands;
+    step: number;
+    matchups: { a: number; b: number }[];
+    winner: number | null;
+  } | null>(null);
+
   const clearCrossCabRatings = useCallback(() => {
     setCrossCabRankings({});
     setCrossCabFeedback({});
@@ -637,6 +648,89 @@ export default function IRMixer() {
       setPairingRound((prev) => prev + 1);
     }
   }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
+
+  const startRatioRefine = useCallback((pair: SuggestedPairing) => {
+    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+    const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+    const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+    if (!baseData || !featData) return;
+
+    const learnedPref = learnedProfile?.ratioPreference?.preferredRatio ?? 0.5;
+    const startCenter = Math.abs(learnedPref - 0.5) > 0.03 ? learnedPref : 0.5;
+    const matchups = [
+      { a: Math.max(0.3, startCenter - 0.1), b: Math.min(0.7, startCenter + 0.1) },
+      { a: 0, b: 0 },
+      { a: 0, b: 0 },
+    ];
+
+    setRatioRefineTarget({
+      pairKey: pairKey(pair),
+      baseFilename: pair.baseFilename,
+      featureFilename: pair.featureFilename,
+      baseRaw: baseData.rawEnergy,
+      featRaw: featData.rawEnergy,
+      step: 0,
+      matchups,
+      winner: null,
+    });
+  }, [allIRs, baseIR, featureIRs, learnedProfile, pairKey]);
+
+  const handleRatioPick = useCallback((pickedSide: "a" | "b") => {
+    if (!ratioRefineTarget) return;
+    const { step, matchups, baseRaw, featRaw } = ratioRefineTarget;
+    const current = matchups[step];
+    const winner = pickedSide === "a" ? current.a : current.b;
+
+    const ensureDistinct = (a: number, b: number): { a: number; b: number } => {
+      if (Math.abs(a - b) >= 0.03) return { a, b };
+      const nudge = 0.05;
+      return {
+        a: Math.max(0.3, Math.round((Math.min(a, b) - nudge) * 100) / 100),
+        b: Math.min(0.7, Math.round((Math.max(a, b) + nudge) * 100) / 100),
+      };
+    };
+
+    if (step === 0) {
+      const spread = Math.abs(current.a - current.b) / 2;
+      const rawA = Math.max(0.3, Math.round((winner - spread * 0.5) * 100) / 100);
+      const rawB = Math.min(0.7, Math.round((winner + spread * 0.5) * 100) / 100);
+      const updated = [...matchups];
+      updated[1] = ensureDistinct(rawA, rawB);
+      setRatioRefineTarget({ ...ratioRefineTarget, step: 1, matchups: updated });
+    } else if (step === 1) {
+      const delta = Math.abs(current.a - current.b) / 3;
+      const rawA = Math.max(0.3, Math.round((winner - delta) * 100) / 100);
+      const rawB = Math.min(0.7, Math.round((winner + delta) * 100) / 100);
+      const updated = [...matchups];
+      updated[2] = ensureDistinct(rawA, rawB);
+      setRatioRefineTarget({ ...ratioRefineTarget, step: 2, matchups: updated });
+    } else {
+      const blendBands = blendFromRaw(baseRaw, featRaw, winner, 1 - winner);
+      if (blendBands) {
+        const r = blendBands.mid > 0 ? blendBands.highMid / blendBands.mid : 0;
+        const result = scoreAgainstAllProfiles(blendBands, activeProfiles);
+        submitSignalsMutation.mutate([{
+          action: "ratio_pick",
+          feedback: null,
+          feedbackText: null,
+          baseFilename: ratioRefineTarget.baseFilename,
+          featureFilename: ratioRefineTarget.featureFilename,
+          subBass: blendBands.subBass,
+          bass: blendBands.bass,
+          lowMid: blendBands.lowMid,
+          mid: blendBands.mid,
+          highMid: blendBands.highMid,
+          presence: blendBands.presence,
+          ratio: Math.round(r * 100) / 100,
+          score: Math.round(result.best.score),
+          profileMatch: result.best.profile,
+          blendRatio: winner,
+        }]);
+      }
+      setRatioRefineTarget({ ...ratioRefineTarget, winner, step: 3 });
+      setTimeout(() => setRatioRefineTarget(null), 2000);
+    }
+  }, [ratioRefineTarget, activeProfiles, submitSignalsMutation]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -1355,7 +1449,11 @@ export default function IRMixer() {
                       <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
                         {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        + ({pair.suggestedRatio
+                          ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+                          : "50/50"})
+                      </p>
                       <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
                         {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
                       </p>
@@ -1457,6 +1555,67 @@ export default function IRMixer() {
                               className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                               data-testid={`input-feedback-text-${idx}`}
                             />
+                            {(assignedRank === 1 || assignedRank === 2) && (
+                              <>
+                                {ratioRefineTarget?.pairKey !== pk ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => startRatioRefine(pair)}
+                                    className="text-[10px] text-sky-400 mt-1"
+                                    data-testid={`button-refine-ratio-${idx}`}
+                                  >
+                                    <ArrowLeftRight className="w-3 h-3 mr-1" />
+                                    Refine Ratio
+                                  </Button>
+                                ) : ratioRefineTarget.step < 3 ? (
+                                  <div className="mt-2 p-2 rounded-md bg-sky-500/5 border border-sky-500/20 space-y-2" data-testid={`ratio-refine-panel-${idx}`}>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[9px] text-sky-400 font-medium uppercase tracking-wider">
+                                        A/B Ratio — Round {ratioRefineTarget.step + 1}/3
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setRatioRefineTarget(null)}
+                                        className="text-[10px] text-muted-foreground h-5 px-1"
+                                        data-testid={`button-cancel-refine-${idx}`}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(["a", "b"] as const).map((side) => {
+                                        const r = ratioRefineTarget.matchups[ratioRefineTarget.step][side];
+                                        const bands = blendFromRaw(ratioRefineTarget.baseRaw, ratioRefineTarget.featRaw, r, 1 - r);
+                                        return (
+                                          <button
+                                            key={side}
+                                            onClick={() => handleRatioPick(side)}
+                                            className="p-2 rounded-md border border-white/10 hover-elevate transition-all text-left space-y-1"
+                                            data-testid={`button-pick-${side}-${idx}`}
+                                          >
+                                            <p className="text-[10px] font-mono text-foreground">
+                                              {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                                            </p>
+                                            <BandChart bands={bands} height={10} compact />
+                                            <p className="text-[9px] text-center text-sky-400 font-medium">
+                                              Pick {side.toUpperCase()}
+                                            </p>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-2 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-center">
+                                    <p className="text-[10px] text-emerald-400">
+                                      Preferred ratio: {Math.round((ratioRefineTarget.winner ?? 0.5) * 100)}/{Math.round((1 - (ratioRefineTarget.winner ?? 0.5)) * 100)} saved
+                                    </p>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
                       </>
