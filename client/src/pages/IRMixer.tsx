@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -26,6 +26,7 @@ import {
   shouldContinueTasteCheck,
   applyLearnedAdjustments,
   DEFAULT_PROFILES,
+  getSpeakerFilenamePrefix,
 } from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
@@ -253,6 +254,7 @@ export default function IRMixer() {
     pendingLoadTopPick: boolean;
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
+  const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
 
@@ -330,6 +332,25 @@ export default function IRMixer() {
     },
   });
 
+  const clearSpeakerMutation = useMutation({
+    mutationFn: async (speakerPrefix: string) => {
+      const res = await apiRequest("DELETE", "/api/preferences/signals/speaker", { speakerPrefix });
+      return res.json();
+    },
+    onSuccess: (_data, speakerPrefix) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
+      setTasteCheckPassed(false);
+      setTotalRoundsCompleted(0);
+      setClearSpeakerConfirm(null);
+      toast({ title: `Cleared learning for ${speakerPrefix} IRs`, description: "Preference data has been reset. Drop IRs again to start fresh.", duration: 3000 });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to clear learning", description: error.message, variant: "destructive", duration: 5000 });
+      setClearSpeakerConfirm(null);
+    },
+  });
+
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
     return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
@@ -347,6 +368,7 @@ export default function IRMixer() {
     setHistoryLoaded(false);
     setTasteCheckPhase(null);
     setTasteCheckPassed(false);
+    setExposureCounts(new Map());
   }, []);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
@@ -810,10 +832,13 @@ export default function IRMixer() {
     if (refineCandidates.length > 0 && hasEnoughLearning) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
-      if (!tasteCheckPassed) {
-        console.log("[IRMixer] calling pickTasteCheckCandidates, learnedProfile:", learnedProfile ? { status: learnedProfile.status, signalCount: learnedProfile.signalCount } : "undefined/null");
+      const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
+        (ir) => (newExposure.get(ir.filename) ?? 0) === 0
+      );
+      const shouldTasteCheck = !tasteCheckPassed || hasUnseenIRs;
+
+      if (shouldTasteCheck) {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
-        console.log("[IRMixer] tastePick result:", tastePick ? { roundType: tastePick.roundType, confidence: tastePick.confidence, candidateCount: tastePick.candidates.length } : "null");
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
           setTasteCheckPhase({
@@ -831,6 +856,7 @@ export default function IRMixer() {
             pendingLoadTopPick: loadTopPick,
           });
         } else {
+          if (!tasteCheckPassed) setTasteCheckPassed(true);
           proceedToRatioRefine(refineCandidates, loadTopPick);
         }
       } else {
@@ -1099,13 +1125,16 @@ export default function IRMixer() {
               {learnedProfile.gearInsights && (
                 <div className="w-full mt-2 space-y-2" data-testid="gear-insights">
                   {[
-                    { label: "Mics", items: learnedProfile.gearInsights.mics },
-                    { label: "Speakers", items: learnedProfile.gearInsights.speakers },
-                    { label: "Positions", items: learnedProfile.gearInsights.positions },
-                  ].filter(g => g.items.length > 0).map(({ label, items }) => (
+                    { label: "Mics", items: learnedProfile.gearInsights.mics, clearable: false },
+                    { label: "Speakers", items: learnedProfile.gearInsights.speakers, clearable: true },
+                    { label: "Positions", items: learnedProfile.gearInsights.positions, clearable: false },
+                  ].filter(g => g.items.length > 0).map(({ label, items, clearable }) => (
                     <div key={label} className="space-y-0.5">
                       <span className="text-[10px] font-mono text-muted-foreground/70">{label}:</span>
-                      {items.map((item) => (
+                      {items.map((item) => {
+                        const speakerPrefix = clearable ? getSpeakerFilenamePrefix(item.name) : null;
+                        const isConfirming = clearable && clearSpeakerConfirm === item.name;
+                        return (
                         <div key={item.name} className="flex items-center gap-1.5 flex-wrap ml-2">
                           <span className={cn(
                             "text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0",
@@ -1121,8 +1150,39 @@ export default function IRMixer() {
                           {!item.tonal && (
                             <span className="text-[9px] font-mono text-muted-foreground/40">needs more data</span>
                           )}
+                          {clearable && speakerPrefix && !isConfirming && (
+                            <button
+                              onClick={() => setClearSpeakerConfirm(item.name)}
+                              className="text-muted-foreground/40 hover:text-red-400 transition-colors ml-1"
+                              title={`Clear all learning for ${item.name}`}
+                              data-testid={`button-clear-speaker-${item.name}`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                          {isConfirming && speakerPrefix && (
+                            <span className="flex items-center gap-1 ml-1">
+                              <span className="text-[9px] text-red-400">Clear all {item.name} ratings?</span>
+                              <button
+                                onClick={() => clearSpeakerMutation.mutate(speakerPrefix)}
+                                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                                disabled={clearSpeakerMutation.isPending}
+                                data-testid={`button-confirm-clear-${item.name}`}
+                              >
+                                {clearSpeakerMutation.isPending ? "..." : "Yes"}
+                              </button>
+                              <button
+                                onClick={() => setClearSpeakerConfirm(null)}
+                                className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground hover:bg-white/10 transition-colors"
+                                data-testid={`button-cancel-clear-${item.name}`}
+                              >
+                                No
+                              </button>
+                            </span>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ))}
                   {learnedProfile.gearInsights.combos.length > 0 && (

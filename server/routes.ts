@@ -4886,6 +4886,20 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     }
   });
 
+  app.delete(api.preferences.clearSpeaker.path, async (req, res) => {
+    try {
+      const { speakerPrefix } = api.preferences.clearSpeaker.input.parse(req.body);
+      const deleted = await storage.deletePreferenceSignalsBySpeaker(speakerPrefix);
+      res.json({ deleted });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error('Clear speaker signals error:', err);
+      res.status(500).json({ message: "Failed to clear speaker signals" });
+    }
+  });
+
   app.get(api.preferences.learned.path, async (_req, res) => {
     try {
       const signals = await storage.getPreferenceSignals();

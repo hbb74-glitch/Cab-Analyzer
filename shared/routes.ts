@@ -430,6 +430,18 @@ export const api = {
         200: z.any(),
       },
     },
+    clearSpeaker: {
+      method: 'DELETE' as const,
+      path: '/api/preferences/signals/speaker',
+      input: z.object({
+        speakerPrefix: z.string().min(1),
+      }),
+      responses: {
+        200: z.object({ deleted: z.number() }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
   tonalProfiles: {
     list: {

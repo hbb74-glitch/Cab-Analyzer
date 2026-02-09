@@ -15,6 +15,7 @@ export interface IStorage {
   createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal>;
   createPreferenceSignals(signals: InsertPreferenceSignal[]): Promise<PreferenceSignal[]>;
   getPreferenceSignals(): Promise<PreferenceSignal[]>;
+  deletePreferenceSignalsBySpeaker(speakerPrefix: string): Promise<number>;
 
   upsertTonalProfiles(entries: { mic: string; position: string; distance: string; speaker: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[]): Promise<number>;
   getTonalProfiles(): Promise<TonalProfile[]>;
@@ -46,6 +47,14 @@ export class DatabaseStorage implements IStorage {
 
   async getPreferenceSignals(): Promise<PreferenceSignal[]> {
     return await db.select().from(preferenceSignals).orderBy(desc(preferenceSignals.createdAt));
+  }
+
+  async deletePreferenceSignalsBySpeaker(speakerPrefix: string): Promise<number> {
+    const pattern = `${speakerPrefix}_%`;
+    const result = await db.delete(preferenceSignals).where(
+      sql`${preferenceSignals.baseFilename} LIKE ${pattern} OR ${preferenceSignals.featureFilename} LIKE ${pattern}`
+    ).returning();
+    return result.length;
   }
 
   async upsertTonalProfiles(entries: { mic: string; position: string; distance: string; speaker: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[]): Promise<number> {

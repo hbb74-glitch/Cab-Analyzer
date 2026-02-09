@@ -835,7 +835,7 @@ export function pickTasteCheckCandidates(
   if (irs.length < 2) return null;
 
   const confidence = getTasteConfidence(learned);
-  console.log("[pickTasteCheck] learned:", learned ? { status: learned.status, signalCount: learned.signalCount } : "undefined", "confidence:", confidence);
+  const forceBinary = confidence === "high";
 
   const allCombos: SuggestedPairing[] = [];
   for (let i = 0; i < irs.length; i++) {
@@ -878,23 +878,33 @@ export function pickTasteCheckCandidates(
   let narrowFactor = 1.0;
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
-  const quadRounds = confidence === "high" ? 0 : confidence === "moderate" ? 1 : 2;
-  console.log("[pickTasteCheck] round:", round, "quadRounds:", quadRounds, "round < quadRounds:", round < quadRounds);
+  const quadRounds = forceBinary ? 0 : confidence === "moderate" ? 1 : 2;
 
-  if (round < quadRounds) {
+  if (!forceBinary && round < quadRounds && allCombos.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
+    const axisCompute = chosenAxis.axis.compute;
+    const scored = allCombos.map((c) => ({ pairing: c, axisVal: axisCompute(c.blendBands) }));
+    scored.sort((a, b) => a.axisVal - b.axisVal);
+    const candidates = pickSpreadCandidates(scored, 4, 1.0);
+    return {
+      candidates: candidates.map((c) => c.pairing),
+      axisName: chosenAxis.axis.name,
+      roundType: "quad" as const,
+      axisLabels: [...chosenAxis.axis.label] as [string, string],
+      confidence,
+    };
+  }
+
+  const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
+  if (unexplored.length > 0 && round % 2 === 0) {
+    chosenAxis = unexplored[0];
+  } else if (lastAxisName) {
+    chosenAxis = axisWithSpread.find((a) => a.axis.name === lastAxisName) ?? axisWithSpread[0];
+    const timesOnAxis = history?.filter((h) => h.axisName === chosenAxis.axis.name).length ?? 0;
+    narrowFactor = Math.pow(0.6, timesOnAxis);
   } else {
-    const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
-    if (unexplored.length > 0 && round % 2 === 0) {
-      chosenAxis = unexplored[0];
-    } else if (lastAxisName) {
-      chosenAxis = axisWithSpread.find((a) => a.axis.name === lastAxisName) ?? axisWithSpread[0];
-      const timesOnAxis = history?.filter((h) => h.axisName === chosenAxis.axis.name).length ?? 0;
-      narrowFactor = Math.pow(0.6, timesOnAxis);
-    } else {
-      chosenAxis = axisWithSpread[0];
-    }
+    chosenAxis = axisWithSpread[0];
   }
 
   const axisCompute = chosenAxis.axis.compute;
@@ -903,40 +913,29 @@ export function pickTasteCheckCandidates(
 
   const preferredDir = getPreferredDirection(history ?? [], chosenAxis.axis.name, axisCompute);
 
-  if (round < quadRounds && allCombos.length >= 4) {
-    const candidates = pickSpreadCandidates(scored, 4, 1.0);
-    return {
-      candidates: candidates.map((c) => c.pairing),
-      axisName: chosenAxis.axis.name,
-      roundType: "quad",
-      axisLabels: [...chosenAxis.axis.label] as [string, string],
-      confidence,
-    };
-  } else {
-    let pool = scored;
-    if (preferredDir !== null && narrowFactor < 1.0) {
-      const pickedVals = (history ?? [])
-        .filter((h) => h.axisName === chosenAxis.axis.name)
-        .map((h) => axisCompute(h.options[h.pickedIndex].blendBands));
-      if (pickedVals.length > 0) {
-        const avgPicked = pickedVals.reduce((a, b) => a + b, 0) / pickedVals.length;
-        const halfSpan = (chosenAxis.spread / 2) * narrowFactor;
-        pool = scored.filter((s) =>
-          s.axisVal >= avgPicked - halfSpan && s.axisVal <= avgPicked + halfSpan
-        );
-        if (pool.length < 2) pool = scored;
-      }
+  let pool = scored;
+  if (preferredDir !== null && narrowFactor < 1.0) {
+    const pickedVals = (history ?? [])
+      .filter((h) => h.axisName === chosenAxis.axis.name)
+      .map((h) => axisCompute(h.options[h.pickedIndex].blendBands));
+    if (pickedVals.length > 0) {
+      const avgPicked = pickedVals.reduce((a, b) => a + b, 0) / pickedVals.length;
+      const halfSpan = (chosenAxis.spread / 2) * narrowFactor;
+      pool = scored.filter((s) =>
+        s.axisVal >= avgPicked - halfSpan && s.axisVal <= avgPicked + halfSpan
+      );
+      if (pool.length < 2) pool = scored;
     }
-
-    const candidates = pickSpreadCandidates(pool, 2, narrowFactor);
-    return {
-      candidates: candidates.map((c) => c.pairing),
-      axisName: chosenAxis.axis.name,
-      roundType: "binary",
-      axisLabels: [...chosenAxis.axis.label] as [string, string],
-      confidence,
-    };
   }
+
+  const candidates = pickSpreadCandidates(pool, 2, narrowFactor);
+  return {
+    candidates: candidates.map((c) => c.pairing),
+    axisName: chosenAxis.axis.name,
+    roundType: "binary" as const,
+    axisLabels: [...chosenAxis.axis.label] as [string, string],
+    confidence,
+  };
 }
 
 function getPreferredDirection(
@@ -1096,6 +1095,24 @@ export function parseGearFromFilename(filename: string): { mic?: string; mic2?: 
   }
 
   return result;
+}
+
+const SPEAKER_DISPLAY_TO_FILE_PREFIX: Record<string, string> = {
+  "V30-China": "V30",
+  "V30-Blackcat": "V30Blackcat",
+  "G12M25": "G12M",
+  "K100": "K100",
+  "G12T75": "G12T75",
+  "G12-65": "G1265",
+  "G12H": "G12H",
+  "G12H30-Anniversary": "G12H30",
+  "Celestion-Cream": "Cream",
+  "GA12-SC64": "GA12SC64",
+  "G10-SC64": "G10",
+};
+
+export function getSpeakerFilenamePrefix(displayName: string): string {
+  return SPEAKER_DISPLAY_TO_FILE_PREFIX[displayName] ?? displayName.split("-")[0].split(" ")[0];
 }
 
 export interface GearContextItem {
