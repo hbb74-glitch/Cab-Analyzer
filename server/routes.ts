@@ -1048,24 +1048,27 @@ Output JSON format:
   const smoothnessNote = `${smoothnessResult.note} (expected range: ${micBaseline.min}-${micBaseline.max})`;
   
   // Noise floor adjustment: length-aware thresholds
-  // Short IRs (< 200ms / ~4096 samples) still have active decay at their tail,
-  // so their measured "noise floor" is naturally higher. Use relaxed thresholds.
+  // For close-miked guitar cab IRs, the speaker's useful energy lives in roughly
+  // the first ~40ms. After that it's room reflections and ambient noise.
+  // Short IRs (< 200ms) are trimmed for amp modelers — noise is irrelevant because
+  // the convolution window is so tiny that any low-level noise can't meaningfully
+  // bleed through. Only flag noise on short IRs if it's extreme (audible artifacts).
+  // Long IRs (200ms+) can sustain noise through longer convolution tails, so
+  // noise floor matters more there.
   const isTruncated = (ir.duration ?? 0) < 200;
   let noiseAdjustment = 0;
   let noiseNote = '';
   if (isTruncated) {
-    if (noiseFloor <= -40) {
-      noiseAdjustment = 1;
-      noiseNote = 'Clean IR (short format — noise measured from quietest region)';
-    } else if (noiseFloor <= -25) {
+    // Short IR: noise is almost never a real problem. Only penalize if extreme.
+    if (noiseFloor <= -20) {
       noiseAdjustment = 0;
-      noiseNote = 'Normal for short/truncated IR';
-    } else if (noiseFloor <= -15) {
+      noiseNote = 'Noise floor irrelevant at this IR length';
+    } else if (noiseFloor <= -10) {
       noiseAdjustment = -1;
-      noiseNote = 'Slightly elevated noise for short IR';
+      noiseNote = 'Unusually high noise for short IR — possible recording issue';
     } else {
       noiseAdjustment = -2;
-      noiseNote = 'High noise floor detected';
+      noiseNote = 'Very high noise — likely a recording problem';
     }
   } else {
     if (noiseFloor <= -60) {
@@ -1094,7 +1097,7 @@ Filename: "${ir.filename}"
 - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
 - Clipping Detected: ${ir.hasClipping ? `YES (${ir.clippedSamples} clipped samples, crest factor: ${ir.crestFactorDb?.toFixed(1)}dB)` : 'No'}
 - Frequency Smoothness: ${smoothness.toFixed(0)}/100 (${smoothnessNote})
-- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — noise measurement uses quietest region, not tail decay. Do NOT penalize noise for short IRs unless the reading is genuinely high.` : ''}
+- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — at this length, speaker energy is concentrated in the first ~40ms and the rest is room/ambient. Noise is effectively irrelevant for amp modeler use. Do NOT mention or penalize noise floor unless the reading is above -10dB.` : ''}
 
 Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
