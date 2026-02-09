@@ -17,15 +17,16 @@ export const errorSchemas = {
 
 // Recommendations schemas
 export const recommendationInputSchema = z.object({
-  micType: z.string().optional(), // Optional - if not provided, AI will recommend mics
+  micType: z.string().optional(),
   speakerModel: z.string().min(1, "Speaker model is required"),
   genre: z.string().optional(),
-  preferredShots: z.string().optional(), // User's preferred distances, positions, or existing shots to consider
-  targetShotCount: z.number().min(1).max(50).optional(), // Target number of shots to generate (1-50)
-  basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone
-  singleDistancePerMic: z.boolean().optional(), // 1D: Use one optimal distance per mic type (dynamics)
-  singlePositionForRibbons: z.boolean().optional(), // 1P: Use one position per mic type (ribbons/condensers)
-  micShotCounts: z.string().optional(), // User's mic recipe e.g. "SM57 x 3, MD421K x 2"
+  preferredShots: z.string().optional(),
+  targetShotCount: z.number().min(1).max(50).optional(),
+  basicPositionsOnly: z.boolean().optional(),
+  singleDistancePerMic: z.boolean().optional(),
+  singlePositionForRibbons: z.boolean().optional(),
+  micShotCounts: z.string().optional(),
+  existingShots: z.array(z.string()).optional(),
 });
 
 export const distanceRecommendationSchema = z.object({
@@ -333,6 +334,7 @@ export const api = {
         singleDistancePerMic: z.boolean().optional(),
         singlePositionForRibbons: z.boolean().optional(),
         micShotCounts: z.string().optional(),
+        existingShots: z.array(z.string()).optional(),
       }),
       responses: {
         200: speakerRecommendationsResponseSchema,

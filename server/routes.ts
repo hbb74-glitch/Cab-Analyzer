@@ -2015,7 +2015,7 @@ export async function registerRoutes(
   app.post(api.recommendations.get.path, async (req, res) => {
     try {
       const input = api.recommendations.get.input.parse(req.body);
-      const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts } = input;
+      const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts, existingShots } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -2265,6 +2265,19 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       if (preferredShots) {
         userMessage += `\n\n=== USER'S PREFERRED SHOTS ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific position+distance combos they like, include those in your suggestions. If they have existing shots they want to complement, suggest shots that would pair well.`;
       }
+
+      if (existingShots && existingShots.length > 0) {
+        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS ===
+The user already has these ${existingShots.length} shots recorded:
+${existingShots.map(s => `- ${s}`).join('\n')}
+
+CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
+1. DO NOT suggest shots that duplicate what the user already has
+2. Analyze the existing shots to understand what tonal territory is already covered
+3. Focus your recommendations on shots that FILL GAPS - positions/distances that complement what's already recorded
+4. If a position+distance combo already exists, suggest a DIFFERENT one that provides tonal variety
+5. Mention in your rationale how each new suggestion complements the existing collection`;
+      }
       
       if (positionInstruction) {
         userMessage += positionInstruction;
@@ -2345,7 +2358,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
   app.post(api.recommendations.bySpeaker.path, async (req, res) => {
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
-      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts } = input;
+      const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts, existingShots } = input;
       
       // Build position restriction instruction
       let positionInstruction = '';
@@ -2624,6 +2637,20 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       if (preferredShots) {
         userMessage += `\n\n=== USER'S PREFERRED SHOTS/DISTANCES ===\nThe user has these preferences they'd like you to consider and prioritize:\n${preferredShots}\n\nPlease incorporate these preferences into your recommendations. If they've listed specific mics, distances, or positions they like, include those in your suggestions. If they have existing shots they want to complement, suggest combinations that would pair well with what they already have.`;
+      }
+
+      if (existingShots && existingShots.length > 0) {
+        userMessage += `\n\n=== EXISTING SHOTS THE USER ALREADY HAS ===
+The user already has these ${existingShots.length} shots recorded:
+${existingShots.map(s => `- ${s}`).join('\n')}
+
+CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
+1. DO NOT suggest shots that duplicate what the user already has
+2. Analyze the existing shot filenames to understand what mics, positions, and distances are already covered
+3. Focus your recommendations on shots that FILL GAPS - mic/position/distance combinations that complement what's already recorded
+4. If a mic+position+distance combo already exists, suggest a DIFFERENT one that provides tonal variety
+5. Mention in your rationale how each new suggestion complements the existing collection
+6. If the user has set a target shot count, that means they want that many ADDITIONAL shots beyond what they already have`;
       }
       
       if (positionInstruction) {
