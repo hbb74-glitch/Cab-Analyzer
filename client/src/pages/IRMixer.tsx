@@ -23,6 +23,7 @@ import {
   pickTasteCheckCandidates,
   getTasteConfidence,
   getTasteCheckRounds,
+  shouldContinueTasteCheck,
   applyLearnedAdjustments,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
@@ -684,7 +685,13 @@ export default function IRMixer() {
     const nextRound = tasteCheckPhase.round + 1;
 
     setTimeout(() => {
-      if (nextRound >= tasteCheckPhase.maxRounds) {
+      const keepGoing = shouldContinueTasteCheck(
+        tasteCheckPhase.confidence,
+        newHistory,
+        learnedProfile || undefined,
+      );
+
+      if (!keepGoing || nextRound >= tasteCheckPhase.maxRounds) {
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
         proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
@@ -896,37 +903,39 @@ export default function IRMixer() {
     }
 
     const winner = pickedSide === "a" ? current.a : current.b;
+    const loser = pickedSide === "a" ? current.b : current.a;
     const winnerIdx = RATIO_GRID.indexOf(snapToGrid(winner));
+    const loserIdx = RATIO_GRID.indexOf(snapToGrid(loser));
 
-    if (step === 0) {
-      const loserIdx = RATIO_GRID.indexOf(snapToGrid(pickedSide === "a" ? current.b : current.a));
-      const narrowA = Math.max(0, Math.min(winnerIdx - 1, loserIdx));
-      const narrowB = Math.min(RATIO_GRID.length - 1, Math.max(winnerIdx + 1, loserIdx));
-      const aIdx = narrowA === narrowB ? Math.max(0, narrowA - 1) : narrowA;
-      const bIdx = narrowA === narrowB ? Math.min(RATIO_GRID.length - 1, narrowB + 1) : narrowB;
-      const updated = [...matchups];
-      updated[1] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
-      setRatioRefinePhase({ ...ratioRefinePhase, step: 1, matchups: updated });
-    } else if (step === 1) {
-      const loserIdx = RATIO_GRID.indexOf(snapToGrid(pickedSide === "a" ? current.b : current.a));
-      let aIdx = Math.min(winnerIdx, loserIdx);
-      let bIdx = Math.max(winnerIdx, loserIdx);
-      if (aIdx === bIdx) {
-        aIdx = Math.max(0, aIdx - 1);
-        bIdx = Math.min(RATIO_GRID.length - 1, bIdx + 1);
-      }
-      if (bIdx - aIdx > 2) {
-        const mid = Math.round((aIdx + bIdx) / 2);
-        aIdx = mid === winnerIdx ? Math.max(0, mid - 1) : mid;
-        bIdx = mid === winnerIdx ? Math.min(RATIO_GRID.length - 1, mid + 1) : winnerIdx;
-        if (aIdx > bIdx) [aIdx, bIdx] = [bIdx, aIdx];
-      }
-      const updated = [...matchups];
-      updated[2] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
-      setRatioRefinePhase({ ...ratioRefinePhase, step: 2, matchups: updated });
-    } else {
+    const gap = Math.abs(winnerIdx - loserIdx);
+
+    if (gap <= 1) {
       completeRatioRefine(winner, false);
+      return;
     }
+
+    let narrowA: number, narrowB: number;
+    if (step === 0) {
+      narrowA = Math.max(0, Math.min(winnerIdx - 1, loserIdx));
+      narrowB = Math.min(RATIO_GRID.length - 1, Math.max(winnerIdx + 1, loserIdx));
+    } else {
+      narrowA = Math.min(winnerIdx, loserIdx);
+      narrowB = Math.max(winnerIdx, loserIdx);
+      if (narrowB - narrowA > 2) {
+        const mid = Math.round((narrowA + narrowB) / 2);
+        narrowA = mid === winnerIdx ? Math.max(0, mid - 1) : mid;
+        narrowB = mid === winnerIdx ? Math.min(RATIO_GRID.length - 1, mid + 1) : winnerIdx;
+        if (narrowA > narrowB) [narrowA, narrowB] = [narrowB, narrowA];
+      }
+    }
+
+    if (narrowA === narrowB) {
+      narrowA = Math.max(0, narrowA - 1);
+      narrowB = Math.min(RATIO_GRID.length - 1, narrowB + 1);
+    }
+
+    const updated = [...matchups, { a: RATIO_GRID[narrowA], b: RATIO_GRID[narrowB] }];
+    setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated });
   }, [ratioRefinePhase, completeRatioRefine]);
 
   const handleNoRatioHelps = useCallback(() => {
@@ -1811,7 +1820,7 @@ export default function IRMixer() {
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-teal-400" />
                     <span className="text-sm font-medium text-teal-400">
-                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1}/{tasteCheckPhase.maxRounds}
+                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1}
                     </span>
                     <Badge variant="outline" className={cn("text-[10px] border-teal-500/30", tasteCheckPhase.confidence === "high" ? "text-emerald-400/80" : tasteCheckPhase.confidence === "moderate" ? "text-amber-400/80" : "text-teal-400/80")}>
                       {tasteCheckPhase.confidence === "high" ? "Verifying" : tasteCheckPhase.confidence === "moderate" ? "Refining" : "Exploring"}
@@ -1829,18 +1838,18 @@ export default function IRMixer() {
                   </div>
                 </div>
 
-                <div className="flex gap-1">
-                  {Array.from({ length: tasteCheckPhase.maxRounds }).map((_, i) => (
+                <div className="flex gap-1.5 items-center">
+                  {Array.from({ length: tasteCheckPhase.round + 1 }).map((_, i) => (
                     <div
                       key={i}
                       className={cn(
-                        "h-1 flex-1 rounded-full transition-colors",
+                        "h-1.5 w-1.5 rounded-full transition-colors",
                         i < tasteCheckPhase.round ? "bg-teal-400" :
-                        i === tasteCheckPhase.round ? "bg-teal-400/50" :
-                        "bg-white/10"
+                        "bg-teal-400/50"
                       )}
                     />
                   ))}
+                  <div className="h-1 w-4 rounded-full bg-white/5" />
                 </div>
 
                 {!tasteCheckPhase.showingResult && (
@@ -1931,7 +1940,7 @@ export default function IRMixer() {
                         ? "Ratio Refinement — Pick one to refine"
                         : ratioRefinePhase.stage === "done"
                         ? "Ratio Refinement — Complete"
-                        : `Ratio Refinement — Round ${ratioRefinePhase.step + 1}/3`}
+                        : `Ratio Refinement — Round ${ratioRefinePhase.step + 1}`}
                     </span>
                   </div>
                   {ratioRefinePhase.stage === "select" && (

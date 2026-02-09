@@ -722,10 +722,107 @@ export function getTasteConfidence(learned?: LearnedProfileData): TasteConfidenc
 }
 
 export function getTasteCheckRounds(confidence: TasteConfidence, poolSize: number): number {
-  const maxByPool = Math.min(5, Math.max(2, Math.floor(poolSize / 2)));
-  if (confidence === "high") return Math.min(maxByPool, 2);
-  if (confidence === "moderate") return Math.min(maxByPool, 3);
-  return Math.min(maxByPool, 5);
+  const maxByPool = Math.min(7, Math.max(2, Math.floor(poolSize / 2)));
+  if (confidence === "high") return Math.min(maxByPool, 4);
+  if (confidence === "moderate") return Math.min(maxByPool, 5);
+  return Math.min(maxByPool, 7);
+}
+
+export function shouldContinueTasteCheck(
+  confidence: TasteConfidence,
+  history: TasteCheckRoundResult[],
+  learned?: LearnedProfileData,
+): boolean {
+  if (history.length === 0) return true;
+  const hardCap = confidence === "high" ? 4 : confidence === "moderate" ? 5 : 7;
+  if (history.length >= hardCap) return false;
+
+  const binaryRounds = history.filter((h) => h.roundType === "binary");
+
+  if (confidence === "high") {
+    if (binaryRounds.length < 2) return true;
+    if (!learned || !learned.learnedAdjustments) {
+      return binaryRounds.length < 3;
+    }
+    let agreements = 0;
+    let measurable = 0;
+    for (const h of binaryRounds) {
+      const axis = TASTE_AXES.find((a) => a.name === h.axisName);
+      if (!axis) continue;
+      const pickedVal = axis.compute(h.options[h.pickedIndex].blendBands);
+      const otherVals = h.options
+        .filter((_, i) => i !== h.pickedIndex)
+        .map((o) => axis.compute(o.blendBands));
+      const avgOther = otherVals.reduce((a, b) => a + b, 0) / otherVals.length;
+      const userDirection = pickedVal - avgOther;
+
+      const profileTarget = getProfileAxisTarget(axis, learned);
+      if (profileTarget === null || Math.abs(profileTarget) < 0.5) continue;
+      measurable++;
+      const profileAgrees = (profileTarget > 0 && userDirection > 0) || (profileTarget < 0 && userDirection < 0);
+      if (profileAgrees) agreements++;
+    }
+    if (measurable === 0) return binaryRounds.length < 3;
+    return agreements / measurable < 0.8;
+  }
+
+  const minRounds = confidence === "moderate" ? 2 : 3;
+  if (history.length < minRounds) return true;
+
+  const axisCounts: Record<string, number> = {};
+  for (const h of history) {
+    axisCounts[h.axisName] = (axisCounts[h.axisName] ?? 0) + 1;
+  }
+  const exploredAxes = Object.keys(axisCounts).length;
+  const hasRepeat = Object.values(axisCounts).some((c) => c >= 2);
+
+  if (exploredAxes >= 2 && hasRepeat) {
+    let consistent = 0;
+    let total = 0;
+    for (const axisName of Object.keys(axisCounts)) {
+      const axisHistory = history.filter((h) => h.axisName === axisName);
+      if (axisHistory.length < 2) continue;
+      const axis = TASTE_AXES.find((a) => a.name === axisName);
+      if (!axis) continue;
+      const directions = axisHistory.map((h) => {
+        const pv = axis.compute(h.options[h.pickedIndex].blendBands);
+        const others = h.options.filter((_, i) => i !== h.pickedIndex).map((o) => axis.compute(o.blendBands));
+        return pv - others.reduce((a, b) => a + b, 0) / others.length;
+      });
+      const allSameDir = directions.every((d) => d > 0) || directions.every((d) => d <= 0);
+      if (allSameDir) consistent++;
+      total++;
+    }
+    if (total > 0 && consistent === total) return false;
+  }
+
+  return true;
+}
+
+function getProfileAxisTarget(
+  axis: typeof TASTE_AXES[number],
+  learned: LearnedProfileData
+): number | null {
+  if (!learned.learnedAdjustments) return null;
+  const adj = learned.learnedAdjustments;
+  const getWeighted = (band: string) => {
+    const entry = (adj as any)[band];
+    if (!entry) return 0;
+    return (entry.shift ?? 0) * (entry.confidence ?? 1);
+  };
+  if (axis.name === "Brightness") {
+    return getWeighted("presence") + getWeighted("highMid");
+  }
+  if (axis.name === "Body") {
+    return -getWeighted("mid");
+  }
+  if (axis.name === "Aggression") {
+    return getWeighted("presence") - getWeighted("mid");
+  }
+  if (axis.name === "Warmth") {
+    return -(getWeighted("mid") + getWeighted("highMid"));
+  }
+  return null;
 }
 
 export function pickTasteCheckCandidates(
