@@ -2017,6 +2017,8 @@ export async function registerRoutes(
       const input = api.recommendations.get.input.parse(req.body);
       const { micType, speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, micShotCounts, existingShots } = input;
       
+      console.log(`[Recommendations] Mic+Speaker request: mic=${micType}, speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.join(', ') : 'none'}`);
+      
       // Build position restriction instruction
       let positionInstruction = '';
       if (basicPositionsOnly) {
@@ -2359,6 +2361,8 @@ CRITICAL INSTRUCTIONS FOR EXISTING SHOTS:
     try {
       const input = api.recommendations.bySpeaker.input.parse(req.body);
       const { speakerModel, genre, preferredShots, targetShotCount, basicPositionsOnly, singleDistancePerMic, singlePositionForRibbons, micShotCounts, existingShots } = input;
+      
+      console.log(`[Recommendations] Speaker-only request: speaker=${speakerModel}, genre=${genre || 'none'}, targetShots=${targetShotCount || 'default'}, existingShots=${existingShots ? existingShots.length + ' files: ' + existingShots.join(', ') : 'none'}`);
       
       // Build position restriction instruction
       let positionInstruction = '';
