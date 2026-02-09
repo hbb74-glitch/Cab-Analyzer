@@ -232,15 +232,15 @@ export default function IRMixer() {
   const [crossCabFeedbackText, setCrossCabFeedbackText] = useState<Record<string, string>>({});
   const [crossCabDismissed, setCrossCabDismissed] = useState<Set<string>>(new Set());
 
-  const [ratioRefineTarget, setRatioRefineTarget] = useState<{
-    pairKey: string;
-    baseFilename: string;
-    featureFilename: string;
-    baseRaw: TonalBands;
-    featRaw: TonalBands;
+  const [ratioRefinePhase, setRatioRefinePhase] = useState<{
+    stage: "select" | "refine" | "done";
+    candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+    selectedIdx: number | null;
     step: number;
     matchups: { a: number; b: number }[];
     winner: number | null;
+    downgraded: boolean;
+    pendingLoadTopPick: boolean;
   } | null>(null);
 
   const clearCrossCabRatings = useCallback(() => {
@@ -566,12 +566,31 @@ export default function IRMixer() {
   const activePairings = suggestedPairs.filter((p) => !dismissedPairings.has(pairKey(p)));
   const canConfirm = hasAnyRank || dismissedPairings.size === suggestedPairs.length;
 
+  const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+  const snapToGrid = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
+
+  const buildMatchupsForPair = useCallback(() => {
+    const learnedPref = learnedProfile?.ratioPreference?.preferredRatio ?? 0.5;
+    const center = snapToGrid(learnedPref);
+    const centerIdx = RATIO_GRID.indexOf(center);
+    const aIdx = Math.max(0, centerIdx - 2);
+    const bIdx = Math.min(RATIO_GRID.length - 1, centerIdx + 2);
+    return [
+      { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] },
+      { a: 0, b: 0 },
+      { a: 0, b: 0 },
+    ];
+  }, [learnedProfile]);
+
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
     let roundNoped = 0;
     const newEvaluated = new Set(evaluatedPairs);
     const newExposure = new Map(exposureCounts);
+    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+
+    const refineCandidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[] = [];
 
     for (const pair of suggestedPairs) {
       const pk = `${pair.baseFilename}||${pair.featureFilename}`;
@@ -609,6 +628,14 @@ export default function IRMixer() {
 
       if (isDismissed) roundNoped++;
       else roundLiked++;
+
+      if ((rank === 1 || rank === 2) && !isDismissed) {
+        const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+        const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+        if (baseData && featData) {
+          refineCandidates.push({ pair, rank, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy });
+        }
+      }
     }
 
     if (signals.length > 0) {
@@ -623,8 +650,31 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
+    if (refineCandidates.length > 0) {
+      refineCandidates.sort((a, b) => a.rank - b.rank);
+      setRatioRefinePhase({
+        stage: "select",
+        candidates: refineCandidates,
+        selectedIdx: null,
+        step: 0,
+        matchups: buildMatchupsForPair(),
+        winner: null,
+        downgraded: false,
+        pendingLoadTopPick: loadTopPick,
+      });
+    } else {
+      finishRound(loadTopPick, null);
+    }
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair]);
+
+  const finishRound = useCallback((loadTopPick: boolean, downgradedPk: string | null) => {
+    if (downgradedPk) {
+      setPairingRankings((prev) => ({ ...prev, [downgradedPk]: 3 }));
+    }
     if (loadTopPick) {
-      const sorted = Object.entries(pairingRankings).sort((a, b) => a[1] - b[1]);
+      const sorted = Object.entries(pairingRankings)
+        .filter(([k]) => k !== downgradedPk)
+        .sort((a, b) => a[1] - b[1]);
       const topKey = sorted[0]?.[0];
       if (topKey) {
         const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
@@ -647,44 +697,71 @@ export default function IRMixer() {
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey]);
+  }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
 
-  const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
-  const snapToGrid = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
-
-  const startRatioRefine = useCallback((pair: SuggestedPairing) => {
-    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
-    const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
-    const featData = pool.find((ir) => ir.filename === pair.featureFilename);
-    if (!baseData || !featData) return;
-
-    const learnedPref = learnedProfile?.ratioPreference?.preferredRatio ?? 0.5;
-    const center = snapToGrid(learnedPref);
-    const centerIdx = RATIO_GRID.indexOf(center);
-    const aIdx = Math.max(0, centerIdx - 2);
-    const bIdx = Math.min(RATIO_GRID.length - 1, centerIdx + 2);
-    const matchups = [
-      { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] },
-      { a: 0, b: 0 },
-      { a: 0, b: 0 },
-    ];
-
-    setRatioRefineTarget({
-      pairKey: pairKey(pair),
-      baseFilename: pair.baseFilename,
-      featureFilename: pair.featureFilename,
-      baseRaw: baseData.rawEnergy,
-      featRaw: featData.rawEnergy,
+  const selectRefineCandidate = useCallback((idx: number) => {
+    if (!ratioRefinePhase) return;
+    setRatioRefinePhase({
+      ...ratioRefinePhase,
+      stage: "refine",
+      selectedIdx: idx,
       step: 0,
-      matchups,
-      winner: null,
+      matchups: buildMatchupsForPair(),
     });
-  }, [allIRs, baseIR, featureIRs, learnedProfile, pairKey]);
+  }, [ratioRefinePhase, buildMatchupsForPair]);
 
-  const handleRatioPick = useCallback((pickedSide: "a" | "b") => {
-    if (!ratioRefineTarget) return;
-    const { step, matchups, baseRaw, featRaw } = ratioRefineTarget;
+  const skipRatioRefine = useCallback(() => {
+    if (!ratioRefinePhase) return;
+    setRatioRefinePhase(null);
+    finishRound(ratioRefinePhase.pendingLoadTopPick, null);
+  }, [ratioRefinePhase, finishRound]);
+
+  const completeRatioRefine = useCallback((ratio: number | null, downgraded: boolean) => {
+    if (!ratioRefinePhase || ratioRefinePhase.selectedIdx === null) return;
+    const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx];
+    const pk = `${cand.pair.baseFilename}||${cand.pair.featureFilename}`;
+
+    if (ratio !== null) {
+      const blendBands = blendFromRaw(cand.baseRaw, cand.featRaw, ratio, 1 - ratio);
+      const r = blendBands.mid > 0 ? blendBands.highMid / blendBands.mid : 0;
+      const scored = scoreAgainstAllProfiles(blendBands, activeProfiles);
+      submitSignalsMutation.mutate([{
+        action: "ratio_pick",
+        feedback: null,
+        feedbackText: null,
+        baseFilename: cand.pair.baseFilename,
+        featureFilename: cand.pair.featureFilename,
+        subBass: blendBands.subBass,
+        bass: blendBands.bass,
+        lowMid: blendBands.lowMid,
+        mid: blendBands.mid,
+        highMid: blendBands.highMid,
+        presence: blendBands.presence,
+        ratio: Math.round(r * 100) / 100,
+        score: Math.round(scored.best.score),
+        profileMatch: scored.best.profile,
+        blendRatio: ratio,
+      }]);
+    }
+
+    setRatioRefinePhase({ ...ratioRefinePhase, stage: "done", winner: ratio, downgraded });
+    setTimeout(() => {
+      setRatioRefinePhase(null);
+      finishRound(ratioRefinePhase.pendingLoadTopPick, downgraded ? pk : null);
+    }, 1500);
+  }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound]);
+
+  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
+    if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
+    const { step, matchups } = ratioRefinePhase;
     const current = matchups[step];
+
+    if (pickedSide === "tie") {
+      const tieRatio = snapToGrid((current.a + current.b) / 2);
+      completeRatioRefine(tieRatio, false);
+      return;
+    }
+
     const winner = pickedSide === "a" ? current.a : current.b;
     const winnerIdx = RATIO_GRID.indexOf(snapToGrid(winner));
 
@@ -696,7 +773,7 @@ export default function IRMixer() {
       const bIdx = narrowA === narrowB ? Math.min(RATIO_GRID.length - 1, narrowB + 1) : narrowB;
       const updated = [...matchups];
       updated[1] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
-      setRatioRefineTarget({ ...ratioRefineTarget, step: 1, matchups: updated });
+      setRatioRefinePhase({ ...ratioRefinePhase, step: 1, matchups: updated });
     } else if (step === 1) {
       const loserIdx = RATIO_GRID.indexOf(snapToGrid(pickedSide === "a" ? current.b : current.a));
       let aIdx = Math.min(winnerIdx, loserIdx);
@@ -713,34 +790,15 @@ export default function IRMixer() {
       }
       const updated = [...matchups];
       updated[2] = { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] };
-      setRatioRefineTarget({ ...ratioRefineTarget, step: 2, matchups: updated });
+      setRatioRefinePhase({ ...ratioRefinePhase, step: 2, matchups: updated });
     } else {
-      const blendBands = blendFromRaw(baseRaw, featRaw, winner, 1 - winner);
-      if (blendBands) {
-        const r = blendBands.mid > 0 ? blendBands.highMid / blendBands.mid : 0;
-        const result = scoreAgainstAllProfiles(blendBands, activeProfiles);
-        submitSignalsMutation.mutate([{
-          action: "ratio_pick",
-          feedback: null,
-          feedbackText: null,
-          baseFilename: ratioRefineTarget.baseFilename,
-          featureFilename: ratioRefineTarget.featureFilename,
-          subBass: blendBands.subBass,
-          bass: blendBands.bass,
-          lowMid: blendBands.lowMid,
-          mid: blendBands.mid,
-          highMid: blendBands.highMid,
-          presence: blendBands.presence,
-          ratio: Math.round(r * 100) / 100,
-          score: Math.round(result.best.score),
-          profileMatch: result.best.profile,
-          blendRatio: winner,
-        }]);
-      }
-      setRatioRefineTarget({ ...ratioRefineTarget, winner, step: 3 });
-      setTimeout(() => setRatioRefineTarget(null), 2000);
+      completeRatioRefine(winner, false);
     }
-  }, [ratioRefineTarget, activeProfiles, submitSignalsMutation]);
+  }, [ratioRefinePhase, completeRatioRefine]);
+
+  const handleNoRatioHelps = useCallback(() => {
+    completeRatioRefine(null, true);
+  }, [completeRatioRefine]);
 
   const useAsBase = useCallback((ir: AnalyzedIR) => {
     setBaseIR(ir);
@@ -1565,67 +1623,6 @@ export default function IRMixer() {
                               className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                               data-testid={`input-feedback-text-${idx}`}
                             />
-                            {(assignedRank === 1 || assignedRank === 2) && (
-                              <>
-                                {ratioRefineTarget?.pairKey !== pk ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => startRatioRefine(pair)}
-                                    className="text-xs text-sky-400 border-sky-500/30 mt-2 w-full"
-                                    data-testid={`button-refine-ratio-${idx}`}
-                                  >
-                                    <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
-                                    Refine Blend Ratio
-                                  </Button>
-                                ) : ratioRefineTarget.step < 3 ? (
-                                  <div className="mt-2 p-2 rounded-md bg-sky-500/5 border border-sky-500/20 space-y-2" data-testid={`ratio-refine-panel-${idx}`}>
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[9px] text-sky-400 font-medium uppercase tracking-wider">
-                                        A/B Ratio — Round {ratioRefineTarget.step + 1}/3
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setRatioRefineTarget(null)}
-                                        className="text-[10px] text-muted-foreground h-5 px-1"
-                                        data-testid={`button-cancel-refine-${idx}`}
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </Button>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {(["a", "b"] as const).map((side) => {
-                                        const r = ratioRefineTarget.matchups[ratioRefineTarget.step][side];
-                                        const bands = blendFromRaw(ratioRefineTarget.baseRaw, ratioRefineTarget.featRaw, r, 1 - r);
-                                        return (
-                                          <button
-                                            key={side}
-                                            onClick={() => handleRatioPick(side)}
-                                            className="p-2 rounded-md border border-white/10 hover-elevate transition-all text-left space-y-1"
-                                            data-testid={`button-pick-${side}-${idx}`}
-                                          >
-                                            <p className="text-[10px] font-mono text-foreground">
-                                              {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
-                                            </p>
-                                            <BandChart bands={bands} height={10} compact />
-                                            <p className="text-[9px] text-center text-sky-400 font-medium">
-                                              Pick {side.toUpperCase()}
-                                            </p>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="mt-2 p-2 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-center">
-                                    <p className="text-[10px] text-emerald-400">
-                                      Preferred ratio: {Math.round((ratioRefineTarget.winner ?? 0.5) * 100)}/{Math.round((1 - (ratioRefineTarget.winner ?? 0.5)) * 100)} saved
-                                    </p>
-                                  </div>
-                                )}
-                              </>
-                            )}
                           </div>
                         )}
                       </>
@@ -1635,7 +1632,7 @@ export default function IRMixer() {
               })}
             </div>
 
-            {canConfirm && (
+            {canConfirm && !ratioRefinePhase && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Target className="w-3.5 h-3.5 text-violet-400" />
@@ -1662,6 +1659,129 @@ export default function IRMixer() {
                     </Button>
                   )}
                 </div>
+              </motion.div>
+            )}
+
+            {ratioRefinePhase && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-4 rounded-xl bg-sky-500/5 border border-sky-500/20 space-y-4"
+                data-testid="ratio-refine-phase"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-sky-400" />
+                    <span className="text-sm font-medium text-sky-400">
+                      {ratioRefinePhase.stage === "select"
+                        ? "Ratio Refinement — Pick one to refine"
+                        : ratioRefinePhase.stage === "done"
+                        ? "Ratio Refinement — Complete"
+                        : `Ratio Refinement — Round ${ratioRefinePhase.step + 1}/3`}
+                    </span>
+                  </div>
+                  {ratioRefinePhase.stage === "select" && (
+                    <Button size="sm" variant="ghost" onClick={skipRatioRefine} className="text-xs text-muted-foreground" data-testid="button-skip-refine">
+                      Skip
+                    </Button>
+                  )}
+                </div>
+
+                {ratioRefinePhase.stage === "select" && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                      Which pairing do you want to explore different blend ratios for? Pick the one that matters most to you.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {ratioRefinePhase.candidates.map((cand, ci) => (
+                        <button
+                          key={ci}
+                          onClick={() => selectRefineCandidate(ci)}
+                          className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
+                          data-testid={`button-select-refine-${ci}`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={cn("text-[10px]", cand.rank === 1 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-violet-500/20 text-violet-400 border-violet-500/30")}>
+                              {cand.rank === 1 ? "Love" : "Like"}
+                            </Badge>
+                            {ci === 0 && <span className="text-[9px] text-sky-400 font-medium">(suggested)</span>}
+                          </div>
+                          <p className="text-xs font-mono text-foreground truncate">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                          <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
+                          <p className="text-xs font-mono text-foreground truncate">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                          <BandChart bands={cand.pair.blendBands} height={8} compact />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {ratioRefinePhase.stage === "refine" && ratioRefinePhase.selectedIdx !== null && (() => {
+                  const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx];
+                  const current = ratioRefinePhase.matchups[ratioRefinePhase.step];
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                        <span className="font-mono text-foreground">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                        <span>+</span>
+                        <span className="font-mono text-foreground">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(["a", "b"] as const).map((side) => {
+                          const r = current[side];
+                          const bands = blendFromRaw(cand.baseRaw, cand.featRaw, r, 1 - r);
+                          return (
+                            <button
+                              key={side}
+                              onClick={() => handleRatioPick(side)}
+                              className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
+                              data-testid={`button-pick-${side}`}
+                            >
+                              <p className="text-sm font-mono text-foreground text-center">
+                                {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                              </p>
+                              <BandChart bands={bands} height={10} compact />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2 justify-center flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRatioPick("tie")}
+                          className="text-xs text-muted-foreground"
+                          data-testid="button-ratio-tie"
+                        >
+                          No difference
+                        </Button>
+                        {cand.rank === 2 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleNoRatioHelps}
+                            className="text-xs text-red-400"
+                            data-testid="button-no-ratio-helps"
+                          >
+                            No ratio helps
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {ratioRefinePhase.stage === "done" && (
+                  <div className="text-center py-2">
+                    {ratioRefinePhase.downgraded ? (
+                      <p className="text-xs text-red-400">Downgraded to Meh — no ratio could improve it</p>
+                    ) : (
+                      <p className="text-xs text-emerald-400">
+                        Preferred ratio: {Math.round((ratioRefinePhase.winner ?? 0.5) * 100)}/{Math.round((1 - (ratioRefinePhase.winner ?? 0.5)) * 100)} saved
+                      </p>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>
