@@ -313,41 +313,59 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
-  // Tail Level / Noise Floor Measurement
-  // 
-  // For truncated IRs (< 200ms), there's no true "noise floor" - the decay
-  // is intentionally cut off for amp modelers. Instead, we measure "tail level"
-  // which indicates how much the IR has decayed by the truncation point.
-  // 
-  // Approach: Use fixed 15ms window for all IRs (consistent measurement)
-  // - Long IRs (200ms+): This approximates true noise floor
-  // - Short IRs (<200ms): This is "tail level" - end of decay, not noise
+  // Noise Floor Measurement (length-aware)
+  //
+  // Problem: Short IRs (e.g. 4096 samples / ~85ms) still have active decay
+  // energy at their tail. Measuring the last 15ms gives a falsely "high"
+  // noise floor compared to a longer version of the same IR where the
+  // signal has naturally decayed further. This unfairly penalizes short IRs.
+  //
+  // Solution: Estimate the actual noise floor separately from tail decay.
+  // 1. For ALL IRs, scan overlapping windows to find the quietest region
+  //    (most likely to represent the true noise floor / room tone).
+  // 2. For short/truncated IRs (< 200ms), the tail is still active signal,
+  //    so we use the quietest-window approach exclusively.
+  // 3. For long IRs (200ms+), the tail measurement is valid but we still
+  //    take the better (lower) of tail vs quietest-window to be fair.
   // ============================================
   const sampleRate = audioBuffer.sampleRate;
   const irDurationMs = (channelData.length / sampleRate) * 1000;
   const isTruncatedIR = irDurationMs < 200;
-  
-  // Use fixed 15ms tail window for consistent measurement across all IR lengths
-  const tailWindowMs = 15;
-  const tailWindowSamples = Math.floor(sampleRate * (tailWindowMs / 1000));
-  const tailStartSample = Math.max(0, channelData.length - tailWindowSamples);
-  const tailEndSample = channelData.length;
-  
-  let tailRmsSum = 0;
-  let tailSampleCount = 0;
-  
-  for (let i = tailStartSample; i < tailEndSample; i++) {
-    tailRmsSum += channelData[i] * channelData[i];
-    tailSampleCount++;
+
+  const windowMs = 15;
+  const windowSamples = Math.floor(sampleRate * (windowMs / 1000));
+
+  // Scan the last 60% of the IR in overlapping windows to find quietest region
+  // (skip the first 40% which contains the main impulse energy)
+  const scanStart = Math.floor(channelData.length * 0.4);
+  const stepSamples = Math.max(1, Math.floor(windowSamples / 2));
+  let quietestRms = Infinity;
+
+  for (let start = scanStart; start + windowSamples <= channelData.length; start += stepSamples) {
+    let windowSum = 0;
+    for (let i = start; i < start + windowSamples; i++) {
+      windowSum += channelData[i] * channelData[i];
+    }
+    const windowRms = Math.sqrt(windowSum / windowSamples);
+    if (windowRms < quietestRms) {
+      quietestRms = windowRms;
+    }
   }
-  
-  const tailRms = tailSampleCount > 0 ? Math.sqrt(tailRmsSum / tailSampleCount) : 0;
-  
-  // Tail level in dB (relative to full scale, since IR is normalized to 0dB peak)
-  // More negative = better decay / cleaner
-  // For truncated IRs: -45 to -60 dB typical (measures decay at cutoff point)
-  // For full IRs: -50 to -70 dB (true noise floor)
-  const noiseFloorDb = tailRms > 0 ? 20 * Math.log10(tailRms) : -96;
+
+  // For long IRs, also measure the tail directly (last 15ms)
+  let tailRms = quietestRms;
+  if (!isTruncatedIR) {
+    const tailStart = Math.max(0, channelData.length - windowSamples);
+    let tailSum = 0;
+    for (let i = tailStart; i < channelData.length; i++) {
+      tailSum += channelData[i] * channelData[i];
+    }
+    tailRms = Math.sqrt(tailSum / (channelData.length - tailStart));
+    // Use whichever is quieter — the tail or the quietest window
+    quietestRms = Math.min(quietestRms, tailRms);
+  }
+
+  const noiseFloorDb = quietestRms > 0 ? 20 * Math.log10(quietestRms) : -96;
 
   return {
     durationMs,
