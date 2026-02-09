@@ -232,6 +232,26 @@ export default function IRMixer() {
   const [crossCabFeedbackText, setCrossCabFeedbackText] = useState<Record<string, string>>({});
   const [crossCabDismissed, setCrossCabDismissed] = useState<Set<string>>(new Set());
 
+  const [tasteCheckPhase, setTasteCheckPhase] = useState<{
+    pairA: SuggestedPairing;
+    pairB: SuggestedPairing;
+    systemPick: "a" | "b";
+    userPick: "a" | "b" | null;
+    result: "confirmed" | "surprised" | null;
+    pendingRefineCandidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+    pendingLoadTopPick: boolean;
+  } | null>(null);
+  const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
+  const [tasteCheckAttempts, setTasteCheckAttempts] = useState(0);
+
+  const tasteCheckRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (tasteCheckPhase && !tasteCheckPhase.userPick && tasteCheckRef.current) {
+      tasteCheckRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [tasteCheckPhase]);
+
   const [ratioRefinePhase, setRatioRefinePhase] = useState<{
     stage: "select" | "refine" | "done";
     candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
@@ -315,6 +335,9 @@ export default function IRMixer() {
     setDoneRefining(false);
     setNoMorePairs(false);
     setHistoryLoaded(false);
+    setTasteCheckPhase(null);
+    setTasteCheckPassed(false);
+    setTasteCheckAttempts(0);
   }, []);
 
   const handleBaseFile = useCallback(async (files: File[]) => {
@@ -590,6 +613,80 @@ export default function IRMixer() {
     ];
   }, [learnedProfile]);
 
+  const finishRound = useCallback((loadTopPick: boolean, downgradedPk: string | null) => {
+    if (downgradedPk) {
+      setPairingRankings((prev) => ({ ...prev, [downgradedPk]: 3 }));
+    }
+    if (loadTopPick) {
+      const sorted = Object.entries(pairingRankings)
+        .filter(([k]) => k !== downgradedPk)
+        .sort((a, b) => a[1] - b[1]);
+      const topKey = sorted[0]?.[0];
+      if (topKey) {
+        const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
+        if (pair) {
+          const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+          const baseIrData = pool.find((ir) => ir.filename === pair.baseFilename);
+          const featIrData = pool.find((ir) => ir.filename === pair.featureFilename);
+          if (baseIrData && featIrData) {
+            setBaseIR(baseIrData);
+            setFeatureIRs([featIrData]);
+            setShowFoundation(false);
+            setDoneRefining(true);
+          }
+        }
+      }
+    } else {
+      setPairingRankings({});
+      setPairingFeedback({});
+      setPairingFeedbackText({});
+      setDismissedPairings(new Set());
+      setPairingRound((prev) => prev + 1);
+    }
+  }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
+
+  const proceedToRatioRefine = useCallback((candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[], loadTopPick: boolean) => {
+    setRatioRefinePhase({
+      stage: "select",
+      candidates,
+      selectedIdx: null,
+      step: 0,
+      matchups: buildMatchupsForPair(),
+      winner: null,
+      downgraded: false,
+      pendingLoadTopPick: loadTopPick,
+    });
+  }, [buildMatchupsForPair]);
+
+  const handleTasteCheckPick = useCallback((pick: "a" | "b") => {
+    if (!tasteCheckPhase) return;
+    const matched = pick === tasteCheckPhase.systemPick;
+    setTasteCheckPhase({
+      ...tasteCheckPhase,
+      userPick: pick,
+      result: matched ? "confirmed" : "surprised",
+    });
+    setTasteCheckAttempts((prev) => prev + 1);
+    if (matched) {
+      setTasteCheckPassed(true);
+    }
+    setTimeout(() => {
+      setTasteCheckPhase(null);
+      if (matched) {
+        proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+      } else {
+        finishRound(tasteCheckPhase.pendingLoadTopPick, null);
+      }
+    }, 2000);
+  }, [tasteCheckPhase, proceedToRatioRefine, finishRound]);
+
+  const skipTasteCheck = useCallback(() => {
+    if (!tasteCheckPhase) return;
+    setTasteCheckPhase(null);
+    setTasteCheckPassed(true);
+    proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+  }, [tasteCheckPhase, proceedToRatioRefine]);
+
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
@@ -658,60 +755,39 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
-    // Only offer ratio refinement after the system has learned enough from
-    // basic Love/Like/Meh/Nope ratings. For brand new gear with no history,
-    // refining blend ratios is premature — the system needs at least one
-    // completed round of pairing comparisons first to understand preferences.
     const hasEnoughLearning = totalRoundsCompleted >= 1;
 
     if (refineCandidates.length > 0 && hasEnoughLearning) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
-      setRatioRefinePhase({
-        stage: "select",
-        candidates: refineCandidates,
-        selectedIdx: null,
-        step: 0,
-        matchups: buildMatchupsForPair(),
-        winner: null,
-        downgraded: false,
-        pendingLoadTopPick: loadTopPick,
-      });
+
+      if (!tasteCheckPassed && tasteCheckAttempts < 2) {
+        const tastePool = suggestPairings(pairingPool, activeProfiles, 6, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, newExposure.size > 0 ? newExposure : undefined);
+        if (tastePool.length >= 2) {
+          const favorite = tastePool[0];
+          const decoy = tastePool[tastePool.length - 1];
+          const coinFlip = Math.random() < 0.5;
+          const pairA = coinFlip ? favorite : decoy;
+          const pairB = coinFlip ? decoy : favorite;
+          const systemPick: "a" | "b" = coinFlip ? "a" : "b";
+          setTasteCheckPhase({
+            pairA,
+            pairB,
+            systemPick,
+            userPick: null,
+            result: null,
+            pendingRefineCandidates: refineCandidates,
+            pendingLoadTopPick: loadTopPick,
+          });
+        } else {
+          proceedToRatioRefine(refineCandidates, loadTopPick);
+        }
+      } else {
+        proceedToRatioRefine(refineCandidates, loadTopPick);
+      }
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted]);
-
-  const finishRound = useCallback((loadTopPick: boolean, downgradedPk: string | null) => {
-    if (downgradedPk) {
-      setPairingRankings((prev) => ({ ...prev, [downgradedPk]: 3 }));
-    }
-    if (loadTopPick) {
-      const sorted = Object.entries(pairingRankings)
-        .filter(([k]) => k !== downgradedPk)
-        .sort((a, b) => a[1] - b[1]);
-      const topKey = sorted[0]?.[0];
-      if (topKey) {
-        const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
-        if (pair) {
-          const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
-          const baseIrData = pool.find((ir) => ir.filename === pair.baseFilename);
-          const featIrData = pool.find((ir) => ir.filename === pair.featureFilename);
-          if (baseIrData && featIrData) {
-            setBaseIR(baseIrData);
-            setFeatureIRs([featIrData]);
-            setShowFoundation(false);
-            setDoneRefining(true);
-          }
-        }
-      }
-    } else {
-      setPairingRankings({});
-      setPairingFeedback({});
-      setPairingFeedbackText({});
-      setDismissedPairings(new Set());
-      setPairingRound((prev) => prev + 1);
-    }
-  }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted, tasteCheckPassed, tasteCheckAttempts, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound]);
 
   const selectRefineCandidate = useCallback((idx: number) => {
     if (!ratioRefinePhase) return;
@@ -1464,7 +1540,7 @@ export default function IRMixer() {
           )}
         </div>
 
-        {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase) && !doneRefining && (
+        {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase || tasteCheckPhase) && !doneRefining && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -1482,7 +1558,7 @@ export default function IRMixer() {
                 </span>
               )}
             </div>
-            {!ratioRefinePhase && (
+            {!ratioRefinePhase && !tasteCheckPhase && (
             <p className="text-xs text-muted-foreground mb-4">
               {totalRoundsCompleted === 0
                 ? learnedProfile && learnedProfile.status !== "no_data"
@@ -1492,7 +1568,7 @@ export default function IRMixer() {
               }
             </p>
             )}
-            {!ratioRefinePhase && suggestedPairs.length > 0 && (
+            {!ratioRefinePhase && !tasteCheckPhase && suggestedPairs.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {suggestedPairs.map((pair, idx) => {
                 const pk = pairKey(pair);
@@ -1650,7 +1726,7 @@ export default function IRMixer() {
             </div>
             )}
 
-            {canConfirm && !ratioRefinePhase && (
+            {canConfirm && !ratioRefinePhase && !tasteCheckPhase && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Target className="w-3.5 h-3.5 text-violet-400" />
@@ -1677,6 +1753,105 @@ export default function IRMixer() {
                     </Button>
                   )}
                 </div>
+              </motion.div>
+            )}
+
+            {tasteCheckPhase && (
+              <motion.div
+                ref={tasteCheckRef}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20 space-y-4"
+                data-testid="taste-check-phase"
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-teal-400" />
+                    <span className="text-sm font-medium text-teal-400">
+                      {tasteCheckPhase.result ? "Taste Check Result" : "Taste Check"}
+                    </span>
+                  </div>
+                  {!tasteCheckPhase.result && (
+                    <Button size="sm" variant="ghost" onClick={skipTasteCheck} className="text-xs text-muted-foreground" data-testid="button-skip-taste-check">
+                      Skip
+                    </Button>
+                  )}
+                </div>
+
+                {!tasteCheckPhase.result && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Which of these two blends do you prefer? Just pick one — the system is testing whether it understands your taste.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      {(["a", "b"] as const).map((side) => {
+                        const pair = side === "a" ? tasteCheckPhase.pairA : tasteCheckPhase.pairB;
+                        const hiMidMidRatio = pair.blendBands.mid > 0
+                          ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
+                          : 0;
+                        return (
+                          <button
+                            key={side}
+                            onClick={() => handleTasteCheckPick(side)}
+                            className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
+                            data-testid={`button-taste-${side}`}
+                          >
+                            <p className="text-xs font-semibold text-center text-foreground uppercase tracking-widest">
+                              {side.toUpperCase()}
+                            </p>
+                            <p className="text-[10px] font-mono text-foreground truncate">
+                              {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              + ({pair.suggestedRatio
+                                ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+                                : "50/50"})
+                            </p>
+                            <p className="text-[10px] font-mono text-foreground truncate">
+                              {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
+                            </p>
+                            <BandChart bands={pair.blendBands} height={10} compact />
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <MatchBadge match={pair.bestMatch} />
+                              <span className={cn(
+                                "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                                hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                                "bg-amber-500/20 text-amber-400"
+                              )}>
+                                {hiMidMidRatio.toFixed(2)}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {tasteCheckPhase.result && (
+                  <div className="text-center py-2">
+                    {tasteCheckPhase.result === "confirmed" ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-emerald-400 font-medium">
+                          Confirmed — your pick matched the prediction
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Moving to ratio refinement...
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-xs text-amber-400 font-medium">
+                          Surprise — the system expected the other one
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Noted. More comparison rounds needed before ratio refinement.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 
