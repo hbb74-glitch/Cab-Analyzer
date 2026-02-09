@@ -15,11 +15,14 @@ import {
   type SuggestedPairing,
   type LearnedProfileData,
   type TasteCheckRoundResult,
+  type TasteConfidence,
   scoreAgainstAllProfiles,
   findFoundationIR,
   rankBlendPartners,
   suggestPairings,
   pickTasteCheckCandidates,
+  getTasteConfidence,
+  getTasteCheckRounds,
   applyLearnedAdjustments,
   DEFAULT_PROFILES,
 } from "@/lib/preference-profiles";
@@ -241,6 +244,7 @@ export default function IRMixer() {
     axisLabels: [string, string];
     round: number;
     maxRounds: number;
+    confidence: TasteConfidence;
     userPick: number | null;
     showingResult: boolean;
     history: TasteCheckRoundResult[];
@@ -709,6 +713,7 @@ export default function IRMixer() {
         axisLabels: nextPick.axisLabels,
         round: nextRound,
         maxRounds: tasteCheckPhase.maxRounds,
+        confidence: tasteCheckPhase.confidence,
         userPick: null,
         showingResult: false,
         history: newHistory,
@@ -801,7 +806,7 @@ export default function IRMixer() {
       if (!tasteCheckPassed) {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
         if (tastePick) {
-          const maxRounds = Math.min(5, Math.max(3, Math.floor(pairingPool.length / 2)));
+          const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
           setTasteCheckPhase({
             candidates: tastePick.candidates,
             roundType: tastePick.roundType,
@@ -809,6 +814,7 @@ export default function IRMixer() {
             axisLabels: tastePick.axisLabels,
             round: 0,
             maxRounds,
+            confidence: tastePick.confidence,
             userPick: null,
             showingResult: false,
             history: [],
@@ -1805,8 +1811,11 @@ export default function IRMixer() {
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-teal-400" />
                     <span className="text-sm font-medium text-teal-400">
-                      Taste Check — Round {tasteCheckPhase.round + 1}/{tasteCheckPhase.maxRounds}
+                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1}/{tasteCheckPhase.maxRounds}
                     </span>
+                    <Badge variant="outline" className={cn("text-[10px] border-teal-500/30", tasteCheckPhase.confidence === "high" ? "text-emerald-400/80" : tasteCheckPhase.confidence === "moderate" ? "text-amber-400/80" : "text-teal-400/80")}>
+                      {tasteCheckPhase.confidence === "high" ? "Verifying" : tasteCheckPhase.confidence === "moderate" ? "Refining" : "Exploring"}
+                    </Badge>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="text-[10px] text-teal-400/80 border-teal-500/30">

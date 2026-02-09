@@ -711,14 +711,33 @@ export interface TasteCheckRoundResult {
   roundType: "quad" | "binary";
 }
 
+export type TasteConfidence = "high" | "moderate" | "low";
+
+export function getTasteConfidence(learned?: LearnedProfileData): TasteConfidence {
+  if (!learned || learned.status === "no_data") return "low";
+  if (learned.status === "mastered" || learned.status === "confident") return "high";
+  if (learned.signalCount >= 8) return "moderate";
+  if (learned.signalCount >= 4 && learned.likedCount >= 2) return "moderate";
+  return "low";
+}
+
+export function getTasteCheckRounds(confidence: TasteConfidence, poolSize: number): number {
+  const maxByPool = Math.min(5, Math.max(2, Math.floor(poolSize / 2)));
+  if (confidence === "high") return Math.min(maxByPool, 2);
+  if (confidence === "moderate") return Math.min(maxByPool, 3);
+  return Math.min(maxByPool, 5);
+}
+
 export function pickTasteCheckCandidates(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
   learned?: LearnedProfileData,
   excludePairs?: Set<string>,
   history?: TasteCheckRoundResult[]
-): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string] } | null {
+): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
+
+  const confidence = getTasteConfidence(learned);
 
   const allCombos: SuggestedPairing[] = [];
   for (let i = 0; i < irs.length; i++) {
@@ -761,7 +780,9 @@ export function pickTasteCheckCandidates(
   let narrowFactor = 1.0;
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
-  if (round < 2) {
+  const quadRounds = confidence === "high" ? 0 : confidence === "moderate" ? 1 : 2;
+
+  if (round < quadRounds) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
   } else {
@@ -783,13 +804,14 @@ export function pickTasteCheckCandidates(
 
   const preferredDir = getPreferredDirection(history ?? [], chosenAxis.axis.name, axisCompute);
 
-  if (round < 2 && allCombos.length >= 4) {
+  if (round < quadRounds && allCombos.length >= 4) {
     const candidates = pickSpreadCandidates(scored, 4, 1.0);
     return {
       candidates: candidates.map((c) => c.pairing),
       axisName: chosenAxis.axis.name,
       roundType: "quad",
       axisLabels: [...chosenAxis.axis.label] as [string, string],
+      confidence,
     };
   } else {
     let pool = scored;
@@ -813,6 +835,7 @@ export function pickTasteCheckCandidates(
       axisName: chosenAxis.axis.name,
       roundType: "binary",
       axisLabels: [...chosenAxis.axis.label] as [string, string],
+      confidence,
     };
   }
 }
