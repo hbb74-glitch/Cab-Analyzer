@@ -1072,11 +1072,51 @@ export default function IRMixer() {
     <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-              <Blend className="w-5 h-5 text-indigo-400" />
+          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                <Blend className="w-5 h-5 text-indigo-400" />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">IR Mixer</h1>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">IR Mixer</h1>
+            <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
+              <button
+                onClick={() => setTasteCheckMode("acquisition")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                  tasteCheckMode === "acquisition"
+                    ? "bg-teal-500/25 text-teal-300"
+                    : "text-muted-foreground hover-elevate"
+                )}
+                data-testid="button-taste-acquisition"
+              >
+                4-Pick
+              </button>
+              <button
+                onClick={() => setTasteCheckMode("auto")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                  tasteCheckMode === "auto"
+                    ? "bg-teal-500/25 text-teal-300"
+                    : "text-muted-foreground hover-elevate"
+                )}
+                data-testid="button-taste-auto"
+              >
+                Auto
+              </button>
+              <button
+                onClick={() => setTasteCheckMode("tester")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                  tasteCheckMode === "tester"
+                    ? "bg-teal-500/25 text-teal-300"
+                    : "text-muted-foreground hover-elevate"
+                )}
+                data-testid="button-taste-tester"
+              >
+                A/B
+              </button>
+            </div>
           </div>
           <p className="text-muted-foreground text-sm">
             Drop IRs to preview blend permutations scored against your tonal profiles.
@@ -1675,51 +1715,11 @@ export default function IRMixer() {
                   </Badge>
                 )}
               </h4>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-0.5 rounded-md border border-teal-500/30 bg-teal-500/5 p-0.5" data-testid="taste-mode-selector">
-                  <button
-                    onClick={() => setTasteCheckMode("acquisition")}
-                    className={cn(
-                      "px-2.5 py-1 text-[10px] font-medium transition-colors rounded-sm",
-                      tasteCheckMode === "acquisition"
-                        ? "bg-teal-500/25 text-teal-300"
-                        : "text-muted-foreground hover-elevate"
-                    )}
-                    data-testid="button-taste-acquisition"
-                  >
-                    4-Pick
-                  </button>
-                  <button
-                    onClick={() => setTasteCheckMode("auto")}
-                    className={cn(
-                      "px-2.5 py-1 text-[10px] font-medium transition-colors rounded-sm",
-                      tasteCheckMode === "auto"
-                        ? "bg-teal-500/25 text-teal-300"
-                        : "text-muted-foreground hover-elevate"
-                    )}
-                    data-testid="button-taste-auto"
-                  >
-                    Auto
-                  </button>
-                  <button
-                    onClick={() => setTasteCheckMode("tester")}
-                    className={cn(
-                      "px-2.5 py-1 text-[10px] font-medium transition-colors rounded-sm",
-                      tasteCheckMode === "tester"
-                        ? "bg-teal-500/25 text-teal-300"
-                        : "text-muted-foreground hover-elevate"
-                    )}
-                    data-testid="button-taste-tester"
-                  >
-                    A/B
-                  </button>
-                </div>
-                {totalRoundsCompleted > 0 && (
-                  <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
-                    {cumulativeSignals.liked} rated / {cumulativeSignals.noped} noped so far
-                  </span>
-                )}
-              </div>
+              {totalRoundsCompleted > 0 && (
+                <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
+                  {cumulativeSignals.liked} rated / {cumulativeSignals.noped} noped so far
+                </span>
+              )}
             </div>
             {!ratioRefinePhase && !tasteCheckPhase && (
             <p className="text-xs text-muted-foreground mb-4">
