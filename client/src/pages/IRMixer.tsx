@@ -835,7 +835,7 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
-    const hasEnoughLearning = totalRoundsCompleted >= 1;
+    const hasEnoughLearning = totalRoundsCompleted >= 1 || tasteCheckMode !== "auto";
 
     if (refineCandidates.length > 0 && hasEnoughLearning) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
