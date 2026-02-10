@@ -843,7 +843,7 @@ export default function IRMixer() {
       const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
         (ir) => (newExposure.get(ir.filename) ?? 0) === 0
       );
-      const shouldTasteCheck = !tasteCheckPassed || hasUnseenIRs;
+      const shouldTasteCheck = tasteCheckMode !== "auto" || !tasteCheckPassed || hasUnseenIRs;
 
       if (shouldTasteCheck) {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode);

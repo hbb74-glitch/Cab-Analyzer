@@ -920,7 +920,7 @@ export function pickTasteCheckCandidates(
   let pool = scored;
   if (preferredDir !== null && narrowFactor < 1.0) {
     const pickedVals = (history ?? [])
-      .filter((h) => h.axisName === chosenAxis.axis.name)
+      .filter((h) => h.axisName === chosenAxis.axis.name && h.pickedIndex >= 0)
       .map((h) => axisCompute(h.options[h.pickedIndex].blendBands));
     if (pickedVals.length > 0) {
       const avgPicked = pickedVals.reduce((a, b) => a + b, 0) / pickedVals.length;
