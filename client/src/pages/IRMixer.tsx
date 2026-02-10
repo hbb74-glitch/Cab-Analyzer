@@ -769,17 +769,6 @@ export default function IRMixer() {
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
     : [];
 
-  if (tasteCheckPhase) {
-    console.log("[TASTE DEBUG]", {
-      mode: tasteCheckMode,
-      liveConfidence,
-      phaseConfidence: tasteCheckPhase.confidence,
-      candidateCount: tasteCheckPhase.candidates.length,
-      tasteCheckBinary,
-      displayCount: tasteCheckDisplayCandidates.length,
-      roundType: tasteCheckPhase.roundType,
-    });
-  }
 
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
@@ -887,7 +876,7 @@ export default function IRMixer() {
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode]);
 
   const selectRefineCandidate = useCallback((idx: number) => {
     if (!ratioRefinePhase) return;
