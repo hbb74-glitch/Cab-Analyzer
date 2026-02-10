@@ -769,6 +769,18 @@ export default function IRMixer() {
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
     : [];
 
+  if (tasteCheckPhase) {
+    console.log("[TASTE DEBUG]", {
+      mode: tasteCheckMode,
+      liveConfidence,
+      phaseConfidence: tasteCheckPhase.confidence,
+      candidateCount: tasteCheckPhase.candidates.length,
+      tasteCheckBinary,
+      displayCount: tasteCheckDisplayCandidates.length,
+      roundType: tasteCheckPhase.roundType,
+    });
+  }
+
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
