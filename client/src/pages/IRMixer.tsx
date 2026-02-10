@@ -770,21 +770,6 @@ export default function IRMixer() {
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
     : [];
 
-  if (tasteCheckPhase) {
-    console.log("[TASTE-DEBUG]", {
-      liveConfidence,
-      phaseConfidence: tasteCheckPhase.confidence,
-      tasteCheckBinary,
-      candidateCount: tasteCheckPhase.candidates.length,
-      displayCount: tasteCheckDisplayCandidates.length,
-      learnedStatus: learnedProfile?.status ?? "undefined",
-      learnedSignalCount: learnedProfile?.signalCount ?? 0,
-      learnedLikedCount: learnedProfile?.likedCount ?? 0,
-      roundType: tasteCheckPhase.roundType,
-      round: tasteCheckPhase.round,
-    });
-  }
-
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
