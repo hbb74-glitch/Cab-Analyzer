@@ -735,9 +735,12 @@ export default function IRMixer() {
         return;
       }
 
+      const enforcedBinary = tasteCheckPhase.confidence === "high" && nextPick.roundType === "quad";
+      const finalCandidates = enforcedBinary ? nextPick.candidates.slice(0, 2) : nextPick.candidates;
+      const finalRoundType = enforcedBinary ? "binary" as const : nextPick.roundType;
       setTasteCheckPhase({
-        candidates: nextPick.candidates,
-        roundType: nextPick.roundType,
+        candidates: finalCandidates,
+        roundType: finalRoundType,
         axisName: nextPick.axisName,
         axisLabels: nextPick.axisLabels,
         round: nextRound,
@@ -841,9 +844,12 @@ export default function IRMixer() {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+          const enforcedBinary = tastePick.confidence === "high" && tastePick.roundType === "quad";
+          const finalCandidates = enforcedBinary ? tastePick.candidates.slice(0, 2) : tastePick.candidates;
+          const finalRoundType = enforcedBinary ? "binary" as const : tastePick.roundType;
           setTasteCheckPhase({
-            candidates: tastePick.candidates,
-            roundType: tastePick.roundType,
+            candidates: finalCandidates,
+            roundType: finalRoundType,
             axisName: tastePick.axisName,
             axisLabels: tastePick.axisLabels,
             round: 0,
