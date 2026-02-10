@@ -694,6 +694,7 @@ export const TASTE_AXES = [
   { name: "Body", compute: (b: TonalBands) => (b.bass + b.lowMid) - (b.highMid + b.presence), label: ["Thin", "Full"] },
   { name: "Aggression", compute: (b: TonalBands) => b.presence - b.mid, label: ["Smooth", "Aggressive"] },
   { name: "Warmth", compute: (b: TonalBands) => (b.lowMid + b.bass) - (b.mid + b.highMid), label: ["Cool", "Warm"] },
+  { name: "Mid Focus", compute: (b: TonalBands) => (b.mid + b.lowMid) - (b.bass + b.presence), label: ["Scooped", "Mid-Focused"] },
 ] as const;
 
 export interface TasteCheckPick {
