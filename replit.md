@@ -53,7 +53,7 @@ Preferred communication style: Simple, everyday language.
 - **Complementary Pairing Suggestions**: Identifies and suggests tonally compensating IRs when an IR hits avoid zones.
 - **Tonal Feedback Tags**: Contextual quick-tag system for pairing ratings, mapping to band-specific nudges for learning algorithm.
 - **Cross-Cab Pairing**: Dedicated section in IR Mixer for blending IRs from two different cabinets, ranking permutations by tonal profile match.
-- **Free-Form Text Feedback**: Text input for nuanced descriptions, parsed for tonal descriptors to apply proportional band nudges.
+- **Free-Form Text Feedback**: Text input for nuanced descriptions, parsed for tonal descriptors to apply proportional band nudges. Accumulated text comments are aggregated and injected into AI prompts (analysis, recommendations, gap finder) so the AI learns the user's vocabulary, perception style, and production context — mirroring their language in responses.
 - **Tonal Intelligence System**: `tonal_profiles` database table stores running averages of 6-band tonal data, ratio, centroid, and smoothness, keyed by mic+position+distance+speaker.
 - **Shot Designer**: Tab on Recommendations page that uses learned tonal profiles to design complete shot lists, predicting tonal characteristics and suggesting mixing pairs.
 - **Gap Finder**: Tab on Recommendations page where users load actual WAV IR files for client-side audio analysis. Sends 6-band tonal data to server which combines it with tonal profiles, preference learning, and gear insights to identify tonal gaps, flag redundancies (including blend overlaps), and suggest specific new shots that would maximize collection variety. Server-side cluster analysis groups IRs by tonal similarity.

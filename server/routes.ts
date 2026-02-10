@@ -875,7 +875,7 @@ async function scoreSingleIR(ir: {
   crestFactorDb?: number;
   frequencySmoothness?: number;  // 0-100, higher = smoother response
   noiseFloorDb?: number;         // dB, more negative = cleaner
-}): Promise<{
+}, userVocabularyContext?: string): Promise<{
   score: number;
   isPerfect: boolean;
   advice: string;
@@ -1014,6 +1014,7 @@ TONAL MODIFIER SUGGESTION:
 ${deviation.isWithinRange 
   ? 'Spectral centroid is within expected range - no modifier needed unless there are other tonal characteristics to note.' 
   : `Spectral centroid is ${deviation.direction === 'bright' ? 'brighter' : 'darker'} than expected. Suggest "_${deviation.direction === 'bright' ? 'Bright' : 'Warm'}" modifier.`}
+${userVocabularyContext ? `\n${userVocabularyContext}\n\nIMPORTANT: When writing your advice and highlights, use the user's own vocabulary and descriptive style from their comments above. Match their way of talking about tone rather than using generic audio engineering terms.` : ''}
 
 Output JSON format:
 {
@@ -1968,6 +1969,55 @@ If a mic or position is listed as "preferred", favor it when multiple options ar
 ${lines.join('\n')}`;
 }
 
+function buildUserVocabularyPrompt(signals: PreferenceSignal[], compact?: boolean): string {
+  const withText = signals.filter(s => s.feedbackText && s.feedbackText.trim().length > 0
+    && s.action !== 'ratio_pick');
+  if (withText.length === 0) return '';
+
+  const lovedComments: string[] = [];
+  const likedComments: string[] = [];
+  const mehComments: string[] = [];
+  const nopedComments: string[] = [];
+
+  for (const s of withText) {
+    const text = s.feedbackText!.trim();
+    const entry = compact
+      ? `"${text}" (${s.action})`
+      : `"${text}" (on ${s.baseFilename}+${s.featureFilename})`;
+    if (s.action === 'love') lovedComments.push(entry);
+    else if (s.action === 'like') likedComments.push(entry);
+    else if (s.action === 'meh') mehComments.push(entry);
+    else if (s.action === 'nope') nopedComments.push(entry);
+  }
+
+  const maxLoved = compact ? 4 : 8;
+  const maxLiked = compact ? 3 : 6;
+  const maxNoped = compact ? 3 : 6;
+  const maxMeh = compact ? 2 : 4;
+
+  const sections: string[] = [];
+  if (lovedComments.length > 0) sections.push(`LOVED blends:\n${lovedComments.slice(-maxLoved).join('\n')}`);
+  if (likedComments.length > 0) sections.push(`LIKED blends:\n${likedComments.slice(-maxLiked).join('\n')}`);
+  if (nopedComments.length > 0) sections.push(`REJECTED blends:\n${nopedComments.slice(-maxNoped).join('\n')}`);
+  if (mehComments.length > 0) sections.push(`MEH blends:\n${mehComments.slice(-maxMeh).join('\n')}`);
+
+  if (sections.length === 0) return '';
+
+  return `\n\n=== USER'S OWN TONAL DESCRIPTIONS (${withText.length} comments from rated blends) ===
+These are the user's own words describing what they hear and feel about different IR blends.
+Use this vocabulary to understand their perception of tone. Their descriptions reveal:
+- What tonal qualities they value most (words they use for loved blends)
+- What they dislike or avoid (words they use for rejected blends)
+- Their unique way of describing audio — adopt their language in your responses
+- Production context clues (genre references, mix goals, amp descriptions)
+
+When giving advice, mirror their vocabulary rather than using generic audio terms.
+If they say "bark" instead of "upper midrange presence", use "bark".
+If they describe tones in terms of feel ("punchy", "pillowy", "in your face"), match that style.
+
+${sections.join('\n\n')}`;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -2013,6 +2063,8 @@ export async function registerRoutes(
       // Call the shared scoring function (same as batch mode)
       // This guarantees identical scores for identical files
       console.log(`[Single Analysis] Using shared scorer for ${filename}`);
+      const signals = await storage.getPreferenceSignals();
+      const vocabPrompt = buildUserVocabularyPrompt(signals);
       const scored = await scoreSingleIR({
         filename: filename,
         duration: input.durationSamples / 44100 * 1000, // Convert samples to ms (assuming 44.1kHz)
@@ -2030,7 +2082,7 @@ export async function registerRoutes(
         ultraHighEnergy: input.ultraHighEnergy,
         frequencySmoothness: input.frequencySmoothness,
         noiseFloorDb: input.noiseFloorDb,
-      });
+      }, vocabPrompt);
       
       // Calculate 6-band percentages if available
       const has6Band = input.subBassEnergy !== undefined;
@@ -2400,6 +2452,10 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
           if (gearPrompt) {
             userMessage += gearPrompt;
           }
+        }
+        const vocabPrompt = buildUserVocabularyPrompt(signals);
+        if (vocabPrompt) {
+          userMessage += vocabPrompt;
         }
       } catch (e) {
         console.log('[Recommendations] Could not load gear preferences:', e);
@@ -2795,6 +2851,10 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
           if (gearPrompt) {
             userMessage += gearPrompt;
           }
+        }
+        const vocabPrompt = buildUserVocabularyPrompt(signals);
+        if (vocabPrompt) {
+          userMessage += vocabPrompt;
         }
       } catch (e) {
         console.log('[BySpeaker Recommendations] Could not load gear preferences:', e);
@@ -4630,9 +4690,11 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       // Score each IR using the SAME function as single-file mode
       // This guarantees identical scores for identical files
+      const batchSignals = await storage.getPreferenceSignals();
+      const batchVocabPrompt = buildUserVocabularyPrompt(batchSignals, true);
       const scoredResults = await Promise.all(
         irs.map(async (ir) => {
-          const scored = await scoreSingleIR(ir);
+          const scored = await scoreSingleIR(ir, batchVocabPrompt);
           
           // Calculate 6-band percentages if available
           const has6Band = ir.subBassEnergy !== undefined;
@@ -5156,6 +5218,10 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
 Preferred tonal center: Mid=${midVal?.toFixed?.(1) ?? 'n/a'}% HiMid=${hiMidVal?.toFixed?.(1) ?? 'n/a'}% Pres=${presVal?.toFixed?.(1) ?? 'n/a'}% Ratio=${ratioVal?.toFixed?.(2) ?? 'n/a'}
 ${learned.avoidZones && learned.avoidZones.length > 0 ? `Avoid zones: ${learned.avoidZones.map((z: any) => z.label || z).join(', ')}` : ''}
 ${gearPrompt}`;
+      }
+      const vocabPrompt = buildUserVocabularyPrompt(signals);
+      if (vocabPrompt) {
+        preferenceContext += vocabPrompt;
       }
 
       const gapPrompt = `You are an expert audio engineer analyzing an existing IR collection to find GAPS and REDUNDANCIES.
