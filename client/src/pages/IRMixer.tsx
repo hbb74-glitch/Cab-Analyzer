@@ -1980,9 +1980,6 @@ export default function IRMixer() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-[10px] text-teal-400/80 border-teal-500/30">
-                      {tasteCheckPhase.axisName}: {tasteCheckPhase.axisLabels[0]} vs {tasteCheckPhase.axisLabels[1]}
-                    </Badge>
                     {!tasteCheckPhase.showingResult && (
                       <>
                         <div className="flex items-center rounded-md border border-teal-500/20 overflow-visible" data-testid="taste-mode-selector">
@@ -2042,10 +2039,10 @@ export default function IRMixer() {
                         <>
                     <p className="text-xs text-muted-foreground">
                       {!tasteCheckBinary
-                        ? "Pick the blend that sounds best to you — comparing across the tonal spectrum."
+                        ? "Listen to each blend and pick the one that sounds best to you."
                         : isGuidedRound
-                        ? `Comparing ${tasteCheckPhase.axisLabels[0].toLowerCase()} vs ${tasteCheckPhase.axisLabels[1].toLowerCase()} — which ${tasteCheckPhase.axisName.toLowerCase()} do you prefer?`
-                        : "Go with your gut — which blend do you prefer?"}
+                        ? `Focus on ${tasteCheckPhase.axisName.toLowerCase()}: does "${tasteCheckPhase.axisLabels[0].toLowerCase()}" or "${tasteCheckPhase.axisLabels[1].toLowerCase()}" sound better to you?`
+                        : "Just go with your gut — pick whichever blend you prefer."}
                     </p>
                     <div className={cn(
                       "grid gap-3",
@@ -2055,8 +2052,8 @@ export default function IRMixer() {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
-                        const axisLabel = isGuidedRound && tasteCheckPhase.axisLabels
-                          ? (idx === 0 ? tasteCheckPhase.axisLabels[0] : tasteCheckPhase.axisLabels[1])
+                        const axisLabel = isGuidedRound
+                          ? (idx === 0 ? `"${tasteCheckPhase.axisLabels[0]}"` : `"${tasteCheckPhase.axisLabels[1]}"`)
                           : null;
                         return (
                           <button
@@ -2124,10 +2121,8 @@ export default function IRMixer() {
                   <div className="text-center py-2 space-y-1">
                     <p className="text-xs text-teal-400 font-medium">
                       {tasteCheckPhase.userPick === -1
-                        ? `Tie noted for ${tasteCheckPhase.axisName.toLowerCase()} — moving on`
-                        : tasteCheckPhase.round % 2 === 0 && tasteCheckBinary
-                        ? `You leaned ${tasteCheckPhase.userPick === 0 ? tasteCheckPhase.axisLabels[0].toLowerCase() : tasteCheckPhase.axisLabels[1].toLowerCase()} on the ${tasteCheckPhase.axisName.toLowerCase()} axis`
-                        : `Noted — preference recorded for ${tasteCheckPhase.axisName.toLowerCase()}`}
+                        ? "No preference — noted, moving on."
+                        : "Got it — preference recorded."}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {tasteCheckPhase.round + 1 < tasteCheckPhase.maxRounds
