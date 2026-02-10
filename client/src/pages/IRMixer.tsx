@@ -258,6 +258,7 @@ export default function IRMixer() {
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
+  const tasteCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (tasteCheckPhase && tasteCheckPhase.userPick === null && tasteCheckRef.current) {
@@ -542,9 +543,14 @@ export default function IRMixer() {
       }
     }
 
-    if (tasteCheckMode === "auto" && tasteCheckPhase && modeTriggeredTasteCheck.current) {
+    if ((tasteCheckMode === "auto" || tasteCheckMode === "ratio") && tasteCheckPhase) {
       modeTriggeredTasteCheck.current = false;
+      if (tasteCheckTimeoutRef.current) {
+        clearTimeout(tasteCheckTimeoutRef.current);
+        tasteCheckTimeoutRef.current = null;
+      }
       setTasteCheckPhase(null);
+      if (tasteCheckMode === "auto") setTasteCheckPassed(true);
     }
   }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase]);
 
@@ -746,7 +752,8 @@ export default function IRMixer() {
 
     const nextRound = tasteCheckPhase.round + 1;
 
-    setTimeout(() => {
+    tasteCheckTimeoutRef.current = setTimeout(() => {
+      tasteCheckTimeoutRef.current = null;
       const keepGoing = shouldContinueTasteCheck(
         tasteCheckPhase.confidence,
         newHistory,
@@ -802,6 +809,10 @@ export default function IRMixer() {
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
     modeTriggeredTasteCheck.current = false;
+    if (tasteCheckTimeoutRef.current) {
+      clearTimeout(tasteCheckTimeoutRef.current);
+      tasteCheckTimeoutRef.current = null;
+    }
     setTasteCheckPhase(null);
     setTasteCheckPassed(true);
     if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
