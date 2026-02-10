@@ -204,15 +204,19 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const dbCeil = 0;
   const dbRange = dbCeil - dbFloor;
   
-  const freqLinearData = new Float64Array(freqFloatData.length);
+  const freqLinearPower = new Float64Array(freqFloatData.length);
+  const freqLinearAmp = new Float64Array(freqFloatData.length);
   const freqByteData = new Uint8Array(freqFloatData.length);
   for (let i = 0; i < freqFloatData.length; i++) {
     const dbVal = Math.max(dbFloor, Math.min(dbCeil, freqFloatData[i]));
-    freqLinearData[i] = Math.pow(10, dbVal / 10);
+    freqLinearPower[i] = Math.pow(10, dbVal / 10);
+    freqLinearAmp[i] = Math.pow(10, dbVal / 20);
     freqByteData[i] = Math.round(((dbVal - dbFloor) / dbRange) * 255);
   }
   
-  // Calculate Spectral Centroid (Brightness) using linear power for weighting
+  // Spectral centroid uses linear amplitude weighting (consistent with prior
+  // byte-data behavior where 0-255 was amplitude-proportional).
+  // Energy band calculations use linear power for proper energy distribution.
   let numerator = 0;
   let denominator = 0;
   const binSize = audioBuffer.sampleRate / analyser.fftSize;
@@ -235,41 +239,43 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
   for (let i = 0; i < freqFloatData.length; i++) {
-    const linearPower = freqLinearData[i];
+    const amplitude = freqLinearAmp[i];
+    const power = freqLinearPower[i];
     const frequency = i * binSize;
     
-    numerator += frequency * linearPower;
-    denominator += linearPower;
+    // Centroid uses amplitude weighting (matches old byte-data behavior)
+    numerator += frequency * amplitude;
+    denominator += amplitude;
     
     frequencyData.push(freqByteData[i]);
     
-    // Accumulate energy using linear power (not squared byte values)
-    totalEnergy += linearPower;
+    // Energy bands use linear power for accurate distribution
+    totalEnergy += power;
     
     // Legacy 3-band accumulation
     if (frequency >= 20 && frequency < 250) {
-      lowEnergySum += linearPower;
+      lowEnergySum += power;
     } else if (frequency >= 250 && frequency < 4000) {
-      midEnergySum += linearPower;
+      midEnergySum += power;
     } else if (frequency >= 4000 && frequency <= 20000) {
-      highEnergySum += linearPower;
+      highEnergySum += power;
     }
     
     // 6-band accumulation for detailed analysis
     if (frequency >= 20 && frequency < 120) {
-      subBassSum += linearPower;
+      subBassSum += power;
     } else if (frequency >= 120 && frequency < 250) {
-      bassSum += linearPower;
+      bassSum += power;
     } else if (frequency >= 250 && frequency < 500) {
-      lowMidSum += linearPower;
+      lowMidSum += power;
     } else if (frequency >= 500 && frequency < 2000) {
-      midSum6 += linearPower;
+      midSum6 += power;
     } else if (frequency >= 2000 && frequency < 4000) {
-      highMidSum += linearPower;
+      highMidSum += power;
     } else if (frequency >= 4000 && frequency < 8000) {
-      presenceSum += linearPower;
+      presenceSum += power;
     } else if (frequency >= 8000 && frequency <= 20000) {
-      ultraHighSum += linearPower;
+      ultraHighSum += power;
     }
   }
   
