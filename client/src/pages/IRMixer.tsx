@@ -1888,7 +1888,7 @@ export default function IRMixer() {
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-teal-400" />
                     <span className="text-sm font-medium text-teal-400">
-                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1}
+                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1} [{tasteCheckPhase.roundType}/{tasteCheckPhase.confidence}/{tasteCheckPhase.candidates.length}]
                     </span>
                     <Badge variant="outline" className={cn("text-[10px] border-teal-500/30", tasteCheckPhase.confidence === "high" ? "text-emerald-400/80" : tasteCheckPhase.confidence === "moderate" ? "text-amber-400/80" : "text-teal-400/80")}>
                       {tasteCheckPhase.confidence === "high" ? "Verifying" : tasteCheckPhase.confidence === "moderate" ? "Refining" : "Exploring"}
