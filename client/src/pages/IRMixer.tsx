@@ -756,7 +756,9 @@ export default function IRMixer() {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
-        proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
+          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+        }
         return;
       }
 
@@ -773,7 +775,9 @@ export default function IRMixer() {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
-        proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
+          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+        }
         return;
       }
 
@@ -799,7 +803,9 @@ export default function IRMixer() {
     modeTriggeredTasteCheck.current = false;
     setTasteCheckPhase(null);
     setTasteCheckPassed(true);
-    proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+    if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
+      proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+    }
   }, [tasteCheckPhase, proceedToRatioRefine]);
 
   const liveConfidence = getTasteConfidence(learnedProfile || undefined);
