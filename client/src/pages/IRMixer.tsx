@@ -736,12 +736,9 @@ export default function IRMixer() {
         return;
       }
 
-      const enforcedBinary = tasteCheckMode !== "acquisition" && tasteCheckPhase.confidence === "high" && nextPick.roundType === "quad";
-      const finalCandidates = enforcedBinary ? nextPick.candidates.slice(0, 2) : nextPick.candidates;
-      const finalRoundType = enforcedBinary ? "binary" as const : nextPick.roundType;
       setTasteCheckPhase({
-        candidates: finalCandidates,
-        roundType: finalRoundType,
+        candidates: nextPick.candidates,
+        roundType: nextPick.roundType,
         axisName: nextPick.axisName,
         axisLabels: nextPick.axisLabels,
         round: nextRound,
@@ -754,7 +751,7 @@ export default function IRMixer() {
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
       });
     }, 1500);
-  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode]);
+  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -853,12 +850,9 @@ export default function IRMixer() {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
-          const enforcedBinary = tasteCheckMode !== "acquisition" && tastePick.confidence === "high" && tastePick.roundType === "quad";
-          const finalCandidates = enforcedBinary ? tastePick.candidates.slice(0, 2) : tastePick.candidates;
-          const finalRoundType = enforcedBinary ? "binary" as const : tastePick.roundType;
           setTasteCheckPhase({
-            candidates: finalCandidates,
-            roundType: finalRoundType,
+            candidates: tastePick.candidates,
+            roundType: tastePick.roundType,
             axisName: tastePick.axisName,
             axisLabels: tastePick.axisLabels,
             round: 0,
