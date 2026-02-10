@@ -254,6 +254,7 @@ export default function IRMixer() {
     pendingLoadTopPick: boolean;
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
+  const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester">("auto");
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -735,7 +736,7 @@ export default function IRMixer() {
         return;
       }
 
-      const enforcedBinary = tasteCheckPhase.confidence === "high" && nextPick.roundType === "quad";
+      const enforcedBinary = tasteCheckMode !== "acquisition" && tasteCheckPhase.confidence === "high" && nextPick.roundType === "quad";
       const finalCandidates = enforcedBinary ? nextPick.candidates.slice(0, 2) : nextPick.candidates;
       const finalRoundType = enforcedBinary ? "binary" as const : nextPick.roundType;
       setTasteCheckPhase({
@@ -753,7 +754,7 @@ export default function IRMixer() {
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
       });
     }, 1500);
-  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile]);
+  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -764,7 +765,7 @@ export default function IRMixer() {
 
   const liveConfidence = getTasteConfidence(learnedProfile || undefined);
   const tasteCheckBinary = tasteCheckPhase
-    ? (liveConfidence === "high" || tasteCheckPhase.confidence === "high" || tasteCheckPhase.candidates.length <= 2)
+    ? (tasteCheckMode === "tester" || (tasteCheckMode === "auto" && (liveConfidence === "high" || tasteCheckPhase.confidence === "high")) || tasteCheckPhase.candidates.length <= 2)
     : false;
   const tasteCheckDisplayCandidates = tasteCheckPhase
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
@@ -852,7 +853,7 @@ export default function IRMixer() {
         const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
-          const enforcedBinary = tastePick.confidence === "high" && tastePick.roundType === "quad";
+          const enforcedBinary = tasteCheckMode !== "acquisition" && tastePick.confidence === "high" && tastePick.roundType === "quad";
           const finalCandidates = enforcedBinary ? tastePick.candidates.slice(0, 2) : tastePick.candidates;
           const finalRoundType = enforcedBinary ? "binary" as const : tastePick.roundType;
           setTasteCheckPhase({
@@ -1907,9 +1908,37 @@ export default function IRMixer() {
                       {tasteCheckPhase.axisName}: {tasteCheckPhase.axisLabels[0]} vs {tasteCheckPhase.axisLabels[1]}
                     </Badge>
                     {!tasteCheckPhase.showingResult && (
-                      <Button size="sm" variant="ghost" onClick={skipTasteCheck} className="text-xs text-muted-foreground" data-testid="button-skip-taste-check">
-                        Skip
-                      </Button>
+                      <>
+                        <div className="flex items-center rounded-md border border-teal-500/20 overflow-visible" data-testid="taste-mode-selector">
+                          <button
+                            onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
+                            className={cn(
+                              "px-2 py-1 text-[10px] font-medium transition-colors rounded-l-md",
+                              tasteCheckMode === "acquisition" || (tasteCheckMode === "auto" && !tasteCheckBinary)
+                                ? "bg-teal-500/20 text-teal-300"
+                                : "text-muted-foreground"
+                            )}
+                            data-testid="button-taste-acquisition"
+                          >
+                            4-Pick
+                          </button>
+                          <button
+                            onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
+                            className={cn(
+                              "px-2 py-1 text-[10px] font-medium transition-colors rounded-r-md",
+                              tasteCheckMode === "tester" || (tasteCheckMode === "auto" && tasteCheckBinary)
+                                ? "bg-teal-500/20 text-teal-300"
+                                : "text-muted-foreground"
+                            )}
+                            data-testid="button-taste-tester"
+                          >
+                            A/B
+                          </button>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={skipTasteCheck} className="text-xs text-muted-foreground" data-testid="button-skip-taste-check">
+                          Skip
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
