@@ -1902,19 +1902,17 @@ export default function IRMixer() {
                 </span>
               )}
             </div>
-            {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
+            {!ratioRefinePhase && tasteCheckMode !== "ratio" && !tasteCheckPhase && (
             <p className="text-xs text-muted-foreground mb-4">
-              {tasteCheckMode === "ratio"
-                ? "Ratio mode — click Ratio above to pick a pairing and start refining blend ratios directly."
-                : totalRoundsCompleted === 0
-                  ? learnedProfile && learnedProfile.status !== "no_data"
-                    ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
-                    : "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
-                  : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
+              {totalRoundsCompleted === 0
+                ? learnedProfile && learnedProfile.status !== "no_data"
+                  ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
+                  : "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
+                : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>
             )}
-            {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && suggestedPairs.length > 0 && (
+            {!ratioRefinePhase && tasteCheckMode !== "ratio" && !tasteCheckPhase && suggestedPairs.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {suggestedPairs.map((pair, idx) => {
                 const pk = pairKey(pair);
@@ -2072,7 +2070,7 @@ export default function IRMixer() {
             </div>
             )}
 
-            {canConfirm && !ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
+            {canConfirm && !ratioRefinePhase && tasteCheckMode !== "ratio" && !tasteCheckPhase && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Target className="w-3.5 h-3.5 text-violet-400" />
