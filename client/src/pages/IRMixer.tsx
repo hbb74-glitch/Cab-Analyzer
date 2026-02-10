@@ -640,8 +640,6 @@ export default function IRMixer() {
     const bIdx = Math.min(RATIO_GRID.length - 1, centerIdx + 2);
     return [
       { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] },
-      { a: 0, b: 0 },
-      { a: 0, b: 0 },
     ];
   }, [learnedProfile]);
 
@@ -972,7 +970,7 @@ export default function IRMixer() {
       narrowB = Math.min(RATIO_GRID.length - 1, narrowB + 1);
     }
 
-    const updated = [...matchups, { a: RATIO_GRID[narrowA], b: RATIO_GRID[narrowB] }];
+    const updated = [...matchups.slice(0, step + 1), { a: RATIO_GRID[narrowA], b: RATIO_GRID[narrowB] }];
     setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated });
   }, [ratioRefinePhase, completeRatioRefine]);
 
