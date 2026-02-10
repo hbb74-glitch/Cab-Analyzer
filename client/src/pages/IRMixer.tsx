@@ -254,7 +254,7 @@ export default function IRMixer() {
     pendingLoadTopPick: boolean;
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
-  const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester">("auto");
+  const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -512,6 +512,7 @@ export default function IRMixer() {
   useEffect(() => {
     if (
       tasteCheckMode !== "auto" &&
+      tasteCheckMode !== "ratio" &&
       pairingPool.length >= 2 &&
       !tasteCheckPhase &&
       !ratioRefinePhase
@@ -519,7 +520,7 @@ export default function IRMixer() {
       const tastePick = pickTasteCheckCandidates(
         pairingPool, activeProfiles, learnedProfile || undefined,
         evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
-        undefined, tasteCheckMode
+        undefined, tasteCheckMode as "acquisition" | "tester" | "auto"
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -768,7 +769,7 @@ export default function IRMixer() {
         learnedProfile || undefined,
         undefined,
         newHistory,
-        tasteCheckMode
+        tasteCheckMode === "ratio" ? "auto" : tasteCheckMode
       );
 
       if (!nextPick) {
@@ -884,18 +885,16 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
-    const hasEnoughLearning = totalRoundsCompleted >= 1 || tasteCheckMode !== "auto";
-
-    if (refineCandidates.length > 0 && hasEnoughLearning) {
+    if (refineCandidates.length > 0) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
       const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
         (ir) => (newExposure.get(ir.filename) ?? 0) === 0
       );
-      const shouldTasteCheck = tasteCheckMode !== "auto" || !tasteCheckPassed || hasUnseenIRs;
+      const shouldTasteCheck = (tasteCheckMode !== "auto" && tasteCheckMode !== "ratio") || !tasteCheckPassed || hasUnseenIRs;
 
       if (shouldTasteCheck) {
-        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode);
+        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode === "ratio" ? "auto" : tasteCheckMode);
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
           setTasteCheckPhase({
@@ -960,6 +959,31 @@ export default function IRMixer() {
     candidates.sort((a, b) => a.rank - b.rank);
     proceedToRatioRefine(candidates, false);
   }, [ratioRefinePhase, tasteCheckPhase, allIRs, baseIR, featureIRs, pairingRankings, dismissedPairings, suggestedPairs, pairKey, proceedToRatioRefine]);
+
+  const startDirectRatioRefine = useCallback((baseData: AnalyzedIR, featData: AnalyzedIR) => {
+    if (ratioRefinePhase || tasteCheckPhase) return;
+    const blendBands = blendFromRaw(baseData.rawEnergy, featData.rawEnergy, 0.5, 0.5);
+    const match = scoreAgainstAllProfiles(blendBands, activeProfiles);
+    const pair: SuggestedPairing = {
+      baseFilename: baseData.filename,
+      featureFilename: featData.filename,
+      blendBands,
+      score: match.best.score,
+      bestMatch: match.best,
+      rank: 0,
+    };
+    const candidates = [{ pair, rank: 2, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }];
+    setRatioRefinePhase({
+      stage: "refine",
+      candidates,
+      selectedIdx: 0,
+      step: 0,
+      matchups: buildMatchupsForPair(),
+      winner: null,
+      downgraded: false,
+      pendingLoadTopPick: false,
+    });
+  }, [ratioRefinePhase, tasteCheckPhase, activeProfiles, buildMatchupsForPair]);
 
   const completeRatioRefine = useCallback((ratio: number | null, downgraded: boolean) => {
     if (!ratioRefinePhase || ratioRefinePhase.selectedIdx === null) return;
@@ -1185,21 +1209,25 @@ export default function IRMixer() {
                 >
                   A/B
                 </button>
-              </div>
-              {Object.values(pairingRankings).some(r => r === 1 || r === 2) && !ratioRefinePhase && !tasteCheckPhase && (
                 <button
-                  onClick={manualRatioRefine}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-sky-500/30 bg-sky-500/5 text-sky-400 hover-elevate transition-colors"
-                  data-testid="button-manual-ratio-refine"
+                  onClick={() => setTasteCheckMode(tasteCheckMode === "ratio" ? "auto" : "ratio")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                    tasteCheckMode === "ratio"
+                      ? "bg-sky-500/25 text-sky-300"
+                      : "text-muted-foreground hover-elevate"
+                  )}
+                  data-testid="button-taste-ratio"
                 >
-                  <ArrowLeftRight className="w-3.5 h-3.5" />
-                  Refine Ratio
+                  Ratio
                 </button>
-              )}
+              </div>
             </div>
           </div>
           <p className="text-muted-foreground text-sm">
-            Drop IRs to preview blend permutations scored against your tonal profiles.
+            {tasteCheckMode === "ratio"
+              ? "Ratio mode active — expand any blend below and tap A/B Refine to find your preferred ratio. Results are saved to your taste profile."
+              : "Drop IRs to preview blend permutations scored against your tonal profiles."}
           </p>
           {learnedProfile && learnedProfile.signalCount > 0 && (
             <div className="mt-3 flex items-center gap-2 flex-wrap" data-testid="learning-status">
@@ -2555,7 +2583,19 @@ export default function IRMixer() {
                               )}
 
                               <div className="border-t border-white/5 pt-3">
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">All Ratios</p>
+                                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Ratios</p>
+                                  {!ratioRefinePhase && baseIR && (
+                                    <button
+                                      onClick={() => startDirectRatioRefine(baseIR, result.feature)}
+                                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-sky-500/30 bg-sky-500/5 text-sky-400 hover-elevate transition-colors"
+                                      data-testid={`button-refine-ratio-blend-${idx}`}
+                                    >
+                                      <ArrowLeftRight className="w-3 h-3" />
+                                      A/B Refine
+                                    </button>
+                                  )}
+                                </div>
                                 <div className="grid grid-cols-5 gap-2">
                                   {result.allRatioBlends.map((rb) => {
                                     const r = rb.bands.mid > 0 ? Math.round((rb.bands.highMid / rb.bands.mid) * 100) / 100 : 0;
@@ -2601,6 +2641,77 @@ export default function IRMixer() {
                 })}
               </AnimatePresence>
             </div>
+          </motion.div>
+        )}
+
+        {ratioRefinePhase && !hasPairingPool && (
+          <motion.div
+            ref={ratioRefineRef}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 rounded-xl bg-sky-500/5 border border-sky-500/20 space-y-4"
+            data-testid="ratio-refine-standalone"
+          >
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4 text-sky-400" />
+                <span className="text-sm font-medium text-sky-400">
+                  {ratioRefinePhase.stage === "done"
+                    ? "Ratio Refinement — Complete"
+                    : `Ratio Refinement — Round ${ratioRefinePhase.step + 1}`}
+                </span>
+              </div>
+              <Button size="sm" variant="ghost" onClick={skipRatioRefine} className="text-xs text-muted-foreground" data-testid="button-skip-refine-standalone">
+                Cancel
+              </Button>
+            </div>
+
+            {ratioRefinePhase.stage === "refine" && ratioRefinePhase.selectedIdx !== null && (() => {
+              const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx];
+              const current = ratioRefinePhase.matchups[ratioRefinePhase.step];
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                    <span className="font-mono text-foreground">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                    <span>+</span>
+                    <span className="font-mono text-foreground">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Which blend do you prefer?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(["a", "b"] as const).map((side) => {
+                      const r = current[side];
+                      const bands = blendFromRaw(cand.baseRaw, cand.featRaw, r, 1 - r);
+                      return (
+                        <button
+                          key={side}
+                          onClick={() => handleRatioPick(side)}
+                          className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
+                          data-testid={`button-standalone-pick-${side}`}
+                        >
+                          <p className="text-sm font-mono text-foreground text-center">
+                            {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                          </p>
+                          <BandChart bands={bands} height={10} compact />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 justify-center flex-wrap">
+                    <Button size="sm" variant="ghost" onClick={() => handleRatioPick("tie")} className="text-xs text-muted-foreground" data-testid="button-standalone-ratio-tie">
+                      No difference
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {ratioRefinePhase.stage === "done" && (
+              <div className="text-center py-2">
+                <p className="text-xs text-emerald-400">
+                  Preferred ratio: {Math.round((ratioRefinePhase.winner ?? 0.5) * 100)}/{Math.round((1 - (ratioRefinePhase.winner ?? 0.5)) * 100)} saved
+                </p>
+              </div>
+            )}
           </motion.div>
         )}
 
