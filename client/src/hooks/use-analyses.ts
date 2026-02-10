@@ -99,47 +99,25 @@ export interface AudioMetrics {
 }
 
 // ============================================
-// Manual Radix-2 FFT with peak-centered Blackman window
+// Manual Radix-2 FFT (rectangular window)
 //
-// The Web Audio AnalyserNode applied its Blackman window to the ENTIRE
-// fftSize buffer, which meant zero-padded vs full-length versions of
-// the same IR got windowed differently — causing inconsistent results.
+// Replaces the Web Audio AnalyserNode which applied a Blackman window
+// to the ENTIRE fftSize buffer, causing different results for the same
+// IR at different sample counts. Rectangular window (no windowing) is
+// correct for IRs since they naturally decay to zero. Zero-padding
+// shorter IRs adds frequency interpolation without altering content.
 //
-// Fix: circular-shift the signal so the impulse peak sits at fftSize/2
-// (Blackman window maximum), then apply the Blackman window. This gives:
-//   1. Consistent windowing regardless of signal length or zero-padding
-//   2. Proper sidelobe suppression (-58 dB) to prevent high-freq leakage
-//   3. The impulse peak always gets maximum window weight
-//
-// DFT shift theorem: circular shift only changes phase, not magnitude.
+// Note: Rectangular window has -13 dB sidelobes which cause spectral
+// leakage into high-frequency bins. This is handled by capping the
+// centroid calculation at 8 kHz (the practical guitar cab range) rather
+// than using a window that would interact differently with the impulse
+// peak depending on signal length.
 // ============================================
 function computeMagnitudeSpectrum(samples: Float32Array, fftSize: number): Uint8Array {
   const real = new Float64Array(fftSize);
   const imag = new Float64Array(fftSize);
-
-  const signalLen = Math.min(samples.length, fftSize);
-
-  // Find the impulse peak position
-  let peakPos = 0;
-  let peakVal = 0;
-  for (let i = 0; i < signalLen; i++) {
-    const abs = Math.abs(samples[i]);
-    if (abs > peakVal) { peakVal = abs; peakPos = i; }
-  }
-
-  // Circular-shift signal so peak lands at fftSize/2 (window center)
-  const offset = (fftSize >> 1) - peakPos;
-  for (let i = 0; i < signalLen; i++) {
-    const destIdx = ((i + offset) % fftSize + fftSize) % fftSize;
-    real[destIdx] = samples[i];
-  }
-
-  // Apply Blackman window to the full fftSize buffer
-  const N = fftSize;
-  const twoPiOverN = 2 * Math.PI / (N - 1);
-  for (let i = 0; i < N; i++) {
-    real[i] *= 0.42 - 0.5 * Math.cos(twoPiOverN * i)
-                     + 0.08 * Math.cos(2 * twoPiOverN * i);
+  for (let i = 0; i < Math.min(samples.length, fftSize); i++) {
+    real[i] = samples[i];
   }
 
   // Bit-reversal permutation
@@ -285,12 +263,22 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let presenceSum = 0;    // 4000-8000Hz (fizz, sizzle, air)
   let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
+  // Cap centroid calculation at 8 kHz — the practical upper limit for
+  // guitar cab tonal content. Without this cap, the rectangular window's
+  // -13 dB sidelobes leak into the 8-24 kHz range where thousands of bins
+  // with small but non-zero magnitudes massively inflate the centroid.
+  // Band energy calculations use squared magnitudes which naturally suppress
+  // sidelobe contributions, so they don't need this cap.
+  const centroidMaxHz = 8000;
+
   for (let i = 0; i < freqByteData.length; i++) {
     const magnitude = freqByteData[i];
     const frequency = i * binSize;
     
-    numerator += frequency * magnitude;
-    denominator += magnitude;
+    if (frequency <= centroidMaxHz) {
+      numerator += frequency * magnitude;
+      denominator += magnitude;
+    }
     
     frequencyData.push(magnitude);
     
