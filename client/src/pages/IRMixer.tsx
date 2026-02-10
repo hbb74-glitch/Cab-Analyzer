@@ -510,50 +510,6 @@ export default function IRMixer() {
 
   const modeTriggeredTasteCheck = useRef(false);
 
-  useEffect(() => {
-    if (
-      tasteCheckMode !== "auto" &&
-      tasteCheckMode !== "ratio" &&
-      pairingPool.length >= 2 &&
-      !tasteCheckPhase &&
-      !ratioRefinePhase
-    ) {
-      const tastePick = pickTasteCheckCandidates(
-        pairingPool, activeProfiles, learnedProfile || undefined,
-        evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
-        undefined, tasteCheckMode as "acquisition" | "tester" | "auto"
-      );
-      if (tastePick) {
-        const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
-        modeTriggeredTasteCheck.current = true;
-        setTasteCheckPhase({
-          candidates: tastePick.candidates,
-          roundType: tastePick.roundType,
-          axisName: tastePick.axisName,
-          axisLabels: tastePick.axisLabels,
-          round: 0,
-          maxRounds,
-          confidence: tastePick.confidence,
-          userPick: null,
-          showingResult: false,
-          history: [],
-          pendingRefineCandidates: [],
-          pendingLoadTopPick: false,
-        });
-      }
-    }
-
-    if ((tasteCheckMode === "auto" || tasteCheckMode === "ratio") && tasteCheckPhase) {
-      modeTriggeredTasteCheck.current = false;
-      if (tasteCheckTimeoutRef.current) {
-        clearTimeout(tasteCheckTimeoutRef.current);
-        tasteCheckTimeoutRef.current = null;
-      }
-      setTasteCheckPhase(null);
-      if (tasteCheckMode === "auto") setTasteCheckPassed(true);
-    }
-  }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase]);
-
   const pairKey = useCallback((p: SuggestedPairing) =>
     `${p.baseFilename}||${p.featureFilename}`, []);
 
@@ -734,6 +690,55 @@ export default function IRMixer() {
       pendingLoadTopPick: loadTopPick,
     });
   }, [buildMatchupsForPair]);
+
+  useEffect(() => {
+    if (
+      tasteCheckMode !== "auto" &&
+      tasteCheckMode !== "ratio" &&
+      pairingPool.length >= 2 &&
+      !tasteCheckPhase &&
+      !ratioRefinePhase
+    ) {
+      const tastePick = pickTasteCheckCandidates(
+        pairingPool, activeProfiles, learnedProfile || undefined,
+        evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
+        undefined, tasteCheckMode as "acquisition" | "tester" | "auto"
+      );
+      if (tastePick) {
+        const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+        modeTriggeredTasteCheck.current = true;
+        setTasteCheckPhase({
+          candidates: tastePick.candidates,
+          roundType: tastePick.roundType,
+          axisName: tastePick.axisName,
+          axisLabels: tastePick.axisLabels,
+          round: 0,
+          maxRounds,
+          confidence: tastePick.confidence,
+          userPick: null,
+          showingResult: false,
+          history: [],
+          pendingRefineCandidates: [],
+          pendingLoadTopPick: false,
+        });
+      }
+    }
+
+    if ((tasteCheckMode === "auto" || tasteCheckMode === "ratio") && tasteCheckPhase) {
+      modeTriggeredTasteCheck.current = false;
+      if (tasteCheckTimeoutRef.current) {
+        clearTimeout(tasteCheckTimeoutRef.current);
+        tasteCheckTimeoutRef.current = null;
+      }
+      const pending = tasteCheckPhase.pendingRefineCandidates;
+      const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
+      setTasteCheckPhase(null);
+      if (tasteCheckMode === "auto") setTasteCheckPassed(true);
+      if (tasteCheckMode === "ratio" && pending.length > 0) {
+        proceedToRatioRefine(pending, pendingLoad);
+      }
+    }
+  }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase, proceedToRatioRefine]);
 
   const handleTasteCheckPick = useCallback((pickedIndex: number) => {
     if (!tasteCheckPhase) return;
@@ -1234,7 +1239,12 @@ export default function IRMixer() {
                         tasteCheckTimeoutRef.current = null;
                       }
                       modeTriggeredTasteCheck.current = false;
+                      const pending = tasteCheckPhase.pendingRefineCandidates;
+                      const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
                       setTasteCheckPhase(null);
+                      if (pending.length > 0) {
+                        proceedToRatioRefine(pending, pendingLoad);
+                      }
                     }
                   }}
                   className={cn(
