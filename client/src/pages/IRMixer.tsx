@@ -1907,9 +1907,6 @@ export default function IRMixer() {
                 className="mt-4 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20 space-y-4"
                 data-testid="taste-check-phase"
               >
-                <div className="text-[9px] font-mono text-yellow-400/70 bg-yellow-500/10 p-1.5 rounded border border-yellow-500/20">
-                  DEBUG: live={liveConfidence} phase={tasteCheckPhase.confidence} binary={String(tasteCheckBinary)} cands={tasteCheckPhase.candidates.length} display={tasteCheckDisplayCandidates.length} status={learnedProfile?.status ?? "undef"} signals={learnedProfile?.signalCount ?? 0} liked={learnedProfile?.likedCount ?? 0}
-                </div>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-teal-400" />
