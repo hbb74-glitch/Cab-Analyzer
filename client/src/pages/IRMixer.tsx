@@ -1856,10 +1856,52 @@ export default function IRMixer() {
             )}
 
             {canConfirm && !ratioRefinePhase && !tasteCheckPhase && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Target className="w-3.5 h-3.5 text-violet-400" />
-                  {hasLoveOrLike ? "Submit & refine, or load your top pick into the mixer" : "Submit to keep refining"}
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Target className="w-3.5 h-3.5 text-violet-400" />
+                    {hasLoveOrLike ? "Submit & refine, or load your top pick into the mixer" : "Submit to keep refining"}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 rounded-md border border-teal-500/20 p-0.5" data-testid="taste-mode-selector-pre">
+                      <button
+                        onClick={() => setTasteCheckMode("acquisition")}
+                        className={cn(
+                          "px-2 py-1 text-[10px] font-medium transition-colors rounded-sm",
+                          tasteCheckMode === "acquisition"
+                            ? "bg-teal-500/20 text-teal-300"
+                            : "text-muted-foreground"
+                        )}
+                        data-testid="button-taste-acquisition-pre"
+                      >
+                        4-Pick
+                      </button>
+                      <button
+                        onClick={() => setTasteCheckMode("auto")}
+                        className={cn(
+                          "px-2 py-1 text-[10px] font-medium transition-colors rounded-sm",
+                          tasteCheckMode === "auto"
+                            ? "bg-teal-500/20 text-teal-300"
+                            : "text-muted-foreground"
+                        )}
+                        data-testid="button-taste-auto-pre"
+                      >
+                        Auto
+                      </button>
+                      <button
+                        onClick={() => setTasteCheckMode("tester")}
+                        className={cn(
+                          "px-2 py-1 text-[10px] font-medium transition-colors rounded-sm",
+                          tasteCheckMode === "tester"
+                            ? "bg-teal-500/20 text-teal-300"
+                            : "text-muted-foreground"
+                        )}
+                        data-testid="button-taste-tester-pre"
+                      >
+                        A/B
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
