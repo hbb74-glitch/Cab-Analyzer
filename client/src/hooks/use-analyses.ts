@@ -335,28 +335,34 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let noiseFloorDb: number;
 
   if (irDurationMs < 10) {
-    const halfPoint = Math.floor(channelData.length / 2);
-    let earlySum = 0;
-    let lateSum = 0;
-    for (let i = 0; i < halfPoint; i++) {
-      earlySum += channelData[i] * channelData[i];
-    }
-    for (let i = halfPoint; i < channelData.length; i++) {
-      lateSum += channelData[i] * channelData[i];
-    }
-    const earlyRms = Math.sqrt(earlySum / halfPoint);
-    const lateRms = Math.sqrt(lateSum / (channelData.length - halfPoint));
-
-    if (earlyRms > 0 && lateRms > 0 && earlyRms > lateRms) {
-      const earlyDb = 20 * Math.log10(earlyRms);
-      const lateDb = 20 * Math.log10(lateRms);
-      const decayDb = earlyDb - lateDb;
-      const halfDurationMs = (halfPoint / sampleRate) * 1000;
-      const decayRatePerMs = halfDurationMs > 0 ? decayDb / halfDurationMs : 0;
-      const referenceMs = 200;
-      noiseFloorDb = Math.min(-60, earlyDb - (decayRatePerMs * referenceMs));
+    const quarters = 4;
+    const qLen = Math.floor(channelData.length / quarters);
+    if (channelData.length < 16 || qLen < 8) {
+      noiseFloorDb = -72;
     } else {
-      noiseFloorDb = -96;
+      const qRms: number[] = [];
+      for (let q = 0; q < quarters; q++) {
+        const qStart = q * qLen;
+        const qEnd = q === quarters - 1 ? channelData.length : qStart + qLen;
+        let qSum = 0;
+        for (let i = qStart; i < qEnd; i++) {
+          qSum += channelData[i] * channelData[i];
+        }
+        qRms.push(Math.sqrt(qSum / (qEnd - qStart)));
+      }
+      const q1Db = qRms[0] > 0 ? 20 * Math.log10(qRms[0]) : -96;
+      const q4Db = qRms[3] > 0 ? 20 * Math.log10(qRms[3]) : -96;
+
+      if (qRms[0] > 0 && qRms[3] > 0 && qRms[0] > qRms[3]) {
+        const decayDb = q1Db - q4Db;
+        const spanMs = ((quarters - 1) * qLen / sampleRate) * 1000;
+        const decayRatePerMs = spanMs > 0 ? decayDb / spanMs : 0;
+        const referenceMs = 200;
+        const extrapolated = q1Db - (decayRatePerMs * referenceMs);
+        noiseFloorDb = Math.max(-96, Math.min(-40, extrapolated));
+      } else {
+        noiseFloorDb = -72;
+      }
     }
   } else {
     const windowMs = 15;
