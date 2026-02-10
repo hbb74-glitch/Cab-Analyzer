@@ -888,35 +888,39 @@ export default function IRMixer() {
     if (refineCandidates.length > 0) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
-      const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
-        (ir) => (newExposure.get(ir.filename) ?? 0) === 0
-      );
-      const shouldTasteCheck = (tasteCheckMode !== "auto" && tasteCheckMode !== "ratio") || !tasteCheckPassed || hasUnseenIRs;
+      if (tasteCheckMode === "ratio") {
+        proceedToRatioRefine(refineCandidates, loadTopPick);
+      } else {
+        const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
+          (ir) => (newExposure.get(ir.filename) ?? 0) === 0
+        );
+        const shouldTasteCheck = (tasteCheckMode !== "auto") || !tasteCheckPassed || hasUnseenIRs;
 
-      if (shouldTasteCheck) {
-        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode === "ratio" ? "auto" : tasteCheckMode);
-        if (tastePick) {
-          const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
-          setTasteCheckPhase({
-            candidates: tastePick.candidates,
-            roundType: tastePick.roundType,
-            axisName: tastePick.axisName,
-            axisLabels: tastePick.axisLabels,
-            round: 0,
-            maxRounds,
-            confidence: tastePick.confidence,
-            userPick: null,
-            showingResult: false,
-            history: [],
-            pendingRefineCandidates: refineCandidates,
-            pendingLoadTopPick: loadTopPick,
-          });
+        if (shouldTasteCheck) {
+          const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode as "acquisition" | "tester" | "auto");
+          if (tastePick) {
+            const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+            setTasteCheckPhase({
+              candidates: tastePick.candidates,
+              roundType: tastePick.roundType,
+              axisName: tastePick.axisName,
+              axisLabels: tastePick.axisLabels,
+              round: 0,
+              maxRounds,
+              confidence: tastePick.confidence,
+              userPick: null,
+              showingResult: false,
+              history: [],
+              pendingRefineCandidates: refineCandidates,
+              pendingLoadTopPick: loadTopPick,
+            });
+          } else {
+            if (!tasteCheckPassed) setTasteCheckPassed(true);
+            proceedToRatioRefine(refineCandidates, loadTopPick);
+          }
         } else {
-          if (!tasteCheckPassed) setTasteCheckPassed(true);
           proceedToRatioRefine(refineCandidates, loadTopPick);
         }
-      } else {
-        proceedToRatioRefine(refineCandidates, loadTopPick);
       }
     } else {
       finishRound(loadTopPick, null);
