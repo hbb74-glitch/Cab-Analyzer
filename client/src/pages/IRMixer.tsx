@@ -1225,7 +1225,18 @@ export default function IRMixer() {
                   A/B
                 </button>
                 <button
-                  onClick={() => setTasteCheckMode(tasteCheckMode === "ratio" ? "auto" : "ratio")}
+                  onClick={() => {
+                    const next = tasteCheckMode === "ratio" ? "auto" : "ratio";
+                    setTasteCheckMode(next);
+                    if (next === "ratio" && tasteCheckPhase) {
+                      if (tasteCheckTimeoutRef.current) {
+                        clearTimeout(tasteCheckTimeoutRef.current);
+                        tasteCheckTimeoutRef.current = null;
+                      }
+                      modeTriggeredTasteCheck.current = false;
+                      setTasteCheckPhase(null);
+                    }
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                     tasteCheckMode === "ratio"
@@ -1844,7 +1855,7 @@ export default function IRMixer() {
                 </span>
               )}
             </div>
-            {!ratioRefinePhase && !tasteCheckPhase && (
+            {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
             <p className="text-xs text-muted-foreground mb-4">
               {totalRoundsCompleted === 0
                 ? learnedProfile && learnedProfile.status !== "no_data"
@@ -1854,7 +1865,7 @@ export default function IRMixer() {
               }
             </p>
             )}
-            {!ratioRefinePhase && !tasteCheckPhase && suggestedPairs.length > 0 && (
+            {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && suggestedPairs.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {suggestedPairs.map((pair, idx) => {
                 const pk = pairKey(pair);
@@ -2012,7 +2023,7 @@ export default function IRMixer() {
             </div>
             )}
 
-            {canConfirm && !ratioRefinePhase && !tasteCheckPhase && (
+            {canConfirm && !ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Target className="w-3.5 h-3.5 text-violet-400" />
@@ -2042,7 +2053,7 @@ export default function IRMixer() {
               </motion.div>
             )}
 
-            {tasteCheckPhase && (
+            {tasteCheckPhase && tasteCheckMode !== "ratio" && (
               <motion.div
                 ref={tasteCheckRef}
                 initial={{ opacity: 0, y: 10 }}
