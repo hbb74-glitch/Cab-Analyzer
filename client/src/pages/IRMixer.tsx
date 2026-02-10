@@ -1206,7 +1206,10 @@ export default function IRMixer() {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
                 <button
-                  onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
+                  onClick={() => {
+                    setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition");
+                    if (ratioRefinePhase) setRatioRefinePhase(null);
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                     tasteCheckMode === "acquisition"
@@ -1218,7 +1221,10 @@ export default function IRMixer() {
                   4-Pick
                 </button>
                 <button
-                  onClick={() => setTasteCheckMode("auto")}
+                  onClick={() => {
+                    setTasteCheckMode("auto");
+                    if (ratioRefinePhase) setRatioRefinePhase(null);
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                     tasteCheckMode === "auto"
@@ -1230,7 +1236,10 @@ export default function IRMixer() {
                   Auto
                 </button>
                 <button
-                  onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
+                  onClick={() => {
+                    setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester");
+                    if (ratioRefinePhase) setRatioRefinePhase(null);
+                  }}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                     tasteCheckMode === "tester"
