@@ -192,11 +192,27 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   
   await offlineCtx.startRendering();
   
-  // Get frequency data from the analyser
-  const freqByteData = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(freqByteData);
+  // Get frequency data with full dB precision (float gives ~-100 to 0 dB range
+  // vs byte data's 0-255 which only has ~48dB of dynamic range).
+  // This is critical for accurate sub-bass and bass energy measurements.
+  const freqFloatData = new Float32Array(analyser.frequencyBinCount);
+  analyser.getFloatFrequencyData(freqFloatData);
   
-  // Calculate Spectral Centroid (Brightness)
+  // Convert dB values to linear power for energy calculations.
+  // Also map to 0-255 scale for graph display and correlation compatibility.
+  const dbFloor = -100;
+  const dbCeil = 0;
+  const dbRange = dbCeil - dbFloor;
+  
+  const freqLinearData = new Float64Array(freqFloatData.length);
+  const freqByteData = new Uint8Array(freqFloatData.length);
+  for (let i = 0; i < freqFloatData.length; i++) {
+    const dbVal = Math.max(dbFloor, Math.min(dbCeil, freqFloatData[i]));
+    freqLinearData[i] = Math.pow(10, dbVal / 10);
+    freqByteData[i] = Math.round(((dbVal - dbFloor) / dbRange) * 255);
+  }
+  
+  // Calculate Spectral Centroid (Brightness) using linear power for weighting
   let numerator = 0;
   let denominator = 0;
   const binSize = audioBuffer.sampleRate / analyser.fftSize;
@@ -218,43 +234,42 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let presenceSum = 0;    // 4000-8000Hz (fizz, sizzle, air)
   let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
-  for (let i = 0; i < freqByteData.length; i++) {
-    const magnitude = freqByteData[i];
+  for (let i = 0; i < freqFloatData.length; i++) {
+    const linearPower = freqLinearData[i];
     const frequency = i * binSize;
     
-    numerator += frequency * magnitude;
-    denominator += magnitude;
+    numerator += frequency * linearPower;
+    denominator += linearPower;
     
-    frequencyData.push(magnitude);
+    frequencyData.push(freqByteData[i]);
     
-    // Accumulate energy by frequency band
-    const energy = magnitude * magnitude;
-    totalEnergy += energy;
+    // Accumulate energy using linear power (not squared byte values)
+    totalEnergy += linearPower;
     
     // Legacy 3-band accumulation
     if (frequency >= 20 && frequency < 250) {
-      lowEnergySum += energy;
+      lowEnergySum += linearPower;
     } else if (frequency >= 250 && frequency < 4000) {
-      midEnergySum += energy;
+      midEnergySum += linearPower;
     } else if (frequency >= 4000 && frequency <= 20000) {
-      highEnergySum += energy;
+      highEnergySum += linearPower;
     }
     
     // 6-band accumulation for detailed analysis
     if (frequency >= 20 && frequency < 120) {
-      subBassSum += energy;
+      subBassSum += linearPower;
     } else if (frequency >= 120 && frequency < 250) {
-      bassSum += energy;
+      bassSum += linearPower;
     } else if (frequency >= 250 && frequency < 500) {
-      lowMidSum += energy;
+      lowMidSum += linearPower;
     } else if (frequency >= 500 && frequency < 2000) {
-      midSum6 += energy;
+      midSum6 += linearPower;
     } else if (frequency >= 2000 && frequency < 4000) {
-      highMidSum += energy;
+      highMidSum += linearPower;
     } else if (frequency >= 4000 && frequency < 8000) {
-      presenceSum += energy;
+      presenceSum += linearPower;
     } else if (frequency >= 8000 && frequency <= 20000) {
-      ultraHighSum += energy;
+      ultraHighSum += linearPower;
     }
   }
   
