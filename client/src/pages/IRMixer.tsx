@@ -762,6 +762,14 @@ export default function IRMixer() {
     proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
   }, [tasteCheckPhase, proceedToRatioRefine]);
 
+  const liveConfidence = getTasteConfidence(learnedProfile || undefined);
+  const tasteCheckBinary = tasteCheckPhase
+    ? (liveConfidence === "high" || tasteCheckPhase.confidence === "high" || tasteCheckPhase.candidates.length <= 2)
+    : false;
+  const tasteCheckDisplayCandidates = tasteCheckPhase
+    ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
+    : [];
+
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
@@ -1923,15 +1931,15 @@ export default function IRMixer() {
                 {!tasteCheckPhase.showingResult && (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      {tasteCheckPhase.confidence === "high" || tasteCheckPhase.candidates.length <= 2
+                      {tasteCheckBinary
                         ? `Which blend do you prefer? Narrowing your ${tasteCheckPhase.axisName.toLowerCase()} preferences.`
                         : "Pick the blend that sounds best to you — comparing across the tonal spectrum."}
                     </p>
                     <div className={cn(
                       "grid gap-3",
-                      tasteCheckPhase.confidence !== "high" && tasteCheckPhase.candidates.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
+                      !tasteCheckBinary && tasteCheckDisplayCandidates.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
                     )}>
-                      {(tasteCheckPhase.confidence === "high" ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates).map((pair, idx) => {
+                      {tasteCheckDisplayCandidates.map((pair, idx) => {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
@@ -1943,7 +1951,7 @@ export default function IRMixer() {
                             data-testid={`button-taste-option-${idx}`}
                           >
                             <p className="text-xs font-semibold text-center text-foreground uppercase tracking-widest">
-                              {tasteCheckPhase.confidence !== "high" && tasteCheckPhase.candidates.length > 2
+                              {!tasteCheckBinary && tasteCheckDisplayCandidates.length > 2
                                 ? String.fromCharCode(65 + idx)
                                 : idx === 0 ? "A" : "B"}
                             </p>
