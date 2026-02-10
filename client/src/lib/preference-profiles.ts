@@ -695,6 +695,7 @@ export const TASTE_AXES = [
   { name: "Aggression", compute: (b: TonalBands) => b.presence - b.mid, label: ["Smooth", "Aggressive"] },
   { name: "Warmth", compute: (b: TonalBands) => (b.lowMid + b.bass) - (b.mid + b.highMid), label: ["Cool", "Warm"] },
   { name: "Mid Focus", compute: (b: TonalBands) => (b.mid + b.lowMid) - (b.bass + b.presence), label: ["Scooped", "Mid-Focused"] },
+  { name: "Balance", compute: (b: TonalBands) => { const avg = (b.subBass + b.bass + b.lowMid + b.mid + b.highMid + b.presence) / 6; return -Math.abs(b.bass - avg) - Math.abs(b.mid - avg) - Math.abs(b.presence - avg); }, label: ["Hyped", "Balanced"] },
 ] as const;
 
 export interface TasteCheckPick {
