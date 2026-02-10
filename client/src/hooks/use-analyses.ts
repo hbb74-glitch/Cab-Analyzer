@@ -98,6 +98,79 @@ export interface AudioMetrics {
   isTruncatedIR: boolean;       // True if IR is < 200ms (tail level vs true noise floor)
 }
 
+// ============================================
+// Manual Radix-2 FFT (no windowing)
+//
+// Replaces the Web Audio AnalyserNode which applies a Blackman window
+// that causes different results for the same IR saved at different
+// sample counts (e.g. 4096 vs 8192). IRs naturally decay to zero,
+// so a rectangular window (no windowing) is acoustically correct
+// and gives consistent results regardless of zero-padding.
+// ============================================
+function computeMagnitudeSpectrum(samples: Float32Array, fftSize: number): Uint8Array {
+  const real = new Float64Array(fftSize);
+  const imag = new Float64Array(fftSize);
+  for (let i = 0; i < Math.min(samples.length, fftSize); i++) {
+    real[i] = samples[i];
+  }
+
+  // Bit-reversal permutation
+  let j = 0;
+  for (let i = 0; i < fftSize - 1; i++) {
+    if (i < j) {
+      const tmpR = real[i]; real[i] = real[j]; real[j] = tmpR;
+      const tmpI = imag[i]; imag[i] = imag[j]; imag[j] = tmpI;
+    }
+    let k = fftSize >> 1;
+    while (k <= j) { j -= k; k >>= 1; }
+    j += k;
+  }
+
+  // Cooley-Tukey butterfly stages
+  for (let len = 2; len <= fftSize; len *= 2) {
+    const halfLen = len >> 1;
+    const angle = -2 * Math.PI / len;
+    const wR = Math.cos(angle);
+    const wI = Math.sin(angle);
+
+    for (let i = 0; i < fftSize; i += len) {
+      let cR = 1, cI = 0;
+      for (let jj = 0; jj < halfLen; jj++) {
+        const idx = i + jj;
+        const idx2 = idx + halfLen;
+        const tR = cR * real[idx2] - cI * imag[idx2];
+        const tI = cR * imag[idx2] + cI * real[idx2];
+        real[idx2] = real[idx] - tR;
+        imag[idx2] = imag[idx] - tI;
+        real[idx] += tR;
+        imag[idx] += tI;
+        const newCR = cR * wR - cI * wI;
+        cI = cR * wI + cI * wR;
+        cR = newCR;
+      }
+    }
+  }
+
+  // Compute magnitude in dB, map to 0-255
+  // Range matches AnalyserNode defaults: minDecibels=-100, maxDecibels=-30
+  const binCount = fftSize >> 1;
+  const minDb = -100;
+  const maxDb = -30;
+  const dbRange = maxDb - minDb;
+  const result = new Uint8Array(binCount);
+
+  for (let i = 0; i < binCount; i++) {
+    const mag = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+    // Normalize by fftSize to match AnalyserNode's internal scaling
+    // (Chromium divides complex FFT values by fftSize before computing magnitude)
+    const db = mag > 0 ? 20 * Math.log10(mag / fftSize) : -200;
+    const clamped = Math.max(minDb, Math.min(maxDb, db));
+    result[i] = Math.round(((clamped - minDb) / dbRange) * 255);
+  }
+
+  return result;
+}
+
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const arrayBuffer = await file.arrayBuffer();
   const audioContext = new AudioContext();
@@ -151,55 +224,21 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   // Convert linear amplitude to dBFS (assuming float32 -1.0 to 1.0)
   const peakAmplitudeDb = peak > 0 ? 20 * Math.log10(peak) : -96;
 
-  // 3. Spectral Analysis (Quick FFT approximation via OfflineContext)
+  // 3. Spectral Analysis via manual FFT
   //
-  // CRITICAL: Use a FIXED FFT size (8192) for ALL IRs regardless of length.
-  // Variable FFT sizes produce different frequency resolution, which changes
-  // the energy distribution across bands — making identical recordings at
-  // different sample lengths produce wildly different tonal breakdowns.
-  //
-  // Zero-padding short IRs to 8192 is acoustically correct for IRs:
-  // it adds frequency resolution without altering the frequency content.
-  // The IR's spectral character is fully defined by its time-domain samples;
-  // zeros after the signal only interpolate between existing frequency bins.
+  // Uses a fixed FFT size (8192) with rectangular window (no windowing).
+  // This replaces the Web Audio AnalyserNode which applied a Blackman window
+  // that caused different results for the same IR at different sample counts.
+  // IRs naturally decay to zero, so rectangular windowing is correct.
+  // Zero-padding shorter IRs adds frequency interpolation without altering
+  // the spectral content.
   const fftSize = 8192;
-  
-  // If the IR is shorter than fftSize, create a zero-padded buffer
-  let analysisBuffer = audioBuffer;
-  if (audioBuffer.length < fftSize) {
-    const paddedCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
-    const paddedBuffer = paddedCtx.createBuffer(1, fftSize, audioBuffer.sampleRate);
-    const paddedData = paddedBuffer.getChannelData(0);
-    const srcData = audioBuffer.getChannelData(0);
-    for (let i = 0; i < srcData.length; i++) {
-      paddedData[i] = srcData[i];
-    }
-    // Rest is already zeros (Float32Array default)
-    analysisBuffer = paddedBuffer;
-  }
-  
-  const offlineCtx = new OfflineAudioContext(1, fftSize, audioBuffer.sampleRate);
-  const source = offlineCtx.createBufferSource();
-  source.buffer = analysisBuffer;
-  
-  const analyser = offlineCtx.createAnalyser();
-  analyser.fftSize = fftSize;
-  analyser.smoothingTimeConstant = 0; // Snapshot
-  
-  source.connect(analyser);
-  analyser.connect(offlineCtx.destination);
-  source.start(0);
-  
-  await offlineCtx.startRendering();
-  
-  // Get frequency data from the analyser
-  const freqByteData = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(freqByteData);
+  const freqByteData = computeMagnitudeSpectrum(channelData, fftSize);
   
   // Calculate Spectral Centroid (Brightness)
   let numerator = 0;
   let denominator = 0;
-  const binSize = audioBuffer.sampleRate / analyser.fftSize;
+  const binSize = audioBuffer.sampleRate / fftSize;
   
   const frequencyData: number[] = [];
 
