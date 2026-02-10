@@ -747,6 +747,7 @@ export function shouldContinueTasteCheck(
     let agreements = 0;
     let measurable = 0;
     for (const h of binaryRounds) {
+      if (h.pickedIndex < 0) continue;
       const axis = TASTE_AXES.find((a) => a.name === h.axisName);
       if (!axis) continue;
       const pickedVal = axis.compute(h.options[h.pickedIndex].blendBands);
@@ -784,7 +785,9 @@ export function shouldContinueTasteCheck(
       if (axisHistory.length < 2) continue;
       const axis = TASTE_AXES.find((a) => a.name === axisName);
       if (!axis) continue;
-      const directions = axisHistory.map((h) => {
+      const validAxisHistory = axisHistory.filter((h) => h.pickedIndex >= 0);
+      if (validAxisHistory.length < 2) continue;
+      const directions = validAxisHistory.map((h) => {
         const pv = axis.compute(h.options[h.pickedIndex].blendBands);
         const others = h.options.filter((_, i) => i !== h.pickedIndex).map((o) => axis.compute(o.blendBands));
         return pv - others.reduce((a, b) => a + b, 0) / others.length;
@@ -945,7 +948,7 @@ function getPreferredDirection(
   axisName: string,
   axisCompute: (b: TonalBands) => number
 ): number | null {
-  const relevant = history.filter((h) => h.axisName === axisName);
+  const relevant = history.filter((h) => h.axisName === axisName && h.pickedIndex >= 0);
   if (relevant.length === 0) return null;
   let dirSum = 0;
   for (const h of relevant) {

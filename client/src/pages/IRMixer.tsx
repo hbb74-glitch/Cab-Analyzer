@@ -2046,13 +2046,22 @@ export default function IRMixer() {
                         );
                       })}
                     </div>
+                    <button
+                      onClick={() => handleTasteCheckPick(-1)}
+                      className="w-full text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
+                      data-testid="button-taste-tie"
+                    >
+                      No preference / Tie
+                    </button>
                   </>
                 )}
 
                 {tasteCheckPhase.showingResult && tasteCheckPhase.userPick !== null && (
                   <div className="text-center py-2 space-y-1">
                     <p className="text-xs text-teal-400 font-medium">
-                      Noted — preference recorded for {tasteCheckPhase.axisName.toLowerCase()}
+                      {tasteCheckPhase.userPick === -1
+                        ? `Tie noted for ${tasteCheckPhase.axisName.toLowerCase()} — moving on`
+                        : `Noted — preference recorded for ${tasteCheckPhase.axisName.toLowerCase()}`}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
                       {tasteCheckPhase.round + 1 < tasteCheckPhase.maxRounds
