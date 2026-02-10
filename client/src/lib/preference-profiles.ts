@@ -929,8 +929,9 @@ export function pickTasteCheckCandidates(
   }
 
   const candidates = pickSpreadCandidates(pool, 2, narrowFactor);
+  const finalCandidates = candidates.map((c) => c.pairing);
   return {
-    candidates: candidates.map((c) => c.pairing),
+    candidates: forceBinary ? finalCandidates.slice(0, 2) : finalCandidates,
     axisName: chosenAxis.axis.name,
     roundType: "binary" as const,
     axisLabels: [...chosenAxis.axis.label] as [string, string],

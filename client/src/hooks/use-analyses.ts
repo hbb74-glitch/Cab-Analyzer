@@ -275,98 +275,125 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const ultraHighEnergy = totalEnergy > 0 ? ultraHighSum / totalEnergy : 0;
 
   // ============================================
-  // Frequency Response Smoothness
-  // Measures how "bumpy" vs "smooth" the frequency curve is
-  // Lower variance between adjacent bins = smoother = better
+  // Frequency Response Smoothness (sample-size-independent)
+  //
+  // Zero-padding short IRs to a fixed FFT size creates spectral interpolation
+  // that artificially smooths the frequency response. An 85-sample IR padded
+  // to 8192 has ~96x interpolation; a 171-sample IR has ~48x. This makes
+  // shorter versions of the same IR appear smoother.
+  //
+  // Fix: Scale the sliding window to match the IR's actual frequency
+  // resolution (sampleRate / originalLength). This way the window always
+  // spans approximately one resolution bandwidth, producing consistent
+  // smoothness scores regardless of sample count.
   // ============================================
+  const originalLength = audioBuffer.length;
+  const interpolationFactor = Math.max(1, Math.round(fftSize / originalLength));
   let smoothnessVarianceSum = 0;
   let smoothnessCount = 0;
   
-  // Focus on actual guitar speaker output range (75Hz - 5kHz)
-  // Guitar speakers: 70-75 Hz to 5000 Hz typical response
-  // Above 5-6kHz has minimal musical content for cab IRs
   const minBin = Math.floor(75 / binSize);
   const maxBin = Math.min(Math.floor(5000 / binSize), freqByteData.length - 1);
   
-  // Use a sliding window to detect peaks/notches
-  // Compare each bin to a local average (5-bin window)
-  const windowSize = 5;
-  for (let i = minBin + windowSize; i < maxBin - windowSize; i++) {
-    // Calculate local average
+  const smoothWindowSize = Math.max(5, Math.ceil(interpolationFactor / 2));
+  const smoothStep = Math.max(1, Math.floor(interpolationFactor / 2));
+  for (let i = minBin + smoothWindowSize; i < maxBin - smoothWindowSize; i += smoothStep) {
     let localSum = 0;
-    for (let j = i - windowSize; j <= i + windowSize; j++) {
+    for (let j = i - smoothWindowSize; j <= i + smoothWindowSize; j++) {
       localSum += freqByteData[j];
     }
-    const localAvg = localSum / (windowSize * 2 + 1);
+    const localAvg = localSum / (smoothWindowSize * 2 + 1);
     
-    // Deviation from local average (peaks/notches will have high deviation)
     const deviation = Math.abs(freqByteData[i] - localAvg);
     smoothnessVarianceSum += deviation;
     smoothnessCount++;
   }
   
-  // Convert to 0-100 score (lower variance = higher score)
-  // The 75Hz-5kHz range focuses on the active midrange where guitar speakers
-  // naturally have more peaks/character.
-  // FFT size is always 8192, so no scaling needed.
   const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
   const maxExpectedDeviation = 25;
   const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
 
   // ============================================
-  // Noise Floor Measurement (length-aware)
+  // Noise Floor Measurement (sample-size-independent)
   //
-  // Problem: Short IRs (e.g. 4096 samples / ~85ms) still have active decay
-  // energy at their tail. Measuring the last 15ms gives a falsely "high"
-  // noise floor compared to a longer version of the same IR where the
-  // signal has naturally decayed further. This unfairly penalizes short IRs.
+  // Problem: Very short IRs (e.g. 85 samples at 48kHz = 1.8ms) have no
+  // quiet tail region — the entire signal is active impulse/decay. Measuring
+  // a 15ms window is impossible when the IR is only 1.8ms long, and even
+  // scanning for the "quietest region" gives the decay energy, not noise.
   //
-  // Solution: Estimate the actual noise floor separately from tail decay.
-  // 1. For ALL IRs, scan overlapping windows to find the quietest region
-  //    (most likely to represent the true noise floor / room tone).
-  // 2. For short/truncated IRs (< 200ms), the tail is still active signal,
-  //    so we use the quietest-window approach exclusively.
-  // 3. For long IRs (200ms+), the tail measurement is valid but we still
-  //    take the better (lower) of tail vs quietest-window to be fair.
+  // Solution: Estimate noise floor from the IR's decay rate.
+  // 1. Measure energy in early vs late portions of the signal
+  // 2. Calculate dB/ms decay rate
+  // 3. Extrapolate to a reference point (200ms) to estimate where the
+  //    signal would naturally decay to — this is the effective noise floor
+  // 4. For long IRs (>10ms), use the traditional scanning approach
   // ============================================
   const sampleRate = audioBuffer.sampleRate;
   const irDurationMs = (channelData.length / sampleRate) * 1000;
   const isTruncatedIR = irDurationMs < 200;
 
-  const windowMs = 15;
-  const windowSamples = Math.floor(sampleRate * (windowMs / 1000));
+  let noiseFloorDb: number;
 
-  // Scan the last 60% of the IR in overlapping windows to find quietest region
-  // (skip the first 40% which contains the main impulse energy)
-  const scanStart = Math.floor(channelData.length * 0.4);
-  const stepSamples = Math.max(1, Math.floor(windowSamples / 2));
-  let quietestRms = Infinity;
-
-  for (let start = scanStart; start + windowSamples <= channelData.length; start += stepSamples) {
-    let windowSum = 0;
-    for (let i = start; i < start + windowSamples; i++) {
-      windowSum += channelData[i] * channelData[i];
+  if (irDurationMs < 10) {
+    const halfPoint = Math.floor(channelData.length / 2);
+    let earlySum = 0;
+    let lateSum = 0;
+    for (let i = 0; i < halfPoint; i++) {
+      earlySum += channelData[i] * channelData[i];
     }
-    const windowRms = Math.sqrt(windowSum / windowSamples);
-    if (windowRms < quietestRms) {
-      quietestRms = windowRms;
+    for (let i = halfPoint; i < channelData.length; i++) {
+      lateSum += channelData[i] * channelData[i];
+    }
+    const earlyRms = Math.sqrt(earlySum / halfPoint);
+    const lateRms = Math.sqrt(lateSum / (channelData.length - halfPoint));
+
+    if (earlyRms > 0 && lateRms > 0 && earlyRms > lateRms) {
+      const earlyDb = 20 * Math.log10(earlyRms);
+      const lateDb = 20 * Math.log10(lateRms);
+      const decayDb = earlyDb - lateDb;
+      const halfDurationMs = (halfPoint / sampleRate) * 1000;
+      const decayRatePerMs = halfDurationMs > 0 ? decayDb / halfDurationMs : 0;
+      const referenceMs = 200;
+      noiseFloorDb = Math.min(-60, earlyDb - (decayRatePerMs * referenceMs));
+    } else {
+      noiseFloorDb = -96;
+    }
+  } else {
+    const windowMs = 15;
+    const adaptiveWindowMs = Math.min(windowMs, irDurationMs * 0.2);
+    const windowSamples = Math.max(4, Math.floor(sampleRate * (adaptiveWindowMs / 1000)));
+
+    const scanStart = Math.floor(channelData.length * 0.4);
+    const stepSamples = Math.max(1, Math.floor(windowSamples / 2));
+    let quietestRms = Infinity;
+
+    for (let start = scanStart; start + windowSamples <= channelData.length; start += stepSamples) {
+      let windowSum = 0;
+      for (let i = start; i < start + windowSamples; i++) {
+        windowSum += channelData[i] * channelData[i];
+      }
+      const windowRms = Math.sqrt(windowSum / windowSamples);
+      if (windowRms < quietestRms) {
+        quietestRms = windowRms;
+      }
+    }
+
+    if (!isTruncatedIR) {
+      const tailStart = Math.max(0, channelData.length - windowSamples);
+      let tailSum = 0;
+      for (let i = tailStart; i < channelData.length; i++) {
+        tailSum += channelData[i] * channelData[i];
+      }
+      const tailRms = Math.sqrt(tailSum / (channelData.length - tailStart));
+      quietestRms = Math.min(quietestRms, tailRms);
+    }
+
+    if (quietestRms === Infinity || quietestRms <= 0) {
+      noiseFloorDb = -96;
+    } else {
+      noiseFloorDb = 20 * Math.log10(quietestRms);
     }
   }
-
-  // For long IRs, also measure the tail directly (last 15ms)
-  let tailRms = quietestRms;
-  if (!isTruncatedIR) {
-    const tailStart = Math.max(0, channelData.length - windowSamples);
-    let tailSum = 0;
-    for (let i = tailStart; i < channelData.length; i++) {
-      tailSum += channelData[i] * channelData[i];
-    }
-    tailRms = Math.sqrt(tailSum / (channelData.length - tailStart));
-    // Use whichever is quieter — the tail or the quietest window
-    quietestRms = Math.min(quietestRms, tailRms);
-  }
-
-  const noiseFloorDb = quietestRms > 0 ? 20 * Math.log10(quietestRms) : -96;
 
   return {
     durationMs,
