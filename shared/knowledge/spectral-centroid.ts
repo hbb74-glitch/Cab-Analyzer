@@ -105,6 +105,7 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
   'ga12-sc64': { offset: 50, description: 'Vintage American, tight and punchy' },
   'ga10-sc64': { offset: 100, description: '10 inch version, more focused highs' },
   'k100': { offset: 325, description: 'Big low end, brighter than neutral' },
+  'karnivore': { offset: 400, description: 'Aggressive upper-mids, tight bass, extended highs for modern metal' },
 };
 
 function normalizeMicName(mic: string): string {
@@ -185,6 +186,7 @@ function normalizeSpeaker(speaker: string): string {
   if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) return 'ga12-sc64';
   if (lower.includes('ga10') || lower.includes('g10')) return 'ga10-sc64';
   if (lower.includes('k100')) return 'k100';
+  if (lower.includes('karnivore') || lower.includes('karni')) return 'karnivore';
   
   return 'v30';
 }

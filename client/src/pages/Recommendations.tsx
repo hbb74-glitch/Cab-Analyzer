@@ -62,6 +62,7 @@ const SPEAKERS = [
   { value: "celestion-cream", label: "Cream" },
   { value: "ga12-sc64", label: "GA12-SC64" },
   { value: "g10-sc64", label: "GA10-SC64" },
+  { value: "karnivore", label: "Karnivore" },
 ];
 
 const GENRES = [
@@ -153,6 +154,7 @@ const PREF_SPEAKER_PATTERNS: Record<string, string> = {
   "cream": "Cream", "celestion-cream": "Cream", "celestioncream": "Cream",
   "ga12sc64": "GA12-SC64", "ga12-sc64": "GA12-SC64", "sc64": "GA12-SC64",
   "g10sc64": "GA10-SC64", "g10-sc64": "GA10-SC64", "g10": "GA10-SC64",
+  "karnivore": "Karnivore", "karni": "Karnivore",
 };
 
 interface ParsedIR {
@@ -904,6 +906,7 @@ export default function Recommendations() {
     "g10-sc64": "GA10-SC64",  // G10-SC64 speaker -> GA10-SC64 shorthand
     "k100": "K100",
     "g12t75": "G12T75",
+    "karnivore": "Karnivore",
   };
 
   // Shorthand mappings for mics

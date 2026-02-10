@@ -837,6 +837,7 @@ function parseFilenameForExpectations(filename: string): {
   else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) { speaker = 'ga12-sc64'; speakerDetected = true; }
   else if (lower.includes('ga10') || lower.includes('g10')) { speaker = 'ga10-sc64'; speakerDetected = true; }
   else if (lower.includes('k100')) { speaker = 'k100'; speakerDetected = true; }
+  else if (lower.includes('karnivore') || lower.includes('karni')) { speaker = 'karnivore'; speakerDetected = true; }
   
   // Calculate parsing confidence
   const detectedCount = [micDetected, positionDetected, speakerDetected].filter(Boolean).length;
@@ -1212,6 +1213,7 @@ const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
   "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
   "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
   "g10sc64": "G10-SC64", "g10": "G10-SC64",
+  "karnivore": "Karnivore", "karni": "Karnivore",
 };
 
 const GEAR_POSITION_PATTERNS: Record<string, string> = {
@@ -2326,6 +2328,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - celestion-cream (Celestion Cream): Alnico smooth, high power.
       - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
       - g10-sc64 (G10-SC64): 10" version, more focused.
+      - karnivore (Eminence Karnivore): Aggressive upper-mids, tight bass, extended highs. Modern metal.
       
       Distance Effects (general principles) - CRITICAL ACOUSTIC TRUTH:
       DISTANCE AFFECTS BASS (proximity effect), NOT brightness/darkness:
@@ -4146,6 +4149,7 @@ Output JSON:
       - ga12-sc64 (Eminence GA-SC64 12"): Vintage American, tight and punchy. Fender Deluxe/Princeton vibe.
       - g10-sc64 (Eminence GA-SC64 10"): 10" version, more focused and punchy. Great for smaller combos.
       - k100 (Celestion G12K-100): Big low end, clear highs, neutral. High headroom, modern voicing.
+      - karnivore (Eminence Karnivore): Fat tight bass, aggressive vocal mids, extended highs to 5.2kHz. Modern high-gain metal. Co-designed with Kristian Kohle.
       
       Classic Amp/Speaker Pairings Knowledge:
       - Marshall Plexi/JCM800 → Greenbacks (G12M-25) for classic rock, V30 for heavier tones
@@ -4488,7 +4492,7 @@ MANDATORY RULES:
       Speaker Shorthand:
       - Cream (Celestion Cream), V30 (Vintage 30), V30BC (V30 Black Cat)
       - G12M (Greenback), G12H (G12H30 Anniversary), G12-65 (G12-65 Heritage)
-      - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75)
+      - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75), Karnivore
       
       Mic Shorthand:
       - SM57, R121, R10, MD421, MD421K (or MD421Kompakt), M201, M88, Roswell, M160, e906, C414, R92, PR30

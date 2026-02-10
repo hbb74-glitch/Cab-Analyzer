@@ -1042,6 +1042,7 @@ const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
   "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
   "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
   "g10sc64": "G10-SC64", "g10": "G10-SC64",
+  "karnivore": "Karnivore", "karni": "Karnivore",
 };
 
 const GEAR_POSITION_PATTERNS: Record<string, string> = {
@@ -1119,6 +1120,7 @@ const SPEAKER_DISPLAY_TO_FILE_PREFIX: Record<string, string> = {
   "Celestion-Cream": "Cream",
   "GA12-SC64": "GA12SC64",
   "G10-SC64": "G10",
+  "Karnivore": "Karnivore",
 };
 
 export function getSpeakerFilenamePrefix(displayName: string): string {

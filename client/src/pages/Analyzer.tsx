@@ -104,6 +104,7 @@ const SPEAKER_PATTERNS: Record<string, string> = {
   "cream": "celestion-cream", "celestion-cream": "celestion-cream", "celestioncream": "celestion-cream",
   "ga12sc64": "ga12-sc64", "ga12-sc64": "ga12-sc64", "sc64": "ga12-sc64",
   "g10sc64": "g10-sc64", "g10-sc64": "g10-sc64", "g10": "g10-sc64",
+  "karnivore": "karnivore", "karni": "karnivore",
 };
 
 // Extended result type to include combo IR metadata
@@ -1469,6 +1470,7 @@ export default function Analyzer() {
         "G12T75": ["g12t75", "t75"], "G12-65": ["g1265"], "G12H": ["g12h"],
         "G12H30-Anniversary": ["g12h30", "anniversary"], "Celestion-Cream": ["cream"],
         "GA12-SC64": ["ga12sc64", "sc64"], "G10-SC64": ["g10sc64", "g10"],
+        "Karnivore": ["karnivore", "karni"],
         "Cap": ["cap", "center"], "CapEdge": ["capedge", "cap_edge"],
         "CapEdge-Bright": ["capedge_br", "capedgebr"], "CapEdge-Dark": ["capedge_dk", "capedgedk"],
         "Cap-Cone Transition": ["cap_cone_trn", "capconetr", "cone_tr"],
@@ -5633,6 +5635,7 @@ export default function Analyzer() {
                     <option value="celestion-cream">Cream</option>
                     <option value="ga12-sc64">GA12-SC64</option>
                     <option value="g10-sc64">GA10-SC64</option>
+                    <option value="karnivore">Karnivore</option>
                   </select>
                 </div>
 

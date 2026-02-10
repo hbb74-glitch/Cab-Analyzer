@@ -941,6 +941,26 @@ export default function IRMixer() {
     finishRound(ratioRefinePhase.pendingLoadTopPick, null);
   }, [ratioRefinePhase, finishRound]);
 
+  const manualRatioRefine = useCallback(() => {
+    if (ratioRefinePhase || tasteCheckPhase) return;
+    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+    const candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[] = [];
+    for (const [pk, rank] of Object.entries(pairingRankings)) {
+      if (rank !== 1 && rank !== 2) continue;
+      if (dismissedPairings.has(pk)) continue;
+      const pair = suggestedPairs.find((p) => pairKey(p) === pk);
+      if (!pair) continue;
+      const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+      const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+      if (baseData && featData) {
+        candidates.push({ pair, rank, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy });
+      }
+    }
+    if (candidates.length === 0) return;
+    candidates.sort((a, b) => a.rank - b.rank);
+    proceedToRatioRefine(candidates, false);
+  }, [ratioRefinePhase, tasteCheckPhase, allIRs, baseIR, featureIRs, pairingRankings, dismissedPairings, suggestedPairs, pairKey, proceedToRatioRefine]);
+
   const completeRatioRefine = useCallback((ratio: number | null, downgraded: boolean) => {
     if (!ratioRefinePhase || ratioRefinePhase.selectedIdx === null) return;
     const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx];
@@ -1127,43 +1147,55 @@ export default function IRMixer() {
               </div>
               <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">IR Mixer</h1>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
-              <button
-                onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
-                  tasteCheckMode === "acquisition"
-                    ? "bg-teal-500/25 text-teal-300"
-                    : "text-muted-foreground hover-elevate"
-                )}
-                data-testid="button-taste-acquisition"
-              >
-                4-Pick
-              </button>
-              <button
-                onClick={() => setTasteCheckMode("auto")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
-                  tasteCheckMode === "auto"
-                    ? "bg-teal-500/25 text-teal-300"
-                    : "text-muted-foreground hover-elevate"
-                )}
-                data-testid="button-taste-auto"
-              >
-                Auto
-              </button>
-              <button
-                onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
-                  tasteCheckMode === "tester"
-                    ? "bg-teal-500/25 text-teal-300"
-                    : "text-muted-foreground hover-elevate"
-                )}
-                data-testid="button-taste-tester"
-              >
-                A/B
-              </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
+                <button
+                  onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                    tasteCheckMode === "acquisition"
+                      ? "bg-teal-500/25 text-teal-300"
+                      : "text-muted-foreground hover-elevate"
+                  )}
+                  data-testid="button-taste-acquisition"
+                >
+                  4-Pick
+                </button>
+                <button
+                  onClick={() => setTasteCheckMode("auto")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                    tasteCheckMode === "auto"
+                      ? "bg-teal-500/25 text-teal-300"
+                      : "text-muted-foreground hover-elevate"
+                  )}
+                  data-testid="button-taste-auto"
+                >
+                  Auto
+                </button>
+                <button
+                  onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
+                    tasteCheckMode === "tester"
+                      ? "bg-teal-500/25 text-teal-300"
+                      : "text-muted-foreground hover-elevate"
+                  )}
+                  data-testid="button-taste-tester"
+                >
+                  A/B
+                </button>
+              </div>
+              {Object.values(pairingRankings).some(r => r === 1 || r === 2) && !ratioRefinePhase && !tasteCheckPhase && (
+                <button
+                  onClick={manualRatioRefine}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-sky-500/30 bg-sky-500/5 text-sky-400 hover-elevate transition-colors"
+                  data-testid="button-manual-ratio-refine"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  Refine Ratio
+                </button>
+              )}
             </div>
           </div>
           <p className="text-muted-foreground text-sm">
