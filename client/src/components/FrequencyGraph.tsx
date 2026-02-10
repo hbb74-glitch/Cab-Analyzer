@@ -33,7 +33,7 @@ export function FrequencyGraph({ data, height = 300, className, color = "#22c55e
       const hz = Math.round((i / data.length) * 20000);
       result.push({
         freq: hz,
-        db: data[i], // normalized magnitude 0-255
+        db: data[i], // dB mapped to 0-255 (0 = -100dB, 255 = 0dB)
       });
     }
     return result;
@@ -76,7 +76,7 @@ export function FrequencyGraph({ data, height = 300, className, color = "#22c55e
               fontFamily: 'JetBrains Mono'
             }}
             itemStyle={{ color: color }}
-            formatter={(val: number) => [`${Math.round((val/255)*100)}%`, 'Amplitude']}
+            formatter={(val: number) => [`${Math.round(-100 + (val / 255) * 100)} dB`, 'Level']}
             labelFormatter={(label) => `${label} Hz`}
           />
           <Area
