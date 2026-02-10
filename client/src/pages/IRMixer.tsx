@@ -259,6 +259,8 @@ export default function IRMixer() {
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
   const tasteCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tasteCheckModeRef = useRef(tasteCheckMode);
+  tasteCheckModeRef.current = tasteCheckMode;
 
   useEffect(() => {
     if (tasteCheckPhase && tasteCheckPhase.userPick === null && tasteCheckRef.current) {
@@ -278,6 +280,8 @@ export default function IRMixer() {
   } | null>(null);
 
   const ratioRefineRef = useRef<HTMLDivElement>(null);
+  const foundationRef = useRef<HTMLDivElement>(null);
+  const pairingSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (ratioRefinePhase?.stage === "select" && ratioRefineRef.current) {
@@ -759,6 +763,14 @@ export default function IRMixer() {
 
     tasteCheckTimeoutRef.current = setTimeout(() => {
       tasteCheckTimeoutRef.current = null;
+      if (tasteCheckModeRef.current === "ratio") {
+        modeTriggeredTasteCheck.current = false;
+        setTasteCheckPhase(null);
+        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
+          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
+        }
+        return;
+      }
       const keepGoing = shouldContinueTasteCheck(
         tasteCheckPhase.confidence,
         newHistory,
@@ -1231,9 +1243,13 @@ export default function IRMixer() {
                 </button>
                 <button
                   onClick={() => {
-                    const next = tasteCheckMode === "ratio" ? "auto" : "ratio";
-                    setTasteCheckMode(next);
-                    if (next === "ratio" && tasteCheckPhase) {
+                    if (tasteCheckMode === "ratio") {
+                      setTasteCheckMode("auto");
+                      return;
+                    }
+                    setTasteCheckMode("ratio");
+
+                    if (tasteCheckPhase) {
                       if (tasteCheckTimeoutRef.current) {
                         clearTimeout(tasteCheckTimeoutRef.current);
                         tasteCheckTimeoutRef.current = null;
@@ -1244,7 +1260,15 @@ export default function IRMixer() {
                       setTasteCheckPhase(null);
                       if (pending.length > 0) {
                         proceedToRatioRefine(pending, pendingLoad);
+                        return;
                       }
+                    }
+
+                    if (!hasPairingPool) {
+                      toast({ title: "Load IRs first", description: "Drop your IR files in the Foundation Finder below to get started." });
+                      setTimeout(() => foundationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+                    } else if (suggestedPairs.length > 0) {
+                      setTimeout(() => pairingSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
                     }
                   }}
                   className={cn(
@@ -1262,7 +1286,9 @@ export default function IRMixer() {
           </div>
           <p className="text-muted-foreground text-sm">
             {tasteCheckMode === "ratio"
-              ? "Ratio mode active — expand any blend below and tap A/B Refine to find your preferred ratio. Results are saved to your taste profile."
+              ? hasPairingPool
+                ? "Ratio mode — rate the pairings below, then submit to jump straight into ratio refinement. Or expand any blend and tap A/B Refine."
+                : "Ratio mode — drop your IRs in the Foundation Finder below to get started."
               : "Drop IRs to preview blend permutations scored against your tonal profiles."}
           </p>
           {learnedProfile && learnedProfile.signalCount > 0 && (
@@ -1407,7 +1433,7 @@ export default function IRMixer() {
           )}
         </motion.div>
 
-        <div className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+        <div ref={foundationRef} className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <Crown className="w-4 h-4 text-amber-400" />
             Foundation Finder
@@ -1847,8 +1873,8 @@ export default function IRMixer() {
           )}
         </div>
 
-        {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase || tasteCheckPhase) && !doneRefining && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
+        {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase || tasteCheckPhase || tasteCheckMode === "ratio") && !doneRefining && (
+          <motion.div ref={pairingSectionRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
             <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-violet-400" />
