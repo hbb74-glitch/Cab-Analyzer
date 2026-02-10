@@ -507,6 +507,46 @@ export default function IRMixer() {
     }
   }, [suggestedPairs, evaluatedPairs, hasPairingPool]);
 
+  const modeTriggeredTasteCheck = useRef(false);
+
+  useEffect(() => {
+    if (
+      tasteCheckMode !== "auto" &&
+      pairingPool.length >= 2 &&
+      !tasteCheckPhase &&
+      !ratioRefinePhase
+    ) {
+      const tastePick = pickTasteCheckCandidates(
+        pairingPool, activeProfiles, learnedProfile || undefined,
+        evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
+        undefined, tasteCheckMode
+      );
+      if (tastePick) {
+        const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+        modeTriggeredTasteCheck.current = true;
+        setTasteCheckPhase({
+          candidates: tastePick.candidates,
+          roundType: tastePick.roundType,
+          axisName: tastePick.axisName,
+          axisLabels: tastePick.axisLabels,
+          round: 0,
+          maxRounds,
+          confidence: tastePick.confidence,
+          userPick: null,
+          showingResult: false,
+          history: [],
+          pendingRefineCandidates: [],
+          pendingLoadTopPick: false,
+        });
+      }
+    }
+
+    if (tasteCheckMode === "auto" && tasteCheckPhase && modeTriggeredTasteCheck.current) {
+      modeTriggeredTasteCheck.current = false;
+      setTasteCheckPhase(null);
+    }
+  }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase]);
+
   const pairKey = useCallback((p: SuggestedPairing) =>
     `${p.baseFilename}||${p.featureFilename}`, []);
 
@@ -713,6 +753,7 @@ export default function IRMixer() {
       );
 
       if (!keepGoing || nextRound >= tasteCheckPhase.maxRounds) {
+        modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
         proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
@@ -729,6 +770,7 @@ export default function IRMixer() {
       );
 
       if (!nextPick) {
+        modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
         proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
@@ -754,6 +796,7 @@ export default function IRMixer() {
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
+    modeTriggeredTasteCheck.current = false;
     setTasteCheckPhase(null);
     setTasteCheckPassed(true);
     proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
@@ -1080,7 +1123,7 @@ export default function IRMixer() {
             </div>
             <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
               <button
-                onClick={() => setTasteCheckMode("acquisition")}
+                onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                   tasteCheckMode === "acquisition"
@@ -1104,7 +1147,7 @@ export default function IRMixer() {
                 Auto
               </button>
               <button
-                onClick={() => setTasteCheckMode("tester")}
+                onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
                 className={cn(
                   "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
                   tasteCheckMode === "tester"
@@ -1992,10 +2035,17 @@ export default function IRMixer() {
 
                 {!tasteCheckPhase.showingResult && (
                   <>
+                    {(() => {
+                      const isGuidedRound = tasteCheckBinary && tasteCheckPhase.round % 2 === 1;
+                      const isOpenRound = tasteCheckBinary && !isGuidedRound;
+                      return (
+                        <>
                     <p className="text-xs text-muted-foreground">
-                      {tasteCheckBinary
-                        ? `Which blend do you prefer? Narrowing your ${tasteCheckPhase.axisName.toLowerCase()} preferences.`
-                        : "Pick the blend that sounds best to you — comparing across the tonal spectrum."}
+                      {!tasteCheckBinary
+                        ? "Pick the blend that sounds best to you — comparing across the tonal spectrum."
+                        : isGuidedRound
+                        ? `Comparing ${tasteCheckPhase.axisLabels[0].toLowerCase()} vs ${tasteCheckPhase.axisLabels[1].toLowerCase()} — which ${tasteCheckPhase.axisName.toLowerCase()} do you prefer?`
+                        : "Go with your gut — which blend do you prefer?"}
                     </p>
                     <div className={cn(
                       "grid gap-3",
@@ -2005,6 +2055,9 @@ export default function IRMixer() {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
+                        const axisLabel = isGuidedRound && tasteCheckPhase.axisLabels
+                          ? (idx === 0 ? tasteCheckPhase.axisLabels[0] : tasteCheckPhase.axisLabels[1])
+                          : null;
                         return (
                           <button
                             key={idx}
@@ -2012,11 +2065,21 @@ export default function IRMixer() {
                             className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
                             data-testid={`button-taste-option-${idx}`}
                           >
-                            <p className="text-xs font-semibold text-center text-foreground uppercase tracking-widest">
-                              {!tasteCheckBinary && tasteCheckDisplayCandidates.length > 2
-                                ? String.fromCharCode(65 + idx)
-                                : idx === 0 ? "A" : "B"}
-                            </p>
+                            <div className="flex items-center justify-center gap-2">
+                              <p className="text-xs font-semibold text-foreground uppercase tracking-widest">
+                                {!tasteCheckBinary && tasteCheckDisplayCandidates.length > 2
+                                  ? String.fromCharCode(65 + idx)
+                                  : idx === 0 ? "A" : "B"}
+                              </p>
+                              {axisLabel && (
+                                <span className={cn(
+                                  "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                                  idx === 0 ? "bg-blue-500/15 text-blue-400" : "bg-amber-500/15 text-amber-400"
+                                )}>
+                                  {axisLabel}
+                                </span>
+                              )}
+                            </div>
                             <p className="text-[10px] font-mono text-foreground truncate">
                               {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                             </p>
@@ -2051,6 +2114,9 @@ export default function IRMixer() {
                     >
                       No preference / Tie
                     </button>
+                        </>
+                      );
+                    })()}
                   </>
                 )}
 
@@ -2059,6 +2125,8 @@ export default function IRMixer() {
                     <p className="text-xs text-teal-400 font-medium">
                       {tasteCheckPhase.userPick === -1
                         ? `Tie noted for ${tasteCheckPhase.axisName.toLowerCase()} — moving on`
+                        : tasteCheckPhase.round % 2 === 0 && tasteCheckBinary
+                        ? `You leaned ${tasteCheckPhase.userPick === 0 ? tasteCheckPhase.axisLabels[0].toLowerCase() : tasteCheckPhase.axisLabels[1].toLowerCase()} on the ${tasteCheckPhase.axisName.toLowerCase()} axis`
                         : `Noted — preference recorded for ${tasteCheckPhase.axisName.toLowerCase()}`}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
