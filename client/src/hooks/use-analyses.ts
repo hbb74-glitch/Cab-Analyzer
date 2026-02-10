@@ -99,19 +99,47 @@ export interface AudioMetrics {
 }
 
 // ============================================
-// Manual Radix-2 FFT (no windowing)
+// Manual Radix-2 FFT with peak-centered Blackman window
 //
-// Replaces the Web Audio AnalyserNode which applies a Blackman window
-// that causes different results for the same IR saved at different
-// sample counts (e.g. 4096 vs 8192). IRs naturally decay to zero,
-// so a rectangular window (no windowing) is acoustically correct
-// and gives consistent results regardless of zero-padding.
+// The Web Audio AnalyserNode applied its Blackman window to the ENTIRE
+// fftSize buffer, which meant zero-padded vs full-length versions of
+// the same IR got windowed differently — causing inconsistent results.
+//
+// Fix: circular-shift the signal so the impulse peak sits at fftSize/2
+// (Blackman window maximum), then apply the Blackman window. This gives:
+//   1. Consistent windowing regardless of signal length or zero-padding
+//   2. Proper sidelobe suppression (-58 dB) to prevent high-freq leakage
+//   3. The impulse peak always gets maximum window weight
+//
+// DFT shift theorem: circular shift only changes phase, not magnitude.
 // ============================================
 function computeMagnitudeSpectrum(samples: Float32Array, fftSize: number): Uint8Array {
   const real = new Float64Array(fftSize);
   const imag = new Float64Array(fftSize);
-  for (let i = 0; i < Math.min(samples.length, fftSize); i++) {
-    real[i] = samples[i];
+
+  const signalLen = Math.min(samples.length, fftSize);
+
+  // Find the impulse peak position
+  let peakPos = 0;
+  let peakVal = 0;
+  for (let i = 0; i < signalLen; i++) {
+    const abs = Math.abs(samples[i]);
+    if (abs > peakVal) { peakVal = abs; peakPos = i; }
+  }
+
+  // Circular-shift signal so peak lands at fftSize/2 (window center)
+  const offset = (fftSize >> 1) - peakPos;
+  for (let i = 0; i < signalLen; i++) {
+    const destIdx = ((i + offset) % fftSize + fftSize) % fftSize;
+    real[destIdx] = samples[i];
+  }
+
+  // Apply Blackman window to the full fftSize buffer
+  const N = fftSize;
+  const twoPiOverN = 2 * Math.PI / (N - 1);
+  for (let i = 0; i < N; i++) {
+    real[i] *= 0.42 - 0.5 * Math.cos(twoPiOverN * i)
+                     + 0.08 * Math.cos(2 * twoPiOverN * i);
   }
 
   // Bit-reversal permutation
