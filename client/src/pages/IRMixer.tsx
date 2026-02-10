@@ -1243,11 +1243,10 @@ export default function IRMixer() {
                 </button>
                 <button
                   onClick={() => {
-                    if (tasteCheckMode === "ratio") {
-                      setTasteCheckMode("auto");
-                      return;
+                    const alreadyRatio = tasteCheckMode === "ratio";
+                    if (!alreadyRatio) {
+                      setTasteCheckMode("ratio");
                     }
-                    setTasteCheckMode("ratio");
 
                     if (tasteCheckPhase) {
                       if (tasteCheckTimeoutRef.current) {
@@ -1267,7 +1266,7 @@ export default function IRMixer() {
                     if (!hasPairingPool) {
                       toast({ title: "Load IRs first", description: "Drop your IR files in the Foundation Finder below to get started." });
                       setTimeout(() => foundationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-                    } else if (suggestedPairs.length > 0) {
+                    } else {
                       setTimeout(() => pairingSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
                     }
                   }}
@@ -1893,11 +1892,13 @@ export default function IRMixer() {
             </div>
             {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
             <p className="text-xs text-muted-foreground mb-4">
-              {totalRoundsCompleted === 0
-                ? learnedProfile && learnedProfile.status !== "no_data"
-                  ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
-                  : "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
-                : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
+              {tasteCheckMode === "ratio"
+                ? "Ratio mode — Love or Like at least one pairing below, then Submit to jump straight into ratio refinement. No taste checks."
+                : totalRoundsCompleted === 0
+                  ? learnedProfile && learnedProfile.status !== "no_data"
+                    ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
+                    : "Top 3 blends from your set. Love, Like, or Meh the ones worth keeping. Nope the rest."
+                  : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>
             )}
