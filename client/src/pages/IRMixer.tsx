@@ -1888,7 +1888,7 @@ export default function IRMixer() {
                   <div className="flex items-center gap-2">
                     <Brain className="w-4 h-4 text-teal-400" />
                     <span className="text-sm font-medium text-teal-400">
-                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1} [{tasteCheckPhase.roundType}/{tasteCheckPhase.confidence}/{tasteCheckPhase.candidates.length}]
+                      Taste {tasteCheckPhase.confidence === "high" ? "Verify" : "Check"} — Round {tasteCheckPhase.round + 1}
                     </span>
                     <Badge variant="outline" className={cn("text-[10px] border-teal-500/30", tasteCheckPhase.confidence === "high" ? "text-emerald-400/80" : tasteCheckPhase.confidence === "moderate" ? "text-amber-400/80" : "text-teal-400/80")}>
                       {tasteCheckPhase.confidence === "high" ? "Verifying" : tasteCheckPhase.confidence === "moderate" ? "Refining" : "Exploring"}
@@ -1923,15 +1923,15 @@ export default function IRMixer() {
                 {!tasteCheckPhase.showingResult && (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      {tasteCheckPhase.roundType === "quad"
-                        ? "Pick the blend that sounds best to you — comparing across the tonal spectrum."
-                        : `Which blend do you prefer? Narrowing your ${tasteCheckPhase.axisName.toLowerCase()} preferences.`}
+                      {tasteCheckPhase.confidence === "high" || tasteCheckPhase.candidates.length <= 2
+                        ? `Which blend do you prefer? Narrowing your ${tasteCheckPhase.axisName.toLowerCase()} preferences.`
+                        : "Pick the blend that sounds best to you — comparing across the tonal spectrum."}
                     </p>
                     <div className={cn(
                       "grid gap-3",
-                      tasteCheckPhase.roundType === "quad" ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
+                      tasteCheckPhase.confidence !== "high" && tasteCheckPhase.candidates.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
                     )}>
-                      {tasteCheckPhase.candidates.map((pair, idx) => {
+                      {(tasteCheckPhase.confidence === "high" ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates).map((pair, idx) => {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
@@ -1943,7 +1943,7 @@ export default function IRMixer() {
                             data-testid={`button-taste-option-${idx}`}
                           >
                             <p className="text-xs font-semibold text-center text-foreground uppercase tracking-widest">
-                              {tasteCheckPhase.roundType === "quad"
+                              {tasteCheckPhase.confidence !== "high" && tasteCheckPhase.candidates.length > 2
                                 ? String.fromCharCode(65 + idx)
                                 : idx === 0 ? "A" : "B"}
                             </p>
