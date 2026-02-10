@@ -769,7 +769,6 @@ export default function IRMixer() {
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
     : [];
 
-
   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
     const signals: any[] = [];
     let roundLiked = 0;
