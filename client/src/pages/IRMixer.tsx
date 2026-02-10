@@ -1266,8 +1266,20 @@ export default function IRMixer() {
                     if (!hasPairingPool) {
                       toast({ title: "Load IRs first", description: "Drop your IR files in the Foundation Finder below to get started." });
                       setTimeout(() => foundationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
-                    } else {
-                      setTimeout(() => pairingSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+                    } else if (suggestedPairs.length > 0 && !ratioRefinePhase) {
+                      const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+                      const candidates = suggestedPairs.map((pair) => {
+                        const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+                        const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+                        return baseData && featData
+                          ? { pair, rank: 2, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }
+                          : null;
+                      }).filter(Boolean) as { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+                      if (candidates.length > 0) {
+                        proceedToRatioRefine(candidates, false);
+                      }
+                    } else if (ratioRefinePhase) {
+                      setTimeout(() => ratioRefineRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
                     }
                   }}
                   className={cn(
@@ -1286,7 +1298,7 @@ export default function IRMixer() {
           <p className="text-muted-foreground text-sm">
             {tasteCheckMode === "ratio"
               ? hasPairingPool
-                ? "Ratio mode — rate the pairings below, then submit to jump straight into ratio refinement. Or expand any blend and tap A/B Refine."
+                ? "Ratio mode active — pick a pairing to start refining blend ratios directly. No taste checks."
                 : "Ratio mode — drop your IRs in the Foundation Finder below to get started."
               : "Drop IRs to preview blend permutations scored against your tonal profiles."}
           </p>
@@ -1893,7 +1905,7 @@ export default function IRMixer() {
             {!ratioRefinePhase && (tasteCheckMode === "ratio" || !tasteCheckPhase) && (
             <p className="text-xs text-muted-foreground mb-4">
               {tasteCheckMode === "ratio"
-                ? "Ratio mode — Love or Like at least one pairing below, then Submit to jump straight into ratio refinement. No taste checks."
+                ? "Ratio mode — click Ratio above to pick a pairing and start refining blend ratios directly."
                 : totalRoundsCompleted === 0
                   ? learnedProfile && learnedProfile.status !== "no_data"
                     ? `Predicted best pairings based on your taste profile (${learnedProfile.signalCount} signals). Rate to confirm or refine.`
@@ -2303,9 +2315,11 @@ export default function IRMixer() {
                           data-testid={`button-select-refine-${ci}`}
                         >
                           <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={cn("text-[10px]", cand.rank === 1 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-violet-500/20 text-violet-400 border-violet-500/30")}>
-                              {cand.rank === 1 ? "Love" : "Like"}
-                            </Badge>
+                            {tasteCheckMode !== "ratio" && (
+                              <Badge variant="outline" className={cn("text-[10px]", cand.rank === 1 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" : "bg-violet-500/20 text-violet-400 border-violet-500/30")}>
+                                {cand.rank === 1 ? "Love" : "Like"}
+                              </Badge>
+                            )}
                             {ci === 0 && <span className="text-[9px] text-sky-400 font-medium">(suggested)</span>}
                           </div>
                           <p className="text-xs font-mono text-foreground truncate">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
