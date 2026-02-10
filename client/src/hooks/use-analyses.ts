@@ -99,25 +99,31 @@ export interface AudioMetrics {
 }
 
 // ============================================
-// Manual Radix-2 FFT (rectangular window)
+// Manual Radix-2 FFT with fixed-length Blackman window
 //
-// Replaces the Web Audio AnalyserNode which applied a Blackman window
-// to the ENTIRE fftSize buffer, causing different results for the same
-// IR at different sample counts. Rectangular window (no windowing) is
-// correct for IRs since they naturally decay to zero. Zero-padding
-// shorter IRs adds frequency interpolation without altering content.
+// The old AnalyserNode applied Blackman(fftSize) to the ENTIRE buffer,
+// so zero-padded vs full-length versions of the same IR got windowed
+// differently — causing inconsistent band percentages and centroids.
 //
-// Note: Rectangular window has -13 dB sidelobes which cause spectral
-// leakage into high-frequency bins. This is handled by capping the
-// centroid calculation at 8 kHz (the practical guitar cab range) rather
-// than using a window that would interact differently with the impulse
-// peak depending on signal length.
+// Fix: Always analyze the first ANALYSIS_LEN (4096) samples with
+// Blackman(4096), then zero-pad to fftSize for the FFT. This gives:
+//   1. IDENTICAL windowing regardless of original signal length
+//   2. Blackman sidelobe suppression (-58 dB) for accurate centroid
+//   3. Natural impulse peak suppression (Blackman weight ≈ 0 at sample 0)
+//      which means the cab's tonal decay dominates over the broadband impulse
+//   4. 4096 samples = 85ms at 48kHz, capturing all meaningful cab decay
 // ============================================
+const ANALYSIS_LEN = 4096;
+
 function computeMagnitudeSpectrum(samples: Float32Array, fftSize: number): Uint8Array {
   const real = new Float64Array(fftSize);
   const imag = new Float64Array(fftSize);
-  for (let i = 0; i < Math.min(samples.length, fftSize); i++) {
-    real[i] = samples[i];
+
+  const copyLen = Math.min(samples.length, ANALYSIS_LEN);
+  const twoPiOverN = 2 * Math.PI / (ANALYSIS_LEN - 1);
+  for (let i = 0; i < copyLen; i++) {
+    real[i] = samples[i] * (0.42 - 0.5 * Math.cos(twoPiOverN * i)
+                                  + 0.08 * Math.cos(2 * twoPiOverN * i));
   }
 
   // Bit-reversal permutation
@@ -263,22 +269,12 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let presenceSum = 0;    // 4000-8000Hz (fizz, sizzle, air)
   let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
-  // Cap centroid calculation at 8 kHz — the practical upper limit for
-  // guitar cab tonal content. Without this cap, the rectangular window's
-  // -13 dB sidelobes leak into the 8-24 kHz range where thousands of bins
-  // with small but non-zero magnitudes massively inflate the centroid.
-  // Band energy calculations use squared magnitudes which naturally suppress
-  // sidelobe contributions, so they don't need this cap.
-  const centroidMaxHz = 8000;
-
   for (let i = 0; i < freqByteData.length; i++) {
     const magnitude = freqByteData[i];
     const frequency = i * binSize;
     
-    if (frequency <= centroidMaxHz) {
-      numerator += frequency * magnitude;
-      denominator += magnitude;
-    }
+    numerator += frequency * magnitude;
+    denominator += magnitude;
     
     frequencyData.push(magnitude);
     
