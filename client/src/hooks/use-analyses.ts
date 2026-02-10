@@ -316,17 +316,14 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   // ============================================
   // Noise Floor Measurement (sample-size-independent)
   //
-  // Problem: Very short IRs (e.g. 85 samples at 48kHz = 1.8ms) have no
-  // quiet tail region — the entire signal is active impulse/decay. Measuring
-  // a 15ms window is impossible when the IR is only 1.8ms long, and even
-  // scanning for the "quietest region" gives the decay energy, not noise.
+  // For truncated IRs (<200ms, typical of cab IRs saved at 4096 or 8192
+  // samples), use decay rate estimation so the result is independent of
+  // how many samples were saved. This measures energy in the first vs
+  // last quarter, calculates dB/ms decay rate, and extrapolates to a
+  // fixed 200ms reference point.
   //
-  // Solution: Estimate noise floor from the IR's decay rate.
-  // 1. Measure energy in early vs late portions of the signal
-  // 2. Calculate dB/ms decay rate
-  // 3. Extrapolate to a reference point (200ms) to estimate where the
-  //    signal would naturally decay to — this is the effective noise floor
-  // 4. For long IRs (>10ms), use the traditional scanning approach
+  // For full-length IRs (>200ms), use the traditional scanning approach
+  // to find the quietest region in the tail.
   // ============================================
   const sampleRate = audioBuffer.sampleRate;
   const irDurationMs = (channelData.length / sampleRate) * 1000;
@@ -334,7 +331,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
 
   let noiseFloorDb: number;
 
-  if (irDurationMs < 10) {
+  if (isTruncatedIR) {
     const quarters = 4;
     const qLen = Math.floor(channelData.length / quarters);
     if (channelData.length < 16 || qLen < 8) {
@@ -366,8 +363,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     }
   } else {
     const windowMs = 15;
-    const adaptiveWindowMs = Math.min(windowMs, irDurationMs * 0.2);
-    const windowSamples = Math.max(4, Math.floor(sampleRate * (adaptiveWindowMs / 1000)));
+    const windowSamples = Math.max(4, Math.floor(sampleRate * (windowMs / 1000)));
 
     const scanStart = Math.floor(channelData.length * 0.4);
     const stepSamples = Math.max(1, Math.floor(windowSamples / 2));
@@ -384,15 +380,13 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
       }
     }
 
-    if (!isTruncatedIR) {
-      const tailStart = Math.max(0, channelData.length - windowSamples);
-      let tailSum = 0;
-      for (let i = tailStart; i < channelData.length; i++) {
-        tailSum += channelData[i] * channelData[i];
-      }
-      const tailRms = Math.sqrt(tailSum / (channelData.length - tailStart));
-      quietestRms = Math.min(quietestRms, tailRms);
+    const tailStart = Math.max(0, channelData.length - windowSamples);
+    let tailSum = 0;
+    for (let i = tailStart; i < channelData.length; i++) {
+      tailSum += channelData[i] * channelData[i];
     }
+    const tailRms = Math.sqrt(tailSum / (channelData.length - tailStart));
+    quietestRms = Math.min(quietestRms, tailRms);
 
     if (quietestRms === Infinity || quietestRms <= 0) {
       noiseFloorDb = -96;
