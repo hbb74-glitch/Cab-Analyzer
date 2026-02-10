@@ -726,7 +726,8 @@ export default function IRMixer() {
         activeProfiles,
         learnedProfile || undefined,
         undefined,
-        newHistory
+        newHistory,
+        tasteCheckMode
       );
 
       if (!nextPick) {
@@ -751,7 +752,7 @@ export default function IRMixer() {
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
       });
     }, 1500);
-  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile]);
+  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -847,7 +848,7 @@ export default function IRMixer() {
       const shouldTasteCheck = !tasteCheckPassed || hasUnseenIRs;
 
       if (shouldTasteCheck) {
-        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined);
+        const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode);
         if (tastePick) {
           const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
           setTasteCheckPhase({

@@ -830,12 +830,13 @@ export function pickTasteCheckCandidates(
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
   learned?: LearnedProfileData,
   excludePairs?: Set<string>,
-  history?: TasteCheckRoundResult[]
+  history?: TasteCheckRoundResult[],
+  modeOverride?: "acquisition" | "tester" | "auto"
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
   const confidence = getTasteConfidence(learned);
-  const forceBinary = confidence === "high";
+  const forceBinary = modeOverride === "tester" || (modeOverride !== "acquisition" && confidence === "high");
 
   const allCombos: SuggestedPairing[] = [];
   for (let i = 0; i < irs.length; i++) {
