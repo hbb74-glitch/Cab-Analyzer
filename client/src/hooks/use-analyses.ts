@@ -205,18 +205,16 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const dbRange = dbCeil - dbFloor;
   
   const freqLinearPower = new Float64Array(freqFloatData.length);
-  const freqLinearAmp = new Float64Array(freqFloatData.length);
   const freqByteData = new Uint8Array(freqFloatData.length);
   for (let i = 0; i < freqFloatData.length; i++) {
     const dbVal = Math.max(dbFloor, Math.min(dbCeil, freqFloatData[i]));
     freqLinearPower[i] = Math.pow(10, dbVal / 10);
-    freqLinearAmp[i] = Math.pow(10, dbVal / 20);
     freqByteData[i] = Math.round(((dbVal - dbFloor) / dbRange) * 255);
   }
   
-  // Spectral centroid uses linear amplitude weighting (consistent with prior
-  // byte-data behavior where 0-255 was amplitude-proportional).
-  // Energy band calculations use linear power for proper energy distribution.
+  // Spectral centroid uses byte-mapped values (linear-in-dB, 0-255) which
+  // produces identical results to the old getByteFrequencyData approach.
+  // Energy band calculations use linear power for better low-frequency precision.
   let numerator = 0;
   let denominator = 0;
   const binSize = audioBuffer.sampleRate / analyser.fftSize;
@@ -239,13 +237,14 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   let ultraHighSum = 0;   // 8000-20000Hz (sparkle, ultra-high fizz)
 
   for (let i = 0; i < freqFloatData.length; i++) {
-    const amplitude = freqLinearAmp[i];
+    const byteVal = freqByteData[i];
     const power = freqLinearPower[i];
     const frequency = i * binSize;
     
-    // Centroid uses amplitude weighting (matches old byte-data behavior)
-    numerator += frequency * amplitude;
-    denominator += amplitude;
+    // Centroid uses byte-mapped values (linear-in-dB, 0-255) which is
+    // identical to the old getByteFrequencyData behavior
+    numerator += frequency * byteVal;
+    denominator += byteVal;
     
     frequencyData.push(freqByteData[i]);
     
