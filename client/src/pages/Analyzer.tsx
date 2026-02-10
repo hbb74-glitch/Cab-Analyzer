@@ -574,8 +574,9 @@ function cullIRs(
   userOverrides: Map<string, string[]> = new Map(),
   preferenceMap?: Map<string, IRPreferenceInfo>,
   gearSentimentMap?: Map<string, number>,
-  blendThresholdOverride: number = 0.93
-): { result: CullResult; closeCalls: CullCloseCall[] } {
+  blendThresholdOverride: number = 0.93,
+  roleBalanceMode: 'off' | 'protect' | 'favor' = 'off'
+): { result: CullResult; closeCalls: CullCloseCall[]; roleStats?: { featureCount: number; bodyCount: number; totalClassified: number; featureKept: number; bodyKept: number } } {
   if (irs.length <= targetCount) {
     return {
       result: {
@@ -846,6 +847,46 @@ function cullIRs(
     return pref.bestProfile === "Featured" ? "Feature element" : "Body element";
   };
 
+  const roleDistribution = (() => {
+    if (!preferenceMap || preferenceMap.size === 0) return null;
+    let featureCount = 0;
+    let bodyCount = 0;
+    let unclassified = 0;
+    for (let i = 0; i < irs.length; i++) {
+      const pref = preferenceMap.get(irs[i].filename);
+      if (!pref || pref.bestScore < 35) { unclassified++; continue; }
+      if (pref.bestProfile === "Featured") featureCount++;
+      else bodyCount++;
+    }
+    const totalClassified = featureCount + bodyCount;
+    if (totalClassified < 5) return null;
+    const featureRatio = featureCount / totalClassified;
+    const bodyRatio = bodyCount / totalClassified;
+    const featureScarce = featureRatio < 0.25;
+    const bodyScarce = bodyRatio < 0.25;
+    return { featureCount, bodyCount, totalClassified, unclassified, featureRatio, bodyRatio, featureScarce, bodyScarce };
+  })();
+
+  const getRoleScarcityBoost = (idx: number): number => {
+    if (roleBalanceMode === 'off' || !preferenceMap || !roleDistribution) return 0;
+    const pref = preferenceMap.get(irs[idx].filename);
+    if (!pref || pref.bestScore < 50) return 0;
+
+    const isScarceRole = (pref.bestProfile === "Featured" && roleDistribution.featureScarce) ||
+                         (pref.bestProfile === "Body" && roleDistribution.bodyScarce);
+    if (!isScarceRole) return 0;
+
+    const ratio = pref.bestProfile === "Featured" ? roleDistribution.featureRatio : roleDistribution.bodyRatio;
+    const scarcityFactor = Math.max(0, 1 - ratio * 4);
+    const confidenceScale = Math.min(1, (pref.bestScore - 50) / 50);
+    const qualityFloor = Math.max(0, ((irs[idx].score || 85) - 70) / 30);
+
+    if (roleBalanceMode === 'favor') {
+      return scarcityFactor * 10 * confidenceScale * qualityFloor + 3;
+    }
+    return scarcityFactor * 6 * confidenceScale * qualityFloor + 2;
+  };
+
   const getGearSentimentBoost = (idx: number): number => {
     if (!gearSentimentMap || gearSentimentMap.size === 0) return 0;
     const filename = irs[idx].filename.toLowerCase();
@@ -874,12 +915,13 @@ function cullIRs(
     const baseScore = irs[idx].score || 85;
     const gearBoost = getGearSentimentBoost(idx);
     const blendPenalty = getBlendRedundancyPenalty(idx);
-    if (!preferenceMap) return baseScore + gearBoost - blendPenalty;
+    const roleBoost = getRoleScarcityBoost(idx);
+    if (!preferenceMap) return baseScore + gearBoost - blendPenalty + roleBoost;
     const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref) return baseScore + gearBoost - blendPenalty;
+    if (!pref) return baseScore + gearBoost - blendPenalty + roleBoost;
     const prefBoost = Math.max(0, (pref.bestScore - 35) / 65) * 8;
     const penalty = pref.avoidPenalty;
-    return baseScore + prefBoost - penalty + gearBoost - blendPenalty;
+    return baseScore + prefBoost - penalty + gearBoost - blendPenalty + roleBoost;
   };
 
   const selected: number[] = [];
@@ -1190,9 +1232,18 @@ function cullIRs(
   keep.sort((a, b) => b.diversityContribution - a.diversityContribution);
   cut.sort((a, b) => b.similarity - a.similarity);
 
+  const roleStats = roleDistribution ? {
+    featureCount: roleDistribution.featureCount,
+    bodyCount: roleDistribution.bodyCount,
+    totalClassified: roleDistribution.totalClassified,
+    featureKept: keep.filter(k => k.preferenceRole === "Feature element").length,
+    bodyKept: keep.filter(k => k.preferenceRole === "Body element").length
+  } : undefined;
+
   return { 
     result: { keep, cut, closeCallsResolved: closeCalls.length === 0 },
-    closeCalls 
+    closeCalls,
+    roleStats
   };
 }
 
@@ -1575,9 +1626,11 @@ export default function Analyzer() {
   
   // Culling state
   const [cullResult, setCullResult] = useState<CullResult | null>(null);
+  const [cullRoleStats, setCullRoleStats] = useState<{ featureCount: number; bodyCount: number; totalClassified: number; featureKept: number; bodyKept: number } | null>(null);
   const [targetCullCount, setTargetCullCount] = useState(10);
-  const [cullCountInput, setCullCountInput] = useState("10"); // Text input for easier editing
+  const [cullCountInput, setCullCountInput] = useState("10");
   const [showCuller, setShowCuller] = useState(false);
+  const [roleBalanceMode, setRoleBalanceMode] = useState<'off' | 'protect' | 'favor'>('off');
   
   // Close call decisions state for interactive culling
   const [cullCloseCalls, setCullCloseCalls] = useState<CullCloseCall[]>([]);
@@ -1924,7 +1977,7 @@ export default function Analyzer() {
   
   // Preference query state for subjective culling decisions
   interface CullPreference {
-    type: 'brightness' | 'midrange';
+    type: 'brightness' | 'midrange' | 'roleBalance';
     question: string;
     options: { label: string; value: string }[];
   }
@@ -2123,6 +2176,7 @@ export default function Analyzer() {
     setRedundancyGroups([]);
     setShowRedundancies(false);
     setCullResult(null);
+    setCullRoleStats(null);
     setShowCuller(false);
     setBlendAnalysisResults([]);
     setShowBlendAnalysis(false);
@@ -2474,6 +2528,48 @@ export default function Analyzer() {
       }
     }
     
+    if (learnedProfile && learnedProfile.status !== "no_data") {
+      let featureCount = 0;
+      let bodyCount = 0;
+      for (const ir of irs) {
+        const totalEnergy = (ir.metrics.subBassEnergy || 0) + (ir.metrics.bassEnergy || 0) +
+          (ir.metrics.lowMidEnergy || 0) + (ir.metrics.midEnergy6 || 0) +
+          (ir.metrics.highMidEnergy || 0) + (ir.metrics.presenceEnergy || 0);
+        if (totalEnergy === 0) continue;
+        const toPercent = (e: number) => Math.round((e / totalEnergy) * 100);
+        const bands: TonalBands = {
+          subBass: toPercent(ir.metrics.subBassEnergy || 0),
+          bass: toPercent(ir.metrics.bassEnergy || 0),
+          lowMid: toPercent(ir.metrics.lowMidEnergy || 0),
+          mid: toPercent(ir.metrics.midEnergy6 || 0),
+          highMid: toPercent(ir.metrics.highMidEnergy || 0),
+          presence: toPercent(ir.metrics.presenceEnergy || 0),
+        };
+        const { best } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+        if (best.score < 35) continue;
+        if (best.profile === "Featured") featureCount++;
+        else bodyCount++;
+      }
+      const totalClassified = featureCount + bodyCount;
+      if (totalClassified >= 4) {
+        const featureRatio = featureCount / totalClassified;
+        const bodyRatio = bodyCount / totalClassified;
+        const scarceRole = featureRatio < 0.25 ? "Feature" : bodyRatio < 0.25 ? "Body" : null;
+        const scarceCount = scarceRole === "Feature" ? featureCount : scarceRole === "Body" ? bodyCount : 0;
+        if (scarceRole) {
+          preferences.push({
+            type: 'roleBalance',
+            question: `Only ${scarceCount} of ${totalClassified} classified IRs are ${scarceRole} shots. Protect them when culling?`,
+            options: [
+              { label: `Favor ${scarceRole} shots (strong protection)`, value: 'favor' },
+              { label: `Protect ${scarceRole} shots (light protection)`, value: 'protect' },
+              { label: 'No preference (let culler decide)', value: 'off' }
+            ]
+          });
+        }
+      }
+    }
+
     return preferences;
   };
   
@@ -2915,8 +3011,10 @@ export default function Analyzer() {
       }
       if (gearSentMap.size === 0) gearSentMap = undefined;
     }
-    const { result, closeCalls } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined, gearSentMap, blendThreshold);
+    const effectiveRoleMode = (selectedPreferences['roleBalance'] as 'off' | 'protect' | 'favor') || roleBalanceMode;
+    const { result, closeCalls, roleStats: rs } = cullIRs(irsToProcess, effectiveTarget, overridesOverride || cullUserOverrides, prefMap.size > 0 ? prefMap : undefined, gearSentMap, blendThreshold, effectiveRoleMode);
     setCullResult(result);
+    setCullRoleStats(rs || null);
     setCullCloseCalls(closeCalls);
     setShowCuller(true);
     setShowPreferenceQuery(false);
@@ -2944,6 +3042,9 @@ export default function Analyzer() {
   };
   
   const handleApplyPreferencesAndCull = () => {
+    if (selectedPreferences['roleBalance']) {
+      setRoleBalanceMode(selectedPreferences['roleBalance'] as 'off' | 'protect' | 'favor');
+    }
     handleCullIRs(true, true);
   };
   
@@ -5110,6 +5211,25 @@ export default function Analyzer() {
                     <span className="text-sm text-muted-foreground">
                       of {batchIRs.filter(ir => ir.metrics && !ir.error).length} IRs
                     </span>
+                    {learnedProfile && learnedProfile.status !== "no_data" && (
+                      <div className="flex items-center gap-1 rounded-lg border border-indigo-500/20 bg-indigo-500/5 p-0.5" data-testid="role-balance-toggle">
+                        {(['off', 'protect', 'favor'] as const).map(mode => (
+                          <button
+                            key={mode}
+                            onClick={() => { setRoleBalanceMode(mode); }}
+                            className={cn(
+                              "px-2 py-1 text-xs font-medium transition-colors rounded-md",
+                              roleBalanceMode === mode
+                                ? "bg-indigo-500/25 text-indigo-300"
+                                : "text-muted-foreground hover-elevate"
+                            )}
+                            data-testid={`button-role-${mode}`}
+                          >
+                            {mode === 'off' ? 'No Role Guard' : mode === 'protect' ? 'Protect Scarce' : 'Favor Scarce'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <button
                       onClick={() => handleCullIRs()}
                       className="px-4 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 text-sm font-medium transition-all border border-purple-500/30"
@@ -5144,6 +5264,23 @@ export default function Analyzer() {
                     
                     return (
                     <div className="space-y-4 mt-4">
+                      {cullRoleStats && (
+                        <div className="flex items-center gap-3 text-xs px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex-wrap" data-testid="panel-role-stats">
+                          <span className="text-indigo-300 font-medium">Role balance:</span>
+                          <span className={cn("text-muted-foreground", cullRoleStats.featureKept < cullRoleStats.featureCount && cullRoleStats.featureCount <= 5 && "text-amber-400")}>
+                            Feature {cullRoleStats.featureKept}/{cullRoleStats.featureCount}
+                          </span>
+                          <span className={cn("text-muted-foreground", cullRoleStats.bodyKept < cullRoleStats.bodyCount && cullRoleStats.bodyCount <= 5 && "text-amber-400")}>
+                            Body {cullRoleStats.bodyKept}/{cullRoleStats.bodyCount}
+                          </span>
+                          {(cullRoleStats.featureKept < cullRoleStats.featureCount && cullRoleStats.featureCount <= 5) ||
+                           (cullRoleStats.bodyKept < cullRoleStats.bodyCount && cullRoleStats.bodyCount <= 5) ? (
+                            <span className="text-amber-400/80 italic">
+                              Scarce role lost shots — consider re-running with protection
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
                       {/* Keep Section */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
