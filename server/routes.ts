@@ -2320,15 +2320,15 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       Speakers Knowledge:
       - g12m25 (G12M-25 Greenback): Classic woody, mid-forward, compression at high volume.
       - v30-china (V30): Aggressive upper-mids, modern rock.
-      - v30-blackcat (V30 Black Cat): Smoother, refined V30.
-      - k100 (G12K-100): Big low end, clear highs, neutral.
-      - g12t75 (G12T-75): Scooped mids, sizzly highs, metal.
-      - g12-65 (G12-65): Warm, punchy, large sound.
-      - g12h30-anniversary (G12H30 Anniversary): Tight bass, bright highs.
-      - celestion-cream (Celestion Cream): Alnico smooth, high power.
-      - ga12-sc64 (GA12-SC64): Vintage American, tight and punchy.
-      - g10-sc64 (G10-SC64): 10" version, more focused.
-      - karnivore (Eminence Karnivore): Aggressive upper-mids, tight bass, extended highs. Modern metal.
+      - v30-blackcat (V30 Black Cat): Much darker than standard V30, smoother mids.
+      - k100 (G12K-100): Big low end, moderately bright, neutral.
+      - g12t75 (G12T-75): Near-neutral centroid, mid-focused, not as scooped as expected.
+      - g12-65 (G12-65): Warm, punchy, neutral centroid.
+      - g12h30-anniversary (G12H30 Anniversary): Tight bass, moderately bright.
+      - celestion-cream (Celestion Cream): Alnico warmth, moderately bright.
+      - ga12-sc64 (GA12-SC64): Dark vintage American, very mid-heavy.
+      - g10-sc64 (G10-SC64): 10" version, slightly brighter than GA12.
+      - karnivore (Eminence Karnivore): Very mid-focused, tight bass, low presence, dark voicing. Modern high-gain metal.
       
       Distance Effects (general principles) - CRITICAL ACOUSTIC TRUTH:
       DISTANCE AFFECTS BASS (proximity effect), NOT brightness/darkness:
@@ -4140,16 +4140,16 @@ Output JSON:
       
       Available Speakers (use these exact codes in your response):
       - v30-china (Celestion V30): Aggressive upper-mids, modern rock/metal. The standard Vintage 30 - punchy, tight bass, prominent presence peak around 2kHz.
-      - v30-blackcat (V30 Black Cat): Smoother, refined V30 variant. Less harsh, more controlled highs.
-      - g12m25 (Celestion G12M-25 Greenback): Classic woody, mid-forward, compression at high volume. THE vintage British sound - Led Zeppelin, AC/DC.
-      - g12t75 (Celestion G12T-75): Scooped mids, sizzly highs, tight bass. Mesa Boogie staple - Metallica, Pantera.
-      - g12-65 (Celestion G12-65): Warm, punchy, large sound with excellent bass. Heritage/reissue of the classic 60s speaker.
-      - g12h30-anniversary (Celestion G12H30 Anniversary): Tight bass, bright detailed highs, complex upper harmonics. Classic 70s rock tone.
-      - celestion-cream (Celestion Cream): Alnico smoothness with high power handling. Creamy breakup, touch-sensitive, boutique.
-      - ga12-sc64 (Eminence GA-SC64 12"): Vintage American, tight and punchy. Fender Deluxe/Princeton vibe.
-      - g10-sc64 (Eminence GA-SC64 10"): 10" version, more focused and punchy. Great for smaller combos.
-      - k100 (Celestion G12K-100): Big low end, clear highs, neutral. High headroom, modern voicing.
-      - karnivore (Eminence Karnivore): Fat tight bass, aggressive vocal mids, extended highs to 5.2kHz. Modern high-gain metal. Co-designed with Kristian Kohle.
+      - v30-blackcat (V30 Black Cat): Much darker than standard V30, smoother mids. Measured centroid ~2550 Hz.
+      - g12m25 (Celestion G12M-25 Greenback): Classic woody, mid-forward, compression at high volume. THE vintage British sound - Led Zeppelin, AC/DC. Measured bright at centroid ~3017 Hz.
+      - g12t75 (Celestion G12T-75): Near-neutral centroid (~2582 Hz), mid-focused. Not as scooped as traditionally described. Mesa Boogie staple.
+      - g12-65 (Celestion G12-65): Warm, punchy, neutral centroid (~2596 Hz). Heritage/reissue of the classic 60s speaker.
+      - g12h30-anniversary (Celestion G12H30 Anniversary): Tight bass, moderately bright (~2873 Hz). Classic 70s rock tone.
+      - celestion-cream (Celestion Cream): Alnico warmth, moderately bright (~2887 Hz). Creamy breakup, touch-sensitive, boutique.
+      - ga12-sc64 (Eminence GA-SC64 12"): Dark vintage American, very mid-heavy (~2350 Hz). Fender Deluxe/Princeton vibe.
+      - g10-sc64 (Eminence GA-SC64 10"): 10" version, slightly brighter than GA12. Great for smaller combos.
+      - k100 (Celestion G12K-100): Big low end, moderately bright (~2770 Hz). High headroom, modern voicing.
+      - karnivore (Eminence Karnivore): Very mid-focused (35%+ mid energy), tight bass, low presence (~14%), darkest speaker measured at avg centroid 2465 Hz. Modern high-gain metal. Co-designed with Kristian Kohle.
       
       Classic Amp/Speaker Pairings Knowledge:
       - Marshall Plexi/JCM800 → Greenbacks (G12M-25) for classic rock, V30 for heavier tones

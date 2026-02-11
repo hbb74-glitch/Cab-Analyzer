@@ -93,19 +93,19 @@ export function getDistancePositionPenalty(position: string, distance: string, s
 }
 
 export const SPEAKER_OFFSETS: Record<string, { offset: number; description: string }> = {
-  // Calibrated from actual IR measurements (SM57 CapEdge baseline = 2600 Hz)
-  'v30': { offset: 650, description: 'Aggressive upper-mids, very bright' },
-  'v30bc': { offset: 275, description: 'Smoother than standard V30' },
-  'greenback': { offset: 450, description: 'Brighter than expected, mid-forward' },
-  'g12m': { offset: 450, description: 'Greenback variant' },
-  'g12t75': { offset: -500, description: 'Actually quite dark, scooped mids' },
-  'g12-65': { offset: -100, description: 'Warm, punchy, large sound' },
-  'g12h': { offset: 225, description: 'Tight bass, bright highs' },
-  'cream': { offset: 550, description: 'Alnico - brighter than expected' },
-  'ga12-sc64': { offset: 50, description: 'Vintage American, tight and punchy' },
-  'ga10-sc64': { offset: 100, description: '10 inch version, more focused highs' },
-  'k100': { offset: 325, description: 'Big low end, brighter than neutral' },
-  'karnivore': { offset: 400, description: 'Aggressive upper-mids, tight bass, extended highs for modern metal' },
+  // Calibrated from actual IR measurements (all-mic averages, baseline ~2600 Hz)
+  'v30': { offset: 625, description: 'Aggressive upper-mids, very bright, high presence' },
+  'v30bc': { offset: -50, description: 'Much darker than standard V30, smoother mids' },
+  'greenback': { offset: 425, description: 'Bright, mid-forward, strong presence' },
+  'g12m': { offset: 425, description: 'Greenback variant' },
+  'g12t75': { offset: -25, description: 'Near-neutral centroid, mid-focused' },
+  'g12-65': { offset: 0, description: 'Neutral centroid, warm and punchy' },
+  'g12h': { offset: 275, description: 'Tight bass, moderately bright highs' },
+  'cream': { offset: 300, description: 'Alnico warmth, moderately bright' },
+  'ga12-sc64': { offset: -250, description: 'Dark vintage American, very mid-heavy' },
+  'ga10-sc64': { offset: -200, description: '10 inch version, slightly brighter than GA12' },
+  'k100': { offset: 175, description: 'Big low end, moderately bright' },
+  'karnivore': { offset: -135, description: 'Very mid-focused, tight bass, low presence, dark voicing' },
 };
 
 function normalizeMicName(mic: string): string {
