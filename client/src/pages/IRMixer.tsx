@@ -978,8 +978,9 @@ export default function IRMixer() {
   const skipRatioRefine = useCallback(() => {
     if (!ratioRefinePhase) return;
     setRatioRefinePhase(null);
+    if (tasteCheckMode === "ratio") setTasteCheckMode("auto");
     finishRound(ratioRefinePhase.pendingLoadTopPick, null);
-  }, [ratioRefinePhase, finishRound]);
+  }, [ratioRefinePhase, finishRound, tasteCheckMode]);
 
   const manualRatioRefine = useCallback(() => {
     if (ratioRefinePhase || tasteCheckPhase) return;
@@ -1060,9 +1061,10 @@ export default function IRMixer() {
     setRatioRefinePhase({ ...ratioRefinePhase, stage: "done", winner: ratio, downgraded });
     setTimeout(() => {
       setRatioRefinePhase(null);
+      if (tasteCheckMode === "ratio") setTasteCheckMode("auto");
       finishRound(ratioRefinePhase.pendingLoadTopPick, downgraded ? pk : null);
     }, 1500);
-  }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound]);
+  }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound, tasteCheckMode]);
 
   const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
