@@ -274,6 +274,8 @@ export default function IRMixer() {
     selectedIdx: number | null;
     step: number;
     matchups: { a: number; b: number }[];
+    lowIdx: number;
+    highIdx: number;
     winner: number | null;
     downgraded: boolean;
     pendingLoadTopPick: boolean;
@@ -639,16 +641,17 @@ export default function IRMixer() {
   const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
   const snapToGrid = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
 
-  const buildMatchupsForPair = useCallback(() => {
-    const learnedPref = learnedProfile?.ratioPreference?.preferredRatio ?? 0.5;
-    const center = snapToGrid(learnedPref);
-    const centerIdx = RATIO_GRID.indexOf(center);
-    const aIdx = Math.max(0, centerIdx - 2);
-    const bIdx = Math.min(RATIO_GRID.length - 1, centerIdx + 2);
-    return [
-      { a: RATIO_GRID[aIdx], b: RATIO_GRID[bIdx] },
-    ];
-  }, [learnedProfile]);
+  const buildInitialRatioState = useCallback(() => {
+    const lowIdx = 0;
+    const highIdx = RATIO_GRID.length - 1;
+    const midLow = Math.floor((lowIdx + highIdx) / 3);
+    const midHigh = Math.ceil((2 * (lowIdx + highIdx)) / 3);
+    return {
+      lowIdx,
+      highIdx,
+      matchups: [{ a: RATIO_GRID[midLow], b: RATIO_GRID[midHigh] }],
+    };
+  }, []);
 
   const finishRound = useCallback((loadTopPick: boolean, downgradedPk: string | null) => {
     if (downgradedPk) {
@@ -683,17 +686,20 @@ export default function IRMixer() {
   }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
 
   const proceedToRatioRefine = useCallback((candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[], loadTopPick: boolean) => {
+    const init = buildInitialRatioState();
     setRatioRefinePhase({
       stage: "select",
       candidates,
       selectedIdx: null,
       step: 0,
-      matchups: buildMatchupsForPair(),
+      matchups: init.matchups,
+      lowIdx: init.lowIdx,
+      highIdx: init.highIdx,
       winner: null,
       downgraded: false,
       pendingLoadTopPick: loadTopPick,
     });
-  }, [buildMatchupsForPair]);
+  }, [buildInitialRatioState]);
 
   useEffect(() => {
     if (
@@ -953,18 +959,21 @@ export default function IRMixer() {
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildMatchupsForPair, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildInitialRatioState, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode]);
 
   const selectRefineCandidate = useCallback((idx: number) => {
     if (!ratioRefinePhase) return;
+    const init = buildInitialRatioState();
     setRatioRefinePhase({
       ...ratioRefinePhase,
       stage: "refine",
       selectedIdx: idx,
       step: 0,
-      matchups: buildMatchupsForPair(),
+      matchups: init.matchups,
+      lowIdx: init.lowIdx,
+      highIdx: init.highIdx,
     });
-  }, [ratioRefinePhase, buildMatchupsForPair]);
+  }, [ratioRefinePhase, buildInitialRatioState]);
 
   const skipRatioRefine = useCallback(() => {
     if (!ratioRefinePhase) return;
@@ -1005,17 +1014,20 @@ export default function IRMixer() {
       rank: 0,
     };
     const candidates = [{ pair, rank: 2, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }];
+    const init = buildInitialRatioState();
     setRatioRefinePhase({
       stage: "refine",
       candidates,
       selectedIdx: 0,
       step: 0,
-      matchups: buildMatchupsForPair(),
+      matchups: init.matchups,
+      lowIdx: init.lowIdx,
+      highIdx: init.highIdx,
       winner: null,
       downgraded: false,
       pendingLoadTopPick: false,
     });
-  }, [ratioRefinePhase, tasteCheckPhase, activeProfiles, buildMatchupsForPair]);
+  }, [ratioRefinePhase, tasteCheckPhase, activeProfiles, buildInitialRatioState]);
 
   const completeRatioRefine = useCallback((ratio: number | null, downgraded: boolean) => {
     if (!ratioRefinePhase || ratioRefinePhase.selectedIdx === null) return;
@@ -1054,7 +1066,7 @@ export default function IRMixer() {
 
   const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
-    const { step, matchups } = ratioRefinePhase;
+    const { step, matchups, lowIdx, highIdx } = ratioRefinePhase;
     const current = matchups[step];
 
     if (pickedSide === "tie") {
@@ -1063,40 +1075,35 @@ export default function IRMixer() {
       return;
     }
 
-    const winner = pickedSide === "a" ? current.a : current.b;
-    const loser = pickedSide === "a" ? current.b : current.a;
-    const winnerIdx = RATIO_GRID.indexOf(snapToGrid(winner));
-    const loserIdx = RATIO_GRID.indexOf(snapToGrid(loser));
+    const winnerVal = pickedSide === "a" ? current.a : current.b;
+    const loserVal = pickedSide === "a" ? current.b : current.a;
+    const winnerIdx = RATIO_GRID.indexOf(snapToGrid(winnerVal));
+    const loserIdx = RATIO_GRID.indexOf(snapToGrid(loserVal));
 
-    const gap = Math.abs(winnerIdx - loserIdx);
+    let newLow: number, newHigh: number;
+    if (winnerIdx < loserIdx) {
+      newLow = lowIdx;
+      newHigh = loserIdx;
+    } else {
+      newLow = loserIdx;
+      newHigh = highIdx;
+    }
 
-    if (gap <= 1) {
-      completeRatioRefine(winner, false);
+    if (newHigh - newLow <= 1) {
+      completeRatioRefine(winnerVal, false);
       return;
     }
 
-    let narrowA: number, narrowB: number;
-    if (step === 0) {
-      narrowA = Math.max(0, Math.min(winnerIdx - 1, loserIdx));
-      narrowB = Math.min(RATIO_GRID.length - 1, Math.max(winnerIdx + 1, loserIdx));
-    } else {
-      narrowA = Math.min(winnerIdx, loserIdx);
-      narrowB = Math.max(winnerIdx, loserIdx);
-      if (narrowB - narrowA > 2) {
-        const mid = Math.round((narrowA + narrowB) / 2);
-        narrowA = mid === winnerIdx ? Math.max(0, mid - 1) : mid;
-        narrowB = mid === winnerIdx ? Math.min(RATIO_GRID.length - 1, mid + 1) : winnerIdx;
-        if (narrowA > narrowB) [narrowA, narrowB] = [narrowB, narrowA];
-      }
+    const nextAIdx = Math.floor(newLow + (newHigh - newLow) / 3);
+    const nextBIdx = Math.ceil(newLow + 2 * (newHigh - newLow) / 3);
+
+    if (nextAIdx === nextBIdx || RATIO_GRID[nextAIdx] === RATIO_GRID[nextBIdx]) {
+      completeRatioRefine(winnerVal, false);
+      return;
     }
 
-    if (narrowA === narrowB) {
-      narrowA = Math.max(0, narrowA - 1);
-      narrowB = Math.min(RATIO_GRID.length - 1, narrowB + 1);
-    }
-
-    const updated = [...matchups.slice(0, step + 1), { a: RATIO_GRID[narrowA], b: RATIO_GRID[narrowB] }];
-    setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated });
+    const updated = [...matchups.slice(0, step + 1), { a: RATIO_GRID[nextAIdx], b: RATIO_GRID[nextBIdx] }];
+    setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated, lowIdx: newLow, highIdx: newHigh });
   }, [ratioRefinePhase, completeRatioRefine]);
 
   const handleNoRatioHelps = useCallback(() => {
