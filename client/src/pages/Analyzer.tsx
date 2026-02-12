@@ -263,6 +263,20 @@ interface RedundantPair {
   recommendation: string;
 }
 
+const BLEND_MICS_LIST = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+const BLEND_TECHNIQUE_NAMES = ['fredman'];
+function detectBlendFromFilename(filename: string): { isBlend: boolean; isTechnique: boolean } {
+  const lower = filename.toLowerCase();
+  for (const tech of BLEND_TECHNIQUE_NAMES) {
+    if (lower.includes(tech)) return { isBlend: true, isTechnique: true };
+  }
+  let micCount = 0;
+  for (const mic of BLEND_MICS_LIST) {
+    if (lower.includes(mic)) micCount++;
+  }
+  return { isBlend: micCount >= 2, isTechnique: false };
+}
+
 // Clustered redundancy group - smarter than showing all pairs
 interface RedundancyGroupMember {
   filename: string;
@@ -538,6 +552,7 @@ interface CullCloseCall {
     smoothness: number; // Raw smoothness score
     centroid: number; // Spectral centroid Hz
     midrangeHint: string; // Tonal character hint
+    blendInfo?: BlendRedundancyInfo;
   }[];
   selectedFilename: string | null; // User's choice, null if not yet decided
 }
@@ -996,7 +1011,8 @@ function cullIRs(
               distance: getDistanceFromFilename(irs[idx].filename),
               smoothness: irs[idx].metrics.frequencySmoothness || 0,
               centroid: Math.round(irs[idx].metrics.spectralCentroid),
-              midrangeHint: getMidrangeHint(idx)
+              midrangeHint: getMidrangeHint(idx),
+              blendInfo: blendInfoMap.get(idx)
             })),
             selectedFilename: null
           });
@@ -1069,7 +1085,8 @@ function cullIRs(
                 distance: getDistanceFromFilename(irs[c.idx].filename),
                 smoothness: irs[c.idx].metrics.frequencySmoothness || 0,
                 centroid: Math.round(irs[c.idx].metrics.spectralCentroid),
-                midrangeHint: getMidrangeHint(c.idx)
+                midrangeHint: getMidrangeHint(c.idx),
+                blendInfo: blendInfoMap.get(c.idx)
               })),
               selectedFilename: null
             });
@@ -4725,6 +4742,20 @@ export default function Analyzer() {
                                       <span className="font-mono text-xs truncate flex-1">
                                         {member.filename}
                                       </span>
+                                      {(() => {
+                                        const bd = detectBlendFromFilename(member.filename);
+                                        if (!bd.isBlend) return null;
+                                        return (
+                                          <span className={cn(
+                                            "text-[10px] font-mono px-1.5 py-0.5 rounded border whitespace-nowrap",
+                                            bd.isTechnique
+                                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                              : "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                                          )}>
+                                            {bd.isTechnique ? 'Technique' : 'Blend'}
+                                          </span>
+                                        );
+                                      })()}
                                       <ShotIntentBadge filename={member.filename} />
                                       {group.selectedToKeep === member.filename && (
                                         <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -5659,7 +5690,21 @@ export default function Analyzer() {
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1 min-w-0">
-                                      <p className="font-mono text-xs truncate">{candidate.filename}</p>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-mono text-xs truncate">{candidate.filename}</p>
+                                        {candidate.blendInfo && (
+                                          <span className={cn(
+                                            "text-[10px] font-mono px-1.5 py-0.5 rounded border whitespace-nowrap",
+                                            candidate.blendInfo.verdict === 'essential'
+                                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                                              : candidate.blendInfo.verdict === 'adds-value'
+                                              ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                                              : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                                          )}>
+                                            {candidate.blendInfo.verdict === 'essential' ? 'Unique blend' : candidate.blendInfo.verdict === 'adds-value' ? `Adds value · ${Math.round(candidate.blendInfo.uniqueContribution * 100)}%` : 'Blend redundant'}
+                                          </span>
+                                        )}
+                                      </div>
                                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
                                         <span className="font-medium">Score: {candidate.score}</span>
                                         {candidate.position && <span>{candidate.position}</span>}
