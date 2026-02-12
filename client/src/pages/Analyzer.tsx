@@ -550,6 +550,7 @@ interface BlendRedundancyInfo {
   uniqueContribution: number;
   verdict: 'essential' | 'adds-value' | 'redundant';
   explanation: string;
+  isTechnique?: boolean;
 }
 
 interface CullResult {
@@ -633,23 +634,42 @@ function cullIRs(
   }
 
   const BLEND_TECHNIQUES: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
-  const detectBlendMics = (filename: string): string[] => {
+  const detectBlendMics = (filename: string): { mics: string[]; isTechnique: boolean } => {
     const lower = filename.toLowerCase();
     for (const [technique, mics] of Object.entries(BLEND_TECHNIQUES)) {
-      if (lower.includes(technique)) return mics;
+      if (lower.includes(technique)) return { mics, isTechnique: true };
     }
     const detected: string[] = [];
     const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
     for (const mic of mics) {
       if (lower.includes(mic)) detected.push(mic);
     }
-    return detected;
+    return { mics: detected, isTechnique: false };
+  };
+
+  const countSoloShots = (micName: string): number => {
+    let count = 0;
+    for (let j = 0; j < n; j++) {
+      const det = detectBlendMics(irs[j].filename);
+      if (det.mics.length === 1 && det.mics[0] === micName) count++;
+    }
+    return count;
   };
 
   const blendInfoMap = new Map<number, BlendRedundancyInfo>();
   for (let i = 0; i < n; i++) {
-    const blendMics = detectBlendMics(irs[i].filename);
-    if (blendMics.length < 2) continue;
+    const { mics: blendMics, isTechnique } = detectBlendMics(irs[i].filename);
+    if (blendMics.length < 2 && !isTechnique) continue;
+
+    if (isTechnique) {
+      blendInfoMap.set(i, {
+        isBlend: true, blendMics, componentMatches: [],
+        maxComponentSimilarity: 0, uniqueContribution: 1,
+        verdict: 'essential', isTechnique: true,
+        explanation: `Named technique blend — unique mic arrangement not replicable from solo shots`
+      });
+      continue;
+    }
 
     const uniqueMics = Array.from(new Set(blendMics));
     const componentMatches: BlendRedundancyInfo['componentMatches'] = [];
@@ -658,8 +678,8 @@ function cullIRs(
       let bestFile = '';
       for (let j = 0; j < n; j++) {
         if (j === i) continue;
-        const jMics = detectBlendMics(irs[j].filename);
-        if (jMics.length === 1 && jMics[0] === mic) {
+        const jDet = detectBlendMics(irs[j].filename);
+        if (jDet.mics.length === 1 && jDet.mics[0] === mic) {
           const sim = similarityMatrix[i][j];
           if (sim > bestSim) {
             bestSim = sim;
@@ -687,14 +707,21 @@ function cullIRs(
     const closestComponent = componentMatches.reduce((a, b) => a.similarity > b.similarity ? a : b);
     const simPct = Math.round(closestComponent.similarity * 100);
 
+    const allComponentsWellCovered = uniqueMics.every(m => countSoloShots(m) >= 3);
+    const effectiveThreshold = allComponentsWellCovered
+      ? Math.max(blendThresholdOverride - 0.08, 0.78)
+      : blendThresholdOverride;
+    const effectiveAddsValueFloor = effectiveThreshold - 0.15;
+
     let verdict: BlendRedundancyInfo['verdict'];
     let explanation: string;
-    if (maxSim >= blendThresholdOverride) {
+    const coverageNote = allComponentsWellCovered ? ' (strict — solo coverage is strong)' : '';
+    if (maxSim >= effectiveThreshold) {
       verdict = 'redundant';
-      explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — solo covers this tone`;
-    } else if (maxSim >= blendThresholdOverride - 0.15) {
+      explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — solo covers this tone${coverageNote}`;
+    } else if (maxSim >= effectiveAddsValueFloor) {
       verdict = 'adds-value';
-      explanation = `${Math.round(uniqueContribution * 100)}% unique character vs closest solo (${closestComponent.mic.toUpperCase()}) — unique flavor for layering`;
+      explanation = `${Math.round(uniqueContribution * 100)}% unique character vs closest solo (${closestComponent.mic.toUpperCase()}) — unique flavor for layering${coverageNote}`;
     } else {
       verdict = 'essential';
       explanation = `${Math.round(uniqueContribution * 100)}% unique character — standalone tone the solos can't replicate`;
@@ -907,8 +934,9 @@ function cullIRs(
   const getBlendRedundancyPenalty = (idx: number): number => {
     const info = blendInfoMap.get(idx);
     if (!info) return 0;
-    if (info.verdict === 'redundant') return 8;
-    if (info.verdict === 'adds-value') return 3;
+    if (info.isTechnique) return 0;
+    if (info.verdict === 'redundant') return 10;
+    if (info.verdict === 'adds-value') return 4;
     return 0;
   };
 
@@ -2298,21 +2326,22 @@ export default function Analyzer() {
 
     const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
     const blendTechniques: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
-    const detectMics = (filename: string): string[] => {
+    const detectMics = (filename: string): { mics: string[]; isTechnique: boolean } => {
       const lower = filename.toLowerCase();
       for (const [technique, techMics] of Object.entries(blendTechniques)) {
-        if (lower.includes(technique)) return techMics;
+        if (lower.includes(technique)) return { mics: techMics, isTechnique: true };
       }
       const found: string[] = [];
       for (const mic of mics) {
         if (lower.includes(mic)) found.push(mic);
       }
-      return found;
+      return { mics: found, isTechnique: false };
     };
 
     const blendIndices: number[] = [];
     for (let i = 0; i < validIRs.length; i++) {
-      if (detectMics(validIRs[i].file.name).length >= 2) blendIndices.push(i);
+      const det = detectMics(validIRs[i].file.name);
+      if (det.mics.length >= 2 || det.isTechnique) blendIndices.push(i);
     }
 
     if (blendIndices.length === 0) {
@@ -2330,9 +2359,35 @@ export default function Analyzer() {
       }
     }
 
+    const countSoloShotsStandalone = (micName: string): number => {
+      let count = 0;
+      for (let j = 0; j < n; j++) {
+        const det = detectMics(validIRs[j].file.name);
+        if (det.mics.length === 1 && det.mics[0] === micName) count++;
+      }
+      return count;
+    };
+
     const results: BlendAnalysisResult[] = [];
     for (const bi of blendIndices) {
-      const blendMics = detectMics(validIRs[bi].file.name);
+      const { mics: blendMics, isTechnique } = detectMics(validIRs[bi].file.name);
+      const matchedTechnique = Object.keys(blendTechniques).find(t => validIRs[bi].file.name.toLowerCase().includes(t));
+      const blendLabel = matchedTechnique
+        ? matchedTechnique.charAt(0).toUpperCase() + matchedTechnique.slice(1)
+        : blendMics.map(m => m.toUpperCase()).join('+');
+
+      if (isTechnique) {
+        results.push({
+          filename: validIRs[bi].file.name,
+          blendMics,
+          componentMatches: [],
+          maxComponentSimilarity: 0,
+          verdict: 'essential',
+          explanation: `${blendLabel} — named technique blend, unique mic arrangement not replicable from solo shots`
+        });
+        continue;
+      }
+
       const uniqueBlendMics = Array.from(new Set(blendMics));
       const componentMatches: { mic: string; filename: string; similarity: number }[] = [];
 
@@ -2341,8 +2396,8 @@ export default function Analyzer() {
         let bestFile = '';
         for (let j = 0; j < n; j++) {
           if (j === bi) continue;
-          const jMics = detectMics(validIRs[j].file.name);
-          if (jMics.length === 1 && jMics[0] === mic) {
+          const jDet = detectMics(validIRs[j].file.name);
+          if (jDet.mics.length === 1 && jDet.mics[0] === mic) {
             const sim = simMatrix[bi][j];
             if (sim > bestSim) {
               bestSim = sim;
@@ -2354,11 +2409,6 @@ export default function Analyzer() {
           componentMatches.push({ mic, filename: bestFile, similarity: bestSim });
         }
       }
-
-      const matchedTechnique = Object.keys(blendTechniques).find(t => validIRs[bi].file.name.toLowerCase().includes(t));
-      const blendLabel = matchedTechnique
-        ? matchedTechnique.charAt(0).toUpperCase() + matchedTechnique.slice(1)
-        : blendMics.map(m => m.toUpperCase()).join('+');
 
       if (componentMatches.length === 0) {
         results.push({
@@ -2376,6 +2426,12 @@ export default function Analyzer() {
       const simPct = Math.round(closestComponent.similarity * 100);
       const uniquePct = Math.round((1 - maxSim) * 100);
 
+      const allComponentsWellCovered = uniqueBlendMics.every(m => countSoloShotsStandalone(m) >= 3);
+      const effectiveThreshold = allComponentsWellCovered
+        ? Math.max(blendThreshold - 0.08, 0.78)
+        : blendThreshold;
+      const coverageNote = allComponentsWellCovered ? ' (strict — solo coverage is strong)' : '';
+
       let dominanceNote: string | undefined;
       const hasBothSolos = componentMatches.length >= 2;
       if (hasBothSolos) {
@@ -2384,9 +2440,9 @@ export default function Analyzer() {
         const other = sorted[1];
         const closePct = Math.round(closest.similarity * 100);
         const otherPct = Math.round(other.similarity * 100);
-        if (maxSim >= blendThreshold) {
-          dominanceNote = `${closePct}% match to ${closest.mic.toUpperCase()} solo — this blend doesn't give you a new tone to work with. The ${closest.mic.toUpperCase()} solo already covers this territory.`;
-        } else if (maxSim >= 0.78) {
+        if (maxSim >= effectiveThreshold) {
+          dominanceNote = `${closePct}% match to ${closest.mic.toUpperCase()} solo — this blend doesn't give you a new tone to work with. The ${closest.mic.toUpperCase()} solo already covers this territory.${coverageNote}`;
+        } else if (maxSim >= effectiveThreshold - 0.15) {
           if (closePct - otherPct >= 10) {
             dominanceNote = `Leans toward ${closest.mic.toUpperCase()} (${closePct}%) but different enough to be its own flavor. Could work as an alternative to the ${closest.mic.toUpperCase()} solo when you want a slightly different texture to layer with other mics.`;
           } else {
@@ -2406,10 +2462,10 @@ export default function Analyzer() {
 
       let verdict: 'essential' | 'adds-value' | 'redundant';
       let explanation: string;
-      if (maxSim >= blendThreshold) {
+      if (maxSim >= effectiveThreshold) {
         verdict = 'redundant';
-        explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — doesn't add a new mixing ingredient, the solo already covers this tone`;
-      } else if (maxSim >= 0.78) {
+        explanation = `${simPct}% match to ${closestComponent.mic.toUpperCase()} solo — doesn't add a new mixing ingredient, the solo already covers this tone${coverageNote}`;
+      } else if (maxSim >= effectiveThreshold - 0.15) {
         verdict = 'adds-value';
         explanation = `${blendLabel} blend offers a different flavor from the solos — a useful alternative tone for layering with other mics`;
       } else {
