@@ -2486,7 +2486,11 @@ export default function Analyzer() {
 
     results.sort((a, b) => {
       const order = { redundant: 0, 'adds-value': 1, essential: 2 };
-      return order[a.verdict] - order[b.verdict];
+      if (order[a.verdict] !== order[b.verdict]) return order[a.verdict] - order[b.verdict];
+      if (a.verdict === 'adds-value' && b.verdict === 'adds-value') {
+        return a.maxComponentSimilarity - b.maxComponentSimilarity;
+      }
+      return 0;
     });
 
     setBlendAnalysisResults(results);
@@ -5045,7 +5049,7 @@ export default function Analyzer() {
                                   ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                                   : "bg-orange-500/20 text-orange-400 border-orange-500/30"
                               )} data-testid={`badge-blend-verdict-${idx}`}>
-                                {blend.verdict === 'essential' ? 'ESSENTIAL' : blend.verdict === 'adds-value' ? 'ADDS VALUE' : 'REDUNDANT'}
+                                {blend.verdict === 'essential' ? 'ESSENTIAL' : blend.verdict === 'adds-value' ? `ADDS VALUE · ${Math.round((1 - blend.maxComponentSimilarity) * 100)}% unique` : 'REDUNDANT'}
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1.5" data-testid={`text-blend-explanation-${idx}`}>
@@ -5459,7 +5463,7 @@ export default function Analyzer() {
                                           ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                                           : "bg-orange-500/20 text-orange-400 border-orange-500/30"
                                       )} data-testid={`badge-blend-keep-${idx}`}>
-                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? 'Blend adds value' : 'Blend overlap'}
+                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? `Adds value · ${Math.round(ir.blendInfo.uniqueContribution * 100)}%` : 'Blend overlap'}
                                       </span>
                                     )}
                                   </div>
@@ -5547,7 +5551,7 @@ export default function Analyzer() {
                                           ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
                                           : "bg-orange-500/20 text-orange-400 border-orange-500/30"
                                       )} data-testid={`badge-blend-cut-${idx}`}>
-                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? 'Blend adds value' : 'Blend redundant'}
+                                        {ir.blendInfo.verdict === 'essential' ? 'Unique blend' : ir.blendInfo.verdict === 'adds-value' ? `Adds value · ${Math.round(ir.blendInfo.uniqueContribution * 100)}%` : 'Blend redundant'}
                                       </span>
                                     )}
                                   </div>
