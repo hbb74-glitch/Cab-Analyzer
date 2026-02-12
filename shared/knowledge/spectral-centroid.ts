@@ -105,7 +105,7 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
   'ga12-sc64': { offset: -250, description: 'Dark vintage American, very mid-heavy' },
   'ga10-sc64': { offset: -200, description: '10 inch version, slightly brighter than GA12' },
   'k100': { offset: 175, description: 'Big low end, moderately bright' },
-  'karnivore': { offset: -135, description: 'Very mid-focused, tight bass, low presence, dark voicing' },
+  'karnivore': { offset: -175, description: 'Very mid-focused, tight bass, low presence, dark voicing' },
 };
 
 function normalizeMicName(mic: string): string {
