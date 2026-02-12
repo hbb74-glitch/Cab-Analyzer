@@ -16,7 +16,7 @@ import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import type { TonalProfile as TonalProfileRow } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
 
 // Validation schema for the form
@@ -1268,10 +1268,25 @@ export default function Analyzer() {
     queryKey: ["/api/tonal-profiles"],
   });
 
+  const speakerRelativeProfiles = useMemo(() => {
+    if (!batchResult || batchResult.results.length < 3) return DEFAULT_PROFILES;
+    const batchBands = batchResult.results.map((r) => ({
+      bands: {
+        subBass: r.subBassPercent || 0,
+        bass: r.bassPercent || 0,
+        lowMid: r.lowMidPercent || 0,
+        mid: r.midPercent || 0,
+        highMid: r.highMidPercent || 0,
+        presence: r.presencePercent || 0,
+      },
+    }));
+    return computeSpeakerRelativeProfiles(batchBands);
+  }, [batchResult]);
+
   const activeProfiles = useMemo(() => {
-    if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
-    return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
-  }, [learnedProfile]);
+    if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
+    return applyLearnedAdjustments(speakerRelativeProfiles, learnedProfile);
+  }, [learnedProfile, speakerRelativeProfiles]);
 
   interface PairingSuggestion {
     filename: string;

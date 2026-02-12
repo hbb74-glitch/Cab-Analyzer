@@ -17,6 +17,7 @@ import {
   type TasteCheckRoundResult,
   type TasteConfidence,
   scoreAgainstAllProfiles,
+  scoreBlendQuality,
   findFoundationIR,
   rankBlendPartners,
   suggestPairings,
@@ -25,6 +26,7 @@ import {
   getTasteCheckRounds,
   shouldContinueTasteCheck,
   applyLearnedAdjustments,
+  computeSpeakerRelativeProfiles,
   DEFAULT_PROFILES,
   getSpeakerFilenamePrefix,
 } from "@/lib/preference-profiles";
@@ -112,6 +114,22 @@ function MatchBadge({ match }: { match: MatchResult }) {
     <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[match.label])} data-testid={`badge-match-${match.profile.toLowerCase()}`}>
       <Icon className="w-2.5 h-2.5" />
       {match.profile} {match.score}
+    </span>
+  );
+}
+
+function BlendQualityBadge({ score, label }: { score: number; label: MatchResult["label"] }) {
+  const colorMap = {
+    strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    miss: "bg-white/5 text-muted-foreground border-white/10",
+  };
+  const Icon = label === "strong" || label === "close" ? Blend : Zap;
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[label])} data-testid="badge-blend-quality">
+      <Icon className="w-2.5 h-2.5" />
+      Tone {score}
     </span>
   );
 }
@@ -359,10 +377,20 @@ export default function IRMixer() {
     },
   });
 
+  const speakerRelativeProfiles = useMemo(() => {
+    const allLoaded = [...allIRs];
+    if (baseIR && !allLoaded.some((ir) => ir.filename === baseIR.filename)) allLoaded.push(baseIR);
+    for (const f of featureIRs) {
+      if (!allLoaded.some((ir) => ir.filename === f.filename)) allLoaded.push(f);
+    }
+    if (allLoaded.length < 3) return DEFAULT_PROFILES;
+    return computeSpeakerRelativeProfiles(allLoaded);
+  }, [allIRs, baseIR, featureIRs]);
+
   const activeProfiles = useMemo(() => {
-    if (!learnedProfile || learnedProfile.status === "no_data") return DEFAULT_PROFILES;
-    return applyLearnedAdjustments(DEFAULT_PROFILES, learnedProfile);
-  }, [learnedProfile]);
+    if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
+    return applyLearnedAdjustments(speakerRelativeProfiles, learnedProfile);
+  }, [learnedProfile, speakerRelativeProfiles]);
 
   const resetPairingState = useCallback(() => {
     setPairingRankings({});
@@ -1006,11 +1034,14 @@ export default function IRMixer() {
     if (ratioRefinePhase || tasteCheckPhase) return;
     const blendBands = blendFromRaw(baseData.rawEnergy, featData.rawEnergy, 0.5, 0.5);
     const match = scoreAgainstAllProfiles(blendBands, activeProfiles);
+    const bq = scoreBlendQuality(blendBands, activeProfiles);
     const pair: SuggestedPairing = {
       baseFilename: baseData.filename,
       featureFilename: featData.filename,
       blendBands,
-      score: match.best.score,
+      score: bq.blendScore,
+      blendScore: bq.blendScore,
+      blendLabel: bq.blendLabel,
       bestMatch: match.best,
       rank: 0,
     };
@@ -1659,7 +1690,7 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-teal-400 truncate">
                             {cr.irB.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
-                          <MatchBadge match={cr.match.best} />
+                          <BlendQualityBadge score={Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length)} label={(() => { const avg = Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length); return avg >= 80 ? "strong" as const : avg >= 60 ? "close" as const : avg >= 40 ? "partial" as const : "miss" as const; })()} />
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="hidden sm:flex items-center gap-1.5">
@@ -1745,15 +1776,21 @@ export default function IRMixer() {
                                           {r.toFixed(2)}
                                         </p>
                                         <div className="mt-1">
-                                          <span className={cn(
-                                            "text-[9px] font-mono px-1 py-0.5 rounded",
-                                            rbMatch.best.label === "strong" ? "bg-emerald-500/20 text-emerald-400" :
-                                            rbMatch.best.label === "close" ? "bg-sky-500/20 text-sky-400" :
-                                            rbMatch.best.label === "partial" ? "bg-amber-500/20 text-amber-400" :
-                                            "bg-white/5 text-muted-foreground"
-                                          )}>
-                                            {rbMatch.best.profile[0]}{rbMatch.best.score}
-                                          </span>
+                                          {(() => {
+                                            const avg = Math.round(rbMatch.results.reduce((s: number, r: MatchResult) => s + r.score, 0) / rbMatch.results.length);
+                                            const lbl = avg >= 80 ? "strong" : avg >= 60 ? "close" : avg >= 40 ? "partial" : "miss";
+                                            return (
+                                              <span className={cn(
+                                                "text-[9px] font-mono px-1 py-0.5 rounded",
+                                                lbl === "strong" ? "bg-emerald-500/20 text-emerald-400" :
+                                                lbl === "close" ? "bg-sky-500/20 text-sky-400" :
+                                                lbl === "partial" ? "bg-amber-500/20 text-amber-400" :
+                                                "bg-white/5 text-muted-foreground"
+                                              )}>
+                                                T{avg}
+                                              </span>
+                                            );
+                                          })()}
                                         </div>
                                       </div>
                                     );
@@ -1987,7 +2024,7 @@ export default function IRMixer() {
                         <BandChart bands={pair.blendBands} height={12} compact />
 
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <MatchBadge match={pair.bestMatch} />
+                          <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
                           <span className={cn(
                             "text-[10px] font-mono px-1.5 py-0.5 rounded",
                             hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
@@ -2247,7 +2284,7 @@ export default function IRMixer() {
                             </p>
                             <BandChart bands={pair.blendBands} height={10} compact />
                             <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <MatchBadge match={pair.bestMatch} />
+                              <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
                               <span className={cn(
                                 "text-[10px] font-mono px-1.5 py-0.5 rounded",
                                 hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
@@ -2522,7 +2559,7 @@ export default function IRMixer() {
             ) : featureIRs.length > 0 ? (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {featureIRs.map((ir, idx) => {
-                  const { best } = scoreAgainstAllProfiles(ir.bands);
+                  const { best } = scoreAgainstAllProfiles(ir.bands, activeProfiles);
                   return (
                     <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
                       <div className="flex items-center gap-2 min-w-0 flex-1">

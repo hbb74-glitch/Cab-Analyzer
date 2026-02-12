@@ -71,6 +71,78 @@ export const BODY_PROFILE: PreferenceProfile = {
 
 export const DEFAULT_PROFILES: PreferenceProfile[] = [FEATURED_PROFILE, BODY_PROFILE];
 
+export function computeSpeakerRelativeProfiles(
+  irs: { bands: TonalBands }[]
+): PreferenceProfile[] {
+  if (irs.length < 3) return DEFAULT_PROFILES;
+
+  const mids = irs.map((ir) => ir.bands.mid).sort((a, b) => a - b);
+  const presences = irs.map((ir) => ir.bands.presence).sort((a, b) => a - b);
+  const ratios = irs.map((ir) => ir.bands.mid > 0 ? ir.bands.highMid / ir.bands.mid : 0).sort((a, b) => a - b);
+  const highMids = irs.map((ir) => ir.bands.highMid).sort((a, b) => a - b);
+
+  const median = (arr: number[]) => {
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+  };
+  const pct = (arr: number[], p: number) => arr[Math.min(Math.round(p * arr.length), arr.length - 1)];
+
+  const medMid = median(mids);
+  const medPres = median(presences);
+  const medRatio = median(ratios);
+  const medHiMid = median(highMids);
+
+  const absMedianMid = (FEATURED_PROFILE.targets.mid.ideal + BODY_PROFILE.targets.mid.ideal) / 2;
+  const absMedianPres = (FEATURED_PROFILE.targets.presence.ideal + BODY_PROFILE.targets.presence.ideal) / 2;
+  const absMedianRatio = (FEATURED_PROFILE.targets.ratio.ideal + BODY_PROFILE.targets.ratio.ideal) / 2;
+  const absMedianHiMid = (FEATURED_PROFILE.targets.highMid.ideal + BODY_PROFILE.targets.highMid.ideal) / 2;
+
+  const midShift = medMid - absMedianMid;
+  const presShift = medPres - absMedianPres;
+  const ratioShift = medRatio - absMedianRatio;
+  const hiMidShift = medHiMid - absMedianHiMid;
+
+  function shiftRange(range: { min: number; max: number; ideal: number }, shift: number): { min: number; max: number; ideal: number } {
+    return {
+      min: Math.max(0, range.min + shift),
+      max: range.max + shift,
+      ideal: Math.max(0, range.ideal + shift),
+    };
+  }
+
+  const spread = pct(presences, 0.85) - pct(presences, 0.15);
+  const needsAdaptation = spread < 15;
+
+  if (!needsAdaptation) return DEFAULT_PROFILES;
+
+  return [
+    {
+      name: "Featured",
+      description: FEATURED_PROFILE.description,
+      targets: {
+        mid: shiftRange(FEATURED_PROFILE.targets.mid, midShift),
+        highMid: shiftRange(FEATURED_PROFILE.targets.highMid, hiMidShift),
+        presence: shiftRange(FEATURED_PROFILE.targets.presence, presShift),
+        ratio: shiftRange(FEATURED_PROFILE.targets.ratio, ratioShift),
+        lowEnd: FEATURED_PROFILE.targets.lowEnd,
+        lowMid: FEATURED_PROFILE.targets.lowMid,
+      },
+    },
+    {
+      name: "Body",
+      description: BODY_PROFILE.description,
+      targets: {
+        mid: shiftRange(BODY_PROFILE.targets.mid, midShift),
+        highMid: shiftRange(BODY_PROFILE.targets.highMid, hiMidShift),
+        presence: shiftRange(BODY_PROFILE.targets.presence, presShift),
+        ratio: shiftRange(BODY_PROFILE.targets.ratio, ratioShift),
+        lowEnd: BODY_PROFILE.targets.lowEnd,
+        lowMid: BODY_PROFILE.targets.lowMid,
+      },
+    },
+  ];
+}
+
 function bandDeviation(
   value: number,
   target: { min: number; max: number; ideal: number }
@@ -151,6 +223,24 @@ export function scoreAgainstAllProfiles(bands: TonalBands, profiles: PreferenceP
   const results = profiles.map((p) => scoreAgainstProfile(bands, p));
   const best = results.reduce((a, b) => (a.score > b.score ? a : b));
   return { results, best };
+}
+
+export function scoreBlendQuality(bands: TonalBands, profiles: PreferenceProfile[] = DEFAULT_PROFILES): {
+  results: MatchResult[];
+  blendScore: number;
+  blendLabel: MatchResult["label"];
+  blendSummary: string;
+} {
+  const results = profiles.map((p) => scoreAgainstProfile(bands, p));
+  const avg = results.reduce((sum, r) => sum + r.score, 0) / results.length;
+  const blendScore = Math.round(avg);
+  const blendLabel: MatchResult["label"] =
+    blendScore >= 80 ? "strong" : blendScore >= 60 ? "close" : blendScore >= 40 ? "partial" : "miss";
+  const blendSummary = blendLabel === "strong" ? "Strong usable blend"
+    : blendLabel === "close" ? "Good usable blend"
+    : blendLabel === "partial" ? "Partial blend — some bands out of range"
+    : "Weak blend";
+  return { results, blendScore, blendLabel, blendSummary };
 }
 
 export function findFoundationIR(
@@ -249,19 +339,17 @@ export function rankBlendPartners(
   const scored = candidates.map((cand) => {
     let bestScore = -1;
     let bestLabel: MatchResult["label"] = "miss";
-    let bestProfile = "";
     let bestRatio = ratios[0];
     let bestBands: TonalBands = cand.bands;
 
     for (const r of ratios) {
       const blendedBands = blendRaw(baseIR.rawEnergy, cand.rawEnergy, r.base, r.feature);
-      const { best } = learned && learned.avoidZones.length > 0
-        ? scoreWithAvoidPenalty(blendedBands, profiles, learned)
-        : scoreAgainstAllProfiles(blendedBands, profiles);
-      if (best.score > bestScore) {
-        bestScore = best.score;
-        bestLabel = best.label;
-        bestProfile = best.profile;
+      const bq = learned && learned.avoidZones.length > 0
+        ? scoreBlendWithAvoidPenalty(blendedBands, profiles, learned)
+        : scoreBlendQuality(blendedBands, profiles);
+      if (bq.blendScore > bestScore) {
+        bestScore = bq.blendScore;
+        bestLabel = bq.blendLabel;
         bestRatio = r;
         bestBands = blendedBands;
       }
@@ -272,7 +360,7 @@ export function rankBlendPartners(
       bands: cand.bands,
       bestBlendScore: bestScore,
       bestBlendLabel: bestLabel,
-      bestBlendProfile: bestProfile,
+      bestBlendProfile: "Blend",
       bestRatio: bestRatio,
       bestBlendBands: bestBands,
       rank: 0,
@@ -289,6 +377,8 @@ export interface SuggestedPairing {
   featureFilename: string;
   blendBands: TonalBands;
   bestMatch: MatchResult;
+  blendScore: number;
+  blendLabel: MatchResult["label"];
   score: number;
   rank: number;
   suggestedRatio?: { base: number; feature: number };
@@ -396,6 +486,20 @@ export function scoreWithAvoidPenalty(
 ) {
   const base = scoreAgainstAllProfiles(bands, profiles);
 
+  const penalty = computeAvoidPenalty(bands, learned);
+
+  if (penalty > 0) {
+    const adjusted = { ...base.best, score: Math.max(0, Math.round(base.best.score - penalty)) };
+    if (adjusted.score >= 85) adjusted.label = "strong";
+    else if (adjusted.score >= 70) adjusted.label = "close";
+    else if (adjusted.score >= 50) adjusted.label = "partial";
+    else adjusted.label = "miss";
+    return { results: base.results, best: adjusted };
+  }
+  return base;
+}
+
+function computeAvoidPenalty(bands: TonalBands, learned: LearnedProfileData): number {
   const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
   const lowMidPlusMid = bands.lowMid + bands.mid;
 
@@ -426,15 +530,20 @@ export function scoreWithAvoidPenalty(
     penalty += 8;
   }
 
-  if (penalty > 0) {
-    const adjusted = { ...base.best, score: Math.max(0, Math.round(base.best.score - penalty)) };
-    if (adjusted.score >= 85) adjusted.label = "strong";
-    else if (adjusted.score >= 70) adjusted.label = "close";
-    else if (adjusted.score >= 50) adjusted.label = "partial";
-    else adjusted.label = "miss";
-    return { results: base.results, best: adjusted };
-  }
-  return base;
+  return penalty;
+}
+
+export function scoreBlendWithAvoidPenalty(
+  bands: TonalBands,
+  profiles: PreferenceProfile[],
+  learned: LearnedProfileData
+): { blendScore: number; blendLabel: MatchResult["label"] } {
+  const base = scoreBlendQuality(bands, profiles);
+  const penalty = computeAvoidPenalty(bands, learned);
+  const adjusted = Math.max(0, base.blendScore - Math.round(penalty));
+  const blendLabel: MatchResult["label"] =
+    adjusted >= 80 ? "strong" : adjusted >= 60 ? "close" : adjusted >= 40 ? "partial" : "miss";
+  return { blendScore: adjusted, blendLabel };
 }
 
 export function scoreIndividualIR(
@@ -553,23 +662,26 @@ export function suggestPairings(
       const featRaw = irs[j].rawEnergy;
 
       let bestBlend: TonalBands | null = null;
+      let bestBQ: { blendScore: number; blendLabel: MatchResult["label"] } | null = null;
       let bestResult: ReturnType<typeof scoreAgainstAllProfiles> | null = null;
       let bestRatioUsed = ratiosToTry[0];
 
       for (const r of ratiosToTry) {
         const blendBands = blendAtRatio(baseRaw, featRaw, r.base, r.feature);
         if (!blendBands) continue;
-        const result = learned
-          ? scoreWithAvoidPenalty(blendBands, profiles, learned)
-          : scoreAgainstAllProfiles(blendBands, profiles);
-        if (!bestResult || result.best.score > bestResult.best.score) {
-          bestResult = result;
+        const bq = learned
+          ? scoreBlendWithAvoidPenalty(blendBands, profiles, learned)
+          : scoreBlendQuality(blendBands, profiles);
+        const bqScore = "blendScore" in bq ? bq.blendScore : 0;
+        if (!bestBQ || bqScore > bestBQ.blendScore) {
+          bestBQ = { blendScore: bqScore, blendLabel: bq.blendLabel };
           bestBlend = blendBands;
           bestRatioUsed = r;
+          bestResult = scoreAgainstAllProfiles(blendBands, profiles);
         }
       }
 
-      if (!bestBlend || !bestResult) continue;
+      if (!bestBlend || !bestBQ || !bestResult) continue;
 
       let noveltyBoost = 0;
       if (exposureCounts && maxExposure > 0) {
@@ -584,7 +696,9 @@ export function suggestPairings(
         featureFilename: irs[j].filename,
         blendBands: bestBlend,
         bestMatch: bestResult.best,
-        score: bestResult.best.score + noveltyBoost,
+        blendScore: bestBQ.blendScore,
+        blendLabel: bestBQ.blendLabel,
+        score: bestBQ.blendScore + noveltyBoost,
         rank: 0,
         suggestedRatio: bestRatioUsed.base !== 0.5 ? bestRatioUsed : undefined,
       });
@@ -860,12 +974,17 @@ export function pickTasteCheckCandidates(
       const result = learned
         ? scoreWithAvoidPenalty(blendBands, profiles, learned)
         : scoreAgainstAllProfiles(blendBands, profiles);
+      const bq = learned
+        ? scoreBlendWithAvoidPenalty(blendBands, profiles, learned)
+        : scoreBlendQuality(blendBands, profiles);
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
         blendBands,
         bestMatch: result.best,
-        score: result.best.score,
+        blendScore: bq.blendScore,
+        blendLabel: bq.blendLabel,
+        score: bq.blendScore,
         rank: 0,
       });
     }
