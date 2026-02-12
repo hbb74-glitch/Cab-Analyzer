@@ -71,6 +71,58 @@ export const BODY_PROFILE: PreferenceProfile = {
 
 export const DEFAULT_PROFILES: PreferenceProfile[] = [FEATURED_PROFILE, BODY_PROFILE];
 
+export type ShotIntentRole = "featured" | "body" | "neutral";
+
+const BODY_MICS = new Set(["R121", "R10", "Roswell", "R92"]);
+
+const FEATURED_POSITIONS = new Set([
+  "Cap", "Cap Off-Center", "CapEdge", "CapEdge-Bright", "CapEdge-Dark"
+]);
+const BODY_POSITIONS = new Set([
+  "Cap-Cone Transition", "Cone"
+]);
+
+const FEATURED_ELIGIBLE_MICS = new Set([
+  "SM57", "M201", "C414", "e906", "M88", "MD441", "MD421", "M160", "SM7B", "PR30"
+]);
+
+export function inferShotIntent(mic?: string, position?: string): { role: ShotIntentRole; confidence: number; reason: string } {
+  if (!mic && !position) return { role: "neutral", confidence: 0, reason: "" };
+
+  if (mic && BODY_MICS.has(mic)) {
+    return { role: "body", confidence: 0.85, reason: `${mic} is a ribbon mic typically used for body shots` };
+  }
+
+  if (mic && position) {
+    if (FEATURED_ELIGIBLE_MICS.has(mic) && FEATURED_POSITIONS.has(position)) {
+      return { role: "featured", confidence: 0.8, reason: `${mic} at ${position} is a classic feature shot` };
+    }
+    if (FEATURED_ELIGIBLE_MICS.has(mic) && BODY_POSITIONS.has(position)) {
+      return { role: "body", confidence: 0.75, reason: `${mic} at ${position} targets body territory` };
+    }
+  }
+
+  if (position && (!mic || (!FEATURED_ELIGIBLE_MICS.has(mic) && !BODY_MICS.has(mic)))) {
+    if (BODY_POSITIONS.has(position)) {
+      return { role: "body", confidence: 0.6, reason: `${position} is typically a body position` };
+    }
+    if (FEATURED_POSITIONS.has(position)) {
+      return { role: "featured", confidence: 0.5, reason: `${position} is typically a feature position` };
+    }
+  }
+
+  if (mic && FEATURED_ELIGIBLE_MICS.has(mic)) {
+    return { role: "featured", confidence: 0.4, reason: `${mic} is commonly used for feature shots` };
+  }
+
+  return { role: "neutral", confidence: 0, reason: "" };
+}
+
+export function inferShotIntentFromFilename(filename: string): { role: ShotIntentRole; confidence: number; reason: string } {
+  const gear = parseGearFromFilename(filename);
+  return inferShotIntent(gear.mic, gear.position);
+}
+
 export function computeSpeakerRelativeProfiles(
   irs: { bands: TonalBands }[]
 ): PreferenceProfile[] {
@@ -224,6 +276,32 @@ export function scoreAgainstAllProfiles(bands: TonalBands, profiles: PreferenceP
   return { results, best };
 }
 
+export function scoreWithIntent(
+  bands: TonalBands,
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+  intent?: { role: ShotIntentRole; confidence: number }
+): { results: MatchResult[]; best: MatchResult; intentApplied: boolean } {
+  const results = profiles.map((p) => scoreAgainstProfile(bands, p));
+
+  if (!intent || intent.role === "neutral" || intent.confidence <= 0) {
+    const best = results.reduce((a, b) => (a.score > b.score ? a : b));
+    return { results, best, intentApplied: false };
+  }
+
+  const intentBonus = Math.round(8 * intent.confidence);
+  const adjusted = results.map((r) => {
+    const profileRole = r.profile === "Featured" ? "featured" : r.profile === "Body" ? "body" : "neutral";
+    if (profileRole === intent.role) {
+      const boosted = Math.min(100, r.score + intentBonus);
+      return { ...r, score: boosted, summary: r.summary + " (intended)" };
+    }
+    return r;
+  });
+
+  const best = adjusted.reduce((a, b) => (a.score > b.score ? a : b));
+  return { results: adjusted, best, intentApplied: true };
+}
+
 export function scoreBlendQuality(bands: TonalBands, profiles: PreferenceProfile[] = DEFAULT_PROFILES): {
   results: MatchResult[];
   blendScore: number;
@@ -256,6 +334,7 @@ export function findFoundationIR(
     const bodyMatch = scoreAgainstProfile(ir.bands, bodyProfile);
     const featuredMatch = scoreAgainstProfile(ir.bands, featuredProfile);
 
+    const intent = inferShotIntentFromFilename(ir.filename);
     const reasons: string[] = [];
     if (bodyMatch.label === "strong") reasons.push("Strong Body match");
     else if (bodyMatch.label === "close") reasons.push("Close Body match");
@@ -271,9 +350,18 @@ export function findFoundationIR(
     if (ir.bands.lowMid > 10) reasons.push("Muddy low-mids");
     if (bodyMatch.label === "miss") reasons.push("Outside Body range");
 
+    let intentBonus = 0;
+    if (intent.role === "body" && intent.confidence > 0) {
+      intentBonus = Math.round(6 * intent.confidence);
+      reasons.push(`Intended as body (${intent.reason})`);
+    } else if (intent.role === "featured" && intent.confidence > 0) {
+      intentBonus = -Math.round(4 * intent.confidence);
+      reasons.push(`Intended as feature — less ideal as foundation`);
+    }
+
     return {
       filename: ir.filename,
-      score: bodyMatch.score,
+      score: Math.max(0, Math.min(100, bodyMatch.score + intentBonus)),
       bodyScore: bodyMatch.score,
       featuredScore: featuredMatch.score,
       reasons,
@@ -690,6 +778,16 @@ export function suggestPairings(
         const underExposure = 1 - (minExp / maxExposure);
         noveltyBoost = underExposure * 15;
       }
+
+      const baseIntent = inferShotIntentFromFilename(irs[i].filename);
+      const featIntent = inferShotIntentFromFilename(irs[j].filename);
+      let intentAlignBoost = 0;
+      if (baseIntent.role === "body" && featIntent.role === "featured") {
+        intentAlignBoost = Math.round(5 * Math.min(baseIntent.confidence, featIntent.confidence));
+      } else if (baseIntent.role === "featured" && featIntent.role === "body") {
+        intentAlignBoost = -Math.round(3 * Math.min(baseIntent.confidence, featIntent.confidence));
+      }
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -697,7 +795,7 @@ export function suggestPairings(
         bestMatch: bestResult.best,
         blendScore: bestBQ.blendScore,
         blendLabel: bestBQ.blendLabel,
-        score: bestBQ.blendScore + noveltyBoost,
+        score: bestBQ.blendScore + noveltyBoost + intentAlignBoost,
         rank: 0,
         suggestedRatio: bestRatioUsed.base !== 0.5 ? bestRatioUsed : undefined,
       });

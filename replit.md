@@ -47,7 +47,8 @@ Preferred communication style: Simple, everyday language.
 - **Gear Tonal Profiling**: Computes average tonal band values per gear piece from all signals, deriving descriptive labels (e.g., Bright/Forward, Dark/Warm). Tracks gear combinations.
 - **Gear-Contextualized Analysis**: Feeds learned gear tonal profiles into IR analysis for parseable filenames, providing contextual commentary.
 - **Revisable Mastery**: Mastery status can be revoked due to taste drift, nope surges, or prediction misses.
-- **Foundation Finder**: Ranks IRs by Body score to identify best base IRs.
+- **Shot Intent System**: Knowledge base of mic/position role conventions. Ribbon mics (R121, R10, Roswell, R92) are body-intended. Dynamic/condenser mics (SM57, M201, C414, e906, M88, MD441, MD421, M160, SM7B, PR30) at cap-area positions (Cap, Cap Off-Center, CapEdge, CapEdge-Bright, CapEdge-Dark) are feature-intended. Same mics at cone-area positions (Cap-Cone Transition, Cone) are body-intended. Intent applies confidence-scaled bonuses to classification scoring, Foundation Finder ranking, and blend pairing suggestions. Intent badges shown on IR cards throughout the UI.
+- **Foundation Finder**: Ranks IRs by Body score (with intent bonuses) to identify best base IRs.
 - **Iterative Suggested Pairings**: Multi-round refinement system for blend suggestions, presenting dynamic numbers of fresh 50:50 blends and allowing sentiment ratings.
 - **Novelty-Aware Suggestions**: Boosts scores and reserves slots for under-exposed or never-seen IRs.
 - **Complementary Pairing Suggestions**: Identifies and suggests tonally compensating IRs when an IR hits avoid zones.

@@ -29,6 +29,8 @@ import {
   computeSpeakerRelativeProfiles,
   DEFAULT_PROFILES,
   getSpeakerFilenamePrefix,
+  inferShotIntentFromFilename,
+  type ShotIntentRole,
 } from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
@@ -131,6 +133,27 @@ function BlendQualityBadge({ score, label }: { score: number; label: MatchResult
     <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[label])} data-testid="badge-blend-quality">
       <Icon className="w-2.5 h-2.5" />
       {qualityLabel} {score}
+    </span>
+  );
+}
+
+function ShotIntentBadge({ filename }: { filename: string }) {
+  const intent = inferShotIntentFromFilename(filename);
+  if (intent.role === "neutral" || intent.confidence < 0.3) return null;
+  const isFeature = intent.role === "featured";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 text-[9px] font-mono px-1 py-0.5 rounded border",
+        isFeature
+          ? "bg-orange-500/10 text-orange-400/80 border-orange-500/20"
+          : "bg-sky-500/10 text-sky-400/80 border-sky-500/20"
+      )}
+      title={intent.reason}
+      data-testid="badge-shot-intent"
+    >
+      {isFeature ? <Target className="w-2 h-2" /> : <Layers className="w-2 h-2" />}
+      {isFeature ? "Feat" : "Body"}
     </span>
   );
 }
@@ -1540,6 +1563,7 @@ export default function IRMixer() {
                             <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${fr.rank - 1}`}>
                               {fr.filename.replace(/(_\d{13})?\.wav$/, "")}
                             </span>
+                            <ShotIntentBadge filename={fr.filename} />
                           </div>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] font-mono text-amber-400">
@@ -2007,17 +2031,23 @@ export default function IRMixer() {
                           {isDismissed ? "Undo" : "Nope"}
                         </Button>
                       </div>
-                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
-                        {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
+                          {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
+                        </p>
+                        <ShotIntentBadge filename={pair.baseFilename} />
+                      </div>
                       <p className="text-[10px] text-muted-foreground">
                         + ({pair.suggestedRatio
                           ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
                           : "50/50"})
                       </p>
-                      <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
-                        {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
-                      </p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
+                          {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
+                        </p>
+                        <ShotIntentBadge filename={pair.featureFilename} />
+                      </div>
                     </div>
 
                     {!isDismissed && (
@@ -2487,9 +2517,12 @@ export default function IRMixer() {
                 className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20"
               >
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">
-                    {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                    <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">
+                      {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}
+                    </span>
+                    <ShotIntentBadge filename={baseIR.filename} />
+                  </div>
                   <Button
                     size="icon"
                     variant="ghost"
@@ -2563,10 +2596,11 @@ export default function IRMixer() {
                   const { best } = scoreAgainstAllProfiles(ir.bands, activeProfiles);
                   return (
                     <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
                         <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${idx}`}>
                           {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                         </span>
+                        <ShotIntentBadge filename={ir.filename} />
                         <MatchBadge match={best} />
                       </div>
                       <Button

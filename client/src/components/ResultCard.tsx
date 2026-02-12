@@ -1,7 +1,7 @@
 import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, getGearContext, parseGearFromFilename, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, getGearContext, parseGearFromFilename, inferShotIntentFromFilename, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 
 interface BestPosition {
   position: string;
@@ -129,9 +129,15 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
     const body = indResults.find((m) => m.profile === "Body");
     const fScore = featured?.score ?? 0;
     const bScore = body?.score ?? 0;
-    const bestScore = Math.max(fScore, bScore);
+
+    const shotIntent = filename ? inferShotIntentFromFilename(filename) : null;
+    const intentBonus = shotIntent && shotIntent.confidence > 0 ? Math.round(8 * shotIntent.confidence) : 0;
+    const adjustedF = shotIntent?.role === "featured" ? fScore + intentBonus : fScore;
+    const adjustedB = shotIntent?.role === "body" ? bScore + intentBonus : bScore;
+    const bestScore = Math.max(adjustedF, adjustedB);
+
     if (bestScore >= 35) {
-      role = fScore >= bScore ? "Feature element" : "Body element";
+      role = adjustedF >= adjustedB ? "Feature element" : "Body element";
     }
 
     const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
@@ -323,9 +329,29 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
       className="glass-panel rounded-2xl p-6 md:p-8 space-y-8"
     >
       {filename && (
-        <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground border-b border-white/10 pb-4">
+        <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground border-b border-white/10 pb-4 flex-wrap">
           <Activity className="w-4 h-4 text-primary" />
           <span className="text-foreground font-medium">{filename}</span>
+          {(() => {
+            const intent = inferShotIntentFromFilename(filename);
+            if (intent.role === "neutral" || intent.confidence < 0.3) return null;
+            const isFeature = intent.role === "featured";
+            return (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                  isFeature
+                    ? "bg-orange-500/10 text-orange-400/80 border-orange-500/20"
+                    : "bg-sky-500/10 text-sky-400/80 border-sky-500/20"
+                )}
+                title={intent.reason}
+                data-testid="badge-shot-intent"
+              >
+                {isFeature ? <Target className="w-2.5 h-2.5" /> : <Layers className="w-2.5 h-2.5" />}
+                {isFeature ? "Feature intent" : "Body intent"}
+              </span>
+            );
+          })()}
         </div>
       )}
       <div className="flex flex-col md:flex-row gap-8 items-start">
