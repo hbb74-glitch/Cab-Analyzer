@@ -74,56 +74,55 @@ export const DEFAULT_PROFILES: PreferenceProfile[] = [FEATURED_PROFILE, BODY_PRO
 export function computeSpeakerRelativeProfiles(
   irs: { bands: TonalBands }[]
 ): PreferenceProfile[] {
-  if (irs.length < 3) return DEFAULT_PROFILES;
+  if (irs.length < 4) return DEFAULT_PROFILES;
 
-  const mids = irs.map((ir) => ir.bands.mid).sort((a, b) => a - b);
-  const presences = irs.map((ir) => ir.bands.presence).sort((a, b) => a - b);
-  const ratios = irs.map((ir) => ir.bands.mid > 0 ? ir.bands.highMid / ir.bands.mid : 0).sort((a, b) => a - b);
-  const highMids = irs.map((ir) => ir.bands.highMid).sort((a, b) => a - b);
-
-  const median = (arr: number[]) => {
-    const mid = Math.floor(arr.length / 2);
-    return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+  const pct = (arr: number[], p: number) => {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(Math.round(p * (sorted.length - 1)), sorted.length - 1);
+    return sorted[idx];
   };
-  const pct = (arr: number[], p: number) => arr[Math.min(Math.round(p * arr.length), arr.length - 1)];
 
-  const medMid = median(mids);
-  const medPres = median(presences);
-  const medRatio = median(ratios);
-  const medHiMid = median(highMids);
+  const presences = irs.map((ir) => ir.bands.presence);
+  const mids = irs.map((ir) => ir.bands.mid);
+  const highMids = irs.map((ir) => ir.bands.highMid);
+  const ratios = irs.map((ir) => ir.bands.mid > 0 ? ir.bands.highMid / ir.bands.mid : 0);
 
-  const absMedianMid = (FEATURED_PROFILE.targets.mid.ideal + BODY_PROFILE.targets.mid.ideal) / 2;
-  const absMedianPres = (FEATURED_PROFILE.targets.presence.ideal + BODY_PROFILE.targets.presence.ideal) / 2;
-  const absMedianRatio = (FEATURED_PROFILE.targets.ratio.ideal + BODY_PROFILE.targets.ratio.ideal) / 2;
-  const absMedianHiMid = (FEATURED_PROFILE.targets.highMid.ideal + BODY_PROFILE.targets.highMid.ideal) / 2;
+  const presP10 = pct(presences, 0.10);
+  const presP25 = pct(presences, 0.25);
+  const presP50 = pct(presences, 0.50);
+  const presP75 = pct(presences, 0.75);
+  const presP90 = pct(presences, 0.90);
 
-  const midShift = medMid - absMedianMid;
-  const presShift = medPres - absMedianPres;
-  const ratioShift = medRatio - absMedianRatio;
-  const hiMidShift = medHiMid - absMedianHiMid;
+  const absFeaturedPresIdeal = FEATURED_PROFILE.targets.presence.ideal;
+  const absBodyPresIdeal = BODY_PROFILE.targets.presence.ideal;
 
-  function shiftRange(range: { min: number; max: number; ideal: number }, shift: number): { min: number; max: number; ideal: number } {
-    return {
-      min: Math.max(0, range.min + shift),
-      max: range.max + shift,
-      ideal: Math.max(0, range.ideal + shift),
-    };
-  }
-
-  const spread = pct(presences, 0.85) - pct(presences, 0.15);
-  const needsAdaptation = spread < 15;
+  const presSpread = presP90 - presP10;
+  const absSpread = absFeaturedPresIdeal - absBodyPresIdeal;
+  const needsAdaptation = presP75 < FEATURED_PROFILE.targets.presence.min || presSpread < absSpread * 0.5;
 
   if (!needsAdaptation) return DEFAULT_PROFILES;
+
+  const midP25 = pct(mids, 0.25);
+  const midP50 = pct(mids, 0.50);
+  const midP75 = pct(mids, 0.75);
+  const hiMidP25 = pct(highMids, 0.25);
+  const hiMidP50 = pct(highMids, 0.50);
+  const hiMidP75 = pct(highMids, 0.75);
+  const ratP25 = pct(ratios, 0.25);
+  const ratP50 = pct(ratios, 0.50);
+  const ratP75 = pct(ratios, 0.75);
+
+  const margin = Math.max(presSpread * 0.15, 1);
 
   return [
     {
       name: "Featured",
       description: FEATURED_PROFILE.description,
       targets: {
-        mid: shiftRange(FEATURED_PROFILE.targets.mid, midShift),
-        highMid: shiftRange(FEATURED_PROFILE.targets.highMid, hiMidShift),
-        presence: shiftRange(FEATURED_PROFILE.targets.presence, presShift),
-        ratio: shiftRange(FEATURED_PROFILE.targets.ratio, ratioShift),
+        mid: { min: Math.max(0, midP25 - 3), max: midP50 + 2, ideal: Math.round((midP25 + midP50) / 2 * 10) / 10 },
+        highMid: { min: hiMidP50 - 2, max: hiMidP75 + 5, ideal: Math.round(hiMidP75 * 10) / 10 },
+        presence: { min: Math.max(0, presP50 - margin), max: presP90 + margin, ideal: Math.round(presP75 * 10) / 10 },
+        ratio: { min: Math.max(0, ratP50 - 0.1), max: ratP75 + 0.3, ideal: Math.round(ratP75 * 100) / 100 },
         lowEnd: FEATURED_PROFILE.targets.lowEnd,
         lowMid: FEATURED_PROFILE.targets.lowMid,
       },
@@ -132,10 +131,10 @@ export function computeSpeakerRelativeProfiles(
       name: "Body",
       description: BODY_PROFILE.description,
       targets: {
-        mid: shiftRange(BODY_PROFILE.targets.mid, midShift),
-        highMid: shiftRange(BODY_PROFILE.targets.highMid, hiMidShift),
-        presence: shiftRange(BODY_PROFILE.targets.presence, presShift),
-        ratio: shiftRange(BODY_PROFILE.targets.ratio, ratioShift),
+        mid: { min: midP50 - 2, max: midP75 + 3, ideal: Math.round((midP50 + midP75) / 2 * 10) / 10 },
+        highMid: { min: hiMidP25 - 5, max: hiMidP50 + 2, ideal: Math.round(hiMidP25 * 10) / 10 },
+        presence: { min: Math.max(0, presP10 - margin), max: presP50 + margin, ideal: Math.round(presP25 * 10) / 10 },
+        ratio: { min: Math.max(0, ratP25 - 0.3), max: ratP50 + 0.1, ideal: Math.round(ratP25 * 100) / 100 },
         lowEnd: BODY_PROFILE.targets.lowEnd,
         lowMid: BODY_PROFILE.targets.lowMid,
       },
@@ -264,9 +263,9 @@ export function findFoundationIR(
     const lowEnd = ir.bands.subBass + ir.bands.bass;
     if (lowEnd <= 3) reasons.push("Tight low end");
     if (ir.bands.lowMid <= 5) reasons.push("Clean low-mids");
-    if (ir.bands.mid >= 30 && ir.bands.mid <= 39) reasons.push("Mid in Body sweet spot");
-    if (ratio >= 1.0 && ratio <= 1.4) reasons.push("Ratio in Body range");
-    if (ir.bands.highMid >= 35 && ir.bands.highMid <= 43) reasons.push("HiMid in sweet spot");
+    if (ir.bands.mid >= bodyProfile.targets.mid.min && ir.bands.mid <= bodyProfile.targets.mid.max) reasons.push("Mid in Body sweet spot");
+    if (ratio >= bodyProfile.targets.ratio.min && ratio <= bodyProfile.targets.ratio.max) reasons.push("Ratio in Body range");
+    if (ir.bands.highMid >= bodyProfile.targets.highMid.min && ir.bands.highMid <= bodyProfile.targets.highMid.max) reasons.push("HiMid in sweet spot");
 
     if (lowEnd > 8) reasons.push("Low end too loose");
     if (ir.bands.lowMid > 10) reasons.push("Muddy low-mids");

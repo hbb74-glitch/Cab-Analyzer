@@ -125,11 +125,12 @@ function BlendQualityBadge({ score, label }: { score: number; label: MatchResult
     partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
     miss: "bg-white/5 text-muted-foreground border-white/10",
   };
+  const qualityLabel = label === "strong" ? "Great" : label === "close" ? "Good" : label === "partial" ? "OK" : "Weak";
   const Icon = label === "strong" || label === "close" ? Blend : Zap;
   return (
     <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[label])} data-testid="badge-blend-quality">
       <Icon className="w-2.5 h-2.5" />
-      Tone {score}
+      {qualityLabel} {score}
     </span>
   );
 }
@@ -1787,7 +1788,7 @@ export default function IRMixer() {
                                                 lbl === "partial" ? "bg-amber-500/20 text-amber-400" :
                                                 "bg-white/5 text-muted-foreground"
                                               )}>
-                                                T{avg}
+                                                {avg >= 80 ? "Great" : avg >= 60 ? "Good" : avg >= 40 ? "OK" : "Weak"} {avg}
                                               </span>
                                             );
                                           })()}
@@ -2647,7 +2648,10 @@ export default function IRMixer() {
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {currentRatio.label}
                           </span>
-                          <MatchBadge match={result.currentMatch.best} />
+                          {(() => {
+                            const bq = scoreBlendQuality(result.currentBlend, activeProfiles);
+                            return <BlendQualityBadge score={bq.blendScore} label={bq.blendLabel} />;
+                          })()}
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="hidden sm:flex items-center gap-1.5">
