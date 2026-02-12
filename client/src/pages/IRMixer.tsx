@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2 } from "lucide-react";
+import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -29,8 +30,6 @@ import {
   computeSpeakerRelativeProfiles,
   DEFAULT_PROFILES,
   getSpeakerFilenamePrefix,
-  inferShotIntentFromFilename,
-  type ShotIntentRole,
 } from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
@@ -137,26 +136,6 @@ function BlendQualityBadge({ score, label }: { score: number; label: MatchResult
   );
 }
 
-function ShotIntentBadge({ filename }: { filename: string }) {
-  const intent = inferShotIntentFromFilename(filename);
-  if (intent.role === "neutral" || intent.confidence < 0.3) return null;
-  const isFeature = intent.role === "featured";
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 text-[9px] font-mono px-1 py-0.5 rounded border",
-        isFeature
-          ? "bg-orange-500/10 text-orange-400/80 border-orange-500/20"
-          : "bg-sky-500/10 text-sky-400/80 border-sky-500/20"
-      )}
-      title={intent.reason}
-      data-testid="badge-shot-intent"
-    >
-      {isFeature ? <Target className="w-2 h-2" /> : <Layers className="w-2 h-2" />}
-      {isFeature ? "Feat" : "Body"}
-    </span>
-  );
-}
 
 function ProfileScores({ bands, profiles }: { bands: TonalBands; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
   const { results } = scoreAgainstAllProfiles(bands, profiles);
@@ -1711,10 +1690,12 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-teal-400 truncate">
                             {cr.irA.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <ShotIntentBadge filename={cr.irA.filename} />
                           <span className="text-[10px] text-muted-foreground shrink-0">+</span>
                           <span className="text-xs font-mono text-teal-400 truncate">
                             {cr.irB.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <ShotIntentBadge filename={cr.irB.filename} />
                           <BlendQualityBadge score={Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length)} label={(() => { const avg = Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length); return avg >= 80 ? "strong" as const : avg >= 60 ? "close" as const : avg >= 40 ? "partial" as const : "miss" as const; })()} />
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
@@ -2574,6 +2555,7 @@ export default function IRMixer() {
                         <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${origIdx}`}>
                           {bp.filename.replace(/(_\d{13})?\.wav$/, "")}
                         </span>
+                        <ShotIntentBadge filename={bp.filename} />
                         <span className="text-[9px] font-mono text-muted-foreground shrink-0">
                           best @ {bp.bestRatio.label} = {bp.bestBlendScore} ({bp.bestBlendProfile})
                         </span>
@@ -2679,6 +2661,7 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-indigo-400 truncate" data-testid={`text-blend-name-${idx}`}>
                             {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")} + {result.feature.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <ShotIntentBadge filename={result.feature.filename} />
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {currentRatio.label}
                           </span>
