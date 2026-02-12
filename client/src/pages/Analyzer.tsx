@@ -2597,28 +2597,26 @@ export default function Analyzer() {
     const centroidRange = maxCentroid - minCentroid;
     
     // If there's significant brightness variation (>400Hz spread), ask about brightness preference
-    // But only offer options that actually have IRs in those ranges
+    // But only offer options that actually have enough IRs to make a real difference
     if (centroidRange > 400) {
-      // Categorize IRs by brightness: bright = top third, neutral = middle third, dark = bottom third
       const brightThreshold = minCentroid + (centroidRange * 0.67);
       const darkThreshold = minCentroid + (centroidRange * 0.33);
       
-      const hasBrightIRs = centroids.some(c => c >= brightThreshold);
-      const hasDarkIRs = centroids.some(c => c <= darkThreshold);
-      const hasNeutralIRs = centroids.some(c => c > darkThreshold && c < brightThreshold);
+      const brightCount = centroids.filter(c => c >= brightThreshold).length;
+      const darkCount = centroids.filter(c => c <= darkThreshold).length;
+      const neutralCount = centroids.filter(c => c > darkThreshold && c < brightThreshold).length;
+      const minMeaningful = Math.max(2, Math.ceil(irs.length * 0.1));
       
       const brightOptions: { label: string; value: string }[] = [];
-      // Add variety option if there are at least 2 distinct tonal categories
-      const tonalCategories = [hasBrightIRs, hasNeutralIRs, hasDarkIRs].filter(Boolean).length;
-      if (tonalCategories >= 2) {
+      const meaningfulCategories = [brightCount >= minMeaningful, neutralCount >= minMeaningful, darkCount >= minMeaningful].filter(Boolean).length;
+      if (meaningfulCategories >= 2) {
         brightOptions.push({ label: 'Variety (keep mix of bright/neutral/dark)', value: 'variety' });
       }
-      if (hasBrightIRs) brightOptions.push({ label: 'Brighter / More cutting', value: 'bright' });
-      if (hasNeutralIRs) brightOptions.push({ label: 'Balanced / Neutral', value: 'neutral' });
-      if (hasDarkIRs) brightOptions.push({ label: 'Darker / Warmer', value: 'dark' });
+      if (brightCount >= minMeaningful) brightOptions.push({ label: `Brighter / More cutting (${brightCount} IRs)`, value: 'bright' });
+      if (neutralCount >= minMeaningful) brightOptions.push({ label: `Balanced / Neutral (${neutralCount} IRs)`, value: 'neutral' });
+      if (darkCount >= minMeaningful) brightOptions.push({ label: `Darker / Warmer (${darkCount} IRs)`, value: 'dark' });
       brightOptions.push({ label: 'No preference (technical only)', value: 'none' });
       
-      // Only add preference if there are at least 2 tonal options (excluding "none")
       if (brightOptions.length > 2) {
         preferences.push({
           type: 'brightness',
@@ -2638,28 +2636,26 @@ export default function Analyzer() {
     const midRange = maxMid - minMid;
     
     // If there's significant mid variation (>0.1 spread), ask about midrange preference
-    // But only offer options that actually have IRs in those ranges
+    // But only offer options that actually have enough IRs to make a real difference
     if (midRange > 0.1) {
-      // Categorize IRs by mid character: forward = top third, neutral = middle, scooped = bottom third
       const forwardThreshold = minMid + (midRange * 0.67);
       const scoopedThreshold = minMid + (midRange * 0.33);
       
-      const hasForwardIRs = midRatios.some(m => m >= forwardThreshold);
-      const hasScoopedIRs = midRatios.some(m => m <= scoopedThreshold);
-      const hasNeutralMidIRs = midRatios.some(m => m > scoopedThreshold && m < forwardThreshold);
+      const forwardCount = midRatios.filter(m => m >= forwardThreshold).length;
+      const scoopedCount = midRatios.filter(m => m <= scoopedThreshold).length;
+      const neutralMidCount = midRatios.filter(m => m > scoopedThreshold && m < forwardThreshold).length;
+      const minMeaningfulMid = Math.max(2, Math.ceil(irs.length * 0.1));
       
       const midOptions: { label: string; value: string }[] = [];
-      // Add variety option if there are at least 2 distinct mid categories
-      const midCategories = [hasForwardIRs, hasNeutralMidIRs, hasScoopedIRs].filter(Boolean).length;
-      if (midCategories >= 2) {
+      const meaningfulMidCategories = [forwardCount >= minMeaningfulMid, neutralMidCount >= minMeaningfulMid, scoopedCount >= minMeaningfulMid].filter(Boolean).length;
+      if (meaningfulMidCategories >= 2) {
         midOptions.push({ label: 'Variety (keep mix of mid characters)', value: 'variety' });
       }
-      if (hasForwardIRs) midOptions.push({ label: 'Mid-forward / Punchy', value: 'forward' });
-      if (hasNeutralMidIRs) midOptions.push({ label: 'Balanced mids', value: 'neutral' });
-      if (hasScoopedIRs) midOptions.push({ label: 'Scooped / More low & high', value: 'scooped' });
+      if (forwardCount >= minMeaningfulMid) midOptions.push({ label: `Mid-forward / Punchy (${forwardCount} IRs)`, value: 'forward' });
+      if (neutralMidCount >= minMeaningfulMid) midOptions.push({ label: `Balanced mids (${neutralMidCount} IRs)`, value: 'neutral' });
+      if (scoopedCount >= minMeaningfulMid) midOptions.push({ label: `Scooped / More low & high (${scoopedCount} IRs)`, value: 'scooped' });
       midOptions.push({ label: 'No preference (technical only)', value: 'none' });
       
-      // Only add preference if there are at least 2 tonal options (excluding "none")
       if (midOptions.length > 2) {
         preferences.push({
           type: 'midrange',
