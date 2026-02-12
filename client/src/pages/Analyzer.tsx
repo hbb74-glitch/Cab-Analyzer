@@ -538,6 +538,17 @@ function findRedundantPairs(
   return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
+interface CloseCallValueInfo {
+  effectiveScore: number;
+  baseScore: number;
+  prefBoost: number;
+  gearBoost: number;
+  roleBoost: number;
+  blendPenalty: number;
+  diversityFromSelected: number;
+  preferenceRole?: string;
+}
+
 // Close call decision for user input during culling
 interface CullCloseCall {
   micType: string;
@@ -553,6 +564,7 @@ interface CullCloseCall {
     centroid: number; // Spectral centroid Hz
     midrangeHint: string; // Tonal character hint
     blendInfo?: BlendRedundancyInfo;
+    valueInfo?: CloseCallValueInfo;
   }[];
   selectedFilename: string | null; // User's choice, null if not yet decided
 }
@@ -569,8 +581,8 @@ interface BlendRedundancyInfo {
 }
 
 interface CullResult {
-  keep: { filename: string; reason: string; score: number; diversityContribution: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo }[];
-  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo }[];
+  keep: { filename: string; reason: string; score: number; diversityContribution: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo; valueInfo?: CloseCallValueInfo }[];
+  cut: { filename: string; reason: string; score: number; mostSimilarTo: string; similarity: number; preferenceRole?: string; blendInfo?: BlendRedundancyInfo; valueInfo?: CloseCallValueInfo }[];
   closeCallsResolved?: boolean;
 }
 
@@ -968,6 +980,38 @@ function cullIRs(
     return baseScore + prefBoost - penalty + gearBoost - blendPenalty + roleBoost;
   };
 
+  const getValueBreakdown = (idx: number, alreadySelected: number[]): CloseCallValueInfo => {
+    const baseScore = irs[idx].score || 85;
+    const gearBoost = getGearSentimentBoost(idx);
+    const blendPenalty = getBlendRedundancyPenalty(idx);
+    const roleBoost = getRoleScarcityBoost(idx);
+    let prefBoost = 0;
+    if (preferenceMap) {
+      const pref = preferenceMap.get(irs[idx].filename);
+      if (pref) {
+        prefBoost = Math.max(0, (pref.bestScore - 35) / 65) * 8 - pref.avoidPenalty;
+      }
+    }
+    let diversityFromSelected = 0;
+    if (alreadySelected.length > 0) {
+      let minSim = 1;
+      for (const selIdx of alreadySelected) {
+        minSim = Math.min(minSim, similarityMatrix[idx][selIdx]);
+      }
+      diversityFromSelected = Math.round((1 - minSim) * 100);
+    }
+    return {
+      effectiveScore: getEffectiveScore(idx),
+      baseScore,
+      prefBoost: Math.round(prefBoost * 10) / 10,
+      gearBoost: Math.round(gearBoost * 10) / 10,
+      roleBoost: Math.round(roleBoost * 10) / 10,
+      blendPenalty: Math.round(blendPenalty * 10) / 10,
+      diversityFromSelected,
+      preferenceRole: getPreferenceRole(idx),
+    };
+  };
+
   const selected: number[] = [];
   
   for (const [mic, indices] of Array.from(micGroups.entries())) {
@@ -1012,7 +1056,8 @@ function cullIRs(
               smoothness: irs[idx].metrics.frequencySmoothness || 0,
               centroid: Math.round(irs[idx].metrics.spectralCentroid),
               midrangeHint: getMidrangeHint(idx),
-              blendInfo: blendInfoMap.get(idx)
+              blendInfo: blendInfoMap.get(idx),
+              valueInfo: getValueBreakdown(idx, selected)
             })),
             selectedFilename: null
           });
@@ -1086,7 +1131,8 @@ function cullIRs(
                 smoothness: irs[c.idx].metrics.frequencySmoothness || 0,
                 centroid: Math.round(irs[c.idx].metrics.spectralCentroid),
                 midrangeHint: getMidrangeHint(c.idx),
-                blendInfo: blendInfoMap.get(c.idx)
+                blendInfo: blendInfoMap.get(c.idx),
+                valueInfo: getValueBreakdown(c.idx, [...selected, ...micSelected])
               })),
               selectedFilename: null
             });
@@ -1218,7 +1264,8 @@ function cullIRs(
       score: ir.score || 85,
       diversityContribution,
       preferenceRole: getPreferenceRole(idx),
-      blendInfo: blendInfoMap.get(idx)
+      blendInfo: blendInfoMap.get(idx),
+      valueInfo: getValueBreakdown(idx, selected.filter(s => s !== idx))
     });
   }
 
@@ -1270,7 +1317,8 @@ function cullIRs(
       mostSimilarTo: irs[mostSimilarIdx].filename,
       similarity: maxSim,
       preferenceRole: getPreferenceRole(idx),
-      blendInfo: blendInfoMap.get(idx)
+      blendInfo: blendInfoMap.get(idx),
+      valueInfo: getValueBreakdown(idx, selected)
     });
   }
 
@@ -5514,6 +5562,27 @@ export default function Analyzer() {
                                       )}
                                     </div>
                                   )}
+                                  {ir.valueInfo && (ir.valueInfo.prefBoost !== 0 || ir.valueInfo.gearBoost !== 0 || ir.valueInfo.roleBoost > 0 || ir.valueInfo.diversityFromSelected > 0) && (
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
+                                      <span className="text-muted-foreground">Eff: {Math.round(ir.valueInfo.effectiveScore)}</span>
+                                      {ir.valueInfo.prefBoost !== 0 && (
+                                        <span className={ir.valueInfo.prefBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                          Pref {ir.valueInfo.prefBoost > 0 ? '+' : ''}{ir.valueInfo.prefBoost}
+                                        </span>
+                                      )}
+                                      {ir.valueInfo.gearBoost !== 0 && (
+                                        <span className={ir.valueInfo.gearBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                          Gear {ir.valueInfo.gearBoost > 0 ? '+' : ''}{ir.valueInfo.gearBoost}
+                                        </span>
+                                      )}
+                                      {ir.valueInfo.roleBoost > 0 && (
+                                        <span className="text-emerald-400">Role +{ir.valueInfo.roleBoost}</span>
+                                      )}
+                                      {ir.valueInfo.diversityFromSelected > 0 && (
+                                        <span className="text-sky-400">{ir.valueInfo.diversityFromSelected}% unique</span>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="text-right shrink-0">
                                   <div className="text-xs text-muted-foreground">Score</div>
@@ -5599,6 +5668,27 @@ export default function Analyzer() {
                                             </span>
                                           ))}
                                         </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  {ir.valueInfo && (ir.valueInfo.prefBoost !== 0 || ir.valueInfo.gearBoost !== 0 || ir.valueInfo.roleBoost > 0 || ir.valueInfo.blendPenalty > 0) && (
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
+                                      <span className="text-muted-foreground">Eff: {Math.round(ir.valueInfo.effectiveScore)}</span>
+                                      {ir.valueInfo.prefBoost !== 0 && (
+                                        <span className={ir.valueInfo.prefBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                          Pref {ir.valueInfo.prefBoost > 0 ? '+' : ''}{ir.valueInfo.prefBoost}
+                                        </span>
+                                      )}
+                                      {ir.valueInfo.gearBoost !== 0 && (
+                                        <span className={ir.valueInfo.gearBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                          Gear {ir.valueInfo.gearBoost > 0 ? '+' : ''}{ir.valueInfo.gearBoost}
+                                        </span>
+                                      )}
+                                      {ir.valueInfo.roleBoost > 0 && (
+                                        <span className="text-emerald-400">Role +{ir.valueInfo.roleBoost}</span>
+                                      )}
+                                      {ir.valueInfo.blendPenalty > 0 && (
+                                        <span className="text-orange-400">Blend -{ir.valueInfo.blendPenalty}</span>
                                       )}
                                     </div>
                                   )}
@@ -5720,6 +5810,41 @@ export default function Analyzer() {
                                         <span className="text-green-400/80">Smooth: {Math.round(candidate.smoothness)}</span>
                                         <span className="text-purple-400/80 italic">{candidate.midrangeHint}</span>
                                       </div>
+                                      {candidate.valueInfo && (candidate.valueInfo.prefBoost !== 0 || candidate.valueInfo.gearBoost !== 0 || candidate.valueInfo.roleBoost > 0 || candidate.valueInfo.blendPenalty > 0 || candidate.valueInfo.diversityFromSelected > 0 || candidate.valueInfo.preferenceRole) && (
+                                        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px]">
+                                          <span className="text-muted-foreground">Eff: {Math.round(candidate.valueInfo.effectiveScore)}</span>
+                                          {candidate.valueInfo.prefBoost !== 0 && (
+                                            <span className={candidate.valueInfo.prefBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                              Pref {candidate.valueInfo.prefBoost > 0 ? '+' : ''}{candidate.valueInfo.prefBoost}
+                                            </span>
+                                          )}
+                                          {candidate.valueInfo.gearBoost !== 0 && (
+                                            <span className={candidate.valueInfo.gearBoost > 0 ? "text-amber-400" : "text-red-400"}>
+                                              Gear {candidate.valueInfo.gearBoost > 0 ? '+' : ''}{candidate.valueInfo.gearBoost}
+                                            </span>
+                                          )}
+                                          {candidate.valueInfo.roleBoost > 0 && (
+                                            <span className="text-emerald-400">
+                                              Role +{candidate.valueInfo.roleBoost}
+                                            </span>
+                                          )}
+                                          {candidate.valueInfo.blendPenalty > 0 && (
+                                            <span className="text-orange-400">
+                                              Blend -{candidate.valueInfo.blendPenalty}
+                                            </span>
+                                          )}
+                                          {candidate.valueInfo.diversityFromSelected > 0 && (
+                                            <span className="text-sky-400">
+                                              {candidate.valueInfo.diversityFromSelected}% unique
+                                            </span>
+                                          )}
+                                          {candidate.valueInfo.preferenceRole && (
+                                            <span className="text-violet-400 italic">
+                                              {candidate.valueInfo.preferenceRole}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                     {closeCall.selectedFilename === candidate.filename && (
                                       <Check className="w-4 h-4 text-green-400 shrink-0" />
