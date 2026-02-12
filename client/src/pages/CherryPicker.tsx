@@ -4,6 +4,7 @@ import { Loader2, Cherry, FileAudio, Trash2, Brain, Target, Sparkles, ThumbsUp, 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -414,6 +415,7 @@ export default function CherryPicker() {
                           <Check className="w-3 h-3 text-green-400" />
                         )}
                         <span className="truncate">{ir.file.name}</span>
+                        <ShotIntentBadge filename={ir.file.name} />
                       </div>
                     ))}
                     {trainingIRs.length > 5 && (
@@ -507,6 +509,7 @@ export default function CherryPicker() {
                           <Check className="w-3 h-3 text-green-400" />
                         )}
                         <span className="truncate">{ir.file.name}</span>
+                        <ShotIntentBadge filename={ir.file.name} />
                       </div>
                     ))}
                     {examineIRs.length > 5 && (
@@ -643,7 +646,10 @@ export default function CherryPicker() {
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{result.filename}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium truncate">{result.filename}</span>
+                          <ShotIntentBadge filename={result.filename} />
+                        </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
                           <span>Centroid: {result.metrics.spectralCentroid.toFixed(0)} Hz</span>
                           <span>Smooth: {(result.metrics.frequencySmoothness || 0).toFixed(0)}</span>

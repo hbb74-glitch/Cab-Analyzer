@@ -5,6 +5,7 @@ import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Tar
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
@@ -326,6 +327,7 @@ export default function Pairing() {
                     )}
                   </div>
                   <p className="text-xs truncate flex-1">{ir.file.name}</p>
+                  <ShotIntentBadge filename={ir.file.name} />
                 </div>
                 <button
                   onClick={() => onRemove(index)}

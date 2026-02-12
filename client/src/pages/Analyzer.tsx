@@ -18,6 +18,7 @@ import type { TonalProfile as TonalProfileRow } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
+import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -3498,6 +3499,7 @@ export default function Analyzer() {
                                 }
                                 return null;
                               })()}
+                              <ShotIntentBadge filename={ir.file.name} />
                               {ir.metrics?.hasClipping && (
                                 <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded flex-shrink-0">
                                   CLIPPING
@@ -4085,7 +4087,10 @@ export default function Analyzer() {
                       >
                         <div className="flex items-start justify-between gap-4 flex-wrap">
                           <div className="flex-1 min-w-0">
-                            <p className="font-mono text-sm font-medium truncate">{r.filename}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-mono text-sm font-medium truncate">{r.filename}</p>
+                              <ShotIntentBadge filename={r.filename} />
+                            </div>
                             {r.parsedInfo && (
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {r.parsedInfo.mic && (
@@ -4660,6 +4665,7 @@ export default function Analyzer() {
                                       <span className="font-mono text-xs truncate flex-1">
                                         {member.filename}
                                       </span>
+                                      <ShotIntentBadge filename={member.filename} />
                                       {group.selectedToKeep === member.filename && (
                                         <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                                       )}
@@ -4777,6 +4783,7 @@ export default function Analyzer() {
                               )}>
                                 {m.filename}
                               </span>
+                              <ShotIntentBadge filename={m.filename} />
                               <div className="flex items-center gap-2 text-xs">
                                 {m.tonalHint && m.tonalHint !== 'neutral' && (
                                   <span className="text-muted-foreground/70 italic">{m.tonalHint}</span>
@@ -4973,6 +4980,7 @@ export default function Analyzer() {
                               )} title={blend.filename} data-testid={`text-blend-filename-${idx}`}>
                                 {blend.filename}
                               </p>
+                              <ShotIntentBadge filename={blend.filename} />
                               <span className={cn(
                                 "text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0",
                                 blend.verdict === 'essential'
@@ -5373,6 +5381,7 @@ export default function Analyzer() {
                                   <p className="font-mono text-sm truncate text-green-300" title={ir.filename}>
                                     {ir.filename}
                                   </p>
+                                  <ShotIntentBadge filename={ir.filename} />
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <p className="text-xs text-muted-foreground">{ir.reason}</p>
                                     {ir.preferenceRole && (
@@ -5458,6 +5467,7 @@ export default function Analyzer() {
                                   <p className="font-mono text-sm truncate text-red-300" title={ir.filename}>
                                     {ir.filename}
                                   </p>
+                                  <ShotIntentBadge filename={ir.filename} />
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <p className="text-xs text-muted-foreground">
                                       {ir.reason}
@@ -5705,9 +5715,12 @@ export default function Analyzer() {
                   <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4 border border-primary/20">
                     <Music4 className="w-8 h-8 text-primary" />
                   </div>
-                  <p className="font-mono text-sm font-medium truncate max-w-[200px] mx-auto text-primary">
-                    {file.name}
-                  </p>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <p className="font-mono text-sm font-medium truncate max-w-[200px] text-primary">
+                      {file.name}
+                    </p>
+                    <ShotIntentBadge filename={file.name} />
+                  </div>
                   <span className="text-xs text-muted-foreground block">
                     {(file.size / 1024).toFixed(1)} KB • Click to change
                   </span>

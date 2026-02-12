@@ -1,6 +1,7 @@
 import { useHistory } from "@/hooks/use-analyses";
 import { format } from "date-fns";
 import { Loader2, Calendar, Mic2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 
 export default function History() {
   const { data: analyses, isLoading, error } = useHistory();
@@ -60,7 +61,10 @@ export default function History() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <span className="font-medium text-foreground">{item.filename}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">{item.filename}</span>
+                          <ShotIntentBadge filename={item.filename} />
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col gap-1 text-sm">

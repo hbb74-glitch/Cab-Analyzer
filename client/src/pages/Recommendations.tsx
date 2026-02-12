@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { ShotIntentBadgeFromGear } from "@/components/ShotIntentBadge";
 import { useResults } from "@/context/ResultsContext";
 import { apiRequest } from "@/lib/queryClient";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
@@ -624,6 +625,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                   <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
                     {shot.mic}@{shot.position}_{shot.distance}"
                   </code>
+                  <ShotIntentBadgeFromGear mic={shot.mic} position={shot.position} />
                   <span className={cn(
                     "text-xs px-2 py-0.5 rounded font-medium",
                     confidenceColor(shot.confidence)
@@ -3119,6 +3121,7 @@ Or written out:
                         <Ruler className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{shot.distance}"</span>
                       </div>
+                      <ShotIntentBadgeFromGear mic={shot.micLabel?.replace(/\s*\((Presence|Flat)(?:\s+Boost)?\)/i, '') || result.mic} position={shot.position} />
                       <span className="text-xs text-muted-foreground font-medium ml-auto">{shot.bestFor}</span>
                     </div>
                     
@@ -3256,6 +3259,7 @@ Or written out:
                         <Ruler className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{rec.distance}"</span>
                       </div>
+                      <ShotIntentBadgeFromGear mic={rec.micLabel?.replace(/\s*\((Presence|Flat)(?:\s+Boost)?\)/i, '')} position={rec.position} />
                       <span className="text-xs text-muted-foreground font-medium ml-auto">{rec.bestFor}</span>
                     </div>
                     
@@ -3451,6 +3455,11 @@ Or written out:
                           {ref.shorthand}
                         </code>
                       )}
+                      {ref.shorthand && (() => {
+                        const match = ref.shorthand.match(/^([^@]+)@([^_]+)/);
+                        if (match) return <ShotIntentBadgeFromGear mic={match[1]} position={match[2]} />;
+                        return null;
+                      })()}
                       {ref.original && ref.type !== 'keep' && (
                         <span className="text-xs text-muted-foreground">
                           from: <span className="font-mono">{ref.original}</span>

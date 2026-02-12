@@ -1264,7 +1264,7 @@ const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
 const GEAR_POSITION_PATTERNS: Record<string, string> = {
   "capedgebr": "CapEdge-Bright", "capedge_br": "CapEdge-Bright",
   "capedgedk": "CapEdge-Dark", "capedge_dk": "CapEdge-Dark",
-  "capedgeconetr": "Cap-Cone Transition", "cap_cone_tr": "Cap-Cone Transition", "cone_tr": "Cap-Cone Transition", "capconetr": "Cap-Cone Transition",
+  "capedgeconetr": "Cap-Cone Transition", "capedgeconetrn": "Cap-Cone Transition", "cap_cone_tr": "Cap-Cone Transition", "cap_cone_trn": "Cap-Cone Transition", "cone_tr": "Cap-Cone Transition", "cone_trn": "Cap-Cone Transition", "capconetr": "Cap-Cone Transition", "capconetrn": "Cap-Cone Transition", "conetr": "Cap-Cone Transition", "conetrn": "Cap-Cone Transition",
   "capoffcenter": "Cap Off-Center", "cap_offcenter": "Cap Off-Center", "offcenter": "Cap Off-Center",
   "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
   "cap": "Cap", "center": "Cap",
@@ -1280,7 +1280,16 @@ export function parseGearFromFilename(filename: string): { mic?: string; mic2?: 
   const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
   const posKeys = Object.keys(GEAR_POSITION_PATTERNS).sort((a, b) => b.length - a.length);
 
-  for (const part of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    if (!result.position) {
+      for (let span = Math.min(3, parts.length - i); span >= 2; span--) {
+        const combo = parts.slice(i, i + span).join('');
+        const pk = posKeys.find((k) => combo === k);
+        if (pk) { result.position = GEAR_POSITION_PATTERNS[pk]; i += span - 1; break; }
+      }
+      if (result.position) continue;
+    }
+    const part = parts[i];
     if (!result.speaker) {
       const sk = speakerKeys.find((k) => part === k || part.startsWith(k));
       if (sk) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; continue; }
