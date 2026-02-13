@@ -4,7 +4,8 @@ export const MIC_BASE_CENTROID_RANGES: Record<string, { min: number; max: number
   'r10': { min: 1500, max: 2200, description: 'Ribbon, smooth and warm' },
   'r92': { min: 1400, max: 2100, description: 'Ribbon, similar to R121, slightly darker' },
   'm160': { min: 1800, max: 2600, description: 'Hypercardioid ribbon, tighter and focused' },
-  'md421': { min: 2000, max: 2800, description: 'Large diaphragm dynamic, punchy' },
+  'md421': { min: 2000, max: 2800, description: 'Large diaphragm dynamic, scooped mids, punchy low-end, wider frequency range' },
+  'md421k': { min: 2100, max: 2900, description: 'Compact dynamic, tighter midrange focus, slightly less low-end than MD421' },
   'md441': { min: 2300, max: 3200, description: 'Dynamic, very accurate (flat mode)' },
   'md441_presence': { min: 2600, max: 3500, description: 'MD441 with presence boost' },
   'm88': { min: 1900, max: 2700, description: 'Warm, great low-end punch' },
@@ -130,7 +131,7 @@ function normalizeMicName(mic: string): string {
   if (lower.includes('e906')) return 'e906';
   if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) return 'md441_presence';
   if (lower.includes('md441')) return 'md441';
-  if (lower.includes('md421') && lower.includes('kompakt')) return 'md421'; // Kompakt treated as standard MD421
+  if (lower.includes('md421k') || lower.includes('421k') || (lower.includes('md421') && lower.includes('kompakt'))) return 'md421k';
   if (lower.includes('md421') || lower === '421') return 'md421';
   if (lower.includes('sm57') || lower === '57') return 'sm57';
   if (lower.includes('sm7b') || lower === 'sm7') return 'sm7b';
@@ -314,8 +315,8 @@ export const MIC_SMOOTHNESS_BASELINES: Record<string, { min: number; max: number
   'r10': { min: 66, max: 80, avg: 73, description: 'Ribbon, similar to R121' },
   'r92': { min: 66, max: 80, avg: 73, description: 'Ribbon, smooth and warm' },
   'm160': { min: 64, max: 78, avg: 71, description: 'Hypercardioid ribbon, focused response' },
-  'md421': { min: 62, max: 78, avg: 70, description: 'Large diaphragm dynamic, punchy' },
-  'md421kompakt': { min: 62, max: 78, avg: 70, description: 'Compact variant, similar to MD421' },
+  'md421': { min: 62, max: 78, avg: 70, description: 'Large diaphragm dynamic, scooped mids, punchy' },
+  'md421k': { min: 63, max: 79, avg: 71, description: 'Compact dynamic, tighter mids, slightly brighter than MD421' },
   'md441': { min: 64, max: 78, avg: 71, description: 'Very accurate dynamic' },
   'm88': { min: 60, max: 76, avg: 68, description: 'Warm dynamic, moderate smoothness' },
   'pr30': { min: 64, max: 80, avg: 72, description: 'Large diaphragm, smooth response' },

@@ -205,6 +205,32 @@ const MICROPHONE_GUIDES: MicrophoneGuide[] = [
     ]
   },
   {
+    id: "md421k",
+    name: "MD421K",
+    fullName: "Sennheiser MD421K (Kompakt)",
+    type: "dynamic",
+    manufacturer: "Sennheiser",
+    pattern: "Cardioid",
+    character: "Compact variant of the MD421. Tighter midrange focus with slightly less low-end extension than the full-size MD421. More forward-sounding mids, slightly brighter overall character. Similar proximity effect behavior but in a smaller housing.",
+    closeMikingRange: { min: 1, max: 4, sweet: 2 },
+    bestPositions: ["Cap Edge", "45° angled toward voice coil", "Halfway to edge"],
+    tips: [
+      "Similar placement principles to MD421 but expect tighter, more focused midrange",
+      "Position 2-4\" back like the full-size MD421 to control proximity effect",
+      "Slightly brighter than the full MD421 — may need less CapEdge brightness compensation",
+      "Bass switch works the same as full MD421 — start at 'M' (Music)",
+      "The compact form factor can be easier to position in tight multi-mic setups",
+      "Not interchangeable with full MD421 — they have different sonic fingerprints"
+    ],
+    cabinetNotes: "The Kompakt version shares the MD421's general character but with a tighter midrange and slightly less extended low-end. Choose MD421K when you want more mid focus and the full MD421 when you want wider frequency range and more scooped mids.",
+    blendsWith: ["SM57", "R121", "C414"],
+    genres: ["Rock", "Metal", "Fusion", "Blues", "Pop"],
+    sources: [
+      "Sennheiser Application Engineering",
+      "Recording Engineer's Handbook - Bobby Owsinski"
+    ]
+  },
+  {
     id: "md441",
     name: "MD441",
     fullName: "Sennheiser MD441-U",

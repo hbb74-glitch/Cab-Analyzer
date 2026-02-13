@@ -387,6 +387,7 @@ function validateAndFixRecommendations(
     // Dynamics - from guide data
     '57': 0.5, 'sm57': 0.5,           // SM57: 0.5-4", sweet 1"
     '421': 1, 'md421': 1,              // MD421: 1-4", sweet 2"
+    '421k': 1, 'md421k': 1,            // MD421K: 1-4", sweet 2"
     'e906': 0,                         // e906: 0-2", sweet 1"
     'm88': 0.5,                        // M88: 0.5-4", sweet 1.5"
     'pr30': 0.5,                       // PR30: 0.5-4", sweet 1"
@@ -458,7 +459,8 @@ function validateAndFixRecommendations(
   // Sweet spot distances from MikingGuide.tsx (closeMikingRange.sweet)
   const MIC_SWEET_SPOTS: Record<string, string> = {
     '57': '1', 'sm57': '1',
-    '421': '2', 'md421': '2', 'md421k': '2',
+    '421': '2', 'md421': '2',
+    '421k': '2', 'md421k': '2',
     'e906': '1',
     'm88': '1.5',
     'pr30': '1',
@@ -790,7 +792,7 @@ function parseFilenameForExpectations(filename: string): {
   else if (lower.includes('e906')) { mic = 'e906'; micDetected = true; }
   else if (lower.includes('md441') && (lower.includes('presence') || lower.includes('boost'))) { mic = 'md441_presence'; micDetected = true; }
   else if (lower.includes('md441') || lower.includes('_441_') || lower.includes('-441-') || lower.includes('_441-')) { mic = 'md441'; micDetected = true; }
-  else if (lower.includes('md421') && lower.includes('kompakt')) { mic = 'md421kompakt'; micDetected = true; }
+  else if (lower.includes('md421k') || lower.includes('421k') || (lower.includes('md421') && lower.includes('kompakt'))) { mic = 'md421k'; micDetected = true; }
   else if (lower.includes('md421') || lower.includes('_421_') || lower.includes('-421-') || lower.includes('_421-')) { mic = 'md421'; micDetected = true; }
   else if (lower.includes('sm57') || lower.includes('_57_') || lower.includes('-57-') || lower.includes('_57-')) { mic = 'sm57'; micDetected = true; }
   else if (lower.includes('sm7b') || lower.includes('sm7_') || lower.includes('sm7-')) { mic = 'sm7b'; micDetected = true; }
@@ -1189,7 +1191,8 @@ const GEAR_MIC_PATTERNS: Record<string, string> = {
   "i5": "i5",
   "r92": "R92", "aear92": "R92",
   "m160": "M160", "160": "M160",
-  "md421": "MD421", "421": "MD421", "421kompakt": "MD421", "421kmp": "MD421",
+  "md421": "MD421", "421": "MD421",
+  "md421k": "MD421K", "421k": "MD421K", "421kompakt": "MD421K", "421kmp": "MD421K",
   "md441boost": "MD441", "md441flat": "MD441", "md441": "MD441", "441": "MD441",
   "r10": "R10",
   "m88": "M88", "88": "M88",
@@ -2271,8 +2274,8 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       
       DYNAMICS (SWEET SPOTS):
       - 57 (SM57): range 0.5-4", SWEET SPOT 1". Classic mid-forward presence.
-      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact MD421. DIFFERENT MIC.
+      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids, punchy low-end, wider frequency range. DIFFERENT from MD421K.
+      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact (Kompakt) variant, tighter midrange focus, slightly less low-end. DIFFERENT from MD421.
       - e906 (e906): range 0-2", SWEET SPOT 1". Supercardioid, three-position switch.
       - m88 (M88): range 0.5-4", SWEET SPOT 1.5". Warm, great low-end punch.
       - pr30 (PR30): range 0.5-4", SWEET SPOT 1". Large diaphragm, clear highs.
@@ -2671,8 +2674,8 @@ Use these curated recipes as the foundation of your recommendations. You may add
       
       DYNAMICS (SWEET SPOTS):
       - 57 (SM57): range 0.5-4", SWEET SPOT 1". Classic mid-forward presence.
-      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids.
-      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact MD421. DIFFERENT MIC.
+      - 421 (MD421): range 1-4", SWEET SPOT 2". Large diaphragm, scooped mids, punchy low-end, wider frequency range. DIFFERENT from MD421K.
+      - 421k (MD421K): range 1-4", SWEET SPOT 2". Compact (Kompakt) variant, tighter midrange focus, slightly less low-end. DIFFERENT from MD421.
       - e906 (e906): range 0-2", SWEET SPOT 1". Supercardioid, three-position switch.
       - m88 (M88): range 0.5-4", SWEET SPOT 1.5". Warm, great low-end punch.
       - pr30 (PR30): range 0.5-4", SWEET SPOT 1". Large diaphragm, clear highs.
@@ -2942,7 +2945,8 @@ CONSTRAINT RULES (MUST FOLLOW):
 MIC KNOWLEDGE (use this for positioning decisions):
 - R121: Ribbon mic, smooth/warm, works 3-8" back, sounds great at CapEdge or CapEdge_Cone_Tr
 - M160: Hypercardioid ribbon, tight pattern, works 1-4" close, CapEdge is sweet spot
-- MD421K: Dynamic, punchy mids, works 1-4" close, CapEdge or Cap positions
+- MD421: Dynamic, large diaphragm, scooped mids, punchy low-end, wider frequency range than SM57. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421K.
+- MD421K: Dynamic, compact (Kompakt) variant. Tighter midrange focus, slightly less low-end than MD421. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421.
 - MD441: Dynamic with switches - Presence (brighter) or Flat (natural), works 2-6", CapEdge ideal
 - e906: Dynamic with switches - Bright/Presence/Flat, works 0.5-2" very close, Cap or CapEdge
 - SM57: Classic dynamic, works 0.5-2" close, any position works
@@ -2953,7 +2957,8 @@ MIC KNOWLEDGE (use this for positioning decisions):
 CRITICAL FORMAT RULES:
 - position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
 - distance MUST be a number as string: "1", "2.5", "4"
-- mic codes: 121 (R121), 160 (M160), md421k (MD421K), md441 (MD441), e906, 57, etc.
+- mic codes: 121 (R121), 160 (M160), md421 (MD421), md421k (MD421K), md441 (MD441), e906, 57, etc.
+- MD421 and MD421K are DIFFERENT mics. Never substitute one for the other. Respect which one the user requested.
 - For MD441/e906: include switch setting in micLabel like "MD441 (Presence)" or "e906 (Flat)"
 
 Output JSON:
@@ -3056,7 +3061,8 @@ Output JSON:
               if (micName.includes('160')) micCode = '160';
               if (micName.includes('906')) micCode = 'e906';
               if (micName.includes('441')) micCode = 'md441';
-              if (micName.includes('421') && !micName.includes('441')) micCode = 'md421k';
+              if (micName.includes('421K') || micName.includes('421k') || micName.includes('Kompakt')) micCode = 'md421k';
+              else if (micName.includes('421') && !micName.includes('441')) micCode = 'md421';
               if (micName.includes('201')) micCode = 'm201';
               micsWith1D.add(micCode);
             }
@@ -3107,7 +3113,8 @@ Genre: ${genre || 'versatile'}
 MIC KNOWLEDGE (use appropriate distances for each mic type):
 - R121: Ribbon, smooth/warm, works 3-8" back, CapEdge or CapEdge_Cone_Tr
 - M160: Hypercardioid ribbon, works 1-4" close, CapEdge is sweet spot
-- MD421K: Dynamic, punchy mids, works 1-4" close, CapEdge or Cap
+- MD421: Dynamic, large diaphragm, scooped mids, punchy low-end. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421K.
+- MD421K: Dynamic, compact (Kompakt). Tighter midrange, slightly brighter. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421.
 - MD441: Dynamic with Presence/Flat switch, works 2-6", CapEdge ideal
 - e906: Dynamic with Bright/Presence/Flat switch, works 0.5-2" very close
 - SM57: Classic dynamic, works 0.5-2" close, any position
@@ -3206,19 +3213,21 @@ Output JSON:
               shot.micLabel = `${micName}_${setting}`;
             }
             
-            // MD421 -> MD421K (user's default is always Kompakt version)
-            if (shot.micLabel === 'MD421' || shot.micLabel === 'md421') {
+            // Normalize MD421K variants
+            if (shot.micLabel === 'MD421K' || shot.micLabel === 'md421k' || shot.micLabel === 'MD421 Kompakt') {
               shot.micLabel = 'MD421K';
               shot.mic = 'md421k';
             }
           }
           
-          // Fix mic code for MD421 -> md421k
-          if (shot.mic === '421' || shot.mic === 'md421') {
+          // Normalize mic codes for MD421 and MD421K - keep them SEPARATE
+          if (shot.mic === '421' && !shot.micLabel?.includes('421K')) {
+            shot.mic = 'md421';
+            if (!shot.micLabel) shot.micLabel = 'MD421';
+          }
+          if (shot.mic === '421k' || (shot.mic === '421' && shot.micLabel?.includes('421K'))) {
             shot.mic = 'md421k';
-            if (!shot.micLabel?.includes('421K')) {
-              shot.micLabel = 'MD421K';
-            }
+            shot.micLabel = 'MD421K';
           }
           
           // Force Roswell to Cap position only
@@ -3302,7 +3311,7 @@ Output JSON:
           console.log(`[1P Post-Fix] Lost ${lost} shots to dedup, need to add back`);
           
           // Get available non-1P mics that can have more shots
-          const non1PMics = ['57', 'md421k', 'md441', 'm160', 'm201', 'e906'];
+          const non1PMics = ['57', 'md421', 'md421k', 'md441', 'm160', 'm201', 'e906'];
           const positions = basicPositionsOnly 
             ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
             : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
@@ -3330,7 +3339,8 @@ Output JSON:
                 const micTraits: Record<string, string> = {
                   '57': 'punchy midrange character',
                   'sm57': 'punchy midrange character',
-                  'md421k': 'full-bodied articulate mids',
+                  'md421': 'scooped mids, punchy low-end',
+                  'md421k': 'tighter mids, articulate and punchy',
                   'md441': 'detailed presence with EQ flexibility',
                   'm160': 'focused hypercardioid ribbon tone',
                   'm201': 'smooth natural midrange',
@@ -3399,7 +3409,8 @@ Output JSON:
             const micTraits: Record<string, { type: string, character: string, strength: string }> = {
               '57': { type: 'dynamic', character: 'punchy midrange', strength: 'cuts through mixes' },
               'sm57': { type: 'dynamic', character: 'punchy midrange', strength: 'cuts through mixes' },
-              'md421k': { type: 'dynamic', character: 'full-bodied mids', strength: 'articulate and punchy' },
+              'md421': { type: 'dynamic', character: 'scooped mids with punchy low-end', strength: 'wide frequency range, fills out low-end' },
+              'md421k': { type: 'dynamic', character: 'tighter midrange focus', strength: 'articulate and punchy, compact form factor' },
               'md441': { type: 'dynamic', character: 'detailed and present', strength: 'flexible EQ switches' },
               'm160': { type: 'ribbon', character: 'focused hypercardioid', strength: 'tight pattern rejects room' },
               'm201': { type: 'dynamic', character: 'smooth and balanced', strength: 'natural midrange' },
@@ -3450,6 +3461,7 @@ Output JSON:
           // 1P mics (ribbons/condensers) have fixed position but can vary distance
           const micDefaults: Record<string, { label: string, distances: string[], is1P: boolean }> = {
             '57': { label: 'SM57', distances: ['1', '1.5', '2', '0.5'], is1P: false },           // sweet 1"
+            'md421': { label: 'MD421', distances: ['2', '1.5', '1', '3'], is1P: false },          // sweet 2"
             'md421k': { label: 'MD421K', distances: ['2', '1.5', '1', '3'], is1P: false },      // sweet 2"
             'md441': { label: 'MD441_Presence', distances: ['4', '3', '5', '2'], is1P: false }, // sweet 4"
             'm160': { label: 'M160', distances: ['1', '2', '0.5', '3'], is1P: false },          // sweet 1"
@@ -4066,7 +4078,7 @@ Output JSON:
       // Final dedup pass to catch any duplicates after all operations
       if (result.micRecommendations && Array.isArray(result.micRecommendations)) {
         const finalNormMap: Record<string, string> = {
-          '57': '57', 'sm57': '57', 'md421k': 'md421k', 'md421': 'md421k', '421': 'md421k',
+          '57': '57', 'sm57': '57', 'md421k': 'md421k', 'md421': 'md421', '421': 'md421', '421k': 'md421k',
           'md441': 'md441', '441': 'md441', 'm160': 'm160', '160': 'm160',
           'm201': 'm201', '201': 'm201', 'e906': 'e906', '906': 'e906',
           'pr30': 'pr30', 'm88': 'm88', 'r121': 'r121', '121': 'r121',

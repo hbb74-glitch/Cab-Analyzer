@@ -83,7 +83,7 @@ const BODY_POSITIONS = new Set([
 ]);
 
 const FEATURED_ELIGIBLE_MICS = new Set([
-  "SM57", "M201", "C414", "e906", "M88", "MD441", "MD421", "M160", "SM7B", "PR30"
+  "SM57", "M201", "C414", "e906", "M88", "MD441", "MD421", "MD421K", "M160", "SM7B", "PR30"
 ]);
 
 export function inferShotIntent(mic?: string, position?: string): { role: ShotIntentRole; confidence: number; reason: string } {
@@ -1234,7 +1234,8 @@ const GEAR_MIC_PATTERNS: Record<string, string> = {
   "i5": "i5",
   "r92": "R92", "aear92": "R92",
   "m160": "M160", "160": "M160",
-  "md421": "MD421", "421": "MD421", "421kompakt": "MD421", "421kmp": "MD421",
+  "md421": "MD421", "421": "MD421",
+  "md421k": "MD421K", "421k": "MD421K", "421kompakt": "MD421K", "421kmp": "MD421K",
   "md441boost": "MD441", "md441flat": "MD441", "md441": "MD441", "441": "MD441",
   "r10": "R10",
   "m88": "M88", "88": "M88",
