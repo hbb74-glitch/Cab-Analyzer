@@ -2137,6 +2137,10 @@ export default function Analyzer() {
     if (isNaN(num) || num < 1) {
       setCullCountInput("1");
       setTargetCullCount(1);
+    } else if (validBatchCount >= 2 && num >= validBatchCount) {
+      const clamped = validBatchCount - 1;
+      setCullCountInput(String(clamped));
+      setTargetCullCount(clamped);
     }
   };
   
@@ -3281,6 +3285,16 @@ export default function Analyzer() {
 
   const validBatchCount = batchIRs.filter(ir => ir.metrics && !ir.error).length;
   const analyzingBatchCount = batchIRs.filter(ir => ir.analyzing).length;
+
+  useEffect(() => {
+    if (validBatchCount >= 2 && targetCullCount >= validBatchCount) {
+      const newTarget = validBatchCount - 1;
+      if (newTarget !== targetCullCount) {
+        setTargetCullCount(newTarget);
+        setCullCountInput(String(newTarget));
+      }
+    }
+  }, [validBatchCount, targetCullCount]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const selected = acceptedFiles[0];
