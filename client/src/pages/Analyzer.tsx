@@ -6017,7 +6017,7 @@ export default function Analyzer() {
                       <option value="capedge">CapEdge</option>
                       <option value="capedge_br">CapEdge_BR (Brighter)</option>
                       <option value="capedge_dk">CapEdge_DK (Darker)</option>
-                      <option value="capedge_cone_tr">CapEdge_Cone_Tr (Transition)</option>
+                      <option value="cap_cone_tr">Cap_Cone_Tr (Transition)</option>
                       <option value="cone">Cone</option>
                     </select>
                   </div>

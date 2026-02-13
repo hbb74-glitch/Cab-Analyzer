@@ -99,7 +99,7 @@ const TONAL_KEYWORDS = {
   bright: {
     synonyms: ['spanky', 'sparkly', 'crisp', 'cutting', 'present', 'articulate', 'snappy', 'chimey', 'glassy', 'brilliant', 'airy', 'open', 'sizzle', 'twang', 'jangle'],
     avoid: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warm/dark mics
-    avoidPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'], // Darker positions
+    avoidPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'], // Darker positions
     prefer: ['SM57', 'PR30', 'e906', 'C414', 'Roswell'], // Brighter mics
     preferPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'] // Brighter positions
   },
@@ -108,7 +108,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'e906', 'C414'], // Bright mics
     avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Brighter positions
     prefer: ['M160', 'R121', 'R92', 'R10', 'SM7B'], // Warmer mics
-    preferPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'] // Darker positions
+    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'] // Darker positions
   },
   aggressive: {
     synonyms: ['edgy', 'biting', 'raw', 'gritty', 'punchy', 'attack', 'snarl', 'growl', 'mean'],
@@ -143,7 +143,7 @@ const TONAL_KEYWORDS = {
     avoid: ['MD421', 'PR30'], // Too aggressive/forward
     avoidPositions: ['Cap'], // Too direct
     prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Smoother positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Smoother positions
   },
   lofi: {
     synonyms: ['lo-fi', 'gritty', 'vintage', 'character', 'vibe', 'dusty', 'tape', 'old-school', 'retro'],
@@ -178,7 +178,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30'], // Can be too scooped
     avoidPositions: ['Cap'], // Can be too bright/scooped
     prefer: ['SM57', 'MD421', 'R121', 'M160'], // Mid-present mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Mid-rich positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Mid-rich positions
   },
   heavy: {
     synonyms: ['massive', 'crushing', 'doom', 'sludge', 'wall of sound', 'huge', 'thunderous'],
@@ -199,7 +199,7 @@ const TONAL_KEYWORDS = {
     avoid: ['SM57', 'MD421', 'PR30', 'e906'], // Too aggressive
     avoidPositions: ['Cap', 'Cap_OffCenter', 'CapEdge_BR'], // Too bright
     prefer: ['R121', 'M160', 'R92', 'C414'], // Smooth, detailed mics
-    preferPositions: ['CapEdge_DK', 'Cone', 'CapEdge_Cone_Tr'] // Warm, smooth positions
+    preferPositions: ['CapEdge_DK', 'Cone', 'Cap_Cone_Tr'] // Warm, smooth positions
   },
   country: {
     synonyms: ['twang', 'chicken pickin', 'telecaster', 'nashville', 'brad paisley', 'brent mason'],
@@ -220,7 +220,7 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'e906'], // Too aggressive
     avoidPositions: ['Cap'], // Too direct
     prefer: ['R121', 'M160', 'C414', 'R92'], // Natural-sounding mics
-    preferPositions: ['CapEdge', 'CapEdge_Cone_Tr', 'Cone'] // More open positions
+    preferPositions: ['CapEdge', 'Cap_Cone_Tr', 'Cone'] // More open positions
   },
   balanced: {
     synonyms: ['neutral', 'flat', 'mix-ready', 'versatile', 'all-purpose'],
@@ -234,14 +234,14 @@ const TONAL_KEYWORDS = {
     avoid: ['PR30', 'C414'], // Too bright/clinical
     avoidPositions: ['Cap', 'Cap_OffCenter'], // Too bright
     prefer: ['R121', 'M160', 'SM57', 'MD421'], // Handle low-end well
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Fuller positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Fuller positions
   },
   shoegaze: {
     synonyms: ['washy', 'layered', 'reverb', 'my bloody valentine', 'dreamy', 'swirling'],
     avoid: ['MD421', 'PR30'], // Too aggressive/direct
     avoidPositions: ['Cap'], // Too focused
     prefer: ['R121', 'M160', 'C414', 'R92'], // Smooth, detailed mics
-    preferPositions: ['CapEdge', 'CapEdge_DK', 'CapEdge_Cone_Tr'] // Smooth positions
+    preferPositions: ['CapEdge', 'CapEdge_DK', 'Cap_Cone_Tr'] // Smooth positions
   },
   postpunk: {
     synonyms: ['post-punk', 'angular', 'jangly', 'dark', 'new wave', 'joy division', 'the cure'],
@@ -321,7 +321,7 @@ ${profile.avoid}`;
 // Mic type detection for rule enforcement
 const RIBBON_MICS = ['r121', 'r10', 'r92', '121', '10', '92'];
 const CONDENSER_MICS = ['roswell', 'c414', '414'];
-const BASIC_POSITIONS = ['cap', 'capedge', 'capedge_cone_tr', 'cone'];
+const BASIC_POSITIONS = ['cap', 'capedge', 'cap_cone_tr', 'cone'];
 
 // Post-processing validation to enforce rules the AI might violate
 function validateAndFixRecommendations(
@@ -437,7 +437,8 @@ function validateAndFixRecommendations(
     validShots = validShots.filter(shot => {
       const posLower = (shot.position || '').toLowerCase()
         .replace(/[^a-z_]/g, '')
-        .replace(/capedgeconetr/g, 'capedge_cone_tr');
+        .replace(/capedgeconetr/g, 'cap_cone_tr')
+        .replace(/capedge_cone_tr/g, 'cap_cone_tr');
       if (posLower === 'blend') return true;
       const isBasic = BASIC_POSITIONS.some(bp => posLower === bp || posLower.startsWith(bp + '_'));
       if (!isBasic) {
@@ -814,7 +815,7 @@ function parseFilenameForExpectations(filename: string): {
     // New names first
     if (lower.includes('capedge_br') || lower.includes('capedgebr')) { position = 'capedge_br'; positionDetected = true; }
     else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) { position = 'capedge_dk'; positionDetected = true; }
-    else if (lower.includes('cap_cone_trn') || lower.includes('capedgeconetr') || lower.includes('cone_tr')) { position = 'cap_cone_trn'; positionDetected = true; }
+    else if (lower.includes('cap_cone_tr') || lower.includes('capedgeconetr') || lower.includes('capedge_cone_tr') || lower.includes('cone_tr')) { position = 'cap_cone_tr'; positionDetected = true; }
     // Legacy mappings
     else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) { position = 'capedge_br'; positionDetected = true; }
     else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) { position = 'capedge_dk'; positionDetected = true; }
@@ -2167,7 +2168,7 @@ export async function registerRoutes(
       // Build position restriction instruction
       let positionInstruction = '';
       if (basicPositionsOnly) {
-        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, Cap_Cone_Tr, Cone.
 DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.`;
       }
       
@@ -2197,7 +2198,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         distanceInstruction = `\n\nSINGLE DISTANCE PER MIC (CRITICAL):
 - ALL shots for this mic MUST use the SAME distance
 - Pick ONE optimal distance based on the mic's sweet spot for this speaker
-- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) for tonal variety, NOT distance
+- Vary POSITION (Cap, CapEdge, Cap_Cone_Tr, Cone) for tonal variety, NOT distance
 - This is MANDATORY for workflow efficiency`;
       }
       
@@ -2351,7 +2352,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
-      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.${genre ? `
       
@@ -2390,7 +2391,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
         "shots": [
           {
             "micLabel": "REQUIRED: Display name WITH switch setting for MD441/e906 (e.g. 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'). For other mics, use standard label.",
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
             "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
@@ -2536,7 +2537,7 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
       // Build position restriction instruction
       let positionInstruction = '';
       if (basicPositionsOnly) {
-        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, Cap_Cone_Tr, Cone.
 DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.`;
       }
       
@@ -2566,7 +2567,7 @@ DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark v
         distanceInstruction = `\n\nSINGLE DISTANCE PER MIC (CRITICAL):
 - For each mic type, ALL shots with that mic MUST use the SAME distance
 - Pick ONE optimal distance per mic based on its sweet spot for this speaker
-- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) for tonal variety, NOT distance
+- Vary POSITION (Cap, CapEdge, Cap_Cone_Tr, Cone) for tonal variety, NOT distance
 - This is MANDATORY for workflow efficiency`;
       }
       
@@ -2724,7 +2725,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge: Seam line where the dust cap meets the cone, balanced tone, often the "sweet spot"
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
-      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.
       
@@ -2785,7 +2786,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
           {
             "mic": "mic code (e.g. '57', '121', 'md441', 'e906', 'roswell-cab', 'sm57_r121_blend')",
             "micLabel": "Display name - MUST include switch setting for MD441/e906: 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'",
-            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|CapEdge_Cone_Tr|Cone|Blend",
+            "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
             "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
@@ -2938,24 +2939,24 @@ Speaker: ${speakerModel}
 Genre: ${genre || 'versatile'}
 
 CONSTRAINT RULES (MUST FOLLOW):
-- [1D] = Use the SAME distance for all shots of that mic, but VARY the position (e.g., CapEdge at 4", CapEdge_Cone_Tr at 4")
+- [1D] = Use the SAME distance for all shots of that mic, but VARY the position (e.g., CapEdge at 4", Cap_Cone_Tr at 4")
 - [1P] = Use the SAME position for all shots of that mic, but VARY the distance (e.g., Cap at 4", Cap at 6")
 - If no constraint is listed, you can vary both position and distance
 
 MIC KNOWLEDGE (use this for positioning decisions):
-- R121: Ribbon mic, smooth/warm, works 3-8" back, sounds great at CapEdge or CapEdge_Cone_Tr
+- R121: Ribbon mic, smooth/warm, works 3-8" back, sounds great at CapEdge or Cap_Cone_Tr
 - M160: Hypercardioid ribbon, tight pattern, works 1-4" close, CapEdge is sweet spot
 - MD421: Dynamic, large diaphragm, scooped mids, punchy low-end, wider frequency range than SM57. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421K.
 - MD421K: Dynamic, compact (Kompakt) variant. Tighter midrange focus, slightly less low-end than MD421. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421.
 - MD441: Dynamic with switches - Presence (brighter) or Flat (natural), works 2-6", CapEdge ideal
 - e906: Dynamic with switches - Bright/Presence/Flat, works 0.5-2" very close, Cap or CapEdge
 - SM57: Classic dynamic, works 0.5-2" close, any position works
-- M201: Smooth dynamic, works 1-3" close, CapEdge or CapEdge_Cone_Tr
+- M201: Smooth dynamic, works 1-3" close, CapEdge or Cap_Cone_Tr
 - C414: Condenser, detailed, works 4-8" back, CapEdge or Cap positions
 - PR30: Ribbon, bright for a ribbon, works 0.5-2" close, Cap or CapEdge
 
 CRITICAL FORMAT RULES:
-- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+- position MUST be one of: Cap, CapEdge, Cap_Cone_Tr, Cone
 - distance MUST be a number as string: "1", "2.5", "4"
 - mic codes: 121 (R121), 160 (M160), md421 (MD421), md421k (MD421K), md441 (MD441), e906, 57, etc.
 - MD421 and MD421K are DIFFERENT mics. Never substitute one for the other. Respect which one the user requested.
@@ -3111,14 +3112,14 @@ Output JSON:
 Genre: ${genre || 'versatile'}
 
 MIC KNOWLEDGE (use appropriate distances for each mic type):
-- R121: Ribbon, smooth/warm, works 3-8" back, CapEdge or CapEdge_Cone_Tr
+- R121: Ribbon, smooth/warm, works 3-8" back, CapEdge or Cap_Cone_Tr
 - M160: Hypercardioid ribbon, works 1-4" close, CapEdge is sweet spot
 - MD421: Dynamic, large diaphragm, scooped mids, punchy low-end. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421K.
 - MD421K: Dynamic, compact (Kompakt). Tighter midrange, slightly brighter. Works 1-4" close, CapEdge or Cap. DIFFERENT from MD421.
 - MD441: Dynamic with Presence/Flat switch, works 2-6", CapEdge ideal
 - e906: Dynamic with Bright/Presence/Flat switch, works 0.5-2" very close
 - SM57: Classic dynamic, works 0.5-2" close, any position
-- M201: Smooth dynamic, works 1-3" close, CapEdge or CapEdge_Cone_Tr
+- M201: Smooth dynamic, works 1-3" close, CapEdge or Cap_Cone_Tr
 - C414: Condenser, detailed, works 4-8" back, CapEdge or Cap
 - PR30: Ribbon, bright, works 0.5-2" close, Cap or CapEdge
 - Roswell: Large diaphragm condenser, works 4-6", Cap position, vary distance
@@ -3126,7 +3127,7 @@ MIC KNOWLEDGE (use appropriate distances for each mic type):
 Each shot must have a DIFFERENT mic+position+distance combination.
 
 CRITICAL FORMAT RULES:
-- position MUST be one of: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+- position MUST be one of: Cap, CapEdge, Cap_Cone_Tr, Cone
 - distance MUST be a number as string: "1", "2.5", "4"
 - For MD441/e906: include switch setting in micLabel like "MD441 (Presence)"
 
@@ -3313,8 +3314,8 @@ Output JSON:
           // Get available non-1P mics that can have more shots
           const non1PMics = ['57', 'md421', 'md421k', 'md441', 'm160', 'm201', 'e906'];
           const positions = basicPositionsOnly 
-            ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
-            : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+            ? ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone']
+            : ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone', 'Cone_Edge'];
           
           let added = 0;
           for (const mic of non1PMics) {
@@ -3350,7 +3351,7 @@ Output JSON:
                 const posTraits: Record<string, string> = {
                   'Cap': 'bright focused attack',
                   'CapEdge': 'balanced tone with clarity',
-                  'CapEdge_Cone_Tr': 'warmer with added body',
+                  'Cap_Cone_Tr': 'warmer with added body',
                   'Cone': 'smooth warmth with reduced harshness',
                 };
                 const micTrait = micTraits[mic.toLowerCase()] || 'versatile tonal character';
@@ -3358,7 +3359,7 @@ Output JSON:
                 
                 const posEffect = pos === 'Cap' ? '3-5kHz presence emphasis' :
                                  pos === 'CapEdge' ? 'balanced 2-4kHz midrange' :
-                                 pos === 'CapEdge_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
+                                 pos === 'Cap_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
                                  pos === 'Cone' ? 'rolled-off highs above 6kHz' : 'maximum low-mid content';
                 const distNum = parseFloat(existingDistance);
                 const bassEffect = distNum <= 2 ? 'full low end from proximity' : 'tight low end';
@@ -3428,7 +3429,7 @@ Output JSON:
             const posTraits: Record<string, { tone: string, use: string }> = {
               'Cap': { tone: 'bright and focused', use: 'maximum presence and clarity' },
               'CapEdge': { tone: 'balanced bright/warm', use: 'most versatile starting point' },
-              'CapEdge_Cone_Tr': { tone: 'warmer with body', use: 'fills out thin tones' },
+              'Cap_Cone_Tr': { tone: 'warmer with body', use: 'fills out thin tones' },
               'Cone': { tone: 'warm and smooth', use: 'reduces harshness, adds depth' },
               'Cone_Edge': { tone: 'darkest and fullest', use: 'maximum warmth and body' },
             };
@@ -3446,7 +3447,7 @@ Output JSON:
             // Build specific rationale mentioning frequencies and interactions
             const posEffect = position === 'Cap' ? '3-5kHz presence emphasis' :
                              position === 'CapEdge' ? 'balanced 2-4kHz midrange' :
-                             position === 'CapEdge_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
+                             position === 'Cap_Cone_Tr' ? 'reduced 3kHz, fuller 200-400Hz' :
                              position === 'Cone' ? 'rolled-off highs above 6kHz, boosted low-mids' :
                              'darkest response with maximum low-mid content';
             
@@ -3476,8 +3477,8 @@ Output JSON:
           };
           
           const positions = basicPositionsOnly 
-            ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
-            : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+            ? ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone']
+            : ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone', 'Cone_Edge'];
           
           // Build set of existing shot keys (MUST match validation's key format)
           // Comprehensive mic normalization - all aliases map to canonical codes
@@ -3828,8 +3829,8 @@ Output JSON:
                 );
                 
                 const availablePositions = basicPositionsOnly 
-                  ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
-                  : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone', 'Cone_Edge'];
+                  ? ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone']
+                  : ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone', 'Cone_Edge'];
                 
                 // Get mic defaults (include aliases for normalization variations)
                 const micDefaults: Record<string, { label: string, distance: string }> = {
@@ -3996,8 +3997,8 @@ Output JSON:
             }
           } else if (unspecifiedMics.length > 0) {
             const positions = basicPositionsOnly 
-              ? ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone']
-              : ['Cap', 'CapEdge', 'CapEdge_Cone_Tr', 'Cone'];
+              ? ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone']
+              : ['Cap', 'CapEdge', 'Cap_Cone_Tr', 'Cone'];
             
             // Build existing shot keys to avoid duplicates
             const existingKeys = new Set(
@@ -4133,7 +4134,7 @@ Output JSON:
       // Build position restriction instruction (for when By Amp later leads to mic recommendations)
       let positionInstruction = '';
       if (basicPositionsOnly) {
-        positionInstruction = `\n\nPOSITION RESTRICTION NOTE: When this speaker is used for IR production, the user wants to limit positions to: Cap, CapEdge, CapEdge_Cone_Tr, Cone only.`;
+        positionInstruction = `\n\nPOSITION RESTRICTION NOTE: When this speaker is used for IR production, the user wants to limit positions to: Cap, CapEdge, Cap_Cone_Tr, Cone only.`;
       }
       
       // Build shot count instruction
@@ -4436,7 +4437,7 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
       // Build position restriction instruction
       let positionInstruction = '';
       if (basicPositionsOnly) {
-        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone.
+        positionInstruction = `\n\nPOSITION RESTRICTION: ONLY use these 4 basic positions: Cap, CapEdge, Cap_Cone_Tr, Cone.
 DO NOT suggest: Cap_OffCenter, CapEdge_BR (bright variation), CapEdge_DK (dark variation), or any other position variations.
 If the user's imported list contains non-basic positions, mark those as "remove" with rationale explaining the basic positions restriction.`;
       }
@@ -4451,7 +4452,7 @@ If the user's imported list contains non-basic positions, mark those as "remove"
 - Example: If you have 3 SM57 shots, all 3 must be at the same distance (e.g., all at 1.5in)
 - Example: If you have 2 R121 shots, both must be at the same distance (e.g., both at 4in)
 - For each mic, pick the distance that captures its best characteristics for this speaker/genre
-- Vary POSITION (Cap, CapEdge, CapEdge_Cone_Tr, Cone) to create tonal variety, NOT distance
+- Vary POSITION (Cap, CapEdge, Cap_Cone_Tr, Cone) to create tonal variety, NOT distance
 - This is MANDATORY - do not output different distances for the same mic type`;
       }
       
@@ -4513,7 +4514,7 @@ MANDATORY RULES:
       
       Position Format:
       - Simple: Cap, Cone, CapEdge
-      - Complex: Cap_OffCenter, CapEdge_BR, CapEdge_DK, CapEdge_Cone_Tr
+      - Complex: Cap_OffCenter, CapEdge_BR, CapEdge_DK, Cap_Cone_Tr
       
       Position Definitions:
       - Cap: Dead center of the dust cap
@@ -4521,7 +4522,7 @@ MANDATORY RULES:
       - CapEdge: Seam line where the dust cap meets the cone
       - CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
       - CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
-      - CapEdge_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
+      - Cap_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed
       
       Legacy Position Translation (users may use old names):
@@ -4559,7 +4560,7 @@ MANDATORY RULES:
       - CapEdge: Seam line where dust cap meets cone, balanced
       - CapEdge_BR: CapEdge favoring cap side, brighter
       - CapEdge_DK: CapEdge favoring cone side, darker/warmer
-      - CapEdge_Cone_Tr: Smooth cone past cap edge, transition zone
+      - Cap_Cone_Tr: Smooth cone past cap edge, transition zone
       - Cone: True mid-cone, darkest, most body
       
       Distances: 0" to 6" in 0.5" increments

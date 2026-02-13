@@ -110,7 +110,7 @@ export const ampInputSchema = z.object({
   ampDescription: z.string().min(1, "Please describe your amp"),
   genre: z.string().optional(),
   targetShotCount: z.number().min(1).max(20).optional(), // Target number of speaker suggestions (1-20)
-  basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+  basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, Cap_Cone_Tr, Cone
 });
 
 export const speakerSuggestionSchema = z.object({
@@ -176,7 +176,7 @@ export const positionImportInputSchema = z.object({
   speaker: z.string().optional(),
   genre: z.string().optional(),
   targetShotCount: z.number().min(1).max(50).optional(), // Target number of refined shots (1-50)
-  basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, CapEdge_Cone_Tr, Cone
+  basicPositionsOnly: z.boolean().optional(), // Limit to basic positions: Cap, CapEdge, Cap_Cone_Tr, Cone
   singleDistancePerMic: z.boolean().optional(), // Use one optimal distance per mic type for workflow efficiency
   micShotCounts: z.string().optional(), // User's mic recipe e.g. "SM57 x 3, MD421K x 2, R121 x 2"
 });

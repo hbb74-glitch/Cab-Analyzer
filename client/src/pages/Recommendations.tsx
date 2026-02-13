@@ -132,7 +132,7 @@ const PREF_MIC_PATTERNS: Record<string, string> = {
 const PREF_POSITION_PATTERNS: Record<string, string> = {
   "capedge_br": "CapEdge_BR", "capedgebr": "CapEdge_BR",
   "capedge_dk": "CapEdge_DK", "capedgedk": "CapEdge_DK",
-  "capedge_cone_tr": "CapEdge_Cone_Tr", "capedgeconetr": "CapEdge_Cone_Tr", "cone_tr": "CapEdge_Cone_Tr", "cap_cone_tr": "CapEdge_Cone_Tr", "capconetr": "CapEdge_Cone_Tr",
+  "capedge_cone_tr": "Cap_Cone_Tr", "capedgeconetr": "Cap_Cone_Tr", "cone_tr": "Cap_Cone_Tr", "cap_cone_tr": "Cap_Cone_Tr", "capconetr": "Cap_Cone_Tr",
   "cap_offcenter": "Cap_OffCenter", "capoffcenter": "Cap_OffCenter", "offcenter": "Cap_OffCenter",
   "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
   "cap": "Cap", "center": "Cap",
@@ -986,8 +986,8 @@ export default function Recommendations() {
         'capedgebr': 'CapEdge_BR',
         'capedge_dk': 'CapEdge_DK',
         'capedgedk': 'CapEdge_DK',
-        'cap_cone_tr': 'CapEdge_Cone_Tr',
-        'capconetr': 'CapEdge_Cone_Tr',
+        'cap_cone_tr': 'Cap_Cone_Tr',
+        'capconetr': 'Cap_Cone_Tr',
         'cone': 'Cone',
         // Legacy mappings
         'cap_edge_favor_cap': 'CapEdge_BR',
@@ -1084,7 +1084,7 @@ export default function Recommendations() {
       const positionMap: Record<string, string> = {
         'cap': 'Cap', 'cap_offcenter': 'Cap_OffCenter', 'capedge': 'CapEdge',
         'capedge_br': 'CapEdge_BR', 'capedge_dk': 'CapEdge_DK',
-        'cap_cone_tr': 'CapEdge_Cone_Tr', 'cone': 'Cone',
+        'cap_cone_tr': 'Cap_Cone_Tr', 'cone': 'Cone',
       };
       return positionMap[posLower] || pos;
     };
@@ -1577,7 +1577,7 @@ export default function Recommendations() {
     "capedge": "CapEdge",
     "capedge_br": "CapEdge_BR",
     "capedge_dk": "CapEdge_DK",
-    "cap_cone_tr": "CapEdge_Cone_Tr",
+    "cap_cone_tr": "Cap_Cone_Tr",
     "cone": "Cone",
     "blend": "Blend",
     // Legacy mappings
@@ -2157,7 +2157,7 @@ export default function Recommendations() {
               <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
             </label>
             <p className="text-xs text-muted-foreground pl-7">
-              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+              Limit suggestions to Cap, CapEdge, Cap_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
             </p>
           </div>
 
@@ -2501,7 +2501,7 @@ export default function Recommendations() {
               <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
             </label>
             <p className="text-xs text-muted-foreground pl-7">
-              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+              Limit suggestions to Cap, CapEdge, Cap_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
             </p>
           </div>
 
@@ -2684,7 +2684,7 @@ Or written out:
               <span className="text-sm font-medium text-foreground">Basic Positions Only</span>
             </label>
             <p className="text-xs text-muted-foreground pl-7">
-              Limit suggestions to Cap, CapEdge, CapEdge_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
+              Limit suggestions to Cap, CapEdge, Cap_Cone_Tr, and Cone. Skips off-center and bright/dark variations.
             </p>
           </div>
 
