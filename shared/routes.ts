@@ -53,7 +53,7 @@ export const distanceRecommendationSchema = z.object({
 export const shotRecommendationSchema = z.object({
   position: z.string(),
   distance: z.string(),
-  blendRatio: z.string().optional(),
+  blendRatio: z.string().nullable().optional(),
   rationale: z.string(),
   expectedTone: z.string(),
   bestFor: z.string(),
@@ -83,7 +83,7 @@ export const micRecommendationSchema = z.object({
   micLabel: z.string(),
   position: z.string(),
   distance: z.string(),
-  blendRatio: z.string().optional(),
+  blendRatio: z.string().nullable().optional(),
   rationale: z.string(),
   expectedTone: z.string(),
   bestFor: z.string(),
