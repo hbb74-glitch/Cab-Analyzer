@@ -2697,7 +2697,7 @@ export default function Analyzer() {
         const bodyRatio = bodyCount / totalClassified;
         const scarceRole = featureRatio < 0.25 ? "Feature" : bodyRatio < 0.25 ? "Body" : null;
         const scarceCount = scarceRole === "Feature" ? featureCount : scarceRole === "Body" ? bodyCount : 0;
-        if (scarceRole) {
+        if (scarceRole && scarceCount > 0) {
           preferences.push({
             type: 'roleBalance',
             question: `Only ${scarceCount} of ${totalClassified} classified IRs are ${scarceRole} shots. Protect them when culling?`,
