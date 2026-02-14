@@ -154,7 +154,7 @@ const PREF_SPEAKER_PATTERNS: Record<string, string> = {
   "g12h30": "G12H", "g12h30-anniversary": "G12H", "anniversary": "G12H", "h30": "G12H", "g12h": "G12H", "g12hann": "G12H", "g12h30ann": "G12H",
   "cream": "Cream", "celestion-cream": "Cream", "celestioncream": "Cream",
   "ga12sc64": "GA12-SC64", "ga12-sc64": "GA12-SC64", "sc64": "GA12-SC64",
-  "g10sc64": "GA10-SC64", "g10-sc64": "GA10-SC64", "g10": "GA10-SC64",
+  "ga10sc64": "GA10-SC64", "ga10": "GA10-SC64", "g10sc64": "GA10-SC64", "g10-sc64": "GA10-SC64", "g10": "GA10-SC64",
   "karnivore": "Karnivore", "karni": "Karnivore",
 };
 

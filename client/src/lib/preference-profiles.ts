@@ -1258,7 +1258,7 @@ const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
   "g12h30": "G12H30-Anniversary", "anniversary": "G12H30-Anniversary", "h30": "G12H30-Anniversary", "g12hann": "G12H30-Anniversary",
   "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
   "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
-  "g10sc64": "G10-SC64", "g10": "G10-SC64",
+  "ga10sc64": "G10-SC64", "ga10": "G10-SC64", "g10sc64": "G10-SC64", "g10": "G10-SC64",
   "karnivore": "Karnivore", "karni": "Karnivore",
 };
 

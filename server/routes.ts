@@ -842,8 +842,8 @@ function parseFilenameForExpectations(filename: string): {
   else if (lower.includes('g12h') && lower.includes('g12h')) { speaker = 'g12h'; speakerDetected = true; }
   else if (lower.includes('g12h') && lower.includes('anni')) { speaker = 'g12hanni'; speakerDetected = true; }
   else if (lower.includes('cream')) { speaker = 'cream'; speakerDetected = true; }
-  else if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) { speaker = 'ga12-sc64'; speakerDetected = true; }
-  else if (lower.includes('ga10') || lower.includes('g10')) { speaker = 'ga10-sc64'; speakerDetected = true; }
+  else if (lower.includes('ga10') || lower.includes('g10-sc64') || lower.includes('g10sc64') || (lower.includes('g10') && !lower.includes('g12'))) { speaker = 'ga10-sc64'; speakerDetected = true; }
+  else if (lower.includes('ga12') || (lower.includes('sc64') && !lower.includes('g10'))) { speaker = 'ga12-sc64'; speakerDetected = true; }
   else if (lower.includes('k100')) { speaker = 'k100'; speakerDetected = true; }
   else if (lower.includes('karnivore') || lower.includes('karni')) { speaker = 'karnivore'; speakerDetected = true; }
   
@@ -1228,7 +1228,7 @@ const GEAR_SPEAKER_PATTERNS: Record<string, string> = {
   "g12h30": "G12H30-Anniversary", "anniversary": "G12H30-Anniversary", "h30": "G12H30-Anniversary", "g12hann": "G12H30-Anniversary",
   "cream": "Celestion-Cream", "celestioncream": "Celestion-Cream",
   "ga12sc64": "GA12-SC64", "sc64": "GA12-SC64",
-  "g10sc64": "G10-SC64", "g10": "G10-SC64",
+  "ga10sc64": "G10-SC64", "ga10": "G10-SC64", "g10sc64": "G10-SC64", "g10": "G10-SC64",
   "karnivore": "Karnivore", "karni": "Karnivore",
 };
 

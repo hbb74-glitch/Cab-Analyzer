@@ -104,7 +104,7 @@ const SPEAKER_PATTERNS: Record<string, string> = {
   "g12h30": "g12h30-anniversary", "g12h30-anniversary": "g12h30-anniversary", "anniversary": "g12h30-anniversary", "h30": "g12h30-anniversary", "g12h": "g12h30-anniversary", "g12hann": "g12h30-anniversary", "g12h30ann": "g12h30-anniversary",
   "cream": "celestion-cream", "celestion-cream": "celestion-cream", "celestioncream": "celestion-cream",
   "ga12sc64": "ga12-sc64", "ga12-sc64": "ga12-sc64", "sc64": "ga12-sc64",
-  "g10sc64": "g10-sc64", "g10-sc64": "g10-sc64", "g10": "g10-sc64",
+  "ga10sc64": "g10-sc64", "ga10": "g10-sc64", "g10sc64": "g10-sc64", "g10-sc64": "g10-sc64", "g10": "g10-sc64",
   "karnivore": "karnivore", "karni": "karnivore",
 };
 
@@ -1629,7 +1629,7 @@ export default function Analyzer() {
         "V30-Blackcat": ["v30blackcat", "blackcat"], "K100": ["k100"],
         "G12T75": ["g12t75", "t75"], "G12-65": ["g1265"], "G12H": ["g12h"],
         "G12H30-Anniversary": ["g12h30", "anniversary"], "Celestion-Cream": ["cream"],
-        "GA12-SC64": ["ga12sc64", "sc64"], "G10-SC64": ["g10sc64", "g10"],
+        "GA12-SC64": ["ga12sc64", "sc64"], "G10-SC64": ["ga10sc64", "ga10", "g10sc64", "g10"],
         "Karnivore": ["karnivore", "karni"],
         "Cap": ["cap", "center"], "CapEdge": ["capedge", "cap_edge"],
         "CapEdge-Bright": ["capedge_br", "capedgebr"], "CapEdge-Dark": ["capedge_dk", "capedgedk"],

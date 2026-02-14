@@ -190,8 +190,8 @@ function normalizeSpeaker(speaker: string): string {
   if (lower.includes('g1265') || lower.includes('heritage') || lower.includes('g12-65')) return 'g12-65';
   if (lower.includes('g12h') || lower.includes('anni')) return 'g12h';
   if (lower.includes('cream')) return 'cream';
-  if (lower.includes('ga12') || lower.includes('sc64') && lower.includes('12')) return 'ga12-sc64';
-  if (lower.includes('ga10') || lower.includes('g10')) return 'ga10-sc64';
+  if (lower.includes('ga10') || lower.includes('g10-sc64') || lower.includes('g10sc64')) return 'ga10-sc64';
+  if (lower.includes('ga12') || (lower.includes('sc64') && !lower.includes('g10'))) return 'ga12-sc64';
   if (lower.includes('k100')) return 'k100';
   if (lower.includes('karnivore') || lower.includes('karni')) return 'karnivore';
   
