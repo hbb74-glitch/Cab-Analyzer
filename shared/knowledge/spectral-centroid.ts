@@ -76,10 +76,16 @@ export function getDistancePositionPenalty(position: string, distance: string, s
   
   // 1" or closer at dead-center cap = high risk of harsh/fizzy tone
   // Especially problematic on darker speakers like G12T-75 where the cap fizz stands out
+  // 10" speakers (ga10-sc64) have smaller cones so positions are closer together —
+  // cap fizz is less extreme but proximity effect is stronger at same distance
   if ((dist === '1' || dist === '0.5') && pos === 'cap') {
     // G12T-75 specifically flagged as problematic at 1" cap based on user feedback
     if (spk === 'g12t75') {
       return { scorePenalty: -4, note: 'G12T-75 at 1" cap often sounds fuzzy/harsh - try 2"+ or cap_offcenter' };
+    }
+    // 10" speakers: less penalty at cap — smaller cone means less concentrated fizz
+    if (spk === 'ga10-sc64') {
+      return { scorePenalty: -1, note: '10" speaker cap is less harsh than 12" at close range, but watch proximity bass buildup' };
     }
     // Other speakers: moderate penalty
     return { scorePenalty: -2, note: '1" cap can sound harsh/fizzy - try 2"+ or cap_offcenter' };
