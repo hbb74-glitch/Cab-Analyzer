@@ -826,12 +826,12 @@ export function suggestPairings(
     irUsage.set(combo.featureFilename, (irUsage.get(combo.featureFilename) ?? 0) + 1);
   };
 
-  const maxAppearances = Math.max(2, Math.ceil(count / Math.max(irs.length - 1, 1)) + 1);
+  const maxAppearances = Math.max(2, Math.ceil(count / Math.max(irs.length - 1, 1)));
 
   const isOverused = (combo: SuggestedPairing) => {
     const baseUse = irUsage.get(combo.baseFilename) ?? 0;
     const featUse = irUsage.get(combo.featureFilename) ?? 0;
-    return baseUse >= maxAppearances && featUse >= maxAppearances;
+    return baseUse >= maxAppearances || featUse >= maxAppearances;
   };
 
   const isDuplicate = (combo: SuggestedPairing) =>
@@ -1044,6 +1044,33 @@ function getProfileAxisTarget(
   return null;
 }
 
+function pairKeyFromPairing(p: SuggestedPairing): string {
+  return [p.baseFilename, p.featureFilename].sort().join("||");
+}
+
+function extractSessionShownPairs(history?: TasteCheckRoundResult[]): Set<string> {
+  const shown = new Set<string>();
+  if (!history) return shown;
+  for (const round of history) {
+    for (const opt of round.options) {
+      shown.add(pairKeyFromPairing(opt));
+    }
+  }
+  return shown;
+}
+
+function extractSessionIRExposure(history?: TasteCheckRoundResult[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!history) return counts;
+  for (const round of history) {
+    for (const opt of round.options) {
+      counts.set(opt.baseFilename, (counts.get(opt.baseFilename) ?? 0) + 1);
+      counts.set(opt.featureFilename, (counts.get(opt.featureFilename) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export function pickTasteCheckCandidates(
   irs: { filename: string; bands: TonalBands; rawEnergy: TonalBands }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
@@ -1057,13 +1084,17 @@ export function pickTasteCheckCandidates(
   const confidence = getTasteConfidence(learned);
   const forceBinary = modeOverride === "tester" || (modeOverride !== "acquisition" && confidence === "high");
 
+  const sessionShown = extractSessionShownPairs(history);
+  const sessionExposure = extractSessionIRExposure(history);
+  const maxSessionExposure = sessionExposure.size > 0
+    ? Math.max(...Array.from(sessionExposure.values()), 1) : 0;
+
   const allCombos: SuggestedPairing[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
-      if (excludePairs) {
-        const ck = [irs[i].filename, irs[j].filename].sort().join("||");
-        if (excludePairs.has(ck)) continue;
-      }
+      const ck = [irs[i].filename, irs[j].filename].sort().join("||");
+      if (excludePairs && excludePairs.has(ck)) continue;
+      if (sessionShown.has(ck)) continue;
       const baseRaw = irs[i].rawEnergy;
       const featRaw = irs[j].rawEnergy;
       const blendBands = blendAtRatio(baseRaw, featRaw, 0.5, 0.5);
@@ -1074,6 +1105,14 @@ export function pickTasteCheckCandidates(
       const bq = learned
         ? scoreBlendWithAvoidPenalty(blendBands, profiles, learned)
         : scoreBlendQuality(blendBands, profiles);
+
+      let exposurePenalty = 0;
+      if (maxSessionExposure > 0) {
+        const baseExp = sessionExposure.get(irs[i].filename) ?? 0;
+        const featExp = sessionExposure.get(irs[j].filename) ?? 0;
+        exposurePenalty = ((baseExp + featExp) / (maxSessionExposure * 2)) * 10;
+      }
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -1081,7 +1120,7 @@ export function pickTasteCheckCandidates(
         bestMatch: result.best,
         blendScore: bq.blendScore,
         blendLabel: bq.blendLabel,
-        score: bq.blendScore,
+        score: bq.blendScore - exposurePenalty,
         rank: 0,
       });
     }
@@ -1100,7 +1139,6 @@ export function pickTasteCheckCandidates(
   }).sort((a, b) => b.spread - a.spread);
 
   let chosenAxis: typeof axisWithSpread[0];
-  let narrowFactor = 1.0;
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
   const quadRounds = forceBinary ? 0 : confidence === "moderate" ? 1 : 2;
@@ -1111,7 +1149,7 @@ export function pickTasteCheckCandidates(
     const axisCompute = chosenAxis.axis.compute;
     const scored = allCombos.map((c) => ({ pairing: c, axisVal: axisCompute(c.blendBands) }));
     scored.sort((a, b) => a.axisVal - b.axisVal);
-    const candidates = pickSpreadCandidates(scored, 4, 1.0);
+    const candidates = pickSpreadCandidates(scored, 4, round);
     return {
       candidates: candidates.map((c) => c.pairing),
       axisName: chosenAxis.axis.name,
@@ -1121,42 +1159,77 @@ export function pickTasteCheckCandidates(
     };
   }
 
+  const axisCounts: Record<string, number> = {};
+  for (const h of (history ?? [])) {
+    axisCounts[h.axisName] = (axisCounts[h.axisName] ?? 0) + 1;
+  }
+
   const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
-  if (unexplored.length > 0 && round % 2 === 0) {
+  if (unexplored.length > 0 && (!lastAxisName || round % 2 === 0)) {
     chosenAxis = unexplored[0];
   } else if (lastAxisName) {
-    chosenAxis = axisWithSpread.find((a) => a.axis.name === lastAxisName) ?? axisWithSpread[0];
-    const timesOnAxis = history?.filter((h) => h.axisName === chosenAxis.axis.name).length ?? 0;
-    narrowFactor = Math.pow(0.6, timesOnAxis);
+    const leastExplored = axisWithSpread
+      .filter((a) => a.spread > 0)
+      .sort((a, b) => (axisCounts[a.axis.name] ?? 0) - (axisCounts[b.axis.name] ?? 0));
+    if (leastExplored.length > 0 && round % 3 !== 2) {
+      chosenAxis = leastExplored[0];
+    } else {
+      chosenAxis = axisWithSpread.find((a) => a.axis.name === lastAxisName) ?? axisWithSpread[0];
+    }
   } else {
     chosenAxis = axisWithSpread[0];
   }
 
   const axisCompute = chosenAxis.axis.compute;
-  const scored = allCombos.map((c) => ({ pairing: c, axisVal: axisCompute(c.blendBands) }));
-  scored.sort((a, b) => a.axisVal - b.axisVal);
+
+  const scoredWithQuality = allCombos
+    .map((c) => ({ pairing: c, axisVal: axisCompute(c.blendBands), quality: c.score }))
+    .sort((a, b) => a.axisVal - b.axisVal);
+
+  if (scoredWithQuality.length < 2) return null;
+
+  const qualityThreshold = Math.max(
+    scoredWithQuality[Math.floor(scoredWithQuality.length * 0.3)]?.quality ?? -Infinity,
+    scoredWithQuality.reduce((best, s) => Math.max(best, s.quality), -Infinity) - 25
+  );
+  const qualityFiltered = scoredWithQuality.filter((s) => s.quality >= qualityThreshold);
+  const scored = qualityFiltered.length >= 4 ? qualityFiltered : scoredWithQuality;
 
   const preferredDir = getPreferredDirection(history ?? [], chosenAxis.axis.name, axisCompute);
+  const timesOnAxis = axisCounts[chosenAxis.axis.name] ?? 0;
 
   let pool = scored;
-  if (preferredDir !== null && narrowFactor < 1.0) {
+  if (timesOnAxis > 0) {
     const pickedVals = (history ?? [])
       .filter((h) => h.axisName === chosenAxis.axis.name && h.pickedIndex >= 0)
       .map((h) => axisCompute(h.options[h.pickedIndex].blendBands));
-    if (pickedVals.length > 0) {
+    if (pickedVals.length > 0 && preferredDir !== null) {
       const avgPicked = pickedVals.reduce((a, b) => a + b, 0) / pickedVals.length;
-      const halfSpan = (chosenAxis.spread / 2) * narrowFactor;
-      pool = scored.filter((s) =>
+      const narrowFactor = Math.pow(0.5, timesOnAxis);
+      const axisRange = scored[scored.length - 1].axisVal - scored[0].axisVal;
+      const halfSpan = (axisRange / 2) * narrowFactor;
+      const narrowed = scored.filter((s) =>
         s.axisVal >= avgPicked - halfSpan && s.axisVal <= avgPicked + halfSpan
       );
-      if (pool.length < 2) pool = scored;
+      if (narrowed.length >= 2) pool = narrowed;
+    } else {
+      const narrowFactor = Math.pow(0.7, timesOnAxis);
+      const axisRange = scored[scored.length - 1].axisVal - scored[0].axisVal;
+      const center = (scored[0].axisVal + scored[scored.length - 1].axisVal) / 2;
+      const halfSpan = (axisRange / 2) * narrowFactor;
+      const narrowed = scored.filter((s) =>
+        s.axisVal >= center - halfSpan && s.axisVal <= center + halfSpan
+      );
+      if (narrowed.length >= 2) pool = narrowed;
     }
   }
 
-  const candidates = pickSpreadCandidates(pool, 2, narrowFactor);
-  const finalCandidates = candidates.map((c) => c.pairing);
+  const candidates = pickSpreadCandidates(pool, 2, round);
+  const [lo, hi] = candidates[0].axisVal <= candidates[1].axisVal
+    ? [candidates[0], candidates[1]]
+    : [candidates[1], candidates[0]];
   return {
-    candidates: forceBinary ? finalCandidates.slice(0, 2) : finalCandidates,
+    candidates: [lo.pairing, hi.pairing],
     axisName: chosenAxis.axis.name,
     roundType: "binary" as const,
     axisLabels: [...chosenAxis.axis.label] as [string, string],
@@ -1185,42 +1258,65 @@ function getPreferredDirection(
 function pickSpreadCandidates(
   sorted: { pairing: SuggestedPairing; axisVal: number }[],
   count: number,
-  narrowFactor: number
+  roundIndex: number
 ): { pairing: SuggestedPairing; axisVal: number }[] {
   if (sorted.length <= count) return sorted;
 
   const fullRange = sorted[sorted.length - 1].axisVal - sorted[0].axisVal;
   if (fullRange === 0) return sorted.slice(0, count);
 
-  const center = (sorted[0].axisVal + sorted[sorted.length - 1].axisVal) / 2;
-  const halfSpan = (fullRange / 2) * narrowFactor;
-  const lo = center - halfSpan;
-  const hi = center + halfSpan;
-
-  const inRange = sorted.filter((s) => s.axisVal >= lo && s.axisVal <= hi);
-  const pool = inRange.length >= count ? inRange : sorted;
-
   if (count === 2) {
-    return [pool[0], pool[pool.length - 1]];
+    if (sorted.length <= 3) return [sorted[0], sorted[sorted.length - 1]];
+    const q1End = Math.max(1, Math.floor(sorted.length * 0.35));
+    const q3Start = Math.min(sorted.length - 2, Math.floor(sorted.length * 0.65));
+    const lowPool = sorted.slice(0, q1End);
+    const highPool = sorted.slice(q3Start);
+    const loIdx = roundIndex % lowPool.length;
+    const hiIdx = roundIndex % highPool.length;
+    const lo = lowPool[loIdx];
+    const hi = highPool[hiIdx];
+    if (pairKeyFromPairing(lo.pairing) === pairKeyFromPairing(hi.pairing)) {
+      const altHi = highPool.find((h) => pairKeyFromPairing(h.pairing) !== pairKeyFromPairing(lo.pairing));
+      if (altHi) return [lo, altHi];
+      const altLo = lowPool.find((l) => pairKeyFromPairing(l.pairing) !== pairKeyFromPairing(hi.pairing));
+      if (altLo) return [altLo, hi];
+    }
+    return [lo, hi];
   }
 
-  if (count === 4 && pool.length >= 4) {
-    const step = (pool.length - 1) / 3;
-    return [
-      pool[0],
-      pool[Math.round(step)],
-      pool[Math.round(step * 2)],
-      pool[pool.length - 1],
-    ];
+  if (count === 4 && sorted.length >= 4) {
+    const segments = 4;
+    const segSize = sorted.length / segments;
+    const result: typeof sorted = [];
+    for (let s = 0; s < segments; s++) {
+      const segStart = Math.floor(s * segSize);
+      const segEnd = Math.min(sorted.length, Math.floor((s + 1) * segSize));
+      const segPool = sorted.slice(segStart, segEnd);
+      if (segPool.length === 0) continue;
+      const idx = roundIndex % segPool.length;
+      const pick = segPool[idx];
+      if (!result.some((r) => pairKeyFromPairing(r.pairing) === pairKeyFromPairing(pick.pairing))) {
+        result.push(pick);
+      } else {
+        const alt = segPool.find((p) => !result.some((r) => pairKeyFromPairing(r.pairing) === pairKeyFromPairing(p.pairing)));
+        if (alt) result.push(alt);
+      }
+    }
+    while (result.length < count && result.length < sorted.length) {
+      const next = sorted.find((p) => !result.some((r) => pairKeyFromPairing(r.pairing) === pairKeyFromPairing(p.pairing)));
+      if (next) result.push(next);
+      else break;
+    }
+    return result;
   }
 
-  const step = Math.max(1, Math.floor((pool.length - 1) / (count - 1)));
-  const result: typeof pool = [];
-  for (let i = 0; i < count && i * step < pool.length; i++) {
-    result.push(pool[i * step]);
+  const step = Math.max(1, Math.floor((sorted.length - 1) / (count - 1)));
+  const result: typeof sorted = [];
+  for (let i = 0; i < count && i * step < sorted.length; i++) {
+    result.push(sorted[i * step]);
   }
-  while (result.length < count && result.length < pool.length) {
-    const next = pool.find((p) => !result.includes(p));
+  while (result.length < count && result.length < sorted.length) {
+    const next = sorted.find((p) => !result.includes(p));
     if (next) result.push(next);
     else break;
   }
