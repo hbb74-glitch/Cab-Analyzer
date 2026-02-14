@@ -1106,8 +1106,24 @@ export default function IRMixer() {
     const current = matchups[step];
 
     if (pickedSide === "tie") {
-      const tieRatio = snapToGrid((current.a + current.b) / 2);
-      completeRatioRefine(tieRatio, false);
+      const MAX_RATIO_ROUNDS = 3;
+      const aIdx = RATIO_GRID.indexOf(snapToGrid(current.a));
+      const bIdx = RATIO_GRID.indexOf(snapToGrid(current.b));
+      const gap = Math.abs(bIdx - aIdx);
+      const widerGap = gap + 2;
+      const center = (aIdx + bIdx) / 2;
+      const nextAIdx = Math.max(0, Math.round(center - widerGap / 2));
+      const nextBIdx = Math.min(RATIO_GRID.length - 1, Math.round(center + widerGap / 2));
+
+      if (nextAIdx === nextBIdx || step + 1 >= MAX_RATIO_ROUNDS ||
+          (nextAIdx === 0 && nextBIdx === RATIO_GRID.length - 1 && gap >= RATIO_GRID.length - 2)) {
+        const tieRatio = snapToGrid((current.a + current.b) / 2);
+        completeRatioRefine(tieRatio, false);
+        return;
+      }
+
+      const updated = [...matchups.slice(0, step + 1), { a: RATIO_GRID[nextAIdx], b: RATIO_GRID[nextBIdx] }];
+      setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated, lowIdx: nextAIdx, highIdx: nextBIdx });
       return;
     }
 
