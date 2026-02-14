@@ -2343,7 +2343,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - g12h30-anniversary (G12H30 Anniversary): Tight bass, moderately bright.
       - celestion-cream (Celestion Cream): Alnico warmth, moderately bright.
       - ga12-sc64 (GA12-SC64): Dark vintage American, very mid-heavy.
-      - g10-sc64 (G10-SC64): 10" version, slightly brighter than GA12.
+      - g10-sc64 (G10-SC64): 10" Eminence, avg centroid ~2488Hz. Brighter than GA12 — much more presence energy (21% vs GA12's 8%), similar mid (35%), less HiMid (32% vs GA12's 48%), more bass (4.3% vs 2.1%). HiMid/Mid ratio near 1.0 (balanced) vs GA12's 1.55 (HiMid-dominant). Smaller cone = positions closer together, differences more subtle. Quicker transient, earlier breakup.
       - karnivore (Eminence Karnivore): Very mid-focused, tight bass, low presence, dark voicing. Modern high-gain metal.
       
       Distance Effects (general principles) - CRITICAL ACOUSTIC TRUTH:
@@ -4172,7 +4172,7 @@ Output JSON:
       - g12h30-anniversary (Celestion G12H30 Anniversary): Tight bass, moderately bright (~2873 Hz). Classic 70s rock tone.
       - celestion-cream (Celestion Cream): Alnico warmth, moderately bright (~2887 Hz). Creamy breakup, touch-sensitive, boutique.
       - ga12-sc64 (Eminence GA-SC64 12"): Dark vintage American, very mid-heavy (~2350 Hz). Fender Deluxe/Princeton vibe.
-      - g10-sc64 (Eminence GA-SC64 10"): 10" version, slightly brighter than GA12. Great for smaller combos.
+      - g10-sc64 (Eminence GA-SC64 10"): 10" Eminence, avg centroid ~2488Hz. Much more presence (21%) than GA12 (8%), similar mid (35%), less HiMid (32% vs 48%), more bass (4.3%). Ratio ~1.0 (balanced HiMid/Mid). Smaller cone, quicker transient, earlier breakup. Princeton/small combo vibe.
       - k100 (Celestion G12K-100): Big low end, moderately bright (~2770 Hz). High headroom, modern voicing.
       - karnivore (Eminence Karnivore): Very mid-focused (35%+ mid energy), tight bass, low presence (~14%), darkest speaker measured at avg centroid 2465 Hz. Modern high-gain metal. Co-designed with Kristian Kohle.
       

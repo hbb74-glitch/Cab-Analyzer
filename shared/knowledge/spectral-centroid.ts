@@ -104,7 +104,7 @@ export const SPEAKER_OFFSETS: Record<string, { offset: number; description: stri
   'g12h': { offset: 275, description: 'Tight bass, moderately bright highs' },
   'cream': { offset: 300, description: 'Alnico warmth, moderately bright' },
   'ga12-sc64': { offset: -250, description: 'Dark vintage American, very mid-heavy' },
-  'ga10-sc64': { offset: -200, description: '10 inch version, slightly brighter than GA12' },
+  'ga10-sc64': { offset: -100, description: '10 inch Eminence, avg centroid ~2488Hz, much more presence (21%) than GA12 (8%), similar mid energy but less HiMid, more bass due to proximity on smaller cone' },
   'k100': { offset: 175, description: 'Big low end, moderately bright' },
   'karnivore': { offset: -175, description: 'Very mid-focused, tight bass, low presence, dark voicing' },
 };
