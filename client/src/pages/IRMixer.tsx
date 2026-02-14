@@ -1125,7 +1125,9 @@ export default function IRMixer() {
       newHigh = highIdx;
     }
 
-    if (newHigh - newLow <= 1) {
+    const MAX_RATIO_ROUNDS = 3;
+
+    if (newHigh - newLow <= 1 || step + 1 >= MAX_RATIO_ROUNDS) {
       completeRatioRefine(winnerVal, false);
       return;
     }
