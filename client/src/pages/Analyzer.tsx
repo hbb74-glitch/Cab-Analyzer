@@ -3216,7 +3216,7 @@ export default function Analyzer() {
       if (r.parsedInfo) {
         const info = [];
         if (r.parsedInfo.mic) info.push(`Mic: ${r.parsedInfo.mic}`);
-        if (r.parsedInfo.position) info.push(`Pos: ${r.parsedInfo.position}`);
+        if (r.parsedInfo.position) info.push(`Pos: ${r.parsedInfo.position}${r.parsedInfo.offAxis ? ' (OffAx)' : ''}`);
         if (r.parsedInfo.speaker) info.push(`Spk: ${r.parsedInfo.speaker}`);
         if (r.parsedInfo.distance) info.push(`Dist: ${r.parsedInfo.distance}`);
         if (info.length) text += `   Detected: ${info.join(", ")}\n`;
@@ -4246,6 +4246,11 @@ export default function Analyzer() {
                                 {r.parsedInfo.distance && (
                                   <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
                                     {r.parsedInfo.distance}
+                                  </span>
+                                )}
+                                {r.parsedInfo.offAxis && (
+                                  <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+                                    OffAx
                                   </span>
                                 )}
                                 {batchPreferenceRoles?.[index]?.role && (

@@ -758,6 +758,7 @@ function parseFilenameForExpectations(filename: string): {
   speaker: string; 
   variant?: string; 
   isCombo?: boolean;
+  offAxis?: boolean;
   confidence: 'high' | 'medium' | 'low';  // high = all detected, medium = some defaults, low = all defaults
   micDetected: boolean;
   positionDetected: boolean;
@@ -826,6 +827,10 @@ function parseFilenameForExpectations(filename: string): {
     else if (lower.includes('_cone_') || lower.includes('cone_') || lower.includes('_cone')) { position = 'cone'; positionDetected = true; }
   }
   
+  // Parse off-axis flag (OffAx in filename means mic is angled, not perpendicular to speaker)
+  // Format: Speaker_Mic_Position_OffAx_Distance
+  const offAxis = lower.includes('offax') || lower.includes('off_ax') || lower.includes('off-ax');
+  
   // Parse speaker
   let speaker = 'v30'; // default
   let speakerDetected = false;
@@ -853,7 +858,7 @@ function parseFilenameForExpectations(filename: string): {
     confidence = 'low';  // All defaults - filename couldn't be parsed
   }
   
-  return { mic, position, speaker, variant, isCombo, confidence, micDetected, positionDetected, speakerDetected };
+  return { mic, position, speaker, variant, isCombo, offAxis: offAxis || undefined, confidence, micDetected, positionDetected, speakerDetected };
 }
 
 // Shared single-IR scoring function used by both single and batch modes
@@ -885,7 +890,7 @@ async function scoreSingleIR(ir: {
   advice: string;
   highlights: string[];
   issues: string[];
-  parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null; confidence: 'high' | 'medium' | 'low'; micDetected: boolean; positionDetected: boolean; speakerDetected: boolean };
+  parsedInfo: { mic: string | null; position: string | null; speaker: string | null; distance: string | null; confidence: 'high' | 'medium' | 'low'; micDetected: boolean; positionDetected: boolean; speakerDetected: boolean; offAxis?: boolean };
   renameSuggestion: { suggestedModifier: string; suggestedFilename: string; reason: string } | null;
   spectralDeviation: {
     expectedMin: number;
@@ -912,6 +917,12 @@ async function scoreSingleIR(ir: {
   // Calculate expected spectral centroid range based on mic/position/speaker
   const parsed = parseFilenameForExpectations(ir.filename);
   const expectedRange = getExpectedCentroidRange(parsed.mic, parsed.position, parsed.speaker);
+  // Off-axis placement shifts centroid lower (darker/warmer tone, reduced presence peak)
+  if (parsed.offAxis) {
+    const offAxisShift = 200; // ~200Hz darker typical for angled mic placement
+    expectedRange.min = Math.max(500, expectedRange.min - offAxisShift);
+    expectedRange.max = Math.max(800, expectedRange.max - offAxisShift);
+  }
   const deviation = calculateCentroidDeviation(ir.spectralCentroid, expectedRange);
   const rawScoreAdjustment = getDeviationScoreAdjustment(deviation.deviationPercent);
   
@@ -973,7 +984,7 @@ DO NOT penalize for spectral deviation - score based on other technical metrics 
 Partial detection: mic=${parsed.micDetected ? parsed.mic : 'default'}, position=${parsed.positionDetected ? parsed.position : 'default'}, speaker=${parsed.speakerDetected ? parsed.speaker : 'default'}
 Deviation penalty is reduced by 50% due to incomplete parsing.`
     : `FILENAME PARSING CONFIDENCE: HIGH
-All parameters detected: mic=${parsed.mic}, position=${parsed.position}, speaker=${parsed.speaker}
+All parameters detected: mic=${parsed.mic}, position=${parsed.position}, speaker=${parsed.speaker}${parsed.offAxis ? '\nMIC ORIENTATION: OFF-AXIS (angled toward cap edge, not perpendicular to speaker). Expect darker/warmer tone, reduced presence peak, lower spectral centroid compared to on-axis placement.' : ''}
 Apply full spectral deviation scoring.`;
 
   const systemPrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
@@ -1157,6 +1168,7 @@ Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: 
       position: parsed.position, // Use deterministic parsing
       speaker: parsed.speaker,   // Use deterministic parsing
       distance: parsedDistance,  // Parse from filename or use AI's
+      offAxis: parsed.offAxis,  // Off-axis mic placement detected
       confidence: parsed.confidence,
       micDetected: parsed.micDetected,
       positionDetected: parsed.positionDetected,
