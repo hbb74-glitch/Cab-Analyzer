@@ -337,28 +337,11 @@ function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
   );
 }
 
-function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: LearnedProfileData; allIRs: IRData[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const [correctionText, setCorrectionText] = useState("");
+function FindTonePanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
   const [toneRequestText, setToneRequestText] = useState("");
   const [toneResults, setToneResults] = useState<{ suggestions: ToneSuggestion[]; interpretation: string } | null>(null);
   const [toneCopied, setToneCopied] = useState(false);
   const { toast } = useToast();
-
-  const correctionMutation = useMutation({
-    mutationFn: async (text: string) => {
-      const res = await apiRequest("POST", "/api/preferences/correct", { correctionText: text });
-      return res.json();
-    },
-    onSuccess: (data: { applied: boolean; summary: string }) => {
-      toast({ title: "Correction applied", description: data.summary });
-      setCorrectionText("");
-      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
-    },
-    onError: () => {
-      toast({ title: "Failed to apply correction", variant: "destructive" });
-    },
-  });
 
   const toneRequestMutation = useMutation({
     mutationFn: async (text: string) => {
@@ -382,6 +365,130 @@ function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: Learne
     },
     onError: () => {
       toast({ title: "Failed to find tone matches", variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="mb-8 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4" data-testid="find-tone-panel">
+      <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+        <Search className="w-4 h-4 text-violet-400" />
+        Find Me This Tone
+      </h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Describe a tone and get blend combinations from your loaded IRs.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={toneRequestText}
+          onChange={(e) => setToneRequestText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && toneRequestText.trim() && !toneRequestMutation.isPending) {
+              toneRequestMutation.mutate(toneRequestText.trim());
+            }
+          }}
+          placeholder='e.g. "thick aggressive metal tone with lots of bite" or "smooth warm jazz tone"'
+          className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          disabled={toneRequestMutation.isPending}
+          data-testid="input-tone-request"
+        />
+        <Button
+          size="sm"
+          onClick={() => toneRequestText.trim() && toneRequestMutation.mutate(toneRequestText.trim())}
+          disabled={!toneRequestText.trim() || toneRequestMutation.isPending}
+          data-testid="button-submit-tone-request"
+        >
+          {toneRequestMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Search"}
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {toneResults && toneResults.suggestions && toneResults.suggestions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-4 space-y-2"
+            data-testid="tone-results"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] text-muted-foreground italic">{toneResults.interpretation}</p>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  const lines: string[] = [];
+                  lines.push(`Tone: "${toneRequestText}"`);
+                  lines.push(toneResults.interpretation);
+                  lines.push("");
+                  for (const sug of toneResults.suggestions) {
+                    lines.push(`[${Math.round(sug.confidence * 100)}%] ${sug.baseIR.replace(/\.wav$/i, '')} + ${sug.featureIR.replace(/\.wav$/i, '')} (${sug.ratio})`);
+                    lines.push(`  Tone: ${sug.expectedTone}`);
+                    lines.push(`  Why: ${sug.reasoning}`);
+                    lines.push("");
+                  }
+                  navigator.clipboard.writeText(lines.join("\n")).then(() => {
+                    setToneCopied(true);
+                    setTimeout(() => setToneCopied(false), 2000);
+                  });
+                }}
+                data-testid="button-copy-tone-results"
+              >
+                {toneCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              </Button>
+            </div>
+            {toneResults.suggestions.map((sug, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "p-3 rounded-lg border",
+                  sug.confidence >= 0.8 ? "border-emerald-500/30 bg-emerald-500/5" :
+                  sug.confidence >= 0.6 ? "border-sky-500/30 bg-sky-500/5" :
+                  "border-border/50 bg-card/30"
+                )}
+                data-testid={`tone-suggestion-${i}`}
+              >
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
+                    {sug.ratio}
+                  </Badge>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {Math.round(sug.confidence * 100)}% match
+                  </span>
+                </div>
+                <div className="text-xs text-foreground mb-1">
+                  <span className="font-medium">{sug.baseIR.replace(/\.wav$/i, '')}</span>
+                  <span className="text-muted-foreground mx-1">+</span>
+                  <span className="font-medium">{sug.featureIR.replace(/\.wav$/i, '')}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{sug.expectedTone}</p>
+                <p className="text-[10px] text-muted-foreground/70 mt-1">{sug.reasoning}</p>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function TonalInsightsPanel({ learnedProfile }: { learnedProfile: LearnedProfileData }) {
+  const [expanded, setExpanded] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
+  const { toast } = useToast();
+
+  const correctionMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/preferences/correct", { correctionText: text });
+      return res.json();
+    },
+    onSuccess: (data: { applied: boolean; summary: string }) => {
+      toast({ title: "Correction applied", description: data.summary });
+      setCorrectionText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to apply correction", variant: "destructive" });
     },
   });
 
@@ -471,108 +578,6 @@ function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: Learne
                 </div>
               </div>
 
-              {allIRs.length >= 2 && (
-                <div className="space-y-2 border-t border-border/30 pt-3">
-                  <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                    <Search className="w-3 h-3 text-purple-400" />
-                    Find me this tone
-                  </label>
-                  <p className="text-[10px] text-muted-foreground">
-                    Describe a tone and I'll suggest blend combinations from your loaded IRs.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={toneRequestText}
-                      onChange={(e) => setToneRequestText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && toneRequestText.trim() && !toneRequestMutation.isPending) {
-                          toneRequestMutation.mutate(toneRequestText.trim());
-                        }
-                      }}
-                      placeholder='e.g. "thick aggressive metal tone with lots of bite" or "smooth warm jazz tone"'
-                      className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      disabled={toneRequestMutation.isPending}
-                      data-testid="input-tone-request"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => toneRequestText.trim() && toneRequestMutation.mutate(toneRequestText.trim())}
-                      disabled={!toneRequestText.trim() || toneRequestMutation.isPending}
-                      data-testid="button-submit-tone-request"
-                    >
-                      {toneRequestMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Search"}
-                    </Button>
-                  </div>
-
-                  <AnimatePresence>
-                    {toneResults && toneResults.suggestions && toneResults.suggestions.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="mt-3 space-y-2"
-                        data-testid="tone-results"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[10px] text-muted-foreground italic">{toneResults.interpretation}</p>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              const lines: string[] = [];
-                              lines.push(`Tone: "${toneRequestText}"`);
-                              lines.push(toneResults.interpretation);
-                              lines.push("");
-                              for (const sug of toneResults.suggestions) {
-                                lines.push(`[${Math.round(sug.confidence * 100)}%] ${sug.baseIR.replace(/\.wav$/i, '')} + ${sug.featureIR.replace(/\.wav$/i, '')} (${sug.ratio})`);
-                                lines.push(`  Tone: ${sug.expectedTone}`);
-                                lines.push(`  Why: ${sug.reasoning}`);
-                                lines.push("");
-                              }
-                              navigator.clipboard.writeText(lines.join("\n")).then(() => {
-                                setToneCopied(true);
-                                setTimeout(() => setToneCopied(false), 2000);
-                              });
-                            }}
-                            data-testid="button-copy-tone-results"
-                          >
-                            {toneCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          </Button>
-                        </div>
-                        {toneResults.suggestions.map((sug, i) => (
-                          <div
-                            key={i}
-                            className={cn(
-                              "p-3 rounded-lg border",
-                              sug.confidence >= 0.8 ? "border-emerald-500/30 bg-emerald-500/5" :
-                              sug.confidence >= 0.6 ? "border-sky-500/30 bg-sky-500/5" :
-                              "border-border/50 bg-card/30"
-                            )}
-                            data-testid={`tone-suggestion-${i}`}
-                          >
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
-                                {sug.ratio}
-                              </Badge>
-                              <span className="text-[10px] font-mono text-muted-foreground">
-                                {Math.round(sug.confidence * 100)}% match
-                              </span>
-                            </div>
-                            <div className="text-xs text-foreground mb-1">
-                              <span className="font-medium">{sug.baseIR.replace(/\.wav$/i, '')}</span>
-                              <span className="text-muted-foreground mx-1">+</span>
-                              <span className="font-medium">{sug.featureIR.replace(/\.wav$/i, '')}</span>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">{sug.expectedTone}</p>
-                            <p className="text-[10px] text-muted-foreground/70 mt-1">{sug.reasoning}</p>
-                          </div>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
             </div>
           </motion.div>
         )}
@@ -1916,7 +1921,6 @@ export default function IRMixer() {
         {learnedProfile && learnedProfile.tonalSummary && learnedProfile.status !== "no_data" && (
           <TonalInsightsPanel
             learnedProfile={learnedProfile}
-            allIRs={allIRs}
           />
         )}
 
@@ -2014,6 +2018,10 @@ export default function IRMixer() {
 
         {allIRs.length >= 1 && (
           <TestAIPanel allIRs={allIRs} />
+        )}
+
+        {allIRs.length >= 2 && (
+          <FindTonePanel allIRs={allIRs} />
         )}
 
         <div className="mb-8 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
