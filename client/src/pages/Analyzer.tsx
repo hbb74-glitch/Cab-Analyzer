@@ -2278,6 +2278,14 @@ export default function Analyzer() {
       crestFactorDb: ir.metrics!.crestFactorDb,
       frequencySmoothness: ir.metrics!.frequencySmoothness,
       noiseFloorDb: ir.metrics!.noiseFloorDb,
+      spectralTilt: (ir.metrics as any)?.spectralTilt,
+      rolloffFreq: (ir.metrics as any)?.rolloffFreq,
+      smoothScore: (ir.metrics as any)?.smoothScore,
+      maxNotchDepth: (ir.metrics as any)?.maxNotchDepth,
+      notchCount: (ir.metrics as any)?.notchCount,
+      logBandEnergies: (ir.metrics as any)?.logBandEnergies,
+      tailLevelDb: (ir.metrics as any)?.tailLevelDb,
+      tailStatus: (ir.metrics as any)?.tailStatus,
     }));
 
     analyzeBatch(irInputs);
@@ -3383,7 +3391,15 @@ export default function Analyzer() {
         ultraHighEnergy: metrics.ultraHighEnergy,
         frequencySmoothness: metrics.frequencySmoothness,
         noiseFloorDb: metrics.noiseFloorDb,
-        originalFilename: file.name, // Pass original filename for mic variant detection
+        spectralTilt: metrics.spectralTilt,
+        rolloffFreq: metrics.rolloffFreq,
+        smoothScore: metrics.smoothScore,
+        maxNotchDepth: metrics.maxNotchDepth,
+        notchCount: metrics.notchCount,
+        logBandEnergies: metrics.logBandEnergies,
+        tailLevelDb: metrics.tailLevelDb,
+        tailStatus: metrics.tailStatus,
+        originalFilename: file.name,
       });
       setResult({ ...response, filename: file.name });
     } catch (error) {
@@ -3645,12 +3661,18 @@ export default function Analyzer() {
                               <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                 <span>{ir.metrics.durationMs.toFixed(1)}ms</span>
                                 <span>Centroid: <span className="text-foreground">{ir.metrics.spectralCentroid.toFixed(0)}Hz</span></span>
-                                <span>Smooth: <span className="text-foreground">{ir.metrics.frequencySmoothness.toFixed(0)}</span></span>
+                                <span>Smooth: <span className="text-foreground">{((ir.metrics as any).smoothScore ?? ir.metrics.frequencySmoothness).toFixed(0)}</span></span>
                                 {ir.metrics.hasClipping && (
                                   <span>Crest: <span className="text-amber-400">{ir.metrics.crestFactorDb.toFixed(1)}dB</span></span>
                                 )}
-                                {ir.metrics.noiseFloorDb > -45 && (
+                                {(ir.metrics as any).tailLevelDb != null && (ir.metrics as any).tailLevelDb > -45 && (
+                                  <span>Tail: <span className={(ir.metrics as any).tailLevelDb > -35 ? "text-amber-400" : "text-foreground"}>{((ir.metrics as any).tailLevelDb as number).toFixed(0)}dB</span></span>
+                                )}
+                                {(ir.metrics as any).tailLevelDb == null && ir.metrics.noiseFloorDb > -45 && (
                                   <span>Tail: <span className={ir.metrics.noiseFloorDb > -35 ? "text-amber-400" : "text-foreground"}>{ir.metrics.noiseFloorDb.toFixed(0)}dB</span></span>
+                                )}
+                                {(ir.metrics as any).spectralTilt != null && (
+                                  <span>Tilt: <span className={(ir.metrics as any).spectralTilt > 0.5 ? "text-amber-400" : (ir.metrics as any).spectralTilt < -2.0 ? "text-blue-400" : "text-foreground"}>{((ir.metrics as any).spectralTilt as number).toFixed(2)}</span></span>
                                 )}
                               </div>
                             )}
@@ -4385,12 +4407,22 @@ export default function Analyzer() {
                           </div>
                         )}
 
-                        {/* Quality Metrics: Smoothness & Noise Floor */}
-                        {(r.frequencySmoothness != null || r.noiseFloorDb != null) && (
+                        {/* Quality Metrics: Smoothness, Tail Level, Tilt, Rolloff */}
+                        {(r.frequencySmoothness != null || r.noiseFloorDb != null || (r as any).smoothScore != null) && (
                           <div className="mt-2 p-2 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center gap-3 text-xs">
                             <Activity className="w-4 h-4 text-slate-400 flex-shrink-0" />
                             <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                              {r.frequencySmoothness != null && (
+                              {(r as any).smoothScore != null && (
+                                <span className="text-muted-foreground">
+                                  Smoothness: <span className={cn(
+                                    "font-mono font-medium",
+                                    (r as any).smoothScore >= 80 ? "text-emerald-400" :
+                                    (r as any).smoothScore >= 60 ? "text-foreground" :
+                                    (r as any).smoothScore >= 45 ? "text-amber-400" : "text-red-400"
+                                  )}>{Math.round((r as any).smoothScore)}/100</span>
+                                </span>
+                              )}
+                              {(r as any).smoothScore == null && r.frequencySmoothness != null && (
                                 <span className="text-muted-foreground">
                                   Smoothness: <span className={cn(
                                     "font-mono font-medium",
@@ -4400,14 +4432,56 @@ export default function Analyzer() {
                                   )}>{Math.round(r.frequencySmoothness)}/100</span>
                                 </span>
                               )}
-                              {r.noiseFloorDb != null && (
+                              {(r as any).tailLevelDb != null && (
                                 <span className="text-muted-foreground">
-                                  Noise Floor: <span className={cn(
+                                  Tail: <span className={cn(
+                                    "font-mono font-medium",
+                                    (r as any).tailLevelDb <= -60 ? "text-emerald-400" :
+                                    (r as any).tailLevelDb <= -45 ? "text-foreground" :
+                                    (r as any).tailLevelDb <= -35 ? "text-amber-400" : "text-red-400"
+                                  )}>{((r as any).tailLevelDb as number).toFixed(1)} dB</span>
+                                  {(r as any).tailStatus && (r as any).tailStatus !== 'measured' && (
+                                    <span className="text-muted-foreground/60 ml-1">({(r as any).tailStatus})</span>
+                                  )}
+                                </span>
+                              )}
+                              {(r as any).tailLevelDb == null && r.noiseFloorDb != null && (
+                                <span className="text-muted-foreground">
+                                  Tail: <span className={cn(
                                     "font-mono font-medium",
                                     r.noiseFloorDb <= -60 ? "text-emerald-400" :
                                     r.noiseFloorDb <= -45 ? "text-foreground" :
                                     r.noiseFloorDb <= -35 ? "text-amber-400" : "text-red-400"
                                   )}>{r.noiseFloorDb.toFixed(1)} dB</span>
+                                </span>
+                              )}
+                              {(r as any).spectralTilt != null && (
+                                <span className="text-muted-foreground">
+                                  Tilt: <span className={cn(
+                                    "font-mono font-medium",
+                                    (r as any).spectralTilt > 0.5 ? "text-amber-400" :
+                                    (r as any).spectralTilt < -2.0 ? "text-blue-400" : "text-foreground"
+                                  )}>{((r as any).spectralTilt as number).toFixed(2)}</span>
+                                  <span className="text-muted-foreground/60 ml-0.5">
+                                    {(r as any).spectralTilt > 0.5 ? "(bright)" : (r as any).spectralTilt < -2.0 ? "(dark)" : ""}
+                                  </span>
+                                </span>
+                              )}
+                              {(r as any).rolloffFreq != null && (
+                                <span className="text-muted-foreground">
+                                  Rolloff: <span className="font-mono font-medium text-foreground">{((r as any).rolloffFreq as number) >= 1000 ? `${((r as any).rolloffFreq / 1000).toFixed(1)}k` : `${Math.round((r as any).rolloffFreq)}`}Hz</span>
+                                </span>
+                              )}
+                              {(r as any).maxNotchDepth != null && (r as any).maxNotchDepth > 6 && (
+                                <span className="text-muted-foreground">
+                                  Notch: <span className={cn(
+                                    "font-mono font-medium",
+                                    (r as any).maxNotchDepth > 15 ? "text-red-400" :
+                                    (r as any).maxNotchDepth > 10 ? "text-amber-400" : "text-foreground"
+                                  )}>-{((r as any).maxNotchDepth as number).toFixed(0)}dB</span>
+                                  {(r as any).notchCount > 1 && (
+                                    <span className="text-muted-foreground/60 ml-0.5">({(r as any).notchCount}x)</span>
+                                  )}
                                 </span>
                               )}
                             </div>

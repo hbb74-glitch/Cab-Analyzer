@@ -35,22 +35,27 @@ export const insertAnalysisSchema = createInsertSchema(analyses).omit({
 
 // Input type for the API (includes audio metrics calculated by client)
 export const analysisRequestSchema = insertAnalysisSchema.extend({
-  // Energy distribution metrics - used for AI analysis but not stored in DB
-  lowEnergy: z.number().min(0).max(1),   // Energy in 20-250Hz range
-  midEnergy: z.number().min(0).max(1),   // Energy in 250-4000Hz range
-  highEnergy: z.number().min(0).max(1),  // Energy in 4000-20000Hz range
-  // 6-band detailed breakdown for tonal analysis
-  subBassEnergy: z.number().optional(),    // 20-120Hz
-  bassEnergy: z.number().optional(),       // 120-250Hz
-  lowMidEnergy: z.number().optional(),     // 250-500Hz
-  midEnergy6: z.number().optional(),       // 500-2000Hz
-  highMidEnergy: z.number().optional(),    // 2000-4000Hz
-  presenceEnergy: z.number().optional(),   // 4000-8000Hz
-  ultraHighEnergy: z.number().optional(),  // 8000-20000Hz
+  lowEnergy: z.number().min(0).max(1),
+  midEnergy: z.number().min(0).max(1),
+  highEnergy: z.number().min(0).max(1),
+  subBassEnergy: z.number().optional(),
+  bassEnergy: z.number().optional(),
+  lowMidEnergy: z.number().optional(),
+  midEnergy6: z.number().optional(),
+  highMidEnergy: z.number().optional(),
+  presenceEnergy: z.number().optional(),
+  ultraHighEnergy: z.number().optional(),
   frequencySmoothness: z.number().optional(),
   noiseFloorDb: z.number().optional(),
-  // Original filename for mic variant detection (e.g., e906 presence boost)
   originalFilename: z.string().optional(),
+  spectralTilt: z.number().optional(),
+  rolloffFreq: z.number().optional(),
+  smoothScore: z.number().optional(),
+  maxNotchDepth: z.number().optional(),
+  notchCount: z.number().optional(),
+  logBandEnergies: z.array(z.number()).optional(),
+  tailLevelDb: z.number().nullable().optional(),
+  tailStatus: z.string().optional(),
 });
 
 export type Analysis = typeof analyses.$inferSelect;

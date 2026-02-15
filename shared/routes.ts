@@ -230,8 +230,16 @@ export const batchIRInputSchema = z.object({
   hasClipping: z.boolean().optional(),
   clippedSamples: z.number().optional(),
   crestFactorDb: z.number().optional(),
-  frequencySmoothness: z.number().optional(),  // 0-100, higher = smoother response
-  noiseFloorDb: z.number().optional(),         // dB, more negative = cleaner
+  frequencySmoothness: z.number().optional(),
+  noiseFloorDb: z.number().optional(),
+  spectralTilt: z.number().optional(),
+  rolloffFreq: z.number().optional(),
+  smoothScore: z.number().optional(),
+  maxNotchDepth: z.number().optional(),
+  notchCount: z.number().optional(),
+  logBandEnergies: z.array(z.number()).optional(),
+  tailLevelDb: z.number().nullable().optional(),
+  tailStatus: z.string().optional(),
 });
 
 export const batchAnalysisInputSchema = z.object({
@@ -267,9 +275,15 @@ export const batchIRResultSchema = z.object({
     reason: z.string(),
   }).optional().nullable(),
   spectralDeviation: spectralDeviationSchema.optional().nullable(),
-  frequencySmoothness: z.number().optional().nullable(),  // 0-100, higher = smoother
-  noiseFloorDb: z.number().optional().nullable(),         // dB, more negative = cleaner
-  // 6-band tonal balance (percentages, sum to ~100%)
+  frequencySmoothness: z.number().optional().nullable(),
+  noiseFloorDb: z.number().optional().nullable(),
+  spectralTilt: z.number().optional().nullable(),
+  rolloffFreq: z.number().optional().nullable(),
+  smoothScore: z.number().optional().nullable(),
+  maxNotchDepth: z.number().optional().nullable(),
+  notchCount: z.number().optional().nullable(),
+  tailLevelDb: z.number().optional().nullable(),
+  tailStatus: z.string().optional().nullable(),
   subBassPercent: z.number().optional().nullable(),    // 20-120Hz
   bassPercent: z.number().optional().nullable(),       // 120-250Hz
   lowMidPercent: z.number().optional().nullable(),     // 250-500Hz

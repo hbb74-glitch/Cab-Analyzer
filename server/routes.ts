@@ -982,8 +982,16 @@ async function scoreSingleIR(ir: {
   hasClipping?: boolean;
   clippedSamples?: number;
   crestFactorDb?: number;
-  frequencySmoothness?: number;  // 0-100, higher = smoother response
-  noiseFloorDb?: number;         // dB, more negative = cleaner
+  frequencySmoothness?: number;
+  noiseFloorDb?: number;
+  spectralTilt?: number;
+  rolloffFreq?: number;
+  smoothScore?: number;
+  maxNotchDepth?: number;
+  notchCount?: number;
+  logBandEnergies?: number[];
+  tailLevelDb?: number | null;
+  tailStatus?: string;
 }, userVocabularyContext?: string): Promise<{
   score: number;
   isPerfect: boolean;
@@ -1207,18 +1215,30 @@ Output JSON format:
     }
   }
 
+  const tiltStr = ir.spectralTilt !== undefined ? ir.spectralTilt.toFixed(2) : 'N/A';
+  const rolloffStr = ir.rolloffFreq !== undefined ? `${ir.rolloffFreq.toFixed(0)}Hz` : 'N/A';
+  const perceptualSmooth = ir.smoothScore !== undefined ? `${ir.smoothScore.toFixed(0)}/100` : 'N/A';
+  const notchInfo = ir.maxNotchDepth !== undefined ? `max notch ${ir.maxNotchDepth.toFixed(1)}dB, ${ir.notchCount ?? 0} notches >6dB` : 'N/A';
+  const tailInfo = ir.tailLevelDb !== null && ir.tailLevelDb !== undefined
+    ? `${ir.tailLevelDb.toFixed(1)} dBFS rel peak`
+    : (ir.tailStatus || 'N/A (short IR)');
+
   const userMessage = `Analyze this IR for technical quality:
 
 Filename: "${ir.filename}"
 - Duration: ${ir.duration.toFixed(1)}ms
 - Peak Level: ${ir.peakLevel.toFixed(1)}dB
 - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
+- Spectral Tilt (log-log slope 200-8kHz): ${tiltStr} (negative = darker, positive = brighter)
+- Rolloff Frequency (85% energy): ${rolloffStr}
 - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
 - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
 - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%
 - Clipping Detected: ${ir.hasClipping ? `YES (${ir.clippedSamples} clipped samples, crest factor: ${ir.crestFactorDb?.toFixed(1)}dB)` : 'No'}
-- Frequency Smoothness: ${smoothness.toFixed(0)}/100 (${smoothnessNote})
-- Noise Floor: ${noiseFloor.toFixed(1)}dB (${noiseNote})${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — speaker energy is in the first ~40ms, rest is room/ambient. Report the noise reading but weigh it lightly — at this IR length, only extreme noise (above -10dB) is a real concern.` : ''}
+- Frequency Smoothness (legacy): ${smoothness.toFixed(0)}/100 (${smoothnessNote})
+- Perceptual Smoothness (24 log-band): ${perceptualSmooth}
+- Notch Analysis: ${notchInfo}
+- Tail Level: ${tailInfo}${isTruncated ? `\n- IR Format: Short/truncated (${ir.duration.toFixed(0)}ms) — speaker energy is in the first ~40ms, rest is room/ambient. Do NOT penalize short IRs for missing tail data.` : ''}
 
 Expected centroid for ${parsed.mic} at ${parsed.position} on ${parsed.speaker}: ${expectedRange.min}-${expectedRange.max}Hz`;
 
@@ -2396,7 +2416,7 @@ export async function registerRoutes(
       const vocabPrompt = buildUserVocabularyPrompt(signals);
       const scored = await scoreSingleIR({
         filename: filename,
-        duration: input.durationSamples / 44100 * 1000, // Convert samples to ms (assuming 44.1kHz)
+        duration: input.durationSamples / 44100 * 1000,
         peakLevel: input.peakAmplitudeDb,
         spectralCentroid: input.spectralCentroid,
         lowEnergy: input.lowEnergy,
@@ -2411,6 +2431,14 @@ export async function registerRoutes(
         ultraHighEnergy: input.ultraHighEnergy,
         frequencySmoothness: input.frequencySmoothness,
         noiseFloorDb: input.noiseFloorDb,
+        spectralTilt: input.spectralTilt,
+        rolloffFreq: input.rolloffFreq,
+        smoothScore: input.smoothScore,
+        maxNotchDepth: input.maxNotchDepth,
+        notchCount: input.notchCount,
+        logBandEnergies: input.logBandEnergies,
+        tailLevelDb: input.tailLevelDb,
+        tailStatus: input.tailStatus,
       }, vocabPrompt);
       
       // Calculate 6-band percentages if available
@@ -2459,6 +2487,13 @@ export async function registerRoutes(
         spectralDeviation: scored.spectralDeviation,
         frequencySmoothness: scored.frequencySmoothness,
         noiseFloorDb: scored.noiseFloorDb,
+        spectralTilt: input.spectralTilt ?? null,
+        rolloffFreq: input.rolloffFreq ?? null,
+        smoothScore: input.smoothScore ?? null,
+        maxNotchDepth: input.maxNotchDepth ?? null,
+        notchCount: input.notchCount ?? null,
+        tailLevelDb: input.tailLevelDb ?? null,
+        tailStatus: input.tailStatus ?? null,
         ...sixBandPercents,
       };
 
@@ -5075,6 +5110,13 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             spectralDeviation: scored.spectralDeviation,
             frequencySmoothness: scored.frequencySmoothness,
             noiseFloorDb: scored.noiseFloorDb,
+            spectralTilt: ir.spectralTilt ?? null,
+            rolloffFreq: ir.rolloffFreq ?? null,
+            smoothScore: ir.smoothScore ?? null,
+            maxNotchDepth: ir.maxNotchDepth ?? null,
+            notchCount: ir.notchCount ?? null,
+            tailLevelDb: ir.tailLevelDb ?? null,
+            tailStatus: ir.tailStatus ?? null,
             ...sixBandPercents,
           };
         })

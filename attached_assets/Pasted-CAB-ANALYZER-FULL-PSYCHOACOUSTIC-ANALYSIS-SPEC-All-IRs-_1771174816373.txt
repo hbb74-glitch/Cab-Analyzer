@@ -1,0 +1,196 @@
+CAB ANALYZER — FULL PSYCHOACOUSTIC ANALYSIS SPEC
+(All IRs are minimum-phase and peak-normalized before upload)
+
+PRIMARY OBJECTIVE
+- Make all spectral metrics psychoacoustically defensible.
+- Ensure 85 ms IRs are fully supported.
+- Ensure redundancy + preference logic are perceptual, not display-based.
+- Keep UI spectrum display unchanged if desired.
+- All analysis must be deterministic and length-robust.
+
+==================================================================
+SECTION 1 — FIXED EARLY ANALYSIS WINDOW (SHORT IR SAFE)
+==================================================================
+
+1.1 Define:
+    analysisWindowMs = 85 ms
+
+1.2 For each IR:
+    earlyWindow = samples from t=0 to t=analysisWindowMs
+
+1.3 If IR shorter than 85 ms:
+    zero-pad to 85 ms before FFT.
+
+1.4 ALL spectral metrics MUST be computed from earlyWindow ONLY.
+    (Centroid, bands, ratios, smoothness, redundancy vectors, tilt, rolloff)
+
+RATIONALE:
+- Makes 85 ms IRs directly comparable to longer IRs.
+- Prevents longer tails from biasing spectral analysis.
+- Ensures consistent feature extraction.
+
+==================================================================
+SECTION 2 — USE TRUE POWER SPECTRUM (NOT BYTE DATA)
+==================================================================
+
+2.1 DO NOT compute any metric from freqByteData (0–255 clamped dB).
+
+2.2 After FFT on earlyWindow:
+    P[k] = re[k]^2 + im[k]^2    // true linear power spectrum
+
+2.3 Use P[k] for ALL metrics:
+    - spectral centroid
+    - log-band energies
+    - mid:high-mid ratio
+    - spectral tilt
+    - rolloff
+    - smoothness
+    - redundancy similarity
+
+2.4 freqByteData may remain for UI plotting only.
+
+==================================================================
+SECTION 3 — LOG-FREQUENCY PERCEPTUAL BANDING
+==================================================================
+
+3.1 Create 24 log-spaced bands from 80 Hz to 10 kHz.
+
+3.2 For each band:
+    bandEnergy[i] = sum of P[k] inside band
+
+3.3 Normalize band energies by total energy if needed
+    (for level-invariant feature vectors)
+
+3.4 Map 24 bands into UI display bands:
+    - Sub (20–120)
+    - Bass (120–250)
+    - Low-Mid (250–500)
+    - Mid (500–2k)
+    - High-Mid (2–4k)
+    - Presence (4–8k)
+    - Air (8k+)
+
+3.5 Compute mid:high-mid ratio from log-band energies.
+
+==================================================================
+SECTION 4 — BRIGHTNESS + TONE METRICS
+==================================================================
+
+4.1 Spectral Centroid:
+    centroid = sum(freq[k] * P[k]) / sum(P[k])
+
+4.2 Spectral Tilt:
+    Perform linear regression of:
+        log(P[k]) vs log(freq[k])
+    over 200 Hz – 8 kHz.
+    Output slope.
+
+4.3 Rolloff Frequency:
+    rolloffFreq = frequency where cumulative energy
+    reaches 85% of total energy.
+
+==================================================================
+SECTION 5 — SMOOTHNESS (PERCEPTUAL RIPPLE / COMB)
+==================================================================
+
+5.1 Use 24 log-band curve.
+
+5.2 Create baseline:
+    1/6 octave smoothing across bands.
+
+5.3 residual[i] = bandCurve[i] - baseline[i]
+
+5.4 residualRMS = RMS(residual over 200 Hz – 8 kHz)
+
+5.5 smoothScore:
+    smoothScore = scaled inverse of residualRMS (0–100 scale)
+
+5.6 Also compute:
+    - maxNotchDepth (relative to baseline)
+    - numberOfNotchesDeeperThan6dB
+
+==================================================================
+SECTION 6 — TAIL LEVEL (SHORT IR SAFE)
+==================================================================
+
+6.1 Tail metric only valid if IR long enough.
+
+    if IR length < 200 ms:
+        tailLevelDb = null
+        tailStatus = "N/A (short IR)"
+
+    else:
+        tailWindow = 120–200 ms
+        tailLevelDb = RMS(tailWindow) relative to peak
+
+6.2 Rename UI label:
+    "Noise Floor" -> "Tail Level (dBFS rel peak)"
+
+6.3 NEVER penalize 85 ms IRs for missing tail.
+
+==================================================================
+SECTION 7 — REDUNDANCY + CULLING (PERCEPTUAL)
+==================================================================
+
+7.1 Build feature vector per IR using:
+    - 24 log-band energies
+    - spectral tilt
+    - rolloff
+    - smoothness residualRMS
+    - notch stats
+
+7.2 Normalize feature vectors.
+
+7.3 Similarity metric:
+    cosine similarity OR correlation.
+
+7.4 For “Keep Least Shots”:
+    - Use clustering (k-medoids recommended).
+    - Select cluster representatives.
+    - Mark others as redundant-with-X.
+
+==================================================================
+SECTION 8 — MIXING ENGINE (MINIMUM PHASE SAFE)
+==================================================================
+
+8.1 Before mixing:
+    - Optional peak alignment (even if min-phase).
+    - Ensure consistent earlyWindow processing.
+
+8.2 Loudness match mixes before audition:
+    - Compute band-limited RMS (80 Hz–8 kHz).
+    - Apply gain so A and B are equal loudness.
+
+8.3 Add complement score:
+    - Reward mixes where one IR fills low-mid and other boosts high-mid.
+    - Penalize overlapping identical peaks/notches.
+
+==================================================================
+SECTION 9 — PREFERENCE TRAINING (ROBUST)
+==================================================================
+
+9.1 Treat user choice as pairwise ranking event.
+
+9.2 Always loudness-match before presenting choices.
+
+9.3 Store context:
+    - genre
+    - gain level
+    - mix ratio
+    - monitoring context (if available)
+
+9.4 Train user tonal profile in log-band space.
+
+==================================================================
+SECTION 10 — ACCEPTANCE TESTS
+==================================================================
+
+- 85 ms IR and 200 ms IR with identical early response → nearly identical spectral metrics.
+- Dark IR → lower centroid, lower rolloff, more negative tilt.
+- Harsh/comb IR → worse smoothScore, deeper notch stats.
+- +1 dB gain change should NOT affect preference outcomes (loudness-matched).
+- Redundant mic shots cluster together.
+
+==================================================================
+END SPEC
+==================================================================
