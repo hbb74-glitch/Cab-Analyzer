@@ -52,6 +52,7 @@ export interface FoundationScore {
   featuredScore: number;
   reasons: string[];
   bands: TonalBands;
+  ratio: number;
   rank: number;
 }
 
@@ -329,13 +330,15 @@ export function findFoundationIR(
       reasons.push(`Intended as feature — less ideal as foundation`);
     }
 
+    const pct = ir.features.bandsPercent;
     return {
       filename: ir.filename,
       score: Math.max(0, Math.min(100, bodyMatch.score + intentBonus)),
       bodyScore: bodyMatch.score,
       featuredScore: featuredMatch.score,
       reasons,
-      bands: ir.features.bandsPercent,
+      bands: pct,
+      ratio: pct.mid > 0 ? Math.round((pct.highMid / pct.mid) * 100) / 100 : 0,
       rank: 0,
     };
   });

@@ -2004,9 +2004,9 @@ export default function IRMixer() {
                             <span className="text-orange-400 ml-1.5">P {fr.bands.presence.toFixed(1)}</span>
                             <span className={cn(
                               "ml-1.5",
-                              (fr.bands.mid > 0 ? fr.bands.highMid / fr.bands.mid : 0) < 1.0 ? "text-blue-400" : (fr.bands.mid > 0 ? fr.bands.highMid / fr.bands.mid : 0) <= 2.0 ? "text-green-400" : "text-amber-400"
+                              fr.ratio < 1.0 ? "text-blue-400" : fr.ratio <= 2.0 ? "text-green-400" : "text-amber-400"
                             )}>
-                              {(fr.bands.mid > 0 ? fr.bands.highMid / fr.bands.mid : 0).toFixed(2)}
+                              {fr.ratio.toFixed(2)}
                             </span>
                           </div>
                           <Button
