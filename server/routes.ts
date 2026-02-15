@@ -1160,7 +1160,7 @@ Output JSON format:
 }`;
 
   // Calculate quality adjustments for smoothness and noise floor
-  const smoothness = ir.frequencySmoothness ?? 70;
+  const smoothness = ir.smoothScore ?? ir.frequencySmoothness ?? 70;
   const noiseFloor = ir.noiseFloorDb ?? -50;
   
   // Smoothness adjustment: Use mic-relative baselines
@@ -5146,7 +5146,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             presence: r.presencePercent ?? 0,
             ratio: r.highMidMidRatio ?? 0,
             centroid: ir.spectralCentroid,
-            smoothness: ir.frequencySmoothness ?? 0,
+            smoothness: ir.smoothScore ?? ir.frequencySmoothness ?? 0,
           });
         }
       }

@@ -296,102 +296,61 @@ interface RedundancyGroup {
   selectedToKeep: string | null; // User's selection of which IR to keep
 }
 
-// Calculate Pearson correlation between two frequency arrays, normalized to [0, 1]
-function calculateFrequencyCorrelation(freq1: number[], freq2: number[]): number {
-  if (freq1.length !== freq2.length || freq1.length === 0) return 0;
-  
-  const n = freq1.length;
-  const mean1 = freq1.reduce((a, b) => a + b, 0) / n;
-  const mean2 = freq2.reduce((a, b) => a + b, 0) / n;
-  
-  let numerator = 0;
-  let denom1 = 0;
-  let denom2 = 0;
-  
-  for (let i = 0; i < n; i++) {
-    const diff1 = freq1[i] - mean1;
-    const diff2 = freq2[i] - mean2;
-    numerator += diff1 * diff2;
-    denom1 += diff1 * diff1;
-    denom2 += diff2 * diff2;
+const FEATURE_EXPECTED_RANGES: { mean: number; std: number }[] = (() => {
+  const ranges: { mean: number; std: number }[] = [];
+  for (let i = 0; i < 24; i++) {
+    ranges.push({ mean: 1 / 24, std: 0.03 });
   }
-  
-  const denominator = Math.sqrt(denom1 * denom2);
-  if (denominator === 0) return 0;
-  
-  // Pearson returns -1 to 1, normalize to 0-1 range using (r+1)/2
-  // -1 (opposite) → 0, 0 (uncorrelated) → 0.5, 1 (identical) → 1
-  const pearson = numerator / denominator;
-  return (pearson + 1) / 2;
+  ranges.push({ mean: -1.5, std: 1.5 });
+  ranges.push({ mean: 3500, std: 2000 });
+  ranges.push({ mean: 4, std: 3 });
+  ranges.push({ mean: 5, std: 5 });
+  ranges.push({ mean: 1, std: 1.5 });
+  return ranges;
+})();
+
+function buildPerceptualFeatureVector(m: AudioMetrics): number[] {
+  const logBands = m.logBandEnergies || new Array(24).fill(1 / 24);
+  const raw = [
+    ...logBands,
+    m.spectralTilt || 0,
+    m.rolloffFreq || 3000,
+    m.residualRMS || 0,
+    m.maxNotchDepth || 0,
+    m.notchCount || 0,
+  ];
+  return raw.map((v, i) => {
+    const r = FEATURE_EXPECTED_RANGES[i];
+    return r && r.std > 0 ? (v - r.mean) / r.std : v;
+  });
 }
 
-// Calculate how close two spectral centroids are (0-1, 1 = identical)
-function calculateCentroidProximity(centroid1: number, centroid2: number): number {
-  const maxDiff = 3000; // Hz - max expected difference for different IRs
-  const diff = Math.abs(centroid1 - centroid2);
-  return Math.max(0, 1 - (diff / maxDiff));
-}
-
-// Calculate 6-band EQ similarity (0-1, 1 = identical tonal balance)
-function calculate6BandMatch(m1: AudioMetrics, m2: AudioMetrics): number {
-  const total1 = (m1.subBassEnergy || 0) + (m1.bassEnergy || 0) + (m1.lowMidEnergy || 0) +
-    (m1.midEnergy6 || 0) + (m1.highMidEnergy || 0) + (m1.presenceEnergy || 0);
-  const total2 = (m2.subBassEnergy || 0) + (m2.bassEnergy || 0) + (m2.lowMidEnergy || 0) +
-    (m2.midEnergy6 || 0) + (m2.highMidEnergy || 0) + (m2.presenceEnergy || 0);
-  if (total1 === 0 || total2 === 0) return 0;
-  const toP = (v: number, t: number) => (v / t) * 100;
-  const bands1 = [
-    toP(m1.subBassEnergy || 0, total1), toP(m1.bassEnergy || 0, total1),
-    toP(m1.lowMidEnergy || 0, total1), toP(m1.midEnergy6 || 0, total1),
-    toP(m1.highMidEnergy || 0, total1), toP(m1.presenceEnergy || 0, total1)
-  ];
-  const bands2 = [
-    toP(m2.subBassEnergy || 0, total2), toP(m2.bassEnergy || 0, total2),
-    toP(m2.lowMidEnergy || 0, total2), toP(m2.midEnergy6 || 0, total2),
-    toP(m2.highMidEnergy || 0, total2), toP(m2.presenceEnergy || 0, total2)
-  ];
-  let totalDiff = 0;
-  for (let i = 0; i < 6; i++) {
-    totalDiff += Math.abs(bands1[i] - bands2[i]);
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
   }
-  const maxRealisticDiff = 60;
-  return Math.max(0, 1 - (totalDiff / maxRealisticDiff));
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
+  return denom > 0 ? dot / denom : 0;
 }
 
-// Calculate HiMid/Mid ratio similarity (0-1, 1 = identical character)
-function calculateRatioMatch(m1: AudioMetrics, m2: AudioMetrics): number {
-  const mid1 = m1.midEnergy6 || 0;
-  const mid2 = m2.midEnergy6 || 0;
-  const ratio1 = mid1 > 0 ? (m1.highMidEnergy || 0) / mid1 : 0;
-  const ratio2 = mid2 > 0 ? (m2.highMidEnergy || 0) / mid2 : 0;
-  const diff = Math.abs(ratio1 - ratio2);
-  const maxDiff = 1.5;
-  return Math.max(0, 1 - (diff / maxDiff));
-}
-
-// Calculate overall similarity between two IRs
 function calculateSimilarity(metrics1: AudioMetrics, metrics2: AudioMetrics): {
   similarity: number;
   details: RedundantPair['details'];
 } {
-  const frequencyCorrelation = calculateFrequencyCorrelation(
-    metrics1.frequencyData,
-    metrics2.frequencyData
-  );
+  const vec1 = buildPerceptualFeatureVector(metrics1);
+  const vec2 = buildPerceptualFeatureVector(metrics2);
+  const similarity = cosineSimilarity(vec1, vec2);
 
-  const centroidProximity = calculateCentroidProximity(
-    metrics1.spectralCentroid,
-    metrics2.spectralCentroid
-  );
-
-  const bandMatch = calculate6BandMatch(metrics1, metrics2);
-  const ratioMatch = calculateRatioMatch(metrics1, metrics2);
-
-  const similarity = (bandMatch * 0.35) + (ratioMatch * 0.15) + (frequencyCorrelation * 0.30) + (centroidProximity * 0.20);
+  const centroidDiff = Math.abs(metrics1.spectralCentroid - metrics2.spectralCentroid);
+  const centroidProximity = Math.max(0, 1 - centroidDiff / 3000);
 
   return {
     similarity,
-    details: { frequencyCorrelation, centroidProximity, energyMatch: bandMatch }
+    details: { frequencyCorrelation: similarity, centroidProximity, energyMatch: similarity }
   };
 }
 
@@ -485,7 +444,7 @@ function findRedundancyGroups(
       filename: irs[idx].filename,
       centroid: irs[idx].metrics.spectralCentroid,
       score: irs[idx].score || 85,
-      smoothness: irs[idx].metrics.frequencySmoothness,
+      smoothness: irs[idx].metrics.smoothScore ?? irs[idx].metrics.frequencySmoothness,
       noiseFloorDb: irs[idx].metrics.noiseFloorDb,
       lowEnergy: irs[idx].metrics.lowEnergy,
       midEnergy: irs[idx].metrics.midEnergy,
@@ -1053,7 +1012,7 @@ function cullIRs(
               brightness: getBrightnessLabelForCloseCall(idx),
               position: getPosition(irs[idx].filename),
               distance: getDistanceFromFilename(irs[idx].filename),
-              smoothness: irs[idx].metrics.frequencySmoothness || 0,
+              smoothness: (irs[idx].metrics.smoothScore ?? irs[idx].metrics.frequencySmoothness) || 0,
               centroid: Math.round(irs[idx].metrics.spectralCentroid),
               midrangeHint: getMidrangeHint(idx),
               blendInfo: blendInfoMap.get(idx),
@@ -1128,7 +1087,7 @@ function cullIRs(
                 brightness: getBrightnessLabelForCloseCall(c.idx),
                 position: getPosition(irs[c.idx].filename),
                 distance: getDistanceFromFilename(irs[c.idx].filename),
-                smoothness: irs[c.idx].metrics.frequencySmoothness || 0,
+                smoothness: (irs[c.idx].metrics.smoothScore ?? irs[c.idx].metrics.frequencySmoothness) || 0,
                 centroid: Math.round(irs[c.idx].metrics.spectralCentroid),
                 midrangeHint: getMidrangeHint(c.idx),
                 blendInfo: blendInfoMap.get(c.idx),
@@ -1791,7 +1750,7 @@ export default function Analyzer() {
     const metricsMap = new Map<string, { centroid: number; smoothness: number }>();
     batchIRs.forEach(ir => {
       if (ir.metrics) {
-        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.frequencySmoothness });
+        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness });
       }
     });
     return batchResult.results.map((r) => {
@@ -1833,7 +1792,7 @@ export default function Analyzer() {
     const metricsMap = new Map<string, { centroid: number; smoothness: number }>();
     batchIRs.forEach(ir => {
       if (ir.metrics) {
-        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.frequencySmoothness });
+        metricsMap.set(ir.file.name, { centroid: ir.metrics.spectralCentroid, smoothness: ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness });
       }
     });
 
@@ -2969,7 +2928,7 @@ export default function Analyzer() {
           if (ir.mid > groupAvgMid * 1.15 && ir.ratio < groupAvgRatio * 0.85) return 'mid-fwd';
           if (ir.ratio > groupAvgRatio * 1.2 && ir.mid < groupAvgMid * 0.9) return 'scooped';
           if (ir.lowMid > groupAvgLowMid * 1.15 && ir.presence < groupAvgPresence * 0.85) return 'thick';
-          if ((ir.metrics.frequencySmoothness || 0) > 70) return 'smooth';
+          if (((ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness) || 0) > 70) return 'smooth';
           return 'mid';
         };
 
@@ -6237,7 +6196,7 @@ export default function Analyzer() {
                       peak: metrics.peakAmplitudeDb,
                       duration: metrics.durationMs,
                       centroid: metrics.spectralCentroid,
-                      smoothness: metrics.frequencySmoothness,
+                      smoothness: metrics.smoothScore ?? metrics.frequencySmoothness,
                       noiseFloor: metrics.noiseFloorDb
                     }}
                     micLabel={result.micLabel}

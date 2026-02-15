@@ -82,6 +82,7 @@ export interface AudioMetrics {
   smoothScore: number;
   maxNotchDepth: number;
   notchCount: number;
+  residualRMS: number;
   logBandEnergies: number[];
   tailLevelDb: number | null;
   tailStatus: string;
@@ -324,30 +325,44 @@ function computePerceptualSmoothness(logBandEnergies: number[]): {
   smoothScore: number;
   maxNotchDepth: number;
   notchCount: number;
+  residualRMS: number;
 } {
   const n = logBandEnergies.length;
-  if (n < 5) return { smoothScore: 100, maxNotchDepth: 0, notchCount: 0 };
+  if (n < 5) return { smoothScore: 100, maxNotchDepth: 0, notchCount: 0, residualRMS: 0 };
 
   const dbBands = logBandEnergies.map(e => e > 0 ? 10 * Math.log10(e) : -120);
 
+  const totalOctaves = Math.log2(LOG_BAND_MAX_HZ / LOG_BAND_MIN_HZ);
+  const octavesPerBand = totalOctaves / n;
+  const fwhmOctaves = 1 / 6;
+  const fwhmBands = fwhmOctaves / octavesPerBand;
+  const sigma = fwhmBands / (2 * Math.sqrt(2 * Math.LN2));
+  const kernelRadius = Math.max(1, Math.ceil(sigma * 3));
+
   const smoothed: number[] = [];
   for (let i = 0; i < n; i++) {
-    let sum = 0;
-    let count = 0;
-    for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) {
-      sum += dbBands[j];
-      count++;
+    let weightedSum = 0;
+    let weightTotal = 0;
+    for (let j = Math.max(0, i - kernelRadius); j <= Math.min(n - 1, i + kernelRadius); j++) {
+      const dist = j - i;
+      const w = Math.exp(-0.5 * (dist / sigma) * (dist / sigma));
+      weightedSum += dbBands[j] * w;
+      weightTotal += w;
     }
-    smoothed.push(sum / count);
+    smoothed.push(weightTotal > 0 ? weightedSum / weightTotal : dbBands[i]);
   }
+
+  const logMin = Math.log(LOG_BAND_MIN_HZ);
+  const logStep = (Math.log(LOG_BAND_MAX_HZ) - logMin) / n;
+  const bandCenterFreq = (i: number) => Math.exp(logMin + (i + 0.5) * logStep);
 
   const residuals: number[] = [];
   let maxNotchDepth = 0;
   let notchCount = 0;
-  const analysisStart = 2;
-  const analysisEnd = n - 1;
 
-  for (let i = analysisStart; i < analysisEnd; i++) {
+  for (let i = 0; i < n; i++) {
+    const freq = bandCenterFreq(i);
+    if (freq < 200 || freq > 8000) continue;
     const r = dbBands[i] - smoothed[i];
     residuals.push(r);
     const depth = -r;
@@ -355,7 +370,7 @@ function computePerceptualSmoothness(logBandEnergies: number[]): {
     if (depth > 6) notchCount++;
   }
 
-  if (residuals.length === 0) return { smoothScore: 100, maxNotchDepth: 0, notchCount: 0 };
+  if (residuals.length === 0) return { smoothScore: 100, maxNotchDepth: 0, notchCount: 0, residualRMS: 0 };
 
   let rmsSum = 0;
   for (const r of residuals) rmsSum += r * r;
@@ -368,6 +383,7 @@ function computePerceptualSmoothness(logBandEnergies: number[]): {
     smoothScore: parseFloat(smoothScore.toFixed(1)),
     maxNotchDepth: parseFloat(maxNotchDepth.toFixed(1)),
     notchCount,
+    residualRMS: parseFloat(residualRMS.toFixed(2)),
   };
 }
 
@@ -522,7 +538,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const logBandEnergies = buildLogBands(power, binSize, binCount);
   const normalizedLogBands = normalizeVector(logBandEnergies);
 
-  const { smoothScore, maxNotchDepth, notchCount } = computePerceptualSmoothness(logBandEnergies);
+  const { smoothScore, maxNotchDepth, notchCount, residualRMS } = computePerceptualSmoothness(logBandEnergies);
 
   const displayBands = computeDisplayBands(power, binSize, binCount);
 
@@ -560,6 +576,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     smoothScore: smoothScore,
     maxNotchDepth: maxNotchDepth,
     notchCount: notchCount,
+    residualRMS: residualRMS,
     logBandEnergies: normalizedLogBands.map(v => parseFloat(v.toFixed(6))),
     tailLevelDb: tail.tailLevelDb,
     tailStatus: tail.tailStatus,
