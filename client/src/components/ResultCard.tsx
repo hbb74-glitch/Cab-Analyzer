@@ -1,7 +1,7 @@
 import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, getGearContext, parseGearFromFilename, inferShotIntentFromFilename, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, featuresFromBands, getGearContext, parseGearFromFilename, inferShotIntentFromFilename, type TonalBands, type TonalFeatures, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 import { TonalDashboard } from "./TonalDashboard";
 
 interface BestPosition {
@@ -122,14 +122,15 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
     mid: tonalBalance.midPercent,
     highMid: tonalBalance.highMidPercent,
     presence: tonalBalance.presencePercent,
+    air: tonalBalance.ultraHighPercent || 0,
   };
   const total = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
   if (total === 0) return null;
   const { results, best } = learnedProfile && activeProfiles
-    ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
+    ? scoreWithAvoidPenalty(featuresFromBands(bands), activeProfiles, learnedProfile)
     : activeProfiles
-    ? scoreAgainstAllProfiles(bands, activeProfiles)
-    : scoreAgainstAllProfiles(bands);
+    ? scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles)
+    : scoreAgainstAllProfiles(featuresFromBands(bands));
 
   let role: string | null = null;
   let unlikelyToUse = false;
@@ -138,7 +139,7 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
   let pairingGuidance: string | null = null;
 
   if (learnedProfile && learnedProfile.status !== "no_data" && activeProfiles) {
-    const { results: indResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+    const { results: indResults } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
     const featured = indResults.find((m) => m.profile === "Featured");
     const body = indResults.find((m) => m.profile === "Body");
     const fScore = featured?.score ?? 0;

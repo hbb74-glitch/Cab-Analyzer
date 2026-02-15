@@ -1,0 +1,159 @@
+IRMIXER PATCH (minimal, copy/paste instructions)
+
+Assumption:
+- You already pasted: client/src/lib/tonal-engine.ts (the single-file engine I gave you)
+
+GOAL:
+- IRMixer uses the canonical engine for:
+  - feature extraction (computeTonalFeatures)
+  - blending (blendFeatures)
+  - scoring (scoreBlend)
+- Keep your existing UI as-is, but swap the “brains” so it’s consistent with Analyzer.
+
+=====================================================================
+1) IMPORT THE ENGINE
+FILE: client/src/pages/IRMixer.tsx
+ADD import near top:
+
+import {
+  computeTonalFeatures,
+  blendFeatures,
+  scoreBlend,
+  type TonalBands,
+  type TonalFeatures
+} from "@/lib/tonal-engine";
+
+=====================================================================
+2) STOP BUILDING LOCAL PERCENT BANDS (REMOVE/STOP USING THESE)
+FILE: client/src/pages/IRMixer.tsx
+STOP using (delete if you want):
+- energyToPercent(...)
+- extractRawEnergy(...) that returns 6-band energies
+- any local “TonalBands” type in IRMixer
+
+You can keep any UI formatting helpers, just don’t use them as the scoring input.
+
+=====================================================================
+3) WHEN YOU ANALYZE EACH IR, STORE TonalFeatures
+FILE: client/src/pages/IRMixer.tsx
+Where you currently do something like:
+- const analysis = await analyzeAudioFile(file)
+- then compute tonalBalance/percent
+ADD (immediately after analysis result exists):
+
+const features = computeTonalFeatures(analysis.metrics);
+
+Store this alongside the analysis object (whatever your IR item type is).
+Example pattern:
+
+const item = {
+  ...existingFields,
+  analysis,
+  features,
+};
+
+Make sure each IR item now carries: item.features (TonalFeatures)
+
+=====================================================================
+4) DEFINE TARGETS (BODY vs FEATURED) AS SHAPE dB TARGETS
+You likely already have “profiles” in preference-profiles.ts.
+For a minimal patch, put targets locally in IRMixer first, then later migrate to preference-profiles.
+
+Add near top of IRMixer.tsx:
+
+const TARGETS: Record<string, { shape: TonalBands; tilt: number }> = {
+  featured: {
+    // example targets (tune later). All values are SHAPE dB (relative)
+    shape: {
+      subBass: -2.0,
+      bass: -1.0,
+      lowMid: -0.5,
+      mid: 0.0,
+      highMid: 0.8,
+      presence: 1.2,
+      air: 0.6,
+    },
+    tilt: -1.0, // dB/oct (example)
+  },
+  body: {
+    shape: {
+      subBass: 0.5,
+      bass: 1.0,
+      lowMid: 1.2,
+      mid: 0.2,
+      highMid: -0.4,
+      presence: -0.6,
+      air: -0.6,
+    },
+    tilt: -2.0, // dB/oct (example)
+  },
+};
+
+If you already have these targets elsewhere, just map them to this shape/tilt format.
+
+=====================================================================
+5) WHEN YOU GENERATE A BLEND, BLEND FEATURES (NOT PERCENTS)
+Where you currently compute a blend of two IRs using percent bands/ratios,
+REPLACE that with:
+
+const aFeat: TonalFeatures = foundation.features;
+const bFeat: TonalFeatures = partner.features;
+
+const aGain = foundationRatio; // e.g. 0.67
+const bGain = partnerRatio;    // e.g. 0.33
+
+const blended = blendFeatures(aFeat, bFeat, aGain, bGain);
+
+For UI:
+- Use blended.bandsPercent for the “bar chart” view
+- Use blended.bandsShapeDb for any “shape/score” view
+
+=====================================================================
+6) SCORE BLENDS USING scoreBlend()
+When ranking candidate partners (or candidate pairs),
+compute:
+
+const target = TARGETS[currentMode]; // "featured" or "body" etc.
+
+const score = scoreBlend(
+  blended,
+  target.shape,
+  target.tilt,
+  {
+    shapeWeight: 1,
+    tiltWeight: 2,
+    smoothPenaltyWeight: 10,
+    notchPenaltyWeight: 1,
+    rolloffPenaltyWeight: 0.002,
+  }
+);
+
+Sort ascending score (lower is better).
+
+=====================================================================
+7) “WHY THIS COMBO” EXPLANATION (HIGH VALUE, EASY)
+On each recommendation card, show:
+- blended.tiltDbPerOct
+- and the 2–3 biggest shape moves vs target
+
+Add a helper:
+
+function topShapeDiffs(blended: TonalFeatures, targetShape: TonalBands) {
+  const entries = (Object.keys(targetShape) as (keyof TonalBands)[])
+    .map((k) => ({ k, d: blended.bandsShapeDb[k] - targetShape[k] }))
+    .sort((a,b) => Math.abs(b.d) - Math.abs(a.d));
+  return entries.slice(0,3);
+}
+
+Then display:
+- `${k}: ${d.toFixed(2)} dB` for those top 3
+
+This immediately makes the app useful for refining taste.
+
+=====================================================================
+DONE CHECKLIST
+- IRMixer items store item.features = computeTonalFeatures(analysis.metrics)
+- Blending uses blendFeatures(aFeat,bFeat,aGain,bGain)
+- Ranking uses scoreBlend(blended,target.shape,target.tilt)
+- UI displays blended.bandsPercent (for readability) but scoring uses bandsShapeDb
+- No percent-band math is used for scoring anymore
