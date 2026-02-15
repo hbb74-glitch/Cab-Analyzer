@@ -1449,24 +1449,26 @@ interface LearnedProfileData {
   courseCorrections: string[];
   gearInsights: GearInsights | null;
   ratioPreference: RatioPreference | null;
+  tonalSummary: string | null;
 }
 
 async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<LearnedProfileData> {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null };
   }
 
-  const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh");
+  const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "correction");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null, ratioPreference: null };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: "Still learning -- rate some blends as Love or Like so I can start understanding your tonal preferences." };
   }
 
   const signalWeight = (action: string): number => {
     switch (action) {
       case "love": return 3;
       case "like": return 1.5;
+      case "correction": return 5;
       case "meh": return 0.5;
       default: return 1;
     }
@@ -2030,7 +2032,191 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     };
   }
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference };
+  const tonalSummary = buildTonalSummary(adjustments, perProfileAdjustments, avoidZones, gearInsights, ratioPreference, courseCorrections, status, liked, noped, signals);
+
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference, tonalSummary };
+}
+
+function buildTonalSummary(
+  adjustments: ProfileAdjustment | null,
+  perProfileAdj: Record<string, ProfileAdjustment>,
+  avoidZones: LearnedProfileData["avoidZones"],
+  gearInsights: GearInsights | null,
+  ratioPreference: RatioPreference | null,
+  courseCorrections: string[],
+  status: LearnedProfileData["status"],
+  liked: PreferenceSignal[],
+  noped: PreferenceSignal[],
+  allSignals: PreferenceSignal[]
+): string {
+  if (status === "no_data") return "No data yet -- start rating some blends so I can learn what you like.";
+
+  const lines: string[] = [];
+  const loves = liked.filter(s => s.action === "love");
+  const likes = liked.filter(s => s.action === "like");
+  const mehs = liked.filter(s => s.action === "meh");
+
+  if (status === "learning") {
+    lines.push(`I'm still getting to know your taste (${loves.length + likes.length + mehs.length} rated so far). Here's what I'm picking up:`);
+  } else if (status === "confident") {
+    lines.push(`Based on ${loves.length} loved, ${likes.length} liked, and ${noped.length} noped blends, here's what I believe about your tonal preferences:`);
+  } else if (status === "mastered") {
+    lines.push(`I'm confident in your tonal profile (${allSignals.length} ratings analyzed). Here's what I know:`);
+  }
+
+  if (adjustments) {
+    const bandDescriptions: string[] = [];
+    const midShift = adjustments.mid.shift;
+    const presShift = adjustments.presence.shift;
+    const hiMidShift = adjustments.highMid.shift;
+    const ratioShift = adjustments.ratio.shift;
+
+    if (Math.abs(midShift) >= 1) {
+      bandDescriptions.push(midShift > 0
+        ? `You tend to prefer **more mids** than average -- fuller, thicker tones with body.`
+        : `You lean toward **less mids** -- more scooped, modern-sounding tones.`);
+    }
+    if (Math.abs(hiMidShift) >= 1) {
+      bandDescriptions.push(hiMidShift > 0
+        ? `You like **more bite and cut** in the upper-mids -- tones that punch through a mix.`
+        : `You prefer **smoother upper-mids** -- less aggressive, more rounded.`);
+    }
+    if (Math.abs(presShift) >= 1) {
+      bandDescriptions.push(presShift > 0
+        ? `You gravitate toward **brighter, more present** tones with top-end clarity.`
+        : `You prefer **darker, warmer** tones with less top-end sizzle.`);
+    }
+    if (Math.abs(ratioShift) >= 0.1) {
+      bandDescriptions.push(ratioShift > 0
+        ? `Overall you like a **higher bite-to-body ratio** -- more articulate and defined.`
+        : `Overall you like a **lower bite-to-body ratio** -- warmer and rounder.`);
+    }
+
+    if (bandDescriptions.length > 0) {
+      lines.push("");
+      lines.push("**What you like:**");
+      for (const desc of bandDescriptions) lines.push(desc);
+    } else if (Math.abs(midShift) < 1 && Math.abs(presShift) < 1 && Math.abs(hiMidShift) < 1) {
+      lines.push("");
+      lines.push("Your preferences are close to balanced -- no strong pull toward bright or dark, scooped or mid-heavy.");
+    }
+  }
+
+  if (avoidZones.length > 0) {
+    lines.push("");
+    lines.push("**What you avoid:**");
+    for (const zone of avoidZones) {
+      const bandNames: Record<string, string> = {
+        mid: "mids", highMid: "upper-mids/bite", presence: "presence/top-end",
+        bass: "bass/low-end", lowMid: "low-mids", ratio: "bite-to-body ratio",
+        muddy_composite: "muddy tones"
+      };
+      const name = bandNames[zone.band] || zone.band;
+      if (zone.band === "muddy_composite") {
+        lines.push(`You consistently nope muddy-sounding blends.`);
+      } else if (zone.direction === "high") {
+        lines.push(`Too much ${name} turns you off (you've noped blends above ~${zone.threshold}%).`);
+      } else {
+        lines.push(`Too little ${name} turns you off (you've noped blends below ~${zone.threshold}%).`);
+      }
+    }
+  }
+
+  if (Object.keys(perProfileAdj).length > 0) {
+    const featAdj = perProfileAdj["Featured"];
+    const bodyAdj = perProfileAdj["Body"];
+    if (featAdj && bodyAdj) {
+      const featPres = featAdj.presence.shift;
+      const bodyPres = bodyAdj.presence.shift;
+      const featMid = featAdj.mid.shift;
+      const bodyMid = bodyAdj.mid.shift;
+      if (Math.abs(featPres - bodyPres) >= 1.5 || Math.abs(featMid - bodyMid) >= 1.5) {
+        lines.push("");
+        lines.push("**Profile-specific tastes:**");
+        if (Math.abs(featPres - bodyPres) >= 1.5) {
+          lines.push(featPres > bodyPres
+            ? `For Featured (cut/bite) IRs you want more brightness than for Body (foundation) IRs.`
+            : `For Body IRs you actually prefer more top-end than for Featured IRs -- unusual but noted.`);
+        }
+        if (Math.abs(featMid - bodyMid) >= 1.5) {
+          lines.push(featMid > bodyMid
+            ? `You like more mid density in your Featured IRs than in Body IRs.`
+            : `You prefer leaner mids in Featured IRs and fuller mids in Body IRs.`);
+        }
+      }
+    }
+  }
+
+  if (gearInsights) {
+    const favMics = gearInsights.mics.filter(m => m.score.net >= 2);
+    const avoidMics = gearInsights.mics.filter(m => m.score.net <= -2);
+    const favPositions = gearInsights.positions.filter(p => p.score.net >= 2);
+    const avoidPositions = gearInsights.positions.filter(p => p.score.net <= -2);
+
+    if (favMics.length > 0 || avoidMics.length > 0 || favPositions.length > 0) {
+      lines.push("");
+      lines.push("**Gear tendencies:**");
+      if (favMics.length > 0) {
+        const micNames = favMics.map(m => {
+          const desc = m.descriptors.length > 0 ? ` (${m.descriptors.map(d => d.label).join(", ")})` : "";
+          return `${m.name}${desc}`;
+        });
+        lines.push(`You consistently enjoy blends involving: ${micNames.join(", ")}.`);
+      }
+      if (avoidMics.length > 0) {
+        lines.push(`You tend to dislike blends with: ${avoidMics.map(m => m.name).join(", ")}.`);
+      }
+      if (favPositions.length > 0) {
+        lines.push(`Preferred mic positions: ${favPositions.map(p => p.name).join(", ")}.`);
+      }
+      if (avoidPositions.length > 0) {
+        lines.push(`Positions you tend to avoid: ${avoidPositions.map(p => p.name).join(", ")}.`);
+      }
+    }
+  }
+
+  if (ratioPreference) {
+    lines.push("");
+    const pct = Math.round(ratioPreference.preferredRatio * 100);
+    if (Math.abs(ratioPreference.preferredRatio - 0.5) >= 0.05) {
+      lines.push(`**Blend ratio:** You tend to prefer ${pct}/${100 - pct} base-to-feature mixes${ratioPreference.confidence >= 0.7 ? " (fairly consistent)" : " (still settling)"}.`);
+    } else {
+      lines.push(`**Blend ratio:** You're happy around an even 50/50 mix.`);
+    }
+    if (ratioPreference.perProfile) {
+      const parts: string[] = [];
+      for (const [name, pr] of Object.entries(ratioPreference.perProfile)) {
+        if (Math.abs(pr.preferredRatio - 0.5) >= 0.05) {
+          parts.push(`${name}: ${Math.round(pr.preferredRatio * 100)}/${100 - Math.round(pr.preferredRatio * 100)}`);
+        }
+      }
+      if (parts.length > 0) lines.push(`Per-profile: ${parts.join(", ")}.`);
+    }
+  }
+
+  const corrections = courseCorrections.filter(c => !c.startsWith("AI text interpretation:"));
+  const aiInterpretations = courseCorrections.filter(c => c.startsWith("AI text interpretation:"));
+  if (corrections.length > 0) {
+    lines.push("");
+    lines.push("**Refinements in progress:**");
+    for (const c of corrections) lines.push(c);
+  }
+  if (aiInterpretations.length > 0) {
+    lines.push("");
+    lines.push("**From your text feedback:**");
+    for (const ai of aiInterpretations) lines.push(ai.replace("AI text interpretation: ", ""));
+  }
+
+  const correctionSignals = allSignals.filter(s => s.action === "correction" && s.feedbackText);
+  if (correctionSignals.length > 0) {
+    lines.push("");
+    lines.push("**Your corrections applied:**");
+    for (const cs of correctionSignals.slice(-3)) {
+      lines.push(`"${cs.feedbackText}"`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function buildGearPreferencePrompt(learned: LearnedProfileData, micType?: string, speakerModel?: string): string {
@@ -5122,6 +5308,203 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     } catch (err) {
       console.error('Learned profile error:', err);
       res.status(500).json({ message: "Failed to compute learned profile" });
+    }
+  });
+
+  // ── Preference Correction ────────────────────────
+  app.post(api.preferences.correct.path, async (req, res) => {
+    try {
+      const { correctionText } = api.preferences.correct.input.parse(req.body);
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a guitar tone expert. The user is correcting the system's understanding of their tonal preferences.
+Interpret their correction and produce structured tonal nudges.
+
+Band definitions (percentages of total energy):
+- subBass: 20-120Hz (rumble, sub)
+- bass: 120-250Hz (low-end weight, proximity)
+- lowMid: 250-500Hz (warmth, body, mud zone)
+- mid: 500-2000Hz (body, fundamental, punch)
+- highMid: 2000-4000Hz (bite, articulation, cut)
+- presence: 4000-8000Hz (sizzle, air, brightness)
+- ratio: highMid/mid (>1.5 = bright/scooped, <1.2 = warm/mid-heavy)
+
+The user's correction tells you what the system got WRONG. Produce nudges that push the learned profile in the CORRECT direction.
+For example: "I actually prefer darker tones" => reduce presence and highMid, increase mid.
+"I don't like scooped mids" => increase mid, reduce ratio.
+
+Return JSON:
+{
+  "subBass": number (-5 to 5),
+  "bass": number (-5 to 5),
+  "lowMid": number (-5 to 5),
+  "mid": number (-8 to 8),
+  "highMid": number (-8 to 8),
+  "presence": number (-8 to 8),
+  "ratio": number (-0.5 to 0.5),
+  "strength": number (1.0 to 3.0, how strong the correction should be),
+  "summary": string (1-2 sentence explanation of the correction applied)
+}
+
+Use larger values than normal -- corrections should have strong impact since the user is explicitly telling us we're wrong.`
+          },
+          { role: "user", content: `The user says: "${correctionText}"\n\nInterpret this correction and return tonal adjustment nudges as JSON.` }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const parsed = JSON.parse(content);
+      const nudges = {
+        subBass: Math.max(-5, Math.min(5, parsed.subBass ?? 0)),
+        bass: Math.max(-5, Math.min(5, parsed.bass ?? 0)),
+        lowMid: Math.max(-5, Math.min(5, parsed.lowMid ?? 0)),
+        mid: Math.max(-8, Math.min(8, parsed.mid ?? 0)),
+        highMid: Math.max(-8, Math.min(8, parsed.highMid ?? 0)),
+        presence: Math.max(-8, Math.min(8, parsed.presence ?? 0)),
+        ratio: Math.max(-0.5, Math.min(0.5, parsed.ratio ?? 0)),
+        strength: Math.max(1.0, Math.min(3.0, parsed.strength ?? 2.0)),
+      };
+      const summary = parsed.summary ?? "Correction applied.";
+
+      const correctionSignal = {
+        action: "correction",
+        feedback: null,
+        feedbackText: correctionText,
+        baseFilename: "__correction__",
+        featureFilename: "__correction__",
+        subBass: 25 + nudges.subBass * nudges.strength,
+        bass: 25 + nudges.bass * nudges.strength,
+        lowMid: 25 + nudges.lowMid * nudges.strength,
+        mid: 28 + nudges.mid * nudges.strength,
+        highMid: 39 + nudges.highMid * nudges.strength,
+        presence: 23 + nudges.presence * nudges.strength,
+        ratio: 1.4 + nudges.ratio * nudges.strength,
+        score: 100,
+        profileMatch: "Featured",
+        blendRatio: null,
+      };
+
+      await storage.createPreferenceSignal(correctionSignal);
+
+      textFeedbackCache.clear();
+
+      console.log(`[Correction] Applied: "${correctionText}" => ${summary}`);
+      res.json({ applied: true, summary });
+    } catch (err) {
+      console.error('Correction error:', err);
+      res.status(500).json({ message: "Failed to apply correction" });
+    }
+  });
+
+  // ── Tone Request (find blends matching a described tone) ────────────────────────
+  app.post(api.preferences.toneRequest.path, async (req, res) => {
+    try {
+      const { toneDescription, irs } = api.preferences.toneRequest.input.parse(req.body);
+
+      if (irs.length < 2) {
+        return res.status(400).json({ message: "Need at least 2 IRs to suggest blends" });
+      }
+
+      const irSummary = irs.map(ir =>
+        `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)} centroid=${Math.round(ir.centroid)}Hz smooth=${ir.smoothness.toFixed(0)}`
+      ).join('\n');
+
+      let learnedContext = "";
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length > 0) {
+          const learned = await computeLearnedProfile(signals);
+          if (learned.tonalSummary) {
+            learnedContext = `\n\n=== USER'S LEARNED TONAL PREFERENCES ===\n${learned.tonalSummary}\n===\nUse this context to better understand what the user means by their tone description. Their vocabulary and references should be interpreted through the lens of their learned preferences.`;
+          }
+          const gearPrompt = buildGearPreferencePrompt(learned);
+          if (gearPrompt) learnedContext += `\n${gearPrompt}`;
+        }
+      } catch (e) {
+        console.log('[ToneRequest] Could not load preferences:', e);
+      }
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a guitar tone expert helping a user find IR blend combinations that match a described tone.
+
+You have a list of IRs with their 6-band tonal data. The user describes the tone they want in plain language.
+Your job: suggest 3-5 specific blend combinations (base IR + feature IR at a specific ratio) that would best achieve the described tone.
+
+Band definitions:
+- subBass (20-120Hz): rumble, sub-lows
+- bass (120-250Hz): low-end weight, proximity effect
+- lowMid (250-500Hz): warmth, body, can get muddy
+- mid (500-2000Hz): body, fundamental guitar tone, punch
+- highMid (2000-4000Hz): bite, articulation, cut, aggression
+- presence (4000-8000Hz): sizzle, air, brightness, sparkle
+- ratio (highMid/mid): >1.5 = bright/scooped, <1.2 = warm/mid-heavy
+
+When blending IRs, a ratio like 55/45 means 55% base, 45% feature. The resulting tone is approximately a weighted average of the two IRs' band values.
+
+Consider:
+1. Which IR would make the best BASE (foundation) for this tone
+2. Which IR would add the desired CHARACTER as the feature
+3. What ratio would achieve the right balance
+4. Why this combination works for the requested tone
+
+Return JSON:
+{
+  "suggestions": [
+    {
+      "baseIR": "filename of base IR",
+      "featureIR": "filename of feature IR",
+      "ratio": "55/45" (base/feature format),
+      "expectedTone": "brief description of what this blend would sound like",
+      "reasoning": "why this combination achieves the requested tone",
+      "confidence": number (0.0 to 1.0, how well this matches the request)
+    }
+  ],
+  "interpretation": "1-2 sentence summary of how you interpreted the user's tone request and what tonal characteristics you targeted"
+}
+
+Suggest 3-5 combinations, ranked by confidence. Use different base/feature combinations for variety.
+Do NOT suggest blending an IR with itself.`
+          },
+          {
+            role: "user",
+            content: `The user wants this tone: "${toneDescription}"
+
+Available IRs and their tonal data:
+${irSummary}
+${learnedContext}
+
+Suggest the best blend combinations to achieve this tone. Return as JSON.`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const result = JSON.parse(content);
+      console.log(`[ToneRequest] "${toneDescription}" => ${result.suggestions?.length ?? 0} suggestions`);
+      res.json(result);
+    } catch (err) {
+      console.error('Tone request error:', err);
+      res.status(500).json({ message: "Failed to process tone request" });
     }
   });
 

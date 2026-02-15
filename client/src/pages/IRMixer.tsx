@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2 } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2 } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -178,6 +178,238 @@ function BandChart({ bands, height = 20, compact = false, showScores = false, pr
         </span>
         {showScores && <ProfileScores bands={bands} profiles={profiles} />}
       </div>
+    </div>
+  );
+}
+
+interface IRData {
+  filename: string;
+  bands: TonalBands;
+}
+
+interface ToneSuggestion {
+  baseIR: string;
+  featureIR: string;
+  ratio: string;
+  expectedTone: string;
+  reasoning: string;
+  confidence: number;
+}
+
+function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: LearnedProfileData; allIRs: IRData[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [correctionText, setCorrectionText] = useState("");
+  const [toneRequestText, setToneRequestText] = useState("");
+  const [toneResults, setToneResults] = useState<{ suggestions: ToneSuggestion[]; interpretation: string } | null>(null);
+  const { toast } = useToast();
+
+  const correctionMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/preferences/correct", { correctionText: text });
+      return res.json();
+    },
+    onSuccess: (data: { applied: boolean; summary: string }) => {
+      toast({ title: "Correction applied", description: data.summary });
+      setCorrectionText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to apply correction", variant: "destructive" });
+    },
+  });
+
+  const toneRequestMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const irData = allIRs.map(ir => ({
+        filename: ir.filename,
+        subBass: ir.bands.subBass,
+        bass: ir.bands.bass,
+        lowMid: ir.bands.lowMid,
+        mid: ir.bands.mid,
+        highMid: ir.bands.highMid,
+        presence: ir.bands.presence,
+        ratio: ir.bands.mid > 0 ? Math.round((ir.bands.highMid / ir.bands.mid) * 100) / 100 : 1,
+        centroid: 0,
+        smoothness: 0,
+      }));
+      const res = await apiRequest("POST", "/api/preferences/tone-request", { toneDescription: text, irs: irData });
+      return res.json();
+    },
+    onSuccess: (data: { suggestions: ToneSuggestion[]; interpretation: string }) => {
+      setToneResults(data);
+    },
+    onError: () => {
+      toast({ title: "Failed to find tone matches", variant: "destructive" });
+    },
+  });
+
+  const renderFormattedSummary = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('**') && line.endsWith('**')) {
+        return <p key={i} className="text-xs font-semibold text-foreground mt-3 mb-1">{line.replace(/\*\*/g, '')}</p>;
+      }
+      if (line.includes('**')) {
+        const parts = line.split(/\*\*(.*?)\*\*/g);
+        return (
+          <p key={i} className="text-xs text-muted-foreground leading-relaxed">
+            {parts.map((part, j) => j % 2 === 1 ? <strong key={j} className="text-foreground">{part}</strong> : part)}
+          </p>
+        );
+      }
+      if (line.trim() === '') return <div key={i} className="h-1" />;
+      if (line.startsWith('"') && line.endsWith('"')) {
+        return <p key={i} className="text-xs text-muted-foreground/80 italic ml-2">{line}</p>;
+      }
+      return <p key={i} className="text-xs text-muted-foreground leading-relaxed">{line}</p>;
+    });
+  };
+
+  return (
+    <div className="mb-8 rounded-xl border border-purple-500/20 bg-purple-500/5 overflow-visible" data-testid="tonal-insights-panel">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-4 flex items-center justify-between gap-2 text-left"
+        data-testid="button-toggle-insights"
+      >
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-purple-400" />
+          <span className="text-sm font-semibold text-foreground">What I Think You Like</span>
+          <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
+            {learnedProfile.status === "mastered" ? "Mastered" : learnedProfile.status === "confident" ? "Confident" : "Learning"}
+          </Badge>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-4">
+              <div className="rounded-lg bg-card/50 p-3 border border-border/50" data-testid="tonal-summary-text">
+                {renderFormattedSummary(learnedProfile.tonalSummary || "")}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                  <Send className="w-3 h-3 text-purple-400" />
+                  Correct me
+                </label>
+                <p className="text-[10px] text-muted-foreground">
+                  If the assessment above is wrong, tell me what should be different. This will adjust your profile with high priority.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={correctionText}
+                    onChange={(e) => setCorrectionText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && correctionText.trim() && !correctionMutation.isPending) {
+                        correctionMutation.mutate(correctionText.trim());
+                      }
+                    }}
+                    placeholder='e.g. "I actually prefer darker tones with more low-end weight"'
+                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    disabled={correctionMutation.isPending}
+                    data-testid="input-correction"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => correctionText.trim() && correctionMutation.mutate(correctionText.trim())}
+                    disabled={!correctionText.trim() || correctionMutation.isPending}
+                    data-testid="button-submit-correction"
+                  >
+                    {correctionMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
+                  </Button>
+                </div>
+              </div>
+
+              {allIRs.length >= 2 && (
+                <div className="space-y-2 border-t border-border/30 pt-3">
+                  <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                    <Search className="w-3 h-3 text-purple-400" />
+                    Find me this tone
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Describe a tone and I'll suggest blend combinations from your loaded IRs.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={toneRequestText}
+                      onChange={(e) => setToneRequestText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && toneRequestText.trim() && !toneRequestMutation.isPending) {
+                          toneRequestMutation.mutate(toneRequestText.trim());
+                        }
+                      }}
+                      placeholder='e.g. "thick aggressive metal tone with lots of bite" or "smooth warm jazz tone"'
+                      className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      disabled={toneRequestMutation.isPending}
+                      data-testid="input-tone-request"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => toneRequestText.trim() && toneRequestMutation.mutate(toneRequestText.trim())}
+                      disabled={!toneRequestText.trim() || toneRequestMutation.isPending}
+                      data-testid="button-submit-tone-request"
+                    >
+                      {toneRequestMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Search"}
+                    </Button>
+                  </div>
+
+                  <AnimatePresence>
+                    {toneResults && toneResults.suggestions && toneResults.suggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="mt-3 space-y-2"
+                        data-testid="tone-results"
+                      >
+                        <p className="text-[10px] text-muted-foreground italic">{toneResults.interpretation}</p>
+                        {toneResults.suggestions.map((sug, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "p-3 rounded-lg border",
+                              sug.confidence >= 0.8 ? "border-emerald-500/30 bg-emerald-500/5" :
+                              sug.confidence >= 0.6 ? "border-sky-500/30 bg-sky-500/5" :
+                              "border-border/50 bg-card/30"
+                            )}
+                            data-testid={`tone-suggestion-${i}`}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
+                                {sug.ratio}
+                              </Badge>
+                              <span className="text-[10px] font-mono text-muted-foreground">
+                                {Math.round(sug.confidence * 100)}% match
+                              </span>
+                            </div>
+                            <div className="text-xs text-foreground mb-1">
+                              <span className="font-medium">{sug.baseIR.replace(/\.wav$/i, '')}</span>
+                              <span className="text-muted-foreground mx-1">+</span>
+                              <span className="font-medium">{sug.featureIR.replace(/\.wav$/i, '')}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">{sug.expectedTone}</p>
+                            <p className="text-[10px] text-muted-foreground/70 mt-1">{sug.reasoning}</p>
+                          </div>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1513,6 +1745,13 @@ export default function IRMixer() {
             </div>
           )}
         </motion.div>
+
+        {learnedProfile && learnedProfile.tonalSummary && learnedProfile.status !== "no_data" && (
+          <TonalInsightsPanel
+            learnedProfile={learnedProfile}
+            allIRs={allIRs}
+          />
+        )}
 
         <div ref={foundationRef} className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">

@@ -527,6 +527,7 @@ export interface LearnedProfileData {
   courseCorrections: string[];
   gearInsights?: GearInsights | null;
   ratioPreference?: RatioPreference | null;
+  tonalSummary?: string | null;
 }
 
 export function applyLearnedAdjustments(

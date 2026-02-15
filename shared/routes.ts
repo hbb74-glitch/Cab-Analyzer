@@ -442,6 +442,42 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    correct: {
+      method: 'POST' as const,
+      path: '/api/preferences/correct',
+      input: z.object({
+        correctionText: z.string().min(1, "Please describe what should be different"),
+      }),
+      responses: {
+        200: z.object({ applied: z.boolean(), summary: z.string() }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+    toneRequest: {
+      method: 'POST' as const,
+      path: '/api/preferences/tone-request',
+      input: z.object({
+        toneDescription: z.string().min(1, "Describe the tone you want"),
+        irs: z.array(z.object({
+          filename: z.string(),
+          subBass: z.number(),
+          bass: z.number(),
+          lowMid: z.number(),
+          mid: z.number(),
+          highMid: z.number(),
+          presence: z.number(),
+          ratio: z.number(),
+          centroid: z.number(),
+          smoothness: z.number(),
+        })),
+      }),
+      responses: {
+        200: z.any(),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
   },
   tonalProfiles: {
     list: {
