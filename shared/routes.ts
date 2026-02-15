@@ -454,6 +454,28 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    testAI: {
+      method: 'POST' as const,
+      path: '/api/preferences/test-ai',
+      input: z.object({
+        query: z.string().min(1, "Describe what to test"),
+        irs: z.array(z.object({
+          filename: z.string(),
+          subBass: z.number(),
+          bass: z.number(),
+          lowMid: z.number(),
+          mid: z.number(),
+          highMid: z.number(),
+          presence: z.number(),
+          ratio: z.number(),
+        })),
+      }),
+      responses: {
+        200: z.any(),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
     toneRequest: {
       method: 'POST' as const,
       path: '/api/preferences/tone-request',

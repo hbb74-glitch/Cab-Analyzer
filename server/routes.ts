@@ -5508,6 +5508,100 @@ Suggest the best blend combinations to achieve this tone. Return as JSON.`
     }
   });
 
+  // ── Test AI (Tonal Classification) ────────────────────────
+  app.post(api.preferences.testAI.path, async (req, res) => {
+    try {
+      const { query, irs } = api.preferences.testAI.input.parse(req.body);
+
+      if (irs.length < 1) {
+        return res.status(400).json({ message: "Need at least 1 IR to test" });
+      }
+
+      const irSummary = irs.map(ir =>
+        `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)}`
+      ).join('\n');
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are a guitar tone expert analyzing impulse responses. You receive a set of IRs with their 6-band spectral data and a user query describing a tonal quality or comparison.
+
+Your job: classify and rank the IRs according to the query. The user might ask for:
+- A single tonal quality (e.g., "dark tight tones") — rank all IRs by how well they match
+- A comparison (e.g., "scooped vs balanced") — sort IRs into the compared categories
+- A specific characteristic (e.g., "which ones have the most bite") — identify the best matches
+
+Band definitions:
+- subBass (20-120Hz): rumble, sub-lows
+- bass (120-250Hz): low-end weight, proximity effect  
+- lowMid (250-500Hz): warmth, body, can get muddy if excessive
+- mid (500-2000Hz): body, fundamental guitar tone, punch
+- highMid (2000-4000Hz): bite, articulation, cut, aggression
+- presence (4000-8000Hz): sizzle, air, brightness, sparkle
+- ratio (highMid/mid): >1.5 = bright/scooped, <1.2 = warm/mid-heavy
+
+Tonal vocabulary reference:
+- "Dark" = low presence, low highMid, strong bass/lowMid
+- "Bright" = high presence, high highMid
+- "Tight" = controlled bass, minimal lowMid bloat, good mid definition
+- "Scooped" = reduced mid, high highMid+presence, V-shaped curve
+- "Balanced" = relatively even distribution, mid is not scooped
+- "Aggressive" = strong highMid, forward bite
+- "Warm" = elevated lowMid/bass, reduced presence
+- "Muddy" = excessive lowMid (>25%+), weak highMid/presence
+- "Fizzy" = excessive presence (>25%+)
+- "Boxy" = mid-heavy with weak highs and lows
+
+For each IR, provide:
+- A match score (0-100) for the queried quality
+- A brief explanation of WHY it matches or doesn't, referencing specific band values
+- If it's a comparison query, which category it falls into
+
+Return JSON:
+{
+  "interpretation": "How you interpreted the query — what tonal characteristics you're looking for",
+  "results": [
+    {
+      "filename": "IR filename",
+      "score": number (0-100, how well it matches the query),
+      "category": "category name if comparison query, otherwise the primary tonal quality",
+      "reasoning": "1-2 sentences explaining the classification based on actual band data"
+    }
+  ]
+}
+
+Sort results by score descending. Be honest — if an IR doesn't match, give it a low score and explain why.`
+          },
+          {
+            role: "user",
+            content: `Query: "${query}"
+
+IRs to classify:
+${irSummary}
+
+Classify and rank these IRs according to the query. Return as JSON.`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const result = JSON.parse(content);
+      console.log(`[TestAI] "${query}" => ${result.results?.length ?? 0} classified IRs`);
+      res.json(result);
+    } catch (err) {
+      console.error('Test AI error:', err);
+      res.status(500).json({ message: "Failed to process test query" });
+    }
+  });
+
   // ── Tonal Profiles (Intelligence) ────────────────────────
   app.get(api.tonalProfiles.list.path, async (_req, res) => {
     try {

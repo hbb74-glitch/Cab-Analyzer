@@ -196,6 +196,147 @@ interface ToneSuggestion {
   confidence: number;
 }
 
+interface TestAIResult {
+  filename: string;
+  score: number;
+  category: string;
+  reasoning: string;
+}
+
+function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ interpretation: string; results: TestAIResult[] } | null>(null);
+  const { toast } = useToast();
+
+  const testMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const irData = allIRs.map(ir => ({
+        filename: ir.filename,
+        subBass: ir.bands.subBass,
+        bass: ir.bands.bass,
+        lowMid: ir.bands.lowMid,
+        mid: ir.bands.mid,
+        highMid: ir.bands.highMid,
+        presence: ir.bands.presence,
+        ratio: ir.bands.mid > 0 ? Math.round((ir.bands.highMid / ir.bands.mid) * 100) / 100 : 1,
+      }));
+      const res = await apiRequest("POST", "/api/preferences/test-ai", { query: text, irs: irData });
+      return res.json();
+    },
+    onSuccess: (data: { interpretation: string; results: TestAIResult[] }) => {
+      setResults(data);
+    },
+    onError: () => {
+      toast({ title: "Test failed", description: "AI couldn't process that query", variant: "destructive" });
+    },
+  });
+
+  const categories = useMemo(() => {
+    if (!results?.results) return [];
+    const cats = new Set(results.results.map(r => r.category));
+    return Array.from(cats);
+  }, [results]);
+
+  const isComparison = categories.length > 1;
+
+  return (
+    <div className="mb-8 rounded-xl border border-orange-500/20 bg-orange-500/5 p-4" data-testid="test-ai-panel">
+      <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+        <Zap className="w-4 h-4 text-orange-400" />
+        Test AI
+      </h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Test the AI's tonal understanding. Type a tonal description or comparison and see how it classifies your loaded IRs.
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && query.trim() && !testMutation.isPending) {
+              testMutation.mutate(query.trim());
+            }
+          }}
+          placeholder='e.g. "dark tight tones" or "scooped vs balanced" or "which have the most bite"'
+          className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          disabled={testMutation.isPending}
+          data-testid="input-test-ai"
+        />
+        <Button
+          size="sm"
+          onClick={() => query.trim() && testMutation.mutate(query.trim())}
+          disabled={!query.trim() || testMutation.isPending}
+          data-testid="button-submit-test-ai"
+        >
+          {testMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Test"}
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {results && results.results && results.results.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-4 space-y-3"
+            data-testid="test-ai-results"
+          >
+            <p className="text-[10px] text-muted-foreground italic">{results.interpretation}</p>
+
+            {isComparison ? (
+              <div className="space-y-3">
+                {categories.map(cat => {
+                  const catResults = results.results.filter(r => r.category === cat);
+                  return (
+                    <div key={cat} className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">{cat}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{catResults.length} IRs</span>
+                      </div>
+                      {catResults.sort((a, b) => b.score - a.score).map((r, i) => (
+                        <div key={i} className="flex items-start gap-2 pl-3">
+                          <span className={cn(
+                            "text-[10px] font-mono shrink-0 w-8 text-right",
+                            r.score >= 70 ? "text-emerald-400" : r.score >= 40 ? "text-amber-400" : "text-red-400"
+                          )}>
+                            {r.score}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                            <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {results.results.sort((a, b) => b.score - a.score).map((r, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={cn(
+                      "text-[10px] font-mono shrink-0 w-8 text-right",
+                      r.score >= 70 ? "text-emerald-400" : r.score >= 40 ? "text-amber-400" : "text-red-400"
+                    )}>
+                      {r.score}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: LearnedProfileData; allIRs: IRData[] }) {
   const [expanded, setExpanded] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
@@ -1844,6 +1985,10 @@ export default function IRMixer() {
             </motion.div>
           )}
         </div>
+
+        {allIRs.length >= 1 && (
+          <TestAIPanel allIRs={allIRs} />
+        )}
 
         <div className="mb-8 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
