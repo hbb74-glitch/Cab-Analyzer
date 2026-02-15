@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { computeTonalFeatures, blendFeatures } from "@/lib/tonal-engine";
 import {
   type TonalBands,
   type TonalFeatures,
@@ -31,7 +32,6 @@ import {
   computeSpeakerRelativeProfiles,
   DEFAULT_PROFILES,
   getSpeakerFilenamePrefix,
-  featuresFromBands,
 } from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
@@ -58,50 +58,6 @@ const BLEND_RATIOS = [
   { label: "40/60", base: 0.4, feature: 0.6 },
   { label: "30/70", base: 0.3, feature: 0.7 },
 ];
-
-function extractRawEnergy(m: AudioMetrics): TonalBands {
-  return {
-    subBass: m.subBassEnergy,
-    bass: m.bassEnergy,
-    lowMid: m.lowMidEnergy,
-    mid: m.midEnergy6,
-    highMid: m.highMidEnergy,
-    presence: m.presenceEnergy,
-    air: (m as any).ultraHighEnergy || 0,
-  };
-}
-
-function energyToPercent(raw: TonalBands): TonalBands {
-  const total = raw.subBass + raw.bass + raw.lowMid + raw.mid + raw.highMid + raw.presence + (raw.air || 0);
-  if (total === 0) return { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0, air: 0 };
-  return {
-    subBass: Math.round((raw.subBass / total) * 1000) / 10,
-    bass: Math.round((raw.bass / total) * 1000) / 10,
-    lowMid: Math.round((raw.lowMid / total) * 1000) / 10,
-    mid: Math.round((raw.mid / total) * 1000) / 10,
-    highMid: Math.round((raw.highMid / total) * 1000) / 10,
-    presence: Math.round((raw.presence / total) * 1000) / 10,
-    air: Math.round(((raw.air || 0) / total) * 1000) / 10,
-  };
-}
-
-function blendFromRaw(
-  baseRaw: TonalBands,
-  featureRaw: TonalBands,
-  baseRatio: number,
-  featureRatio: number
-): TonalBands {
-  const blendedRaw: TonalBands = {
-    subBass: baseRaw.subBass * baseRatio + featureRaw.subBass * featureRatio,
-    bass: baseRaw.bass * baseRatio + featureRaw.bass * featureRatio,
-    lowMid: baseRaw.lowMid * baseRatio + featureRaw.lowMid * featureRatio,
-    mid: baseRaw.mid * baseRatio + featureRaw.mid * featureRatio,
-    highMid: baseRaw.highMid * baseRatio + featureRaw.highMid * featureRatio,
-    presence: baseRaw.presence * baseRatio + featureRaw.presence * featureRatio,
-    air: (baseRaw.air || 0) * baseRatio + (featureRaw.air || 0) * featureRatio,
-  };
-  return energyToPercent(blendedRaw);
-}
 
 function MatchBadge({ match }: { match: MatchResult }) {
   const colorMap = {
@@ -143,8 +99,8 @@ function BlendQualityBadge({ score, label }: { score: number; label: MatchResult
 }
 
 
-function ProfileScores({ bands, profiles }: { bands: TonalBands; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
-  const { results } = scoreAgainstAllProfiles(featuresFromBands(bands), profiles);
+function ProfileScores({ features, profiles }: { features: TonalFeatures; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
+  const { results } = scoreAgainstAllProfiles(features, profiles);
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {results.map((r) => (
@@ -154,7 +110,7 @@ function ProfileScores({ bands, profiles }: { bands: TonalBands; profiles?: impo
   );
 }
 
-function BandChart({ bands, height = 20, compact = false, showScores = false, profiles }: { bands: TonalBands; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
+function BandChart({ bands, features, height = 20, compact = false, showScores = false, profiles }: { bands: TonalBands; features?: TonalFeatures; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
   const hiMidMidRatio = bands.mid > 0 ? Math.round((bands.highMid / bands.mid) * 100) / 100 : 0;
   return (
     <div className="space-y-1">
@@ -182,7 +138,7 @@ function BandChart({ bands, height = 20, compact = false, showScores = false, pr
           HiMid/Mid: {hiMidMidRatio.toFixed(2)}
           {hiMidMidRatio < 1.0 ? " (dark)" : hiMidMidRatio > 2.0 ? " (bright)" : ""}
         </span>
-        {showScores && <ProfileScores bands={bands} profiles={profiles} />}
+        {showScores && features && <ProfileScores features={features} profiles={profiles} />}
       </div>
     </div>
   );
@@ -681,7 +637,7 @@ export default function IRMixer() {
     userPick: number | null;
     showingResult: boolean;
     history: TasteCheckRoundResult[];
-    pendingRefineCandidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+    pendingRefineCandidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[];
     pendingLoadTopPick: boolean;
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
@@ -701,7 +657,7 @@ export default function IRMixer() {
 
   const [ratioRefinePhase, setRatioRefinePhase] = useState<{
     stage: "select" | "refine" | "done";
-    candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+    candidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[];
     selectedIdx: number | null;
     step: number;
     matchups: { a: number; b: number }[];
@@ -826,9 +782,9 @@ export default function IRMixer() {
     try {
       const file = files[0];
       const metrics = await analyzeAudioFile(file);
-      const rawEnergy = extractRawEnergy(metrics);
-      const bands = energyToPercent(rawEnergy);
-      const features = featuresFromBands(rawEnergy);
+      const features = computeTonalFeatures(metrics);
+      const rawEnergy = features.bandsRaw;
+      const bands = features.bandsPercent;
       setBaseIR({ filename: file.name, metrics, rawEnergy, bands, features });
       resetPairingState();
     } catch (e) {
@@ -843,9 +799,9 @@ export default function IRMixer() {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const rawEnergy = extractRawEnergy(metrics);
-        const bands = energyToPercent(rawEnergy);
-        const features = featuresFromBands(rawEnergy);
+        const features = computeTonalFeatures(metrics);
+        const rawEnergy = features.bandsRaw;
+        const bands = features.bandsPercent;
         results.push({ filename: file.name, metrics, rawEnergy, bands, features });
       }
       setFeatureIRs((prev) => [...prev, ...results]);
@@ -865,9 +821,9 @@ export default function IRMixer() {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const rawEnergy = extractRawEnergy(metrics);
-        const bands = energyToPercent(rawEnergy);
-        const features = featuresFromBands(rawEnergy);
+        const features = computeTonalFeatures(metrics);
+        const rawEnergy = features.bandsRaw;
+        const bands = features.bandsPercent;
         results.push({ filename: file.name, metrics, rawEnergy, bands, features });
       }
       setAllIRs(results);
@@ -891,9 +847,9 @@ export default function IRMixer() {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const rawEnergy = extractRawEnergy(metrics);
-        const bands = energyToPercent(rawEnergy);
-        const features = featuresFromBands(rawEnergy);
+        const features = computeTonalFeatures(metrics);
+        const rawEnergy = features.bandsRaw;
+        const bands = features.bandsPercent;
         results.push({ filename: file.name, metrics, rawEnergy, bands, features });
       }
       setCabAIRs(results);
@@ -912,9 +868,9 @@ export default function IRMixer() {
       const results: AnalyzedIR[] = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const rawEnergy = extractRawEnergy(metrics);
-        const bands = energyToPercent(rawEnergy);
-        const features = featuresFromBands(rawEnergy);
+        const features = computeTonalFeatures(metrics);
+        const rawEnergy = features.bandsRaw;
+        const bands = features.bandsPercent;
         results.push({ filename: file.name, metrics, rawEnergy, bands, features });
       }
       setCabBIRs(results);
@@ -1131,7 +1087,7 @@ export default function IRMixer() {
     }
   }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
 
-  const proceedToRatioRefine = useCallback((candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[], loadTopPick: boolean) => {
+  const proceedToRatioRefine = useCallback((candidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[], loadTopPick: boolean) => {
     const init = buildInitialRatioState();
     setRatioRefinePhase({
       stage: "select",
@@ -1305,7 +1261,7 @@ export default function IRMixer() {
     const newExposure = new Map(exposureCounts);
     const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
 
-    const refineCandidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[] = [];
+    const refineCandidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[] = [];
 
     for (const pair of suggestedPairs) {
       const pk = `${pair.baseFilename}||${pair.featureFilename}`;
@@ -1348,7 +1304,7 @@ export default function IRMixer() {
         const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
         const featData = pool.find((ir) => ir.filename === pair.featureFilename);
         if (baseData && featData) {
-          refineCandidates.push({ pair, rank, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy });
+          refineCandidates.push({ pair, rank, baseFeatures: baseData.features, featFeatures: featData.features });
         }
       }
     }
@@ -1431,7 +1387,7 @@ export default function IRMixer() {
   const manualRatioRefine = useCallback(() => {
     if (ratioRefinePhase || tasteCheckPhase) return;
     const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
-    const candidates: { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[] = [];
+    const candidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[] = [];
     for (const [pk, rank] of Object.entries(pairingRankings)) {
       if (rank !== 1 && rank !== 2) continue;
       if (dismissedPairings.has(pk)) continue;
@@ -1440,7 +1396,7 @@ export default function IRMixer() {
       const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
       const featData = pool.find((ir) => ir.filename === pair.featureFilename);
       if (baseData && featData) {
-        candidates.push({ pair, rank, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy });
+        candidates.push({ pair, rank, baseFeatures: baseData.features, featFeatures: featData.features });
       }
     }
     if (candidates.length === 0) return;
@@ -1450,20 +1406,20 @@ export default function IRMixer() {
 
   const startDirectRatioRefine = useCallback((baseData: AnalyzedIR, featData: AnalyzedIR) => {
     if (ratioRefinePhase || tasteCheckPhase) return;
-    const blendBands = blendFromRaw(baseData.rawEnergy, featData.rawEnergy, 0.5, 0.5);
-    const match = scoreAgainstAllProfiles(featuresFromBands(blendBands), activeProfiles);
-    const bq = scoreBlendQuality(featuresFromBands(blendBands), activeProfiles);
+    const blended = blendFeatures(baseData.features, featData.features, 0.5, 0.5);
+    const match = scoreAgainstAllProfiles(blended, activeProfiles);
+    const bq = scoreBlendQuality(blended, activeProfiles);
     const pair: SuggestedPairing = {
       baseFilename: baseData.filename,
       featureFilename: featData.filename,
-      blendBands,
+      blendBands: blended.bandsPercent,
       score: bq.blendScore,
       blendScore: bq.blendScore,
       blendLabel: bq.blendLabel,
       bestMatch: match.best,
       rank: 0,
     };
-    const candidates = [{ pair, rank: 2, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }];
+    const candidates = [{ pair, rank: 2, baseFeatures: baseData.features, featFeatures: featData.features }];
     const init = buildInitialRatioState();
     setRatioRefinePhase({
       stage: "refine",
@@ -1485,9 +1441,10 @@ export default function IRMixer() {
     const pk = `${cand.pair.baseFilename}||${cand.pair.featureFilename}`;
 
     if (ratio !== null) {
-      const blendBands = blendFromRaw(cand.baseRaw, cand.featRaw, ratio, 1 - ratio);
+      const blended = blendFeatures(cand.baseFeatures, cand.featFeatures, ratio, 1 - ratio);
+      const blendBands = blended.bandsPercent;
       const r = blendBands.mid > 0 ? blendBands.highMid / blendBands.mid : 0;
-      const scored = scoreAgainstAllProfiles(featuresFromBands(blendBands), activeProfiles);
+      const scored = scoreAgainstAllProfiles(blended, activeProfiles);
       submitSignalsMutation.mutate([{
         action: "ratio_pick",
         feedback: null,
@@ -1590,15 +1547,16 @@ export default function IRMixer() {
     if (!baseIR || featureIRs.length === 0) return [];
     return featureIRs.map((feature) => {
       const allRatioBlends = BLEND_RATIOS.map((r) => {
-        const bands = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, r.base, r.feature);
-        const match = scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles);
-        return { ratio: r, bands, bestMatch: match.best };
+        const blended = blendFeatures(baseIR.features, feature.features, r.base, r.feature);
+        const match = scoreAgainstAllProfiles(blended, activeProfiles);
+        return { ratio: r, bands: blended.bandsPercent, bestMatch: match.best };
       });
-      const currentBlend = blendFromRaw(baseIR.rawEnergy, feature.rawEnergy, currentRatio.base, currentRatio.feature);
-      const currentMatch = scoreAgainstAllProfiles(featuresFromBands(currentBlend), activeProfiles);
+      const currentBlended = blendFeatures(baseIR.features, feature.features, currentRatio.base, currentRatio.feature);
+      const currentMatch = scoreAgainstAllProfiles(currentBlended, activeProfiles);
       return {
         feature,
-        currentBlend,
+        currentBlend: currentBlended.bandsPercent,
+        currentBlendFeatures: currentBlended,
         currentMatch,
         allRatioBlends,
       };
@@ -1617,13 +1575,14 @@ export default function IRMixer() {
       irA: AnalyzedIR;
       irB: AnalyzedIR;
       blend: TonalBands;
+      blendFeats: TonalFeatures;
       match: ReturnType<typeof scoreAgainstAllProfiles>;
     }[] = [];
     for (const a of cabAIRs) {
       for (const b of cabBIRs) {
-        const blend = blendFromRaw(a.rawEnergy, b.rawEnergy, crossCabCurrentRatio.base, crossCabCurrentRatio.feature);
-        const match = scoreAgainstAllProfiles(featuresFromBands(blend), activeProfiles);
-        results.push({ irA: a, irB: b, blend, match });
+        const blended = blendFeatures(a.features, b.features, crossCabCurrentRatio.base, crossCabCurrentRatio.feature);
+        const match = scoreAgainstAllProfiles(blended, activeProfiles);
+        results.push({ irA: a, irB: b, blend: blended.bandsPercent, blendFeats: blended, match });
       }
     }
     results.sort((a, b) => b.match.best.score - a.match.best.score);
@@ -1757,9 +1716,9 @@ export default function IRMixer() {
                         const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
                         const featData = pool.find((ir) => ir.filename === pair.featureFilename);
                         return baseData && featData
-                          ? { pair, rank: 2, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }
+                          ? { pair, rank: 2, baseFeatures: baseData.features, featFeatures: featData.features }
                           : null;
-                      }).filter(Boolean) as { pair: SuggestedPairing; rank: number; baseRaw: TonalBands; featRaw: TonalBands }[];
+                      }).filter(Boolean) as { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[];
                       if (candidates.length > 0) {
                         proceedToRatioRefine(candidates, false);
                       }
@@ -2176,17 +2135,17 @@ export default function IRMixer() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab A</p>
-                                  <BandChart bands={cr.irA.bands} height={12} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={cr.irA.bands} features={cr.irA.features} height={12} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-1.5">
                                   <p className="text-[10px] text-teal-400 uppercase tracking-wider text-center font-semibold">
                                     Blend ({crossCabCurrentRatio.label})
                                   </p>
-                                  <BandChart bands={cr.blend} height={12} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={cr.blend} features={cr.blendFeats} height={12} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-1.5">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab B</p>
-                                  <BandChart bands={cr.irB.bands} height={12} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={cr.irB.bands} features={cr.irB.features} height={12} compact showScores profiles={activeProfiles} />
                                 </div>
                               </div>
                               {cr.match.best.deviations.length > 0 && (
@@ -2208,8 +2167,9 @@ export default function IRMixer() {
                                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">All Ratios</p>
                                 <div className="grid grid-cols-5 gap-2">
                                   {BLEND_RATIOS.map((ratio) => {
-                                    const rb = blendFromRaw(cr.irA.rawEnergy, cr.irB.rawEnergy, ratio.base, ratio.feature);
-                                    const rbMatch = scoreAgainstAllProfiles(featuresFromBands(rb), activeProfiles);
+                                    const rbBlended = blendFeatures(cr.irA.features, cr.irB.features, ratio.base, ratio.feature);
+                                    const rb = rbBlended.bandsPercent;
+                                    const rbMatch = scoreAgainstAllProfiles(rbBlended, activeProfiles);
                                     const r = rb.mid > 0 ? Math.round((rb.highMid / rb.mid) * 100) / 100 : 0;
                                     return (
                                       <div key={ratio.label} className={cn(
@@ -2857,7 +2817,7 @@ export default function IRMixer() {
                       <div className="grid grid-cols-2 gap-3">
                         {(["a", "b"] as const).map((side) => {
                           const r = current[side];
-                          const bands = blendFromRaw(cand.baseRaw, cand.featRaw, r, 1 - r);
+                          const bands = blendFeatures(cand.baseFeatures, cand.featFeatures, r, 1 - r).bandsPercent;
                           return (
                             <button
                               key={side}
@@ -2960,7 +2920,7 @@ export default function IRMixer() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <BandChart bands={baseIR.bands} showScores profiles={activeProfiles} />
+                <BandChart bands={baseIR.bands} features={baseIR.features} showScores profiles={activeProfiles} />
               </motion.div>
             ) : (
               <DropZone
@@ -3113,7 +3073,7 @@ export default function IRMixer() {
                             {currentRatio.label}
                           </span>
                           {(() => {
-                            const bq = scoreBlendQuality(featuresFromBands(result.currentBlend), activeProfiles);
+                            const bq = scoreBlendQuality(result.currentBlendFeatures, activeProfiles);
                             return <BlendQualityBadge score={bq.blendScore} label={bq.blendLabel} />;
                           })()}
                         </div>
@@ -3150,17 +3110,17 @@ export default function IRMixer() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-base">Base</p>
-                                  <BandChart bands={baseIR.bands} height={14} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={baseIR.bands} features={baseIR.features} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-indigo-400 uppercase tracking-wider text-center font-semibold" data-testid="text-label-blend">
                                     Blend ({currentRatio.label})
                                   </p>
-                                  <BandChart bands={result.currentBlend} height={14} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={result.currentBlend} features={result.currentBlendFeatures} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                                 <div className="space-y-2">
                                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-feature">Feature</p>
-                                  <BandChart bands={result.feature.bands} height={14} compact showScores profiles={activeProfiles} />
+                                  <BandChart bands={result.feature.bands} features={result.feature.features} height={14} compact showScores profiles={activeProfiles} />
                                 </div>
                               </div>
 
@@ -3278,7 +3238,7 @@ export default function IRMixer() {
                   <div className="grid grid-cols-2 gap-3">
                     {(["a", "b"] as const).map((side) => {
                       const r = current[side];
-                      const bands = blendFromRaw(cand.baseRaw, cand.featRaw, r, 1 - r);
+                      const bands = blendFeatures(cand.baseFeatures, cand.featFeatures, r, 1 - r).bandsPercent;
                       return (
                         <button
                           key={side}

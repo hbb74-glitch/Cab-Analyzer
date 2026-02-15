@@ -352,7 +352,7 @@ function computePerceptualSmoothness(logBandEnergies: number[]): {
 
   const totalOctaves = Math.log2(LOG_BAND_MAX_HZ / LOG_BAND_MIN_HZ);
   const octavesPerBand = totalOctaves / n;
-  const fwhmOctaves = 1 / 6;
+  const fwhmOctaves = 0.5;
   const fwhmBands = fwhmOctaves / octavesPerBand;
   const sigma = fwhmBands / (2 * Math.sqrt(2 * Math.LN2));
   const kernelRadius = Math.max(1, Math.ceil(sigma * 3));

@@ -1,0 +1,184 @@
+CAB ANALYZER – SINGLE PASTE INSTRUCTIONS (IRMixer + Smoothness Fix)
+
+GOAL
+- IRMixer must use the canonical feature pipeline:
+  - computeTonalFeatures(metrics) for each IR
+  - blendFeatures(aFeat, bFeat, aGain, bGain) for blends
+- Stop “not likely to use” judgments being driven only by BLENDS.
+- Fix why Smooth is almost always 100 (it’s currently effectively measuring nothing).
+
+──────────────────────────────────────────────────────────────────────────────
+PART 1 — IRMixer: make it use computeTonalFeatures + blendFeatures everywhere
+──────────────────────────────────────────────────────────────────────────────
+
+FILE: client/src/pages/IRMixer.tsx
+
+1) ADD THIS IMPORT (near the other imports)
+------------------------------------------------
+import { computeTonalFeatures, blendFeatures } from "@/lib/tonal-engine";
+------------------------------------------------
+
+2) REMOVE these from the preference-profiles import list (if present)
+------------------------------------------------
+featuresFromBands
+------------------------------------------------
+
+3) DELETE THESE LEGACY HELPERS ENTIRELY (they cause wrong scoring in Mixer)
+- function extractRawEnergy(...)
+- function energyToPercent(...)
+- function blendFromRaw(...)
+
+(They’re the ones that re-normalize and also force tilt=0 / drop smooth/notch/rolloff/tail.)
+
+4) WHEN YOU CREATE “AnalyzedIR” AFTER analyzeAudioFile(file), REPLACE the
+old rawEnergy/bands/features construction with canonical features:
+
+FIND (pattern):
+------------------------------------------------
+const rawEnergy = extractRawEnergy(metrics);
+const bands = energyToPercent(rawEnergy);
+const features = featuresFromBands(rawEnergy);
+------------------------------------------------
+
+REPLACE WITH:
+------------------------------------------------
+const features = computeTonalFeatures(metrics);
+const rawEnergy = features.bandsRaw;
+const bands = features.bandsPercent;
+------------------------------------------------
+
+(Do this in ALL upload/load paths in IRMixer: base IR, feature IRs, batch adds.)
+
+5) REPLACE ALL BLEND CALCS to use blendFeatures() and score against the blended FEATURES
+- Anywhere you see:
+  blendFromRaw(...)
+  scoreAgainstAllProfiles(featuresFromBands(...))
+  scoreBlendQuality(featuresFromBands(...))
+
+Replace with the canonical pattern below.
+
+CANONICAL BLEND PATTERN (use this everywhere you blend):
+------------------------------------------------
+const blended = blendFeatures(baseIR.features, featureIR.features, baseGain, featureGain);
+const blendBands = blended.bandsPercent;        // for UI bars/ratios
+const match = scoreAgainstAllProfiles(blended, activeProfiles);
+const bq = scoreBlendQuality(blended, activeProfiles);
+------------------------------------------------
+
+Key rule:
+- UI uses blendBands (percent)
+- scoring uses blended (full TonalFeatures: tilt + smooth/notch/rolloff/tail + shape db)
+
+6) FIX “ProfileScores” helper in IRMixer
+Currently it likely does:
+------------------------------------------------
+scoreAgainstAllProfiles(featuresFromBands(bands), profiles)
+------------------------------------------------
+
+Change the component to accept TonalFeatures instead of bands:
+
+REPLACE the whole function with:
+------------------------------------------------
+function ProfileScores({
+  features,
+  profiles,
+}: {
+  features: TonalFeatures;
+  profiles?: import("@/lib/preference-profiles").PreferenceProfile[];
+}) {
+  const { results } = scoreAgainstAllProfiles(features, profiles);
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {results.map((r) => (
+        <MatchBadge key={r.profile} match={r} />
+      ))}
+    </div>
+  );
+}
+------------------------------------------------
+
+Then update call sites:
+- Replace:
+  <ProfileScores bands={bands} profiles={profiles} />
+- With:
+  <ProfileScores features={features} profiles={profiles} />
+
+7) TASTE-CHECK / RATIO-REFINE: store FEATURES in refine candidates (not just raw bands)
+In IRMixer state/type you currently store pending refine candidates like:
+  { pair, rank, baseRaw: TonalBands, featRaw: TonalBands }
+
+Change to:
+  { pair, rank, baseFeatures: TonalFeatures, featFeatures: TonalFeatures }
+
+Then when pushing candidates, replace:
+------------------------------------------------
+{ pair, rank, baseRaw: baseData.rawEnergy, featRaw: featData.rawEnergy }
+------------------------------------------------
+with:
+------------------------------------------------
+{ pair, rank, baseFeatures: baseData.features, featFeatures: featData.features }
+------------------------------------------------
+
+And anywhere ratio refine currently does:
+------------------------------------------------
+blendFromRaw(cand.baseRaw, cand.featRaw, r, 1 - r)
+------------------------------------------------
+replace with:
+------------------------------------------------
+const blended = blendFeatures(cand.baseFeatures, cand.featFeatures, r, 1 - r);
+const bands = blended.bandsPercent;
+------------------------------------------------
+
+8) “NOT LIKELY TO USE” LABEL FIX (Mixer side quick win)
+Wherever Mixer shows negative wording based on blend-only signals, change label text to:
+- “Not preferred as a blend partner (based on current taste signals)”
+instead of global “not likely to use”.
+
+(Do NOT globally down-rank individual IR usefulness based on blend feedback.)
+
+OPTIONAL (recommended): add an “Individual IR” mode in IRMixer
+- Create a toggle: Blends | Individual
+- Individual uses:
+  scoreIndividualIR(ir.features, activeProfiles, learnedProfile ?? undefined)
+- Do NOT apply avoid-zone penalties to individual mode (or make it a user toggle).
+
+──────────────────────────────────────────────────────────────────────────────
+PART 2 — WHY “SMOOTH” IS ALWAYS ~100, AND THE FIX
+──────────────────────────────────────────────────────────────────────────────
+
+What’s happening:
+- Your computePerceptualSmoothness() uses a Gaussian smoothing kernel that is WAY too narrow:
+  fwhmOctaves = 1/6
+- With your band spacing (~0.29 octaves per band), that yields sigma < 1 band.
+- So the “smoothed” curve becomes almost identical to the original curve.
+- Residuals ≈ 0 → residualRMS ≈ 0 → smoothScore rounds to 100.0 almost always.
+
+FIX: widen the smoothing reference curve to something meaningful (e.g., 0.5 octave)
+
+FILE: client/src/hooks/use-analyses.ts
+FUNCTION: computePerceptualSmoothness()
+
+FIND:
+------------------------------------------------
+const fwhmOctaves = 1 / 6;
+------------------------------------------------
+
+REPLACE WITH:
+------------------------------------------------
+const fwhmOctaves = 0.5; // half-octave smoothing so ripple/comb actually shows up
+------------------------------------------------
+
+That one line change will immediately stop “Smooth=100 always” and make it discriminate comb/notches.
+
+(You can fine tune later: 0.33 to 0.75 octaves are reasonable. 0.5 is a good starting point.)
+
+──────────────────────────────────────────────────────────────────────────────
+DONE CHECKLIST
+──────────────────────────────────────────────────────────────────────────────
+After Part 1:
+- Mixer and Analyzer should agree much more often.
+- Tilt no longer stuck at 0 in Mixer scoring.
+- Blend scoring uses the same canonical metrics as the rest of the app.
+
+After Part 2:
+- SmoothScore should vary across IRs (comb-y IRs drop, smooth IRs stay high).
