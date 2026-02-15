@@ -176,7 +176,10 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
 
     if (bestScore < 15) {
       unlikelyToUse = true;
-      unlikelyReason = "Very far from both your preferred tonal profiles — hard to blend toward your target";
+      const isLowConfidence = learnedProfile.status === "learning" || (learnedProfile.signalCount ?? 0) < 10;
+      unlikelyReason = isLowConfidence
+        ? "Low match to current preferences (low confidence — still learning your taste)"
+        : "Low match to both preferred tonal profiles — may work better as a standalone IR";
     }
 
     if (avoidTypes.length > 0) {
@@ -215,11 +218,11 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
         )}
       </div>
       {unlikelyToUse && unlikelyReason && (
-        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-red-500/10 border border-red-500/20" data-testid="warning-unlikely-to-use">
-          <ShieldAlert className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid="warning-unlikely-to-use">
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="text-xs font-medium text-red-400">Unlikely to use</p>
-            <p className="text-[11px] text-red-400/70">{unlikelyReason}</p>
+            <p className="text-xs font-medium text-amber-400">Low match</p>
+            <p className="text-[11px] text-amber-400/70">{unlikelyReason}</p>
           </div>
         </div>
       )}

@@ -110,7 +110,38 @@ function ProfileScores({ features, profiles }: { features: TonalFeatures; profil
   );
 }
 
-function BandChart({ bands, features, height = 20, compact = false, showScores = false, profiles }: { bands: TonalBands; features?: TonalFeatures; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
+function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centroid?: number }) {
+  if (!features) return null;
+  const tilt = features.tiltDbPerOct ?? 0;
+  const smooth = features.smoothScore ?? 0;
+  const tiltLabel = tilt > 2 ? "Bright" : tilt > 0.5 ? "Bright lean" : tilt > -0.5 ? "Balanced" : tilt > -2 ? "Dark lean" : "Dark";
+  const smoothLabel = smooth >= 80 ? "Smooth" : smooth >= 60 ? "Moderate" : smooth >= 40 ? "Textured" : "Ragged";
+  return (
+    <div className="flex items-center gap-2 flex-wrap" data-testid="tonal-readouts">
+      <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded border",
+        tilt > 0.5 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+        tilt < -0.5 ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+        "bg-white/5 text-muted-foreground border-white/10"
+      )}>
+        Tilt: {tilt > 0 ? "+" : ""}{tilt.toFixed(1)} dB ({tiltLabel})
+      </span>
+      <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded border",
+        smooth >= 70 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+        smooth >= 50 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+        "bg-red-500/10 text-red-400 border-red-500/20"
+      )}>
+        Smooth: {Math.round(smooth)}
+      </span>
+      {centroid != null && centroid > 0 && (
+        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-white/5 text-muted-foreground border-white/10">
+          Centroid: {Math.round(centroid)} Hz
+        </span>
+      )}
+    </div>
+  );
+}
+
+function BandChart({ bands, features, height = 20, compact = false, showScores = false, profiles, centroid }: { bands: TonalBands; features?: TonalFeatures; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[]; centroid?: number }) {
   const hiMidMidRatio = bands.mid > 0 ? Math.round((bands.highMid / bands.mid) * 100) / 100 : 0;
   return (
     <div className="space-y-1">
@@ -138,6 +169,7 @@ function BandChart({ bands, features, height = 20, compact = false, showScores =
           HiMid/Mid: {hiMidMidRatio.toFixed(2)}
           {hiMidMidRatio < 1.0 ? " (dark)" : hiMidMidRatio > 2.0 ? " (bright)" : ""}
         </span>
+        <TonalReadouts features={features} centroid={centroid} />
         {showScores && features && <ProfileScores features={features} profiles={profiles} />}
       </div>
     </div>
@@ -316,8 +348,9 @@ function FindTonePanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
         highMid: ir.bands.highMid,
         presence: ir.bands.presence,
         ratio: ir.bands.mid > 0 ? Math.round((ir.bands.highMid / ir.bands.mid) * 100) / 100 : 1,
-        centroid: 0,
-        smoothness: 0,
+        centroid: Math.round(ir.metrics.spectralCentroid ?? 0),
+        smoothness: Math.round(ir.features.smoothScore ?? ir.metrics.frequencySmoothness ?? 0),
+        tilt: parseFloat((ir.features.tiltDbPerOct ?? 0).toFixed(2)),
       }));
       const res = await apiRequest("POST", "/api/preferences/tone-request", { toneDescription: text, irs: irData });
       return res.json();
@@ -596,6 +629,7 @@ export default function IRMixer() {
   const [baseIR, setBaseIR] = useState<AnalyzedIR | null>(null);
   const [featureIRs, setFeatureIRs] = useState<AnalyzedIR[]>([]);
   const [allIRs, setAllIRs] = useState<AnalyzedIR[]>([]);
+  const [viewMode, setViewMode] = useState<"blend" | "individual">("blend");
   const [isLoadingBase, setIsLoadingBase] = useState(false);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
@@ -2895,6 +2929,105 @@ export default function IRMixer() {
           </div>
         )}
 
+        {(allIRs.length > 0 || baseIR || featureIRs.length > 0) && (
+          <div className="flex items-center gap-2 mb-4" data-testid="view-mode-toggle">
+            <span className="text-xs text-muted-foreground">View:</span>
+            <Button
+              size="sm"
+              variant={viewMode === "blend" ? "default" : "ghost"}
+              onClick={() => setViewMode("blend")}
+              className="text-xs toggle-elevate"
+              data-testid="button-view-blend"
+            >
+              <Layers className="w-3 h-3 mr-1" />
+              Blends
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === "individual" ? "default" : "ghost"}
+              onClick={() => setViewMode("individual")}
+              className="text-xs toggle-elevate"
+              data-testid="button-view-individual"
+            >
+              <Target className="w-3 h-3 mr-1" />
+              Individual IRs
+            </Button>
+          </div>
+        )}
+
+        {viewMode === "individual" && (() => {
+          const pool = allIRs.length > 0 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+          if (pool.length === 0) return null;
+          const sorted = [...pool].sort((a, b) => {
+            const aMatch = scoreAgainstAllProfiles(a.features, activeProfiles);
+            const bMatch = scoreAgainstAllProfiles(b.features, activeProfiles);
+            return bMatch.best.score - aMatch.best.score;
+          });
+          return (
+            <div className="mb-8 space-y-3" data-testid="individual-ir-panel">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Target className="w-4 h-4 text-cyan-400" />
+                  Individual IR Evaluation
+                  <span className="text-muted-foreground font-normal">({pool.length} IRs)</span>
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Each IR scored independently — not influenced by blend context. Role suggestions are based on tonal characteristics.
+              </p>
+              <div className="space-y-2">
+                {sorted.map((ir, idx) => {
+                  const match = scoreAgainstAllProfiles(ir.features, activeProfiles);
+                  const tilt = ir.features.tiltDbPerOct ?? 0;
+                  const smooth = ir.features.smoothScore ?? 0;
+                  const centroid = ir.metrics.spectralCentroid ?? 0;
+                  const bodyVal = (ir.bands.lowMid ?? 0) + (ir.bands.bass ?? 0) * 0.5;
+                  const biteVal = (ir.bands.highMid ?? 0) + (ir.bands.presence ?? 0) * 0.6;
+                  let roleSuggestion: string;
+                  if (bodyVal > 25 && tilt < -0.5) roleSuggestion = "Foundation / Body";
+                  else if (biteVal > 15 && tilt > 0.5) roleSuggestion = "Feature / Cut layer";
+                  else if (smooth > 75 && Math.abs(tilt) < 1) roleSuggestion = "Texture / Ambient";
+                  else if (biteVal > 20) roleSuggestion = "Lead / Bite";
+                  else roleSuggestion = "Versatile";
+
+                  return (
+                    <div key={ir.filename} className={cn(
+                      "p-3 rounded-xl border",
+                      match.best.label === "strong" ? "bg-emerald-500/[0.03] border-emerald-500/20" :
+                      match.best.label === "close" ? "bg-sky-500/[0.03] border-sky-500/20" :
+                      "bg-white/[0.02] border-white/5"
+                    )} data-testid={`individual-ir-${idx}`}>
+                      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                          <span className="text-xs font-mono text-foreground truncate">
+                            {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
+                          </span>
+                          <ShotIntentBadge filename={ir.filename} />
+                          {match.results.map((r) => (
+                            <MatchBadge key={r.profile} match={r} />
+                          ))}
+                          <span className={cn(
+                            "text-[10px] font-mono px-1.5 py-0.5 rounded border",
+                            roleSuggestion.includes("Foundation") ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                            roleSuggestion.includes("Feature") ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" :
+                            roleSuggestion.includes("Lead") ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                            roleSuggestion.includes("Texture") ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
+                            "bg-white/5 text-muted-foreground border-white/10"
+                          )} data-testid={`badge-role-suggestion-${idx}`}>
+                            {roleSuggestion}
+                          </span>
+                        </div>
+                      </div>
+                      <TonalReadouts features={ir.features} centroid={centroid} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {viewMode === "blend" && (<>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground">Base IR (foundation tone)</h3>
@@ -2920,7 +3053,7 @@ export default function IRMixer() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <BandChart bands={baseIR.bands} features={baseIR.features} showScores profiles={activeProfiles} />
+                <BandChart bands={baseIR.bands} features={baseIR.features} showScores profiles={activeProfiles} centroid={baseIR.metrics.spectralCentroid} />
               </motion.div>
             ) : (
               <DropZone
@@ -3079,14 +3212,26 @@ export default function IRMixer() {
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="hidden sm:flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground">Mid</span>
-                            <span className="text-xs font-mono text-green-400">{result.currentBlend.mid.toFixed(1)}%</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">HiMid</span>
-                            <span className="text-xs font-mono text-yellow-400">{result.currentBlend.highMid.toFixed(1)}%</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">Pres</span>
-                            <span className="text-xs font-mono text-orange-400">{result.currentBlend.presence.toFixed(1)}%</span>
+                            {(() => {
+                              const t = result.currentBlendFeatures?.tiltDbPerOct ?? 0;
+                              const s = result.currentBlendFeatures?.smoothScore ?? 0;
+                              return (
+                                <>
+                                  <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                    t > 0.5 ? "bg-amber-500/10 text-amber-400" : t < -0.5 ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-muted-foreground"
+                                  )}>
+                                    {t > 0 ? "+" : ""}{t.toFixed(1)}dB
+                                  </span>
+                                  <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                    s >= 70 ? "bg-emerald-500/10 text-emerald-400" : s >= 50 ? "bg-amber-500/10 text-amber-400" : "bg-red-500/10 text-red-400"
+                                  )}>
+                                    S:{Math.round(s)}
+                                  </span>
+                                </>
+                              );
+                            })()}
                             <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded ml-1",
+                              "text-[10px] font-mono px-1.5 py-0.5 rounded",
                               hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
                               hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
                               "bg-amber-500/20 text-amber-400"
@@ -3272,6 +3417,8 @@ export default function IRMixer() {
             )}
           </motion.div>
         )}
+
+        </>)}
 
         {!baseIR && featureIRs.length === 0 && allIRs.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">

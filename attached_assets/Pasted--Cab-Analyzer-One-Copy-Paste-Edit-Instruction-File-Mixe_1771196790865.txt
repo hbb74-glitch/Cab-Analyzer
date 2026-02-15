@@ -1,0 +1,299 @@
+# Cab-Analyzer — One Copy/Paste Edit Instruction File (Mixer + Analysis + Taste Learning)
+
+Goal: Make the app feel “smart + musical” by ensuring (1) the mixer uses the SAME refined analysis engine everywhere, (2) blends are computed on the correct representation (not raw % bands), (3) smoothness is real (not always 100), (4) tone search / pairing endpoints actually receive computed features, and (5) you can evaluate single IRs separately from blends so “unlikely” labels aren’t polluted by blend-only context.
+
+---
+
+## 0) Ground Rules (Do These First)
+1) There must be ONE canonical analysis pipeline used by:
+   - single IR evaluation
+   - blending
+   - pairing
+   - matching
+   - “tone search” (AI endpoint or local search)
+2) Analysis output objects must be consistent everywhere:
+   - `bands` (in dB-shape space, not raw)
+   - `features` (centroid, smoothness, tilt, etc.)
+   - `speakerPrefix` (or cabinet tag)
+3) If audio is not played in-app, do NOT implement loudness matching in-app.
+   - (Keep loudness match as a concept for real-world capture workflow, but not needed for the UI demo.)
+4) Do NOT permanently mark an IR “unlikely to use” based only on its performance inside one blend.
+
+---
+
+## 1) Fix: Tone Search / AI Payload Uses REAL Features (Critical)
+Problem: The payload currently sends `centroid: 0` and `smoothness: 0` (hardcoded), so the endpoint can’t use real tonal features.
+
+### Edit
+Wherever you build the request payload for tone search / find-tone endpoint (example: `FindTonePanel` or similar), replace any hardcoded:
+- `centroid: 0`
+- `smoothness: 0`
+with real computed features.
+
+### Required payload fields per IR
+For every IR item sent:
+- `filename`
+- `speakerPrefix` (or can infer from filename)
+- `bands` (the SAME representation used by the mixer scoring engine)
+- `centroid`
+- `smoothness`
+- `tilt`
+- `hiMidMidRatio` (optional if you still want it)
+- Any other features you already compute
+
+### Implementation requirement
+- The payload MUST be built from `computeTonalFeatures()` output (or your canonical analysis function).
+- Do NOT rebuild / approximate features in UI code.
+
+### Acceptance test
+- Inspect request payload: centroid/smoothness/tilt are non-zero and vary per IR.
+- Two obviously different IRs must produce different centroid and tilt.
+
+---
+
+## 2) Fix: Blend Math Must Operate on “Shape dB” (Not Raw % Bands)
+Problem: Blending raw band percentages (0–100) produces incorrect tonal results and can inflate smoothness or distort ratios.
+
+### Canonical blend order (MUST MATCH)
+1) Start with each IR’s raw spectrum (log magnitude or dB magnitude spectrum).
+2) Blend spectra (weighted sum in linear magnitude OR dB-safe method—see below).
+3) Recompute bands/features from the blended spectrum.
+4) Normalize to “shape dB” (speaker-relative profile space).
+5) Score (taste + profiles + quality).
+
+### Do NOT do this
+- Blend “already normalized” band values.
+- Blend percentage bars.
+- Compute smoothness on collapsed band summaries.
+
+### If you do not store full spectrum per IR
+You have 2 options:
+
+**Option A (Preferred): store a downsampled spectrum**
+- Store e.g. 256/512 bins per IR (log magnitude).
+- Blend bins, then derive bands/features.
+
+**Option B (Fallback): blend in dB shape space**
+- Convert raw bands → dB offsets (shape-normalized).
+- Blend those offsets.
+- BUT then recompute centroid/smoothness using a pseudo-spectrum or skip them for blends.
+- (If you want “musical” blends, Option A is strongly preferred.)
+
+### Acceptance test
+- Blend of a bright IR + dark IR at 50/50 yields intermediate centroid and tilt.
+- Blend metrics change smoothly with the blend slider (no weird jumps).
+
+---
+
+## 3) Fix: Smoothness Always 100 — Correct the Definition & Where It’s Computed
+Problem: Smoothness likely computed after normalization/flattening or on overly reduced representation, causing it to peg near 100.
+
+### Required definition (recommended)
+Compute smoothness from the spectrum BEFORE band collapsing and BEFORE shape normalization.
+
+A good practical approach:
+- Work on log magnitude spectrum in dB across the analysis range (e.g., 80 Hz–10 kHz).
+- Apply a mild smoothing curve (e.g., 1/6–1/3 octave smoothing).
+- Smoothness = 1 - normalized mean absolute deviation between raw spectrum and smoothed spectrum.
+  - Higher deviation = more “ragged / fizzy / spiky” = lower smoothness.
+  - Lower deviation = smoother = higher smoothness.
+
+### Requirements
+- Smoothness must be computed on:
+  - raw log magnitude spectrum OR downsampled spectrum
+- NOT computed on:
+  - band percentages
+  - already shape-normalized bands
+  - post-tilt-adjusted representations
+
+### Scaling
+Map to 0–100 at the very end:
+- clamp to [0,1] then *100
+- use consistent scaling so it doesn’t cluster at 90–100
+
+### Acceptance test
+- A very peaky/fizzy IR yields noticeably lower smoothness than a ribbon-heavy IR.
+- Smoothness distribution across a set of IRs is not all 95–100.
+
+---
+
+## 4) Add Tilt Metric (And Display It Everywhere)
+Problem: Only showing `hiMid/mid ratio` is too crude and not musical.
+
+### Implement tilt
+Define:
+- `tiltDb = (presenceDb + highMidDb) - (bassDb + lowMidDb)`
+Where those are in the SAME “shape dB” space used for profile matching (or derived from spectrum then expressed in dB offsets).
+
+### UI representation
+Display:
+- `Tilt: +1.8 dB (Bright Lean)`
+- `Tilt: -1.2 dB (Low Heavy)`
+
+Add to:
+- single IR view
+- blend view
+- pairing results
+- matching results
+- AI tone search results
+
+### Acceptance test
+- Tilt changes linearly/monotonically with blend weight between dark and bright IR.
+
+---
+
+## 5) Add “Individual IR” Evaluation Mode (Critical UX + Correctness)
+Problem: Some IRs get tagged “unlikely” because you disliked them only inside certain blends.
+
+### Add a view toggle
+At minimum:
+- `View: [ Blends ] [ Individual IRs ]`
+
+### Individual IR view must show
+- Bands (shape dB)
+- centroid
+- smoothness
+- tilt
+- hiMid/mid ratio (optional)
+- top 3 profile matches (e.g., Metal, Hard Rock, Clean, etc.) with scores
+- “Role suggestions” (NOT permanent labels):
+  - Foundation / Feature / Cut layer / Lead / Texture
+
+### Rules
+- “unlikely to use” cannot be derived from blend-only history.
+- Keep separate preference memory for:
+  - `singleIR` comparisons
+  - `blend` comparisons
+(you can combine later, but store separately now)
+
+### Acceptance test
+- An IR can score poorly in blend context but still be recommended as a good single-IR foundation.
+
+---
+
+## 6) Speaker-Relative Taste Learning (Do Not Learn Globally)
+Problem: If taste learning is global, it will over-correct between speakers (V30 vs G12M vs K100 etc.).
+
+### Implementation requirement
+All learned adjustments must be keyed by:
+- `speakerPrefix` (or cabinet tag)
+Optionally also by:
+- `micFamily` (dynamic/ribbon/condenser) if you track it
+- `useCase` (rhythm/lead/clean) if you add it
+
+### Data model requirement
+Store:
+- `learnedAdjustments[speakerPrefix] = { bandOffsets, featureOffsets, confidence, sampleCount }`
+
+### Confidence
+- Confidence increases with number of A/B votes in that speaker context.
+- Confidence decays if votes are old or contradictory (optional).
+
+### Acceptance test
+- Your preferences on V30 do NOT shift how G12M is scored unless you explicitly choose “global learning.”
+
+---
+
+## 7) Ensure Mixer, Pairing, and Matching Use the SAME Analysis Outputs
+Problem: You previously had a separate pairing page; now mixer includes both. They must not diverge.
+
+### Required refactor
+Create ONE module (or one set of exported functions) that every page uses:
+
+- `analyzeIR(irFileOrSpectrum) -> { bands, features, speakerPrefix, rawSpectrum? }`
+- `normalizeToShapeDb(analysis, speakerProfile) -> shapeBands/features`
+- `blendAnalyses(analyses[], weights[]) -> blendedAnalysis`
+- `scoreAgainstProfiles(shapeAnalysis, learnedAdjustments, context) -> profileScores`
+- `scoreBlendQuality(blendedAnalysis) -> qualityScore`
+- `rankCandidates(candidates, scoringConfig)`
+
+### Rule
+UI pages should not implement tonal math. They should only call these functions.
+
+### Acceptance test
+- Same IR scored from Individual IR view and when selected in Mixer yields identical metrics (centroid/smoothness/tilt/bands).
+
+---
+
+## 8) Fix: “Band energies for blending then convert to shape dB for scoring”
+Your stated approach is correct ONLY if “band energies” are in dB/log domain and computed from the spectrum.
+
+### Requirement
+- Band energies must be derived from spectrum in log domain.
+- Then converted to shape dB offsets relative to a speaker baseline for scoring.
+- Do NOT use 0–100 percent bars as “energy.”
+
+### Acceptance test
+- Raw band values correlate with audible brightness changes.
+- Shape dB values correlate with “profile match” decisions.
+
+---
+
+## 9) Prevent Permanent “Bad IR” Flags From Early Data
+Problem: Early learning data can prematurely label IRs.
+
+### Rule
+- Never permanently “downrank” an IR because of < N votes (suggest N=5–10).
+- Use soft labels:
+  - “Less preferred (low confidence)”
+  - “Mixed feedback (low confidence)”
+
+### Acceptance test
+- After 1–2 dislikes, an IR is not buried forever.
+
+---
+
+## 10) UI: Make It Feel Musical (Minimal Additions That Matter)
+Add these readouts and keep them consistent:
+- Tilt (dB)
+- Centroid (Hz)
+- Smoothness (0–100)
+- “Presence bite” indicator (optional derived from 3–6 kHz emphasis)
+- “Low-mid weight” indicator (optional derived from 150–400 Hz)
+
+Show on:
+- IR cards
+- blend card
+- top pairing suggestions
+
+---
+
+## 11) Quick Debug Panel (Temporary)
+Add a dev-only debug UI to print:
+- rawSpectrum present? (true/false)
+- band values (raw and shape)
+- centroid/smoothness/tilt
+- which pipeline path executed (single vs blend)
+- speakerPrefix + confidence
+
+This is the fastest way to catch “why smooth=100” type bugs.
+
+---
+
+## 12) Verification Checklist (Run Before You Send Me Next Zip)
+1) Payload for tone search includes real centroid/smoothness/tilt (not zeros).
+2) Blend slider produces smooth changes in centroid, tilt, and band shape.
+3) Smoothness distribution across IR library is not pegged at 100.
+4) Individual IR view exists and uses same analysis engine.
+5) Learned adjustments stored per speakerPrefix.
+6) Mixer and pairing/matching share the same scoring outputs.
+7) No page reimplements tonal math independently.
+
+---
+
+## Summary of Highest Priority Fixes (Do These First)
+P0:
+- Remove centroid/smoothness hardcoding in tone search payload.
+- Audit `blendFeatures()` to ensure blending isn’t on % bands.
+- Fix smoothness computation (pre-normalization, spectrum-based).
+- Add Individual IR mode.
+
+P1:
+- Add tilt metric and display it everywhere.
+- Speaker-relative taste learning keys.
+
+P2:
+- UI polish + debug panel + soft confidence labels.
+
+---
+End of file.

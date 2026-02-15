@@ -1675,7 +1675,10 @@ export default function Analyzer() {
       let unlikelyReason: string | null = null;
       if (bestScore < 15) {
         unlikelyToUse = true;
-        unlikelyReason = "Very far from both your preferred tonal profiles — hard to blend toward your target";
+        const isLowConfidence = learnedProfile.status === "learning" || (learnedProfile.signalCount ?? 0) < 10;
+        unlikelyReason = isLowConfidence
+          ? "Low match to current preferences (low confidence — still learning your taste)"
+          : "Low match to both preferred tonal profiles — may work better as a standalone IR";
       }
 
       return { role, featuredScore: fScore, bodyScore: bScore, bestScore, unlikelyToUse, unlikelyReason, avoidHits, avoidTypes, bands };
@@ -1807,7 +1810,7 @@ export default function Analyzer() {
     }
 
     if (unlikelyCount > 0) {
-      suggestions.push(`${unlikelyCount} IR${unlikelyCount !== 1 ? 's' : ''} flagged as unlikely to match your taste — consider skipping these when building blends.`);
+      suggestions.push(`${unlikelyCount} IR${unlikelyCount !== 1 ? 's' : ''} scored low against current preferences — these may still work well as standalone IRs or in different blend contexts.`);
     }
 
     return {
@@ -4274,8 +4277,8 @@ export default function Analyzer() {
                           </span>
                         )}
                         {collectionCoverage.unlikelyCount > 0 && (
-                          <span className="px-2 py-1 rounded bg-red-500/10 text-red-400 font-mono" data-testid="text-unlikely-count">
-                            {collectionCoverage.unlikelyCount} unlikely to use
+                          <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-unlikely-count">
+                            {collectionCoverage.unlikelyCount} low match
                           </span>
                         )}
                       </div>
