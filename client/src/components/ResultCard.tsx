@@ -515,7 +515,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, tonalMetrics, mi
                         ? "text-red-400"
                         : "text-amber-400"
                   )}>
-                    Spectral Centroid Analysis
+                    Tonal Center Check
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                     <div>
@@ -581,7 +581,7 @@ export function ResultCard({ score, isPerfect, advice, metrics, tonalMetrics, mi
           <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
             <div className="flex items-center gap-2 mb-3">
               <Layers className="w-5 h-5 text-indigo-400" />
-              <h4 className="text-sm font-semibold text-indigo-400">Tonal Balance</h4>
+              <h4 className="text-sm font-semibold text-indigo-400">Tonal Fingerprint</h4>
               {tonalBalance.highMidMidRatio != null && (
                 <span className={cn(
                   "ml-auto text-xs font-mono px-2 py-1 rounded",

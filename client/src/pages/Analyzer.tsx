@@ -1215,7 +1215,7 @@ function cullIRs(
       // Add brightness context
       parts.push(`${brightness} variant`);
       
-      reason = parts.length > 0 ? parts.join(', ') : "Adds spectral variety";
+      reason = parts.length > 0 ? parts.join(', ') : "Adds tonal variety";
     }
     
     keep.push({
@@ -1917,6 +1917,86 @@ export default function Analyzer() {
 
     return { newGear, underRepresented, noDataYet };
   }, [batchResult, learnedProfile, tonalProfileRows]);
+
+  const batchMusicalSummary = useMemo(() => {
+    if (!batchResult || batchResult.results.length < 2) return null;
+
+    const results = batchResult.results;
+
+    interface IRDescriptor {
+      index: number;
+      filename: string;
+      tilt: number;
+      body: number;
+      bite: number;
+      fizz: number;
+      smooth: number;
+      versatility: number;
+    }
+
+    const descriptors: IRDescriptor[] = results.map((r, i) => {
+      const tilt = (r as any).spectralTilt ?? 0;
+      const lowMid = r.lowMidPercent ?? 0;
+      const bass = r.bassPercent ?? 0;
+      const highMid = r.highMidPercent ?? 0;
+      const presence = r.presencePercent ?? 0;
+      const air = (r as any).ultraHighPercent ?? 0;
+      const smooth = (r as any).smoothScore ?? r.frequencySmoothness ?? 50;
+
+      const bodyVal = lowMid + bass * 0.5;
+      const biteVal = highMid + presence * 0.6;
+      const fizzVal = presence * 0.4 + air;
+
+      const avgTilt = results.reduce((s, x) => s + ((x as any).spectralTilt ?? 0), 0) / results.length;
+      const avgBody = results.reduce((s, x) => s + ((x.lowMidPercent ?? 0) + (x.bassPercent ?? 0) * 0.5), 0) / results.length;
+      const avgBite = results.reduce((s, x) => s + ((x.highMidPercent ?? 0) + (x.presencePercent ?? 0) * 0.6), 0) / results.length;
+
+      const versatility = 100 - (Math.abs(tilt - avgTilt) * 10 + Math.abs(bodyVal - avgBody) * 2 + Math.abs(biteVal - avgBite) * 2);
+
+      return { index: i, filename: r.filename, tilt, body: bodyVal, bite: biteVal, fizz: fizzVal, smooth, versatility: Math.max(0, Math.min(100, versatility)) };
+    });
+
+    const byTilt = [...descriptors].sort((a, b) => b.tilt - a.tilt);
+    const byBody = [...descriptors].sort((a, b) => b.body - a.body);
+    const byBite = [...descriptors].sort((a, b) => b.bite - a.bite);
+    const bySmooth = [...descriptors].sort((a, b) => b.smooth - a.smooth);
+    const byVersatility = [...descriptors].sort((a, b) => b.versatility - a.versatility);
+
+    const bandVectors = results.map(r => [
+      r.subBassPercent ?? 0, r.bassPercent ?? 0, r.lowMidPercent ?? 0,
+      r.midPercent ?? 0, r.highMidPercent ?? 0, r.presencePercent ?? 0
+    ]);
+
+    let totalSim = 0;
+    let pairCount = 0;
+    for (let i = 0; i < bandVectors.length; i++) {
+      for (let j = i + 1; j < bandVectors.length; j++) {
+        const a = bandVectors[i];
+        const b = bandVectors[j];
+        const dot = a.reduce((s, v, k) => s + v * b[k], 0);
+        const magA = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
+        const magB = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
+        if (magA > 0 && magB > 0) {
+          totalSim += dot / (magA * magB);
+          pairCount++;
+        }
+      }
+    }
+    const avgSimilarity = pairCount > 0 ? totalSim / pairCount : 0;
+    const redundancyHeat = avgSimilarity > 0.98 ? "high" as const : avgSimilarity > 0.95 ? "medium" as const : "low" as const;
+
+    return {
+      mostVersatile: byVersatility[0],
+      brightest: byTilt[0],
+      darkest: byTilt[byTilt.length - 1],
+      thickest: byBody[0],
+      mostCutting: byBite[0],
+      smoothest: bySmooth[0],
+      mostCombRisk: bySmooth[bySmooth.length - 1],
+      redundancyHeat,
+      avgSimilarity,
+    };
+  }, [batchResult]);
 
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
@@ -3463,7 +3543,7 @@ export default function Analyzer() {
       if (r.issues?.length) text += `   Issues: ${r.issues.join(", ")}\n`;
       if (r.spectralDeviation) {
         const sd = r.spectralDeviation;
-        text += `   Spectral: Expected ${sd.expectedMin}-${sd.expectedMax}Hz, Actual ${Math.round(sd.actual)}Hz`;
+        text += `   Tonal Center: Expected ${sd.expectedMin}-${sd.expectedMax}Hz, Actual ${Math.round(sd.actual)}Hz`;
         if (sd.isWithinRange) {
           text += ` (On Target)\n`;
         } else {
@@ -4121,6 +4201,52 @@ export default function Analyzer() {
                   </div>
 
                   <p className="text-muted-foreground">{batchResult.summary}</p>
+
+                  {batchMusicalSummary && (
+                    <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5 space-y-3" data-testid="batch-musical-summary">
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                          <Music4 className="w-4 h-4 text-primary" />
+                          Batch Overview
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Variety:</span>
+                          <span className={cn(
+                            "text-xs font-semibold px-2 py-0.5 rounded",
+                            batchMusicalSummary.redundancyHeat === "low" ? "bg-emerald-500/20 text-emerald-400" :
+                            batchMusicalSummary.redundancyHeat === "medium" ? "bg-amber-500/20 text-amber-400" :
+                            "bg-red-500/20 text-red-400"
+                          )} data-testid="badge-redundancy-heat">
+                            {batchMusicalSummary.redundancyHeat === "low" ? "High" : batchMusicalSummary.redundancyHeat === "medium" ? "Medium" : "Low"}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {[
+                          { label: "Most versatile", item: batchMusicalSummary.mostVersatile, icon: "crown" },
+                          { label: "Brightest", item: batchMusicalSummary.brightest, icon: "bright" },
+                          { label: "Darkest", item: batchMusicalSummary.darkest, icon: "dark" },
+                          { label: "Thickest", item: batchMusicalSummary.thickest, icon: "thick" },
+                          { label: "Most cutting", item: batchMusicalSummary.mostCutting, icon: "cut" },
+                          { label: "Smoothest", item: batchMusicalSummary.smoothest, icon: "smooth" },
+                          { label: "Most comb-risk", item: batchMusicalSummary.mostCombRisk, icon: "comb" },
+                        ].map((entry) => (
+                          <button
+                            key={entry.label}
+                            className="flex flex-col gap-1 p-2.5 rounded-lg bg-white/[0.02] border border-white/5 text-left hover-elevate transition-colors"
+                            onClick={() => {
+                              const el = document.querySelector(`[data-testid="batch-result-${entry.item.index}"]`);
+                              el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }}
+                            data-testid={`summary-${entry.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{entry.label}</span>
+                            <span className="text-xs font-mono text-foreground truncate w-full">{entry.item.filename.replace('.wav', '')}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {collectionCoverage && (
                     <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3" data-testid="collection-coverage-panel">

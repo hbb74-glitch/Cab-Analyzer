@@ -1,0 +1,154 @@
+CAB ANALYZER — “SMART + MUSICAL” PRODUCT SPEC (NO AUDIO REQUIRED)
+
+GOALS
+- Musical language first, technical detail second (collapsible).
+- Clear “why” explanations.
+- Taste learning is prominent and rewarding.
+- Avoid fake precision (no 6-decimal numbers, no “scientific certainty”).
+
+============================================================
+1) TOP-LEVEL UX FLOW (ONE SIMPLE PATH)
+============================================================
+Primary tabs (left-to-right):
+1) Analyze
+2) Cull
+3) Compare
+4) Taste (A/B)
+5) Export
+
+Each tab has:
+- 1 primary action button
+- 1 short “what this does” sentence
+
+============================================================
+2) TONAL DASHBOARD (MUSICAL FIRST)
+============================================================
+For each IR, show 5 musical descriptors + a fingerprint bar:
+
+A) Tilt: Dark / Neutral / Bright
+B) Body: Lean / Balanced / Thick (250–500)
+C) Bite: Soft / Defined / Aggressive (2–4k)
+D) Fizz: Controlled / Elevated (6–10k)
+E) Smoothness: Smooth / Ripple / Comb Risk
+
+PLUS: Tonal Fingerprint Bar (Sub/Bass/Low-mid/Mid/High-mid/Presence/Air)
+
+Under each descriptor, add ONE short sentence:
+- “Why: slightly elevated 2–4k with controlled rolloff”
+- “Why: low-mid is strong without excess sub”
+
+No raw numbers by default.
+
+============================================================
+3) “SHOW ME THE RECEIPTS” (SMART BUT NOT CLUTTERY)
+============================================================
+Add a small expandable panel:
+[Details ▼]
+
+Contains:
+- Tilt numeric
+- Rolloff Hz
+- SmoothScore numeric
+- Max notch depth + notch count
+- EarlyWindowMs used (85)
+- Tail metric status: N/A (short IR) or value
+
+Default collapsed.
+
+============================================================
+4) BATCH ANALYSIS SUMMARY (SMART FEEL)
+============================================================
+When analyzing a batch, show:
+- “Most versatile” (closest to your taste OR neutral reference if no taste yet)
+- “Brightest”, “Darkest”
+- “Thickest”, “Most cutting”
+- “Smoothest”, “Most comb-risk”
+- “Redundancy heat”: high / medium / low (set-level)
+
+Each item is clickable to open the IR details.
+
+============================================================
+5) CULL TAB SHOULD FEEL LIKE A PRO ENGINEER
+============================================================
+Output:
+- Keep-set (N shots) with labels:
+  - Anchor (most versatile)
+  - Bright option
+  - Dark option
+  - Thick option
+  - Cut option
+  - Smooth option
+
+For every IR you suggest removing:
+- Show “Redundant with: X” + a one-line why:
+  - “Very similar tilt and presence balance; differences under threshold.”
+
+Provide a “Variety Meter” for the keep-set:
+- Low / Medium / High
+
+============================================================
+6) COMPARE TAB (MUSICAL MATCHING)
+============================================================
+For any IR, show:
+- “Closest matches” (to pro IRs and/or your own favorites)
+- Each match includes:
+  - Match confidence: High / Med / Low
+  - 2 reasons in musician language:
+    - “Similar bite and rolloff; slightly leaner body.”
+
+Do NOT claim “best” unless trained.
+
+============================================================
+7) TASTE (A/B) TAB — MAKE IT FUN + PROGRESSIVE
+============================================================
+Design principles:
+- Always show 2 choices, plus 1 “too close / tie” option.
+- Always show 1 sentence describing the difference:
+  - “A has more bite; B has more body.”
+
+Progress:
+- “Taste confidence” meter:
+  - Low (<20 votes)
+  - Medium (20–60)
+  - High (60+)
+
+Rewards:
+- “What I learned about you” card (updates every 10 votes):
+  - “You usually prefer: moderate bite + controlled fizz + solid body.”
+(Keep it humble language: “usually”, “tends to”.)
+
+============================================================
+8) RECOMMENDATIONS SHOULD ADAPT TO TRAINING STAGE
+============================================================
+Before training:
+- Use neutral reference + genre heuristics cautiously
+- Label: “General guidance (not personalized yet)”
+
+After training:
+- Use personalized taste vector
+- Label: “Personalized to your taste”
+
+============================================================
+9) LANGUAGE RULES (IMPORTANT)
+============================================================
+Always write:
+- “tends to”
+- “likely”
+- “in this batch”
+- “relative to your library”
+Avoid:
+- “objectively best”
+- “correct tone”
+- “perfect IR”
+
+============================================================
+10) EXPORT TAB (MUSICAL OUTPUT)
+============================================================
+Export a simple CSV/JSON:
+- filename
+- musical descriptors (Tilt/Body/Bite/Fizz/Smoothness)
+- keep/remove + redundantWith
+- notes (“bright option”, “anchor”, etc.)
+- analysis meta (featureVersion, 85ms window, etc.)
+
+END SPEC
