@@ -17,7 +17,7 @@ import { useResults } from "@/context/ResultsContext";
 import { api, type BatchAnalysisResponse, type BatchIRInput } from "@shared/routes";
 import type { TonalProfile as TonalProfileRow } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, type TonalBands, type LearnedProfileData } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, featuresFromBands, type TonalBands, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 
@@ -1589,17 +1589,18 @@ export default function Analyzer() {
 
   const speakerRelativeProfiles = useMemo(() => {
     if (!batchResult || batchResult.results.length < 3) return DEFAULT_PROFILES;
-    const batchBands = batchResult.results.map((r) => ({
-      bands: {
+    const batchFeatures = batchResult.results.map((r) => ({
+      features: featuresFromBands({
         subBass: r.subBassPercent || 0,
         bass: r.bassPercent || 0,
         lowMid: r.lowMidPercent || 0,
         mid: r.midPercent || 0,
         highMid: r.highMidPercent || 0,
         presence: r.presencePercent || 0,
-      },
+        air: 0,
+      }),
     }));
-    return computeSpeakerRelativeProfiles(batchBands);
+    return computeSpeakerRelativeProfiles(batchFeatures);
   }, [batchResult]);
 
   const activeProfiles = useMemo(() => {
@@ -1636,10 +1637,11 @@ export default function Analyzer() {
       mid: r.midPercent || 0,
       highMid: r.highMidPercent || 0,
       presence: r.presencePercent || 0,
+      air: 0,
     }));
 
     const firstPass = allBands.map((bands, idx) => {
-      const { results: matchResults } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+      const { results: matchResults } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
       const featured = matchResults.find((m) => m.profile === "Featured");
       const body = matchResults.find((m) => m.profile === "Body");
       const fScore = featured?.score ?? 0;
@@ -2918,8 +2920,9 @@ export default function Analyzer() {
           mid: toPercent(ir.metrics.midEnergy6 || 0),
           highMid: toPercent(ir.metrics.highMidEnergy || 0),
           presence: toPercent(ir.metrics.presenceEnergy || 0),
+          air: 0,
         };
-        const { best } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+        const { best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
         if (best.score < 35) continue;
         if (best.profile === "Featured") featureCount++;
         else bodyCount++;
@@ -3361,8 +3364,9 @@ export default function Analyzer() {
           mid: toPercent(ir.metrics.midEnergy6 || 0),
           highMid: toPercent(ir.metrics.highMidEnergy || 0),
           presence: toPercent(ir.metrics.presenceEnergy || 0),
+          air: 0,
         };
-        const { results: matchResults, best } = scoreIndividualIR(bands, activeProfiles, learnedProfile);
+        const { results: matchResults, best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
         const featured = matchResults.find((r) => r.profile === "Featured");
         const body = matchResults.find((r) => r.profile === "Body");
         const fScore = featured?.score ?? 0;
@@ -3449,7 +3453,7 @@ export default function Analyzer() {
       if (r.parsedInfo) {
         const info = [];
         if (r.parsedInfo.mic) info.push(`Mic: ${r.parsedInfo.mic}`);
-        if (r.parsedInfo.position) info.push(`Pos: ${r.parsedInfo.position}${r.parsedInfo.offAxis ? ' (OffAx)' : ''}`);
+        if (r.parsedInfo.position) info.push(`Pos: ${r.parsedInfo.position}${(r.parsedInfo as any).offAxis ? ' (OffAx)' : ''}`);
         if (r.parsedInfo.speaker) info.push(`Spk: ${r.parsedInfo.speaker}`);
         if (r.parsedInfo.distance) info.push(`Dist: ${r.parsedInfo.distance}`);
         if (info.length) text += `   Detected: ${info.join(", ")}\n`;
@@ -4500,7 +4504,7 @@ export default function Analyzer() {
                                     {r.parsedInfo.distance}
                                   </span>
                                 )}
-                                {r.parsedInfo.offAxis && (
+                                {(r.parsedInfo as any).offAxis && (
                                   <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
                                     OffAx
                                   </span>
@@ -4670,10 +4674,11 @@ export default function Analyzer() {
                                 mid: r.midPercent || 0,
                                 highMid: r.highMidPercent || 0,
                                 presence: r.presencePercent || 0,
+                                air: 0,
                               };
                               const { results: matchResults, best } = learnedProfile
-                                ? scoreWithAvoidPenalty(bands, activeProfiles, learnedProfile)
-                                : scoreAgainstAllProfiles(bands, activeProfiles);
+                                ? scoreWithAvoidPenalty(featuresFromBands(bands), activeProfiles, learnedProfile)
+                                : scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles);
                               const matchColorMap: Record<string, string> = {
                                 strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
                                 close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
@@ -4718,6 +4723,7 @@ export default function Analyzer() {
                             mid: r.midPercent || 0,
                             highMid: r.highMidPercent || 0,
                             presence: r.presencePercent || 0,
+                            air: 0,
                           };
                           const ctx = getGearContext(r.filename, learnedProfile.gearInsights, bands);
                           if (ctx.items.length === 0 && !ctx.parsed) return null;
