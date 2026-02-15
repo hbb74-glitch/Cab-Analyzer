@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap, ShieldAlert, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
+import { useCreateAnalysis, analyzeAudioFile, computeDeltaMetrics, type AudioMetrics } from "@/hooks/use-analyses";
 import { FrequencyGraph } from "@/components/FrequencyGraph";
 import { ResultCard } from "@/components/ResultCard";
 import { TonalDashboard, TonalDashboardCompact } from "@/components/TonalDashboard";
@@ -1299,6 +1299,271 @@ function cullIRs(
     closeCalls,
     roleStats
   };
+}
+
+const BAND_LABELS: Record<string, string> = {
+  subBass: "Sub",
+  bass: "Bass",
+  lowMid: "Low Mid",
+  mid: "Mid",
+  highMid: "High Mid",
+  presence: "Presence",
+  air: "Air",
+};
+
+function CompareMode() {
+  const [refFile, setRefFile] = useState<File | null>(null);
+  const [candFile, setCandFile] = useState<File | null>(null);
+  const [refMetrics, setRefMetrics] = useState<AudioMetrics | null>(null);
+  const [candMetrics, setCandMetrics] = useState<AudioMetrics | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const delta = useMemo(() => computeDeltaMetrics(refMetrics, candMetrics), [refMetrics, candMetrics]);
+
+  const handleFileChange = useCallback(async (file: File | null, slot: 'ref' | 'cand') => {
+    if (slot === 'ref') setRefFile(file);
+    else setCandFile(file);
+
+    if (!file) {
+      if (slot === 'ref') setRefMetrics(null);
+      else setCandMetrics(null);
+      return;
+    }
+
+    try {
+      setAnalyzing(true);
+      setError(null);
+      const m = await analyzeAudioFile(file);
+      if (slot === 'ref') setRefMetrics(m);
+      else setCandMetrics(m);
+    } catch (e: any) {
+      setError(e.message || "Failed to analyze file");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, []);
+
+  const formatDelta = (val: number, unit: string, decimals: number = 2) => {
+    const sign = val > 0 ? "+" : "";
+    return `${sign}${val.toFixed(decimals)} ${unit}`;
+  };
+
+  const deltaColor = (val: number) => {
+    if (Math.abs(val) < 0.5) return "text-muted-foreground";
+    return val > 0 ? "text-emerald-400" : "text-orange-400";
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Reference (A) */}
+        <div className="glass-panel p-5 rounded-2xl space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm font-bold">A</span>
+            <span className="text-sm font-medium">Reference IR</span>
+          </div>
+          <label className="block">
+            <input
+              type="file"
+              accept=".wav,audio/wav"
+              className="hidden"
+              data-testid="input-ref-file"
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null, 'ref')}
+            />
+            <div className={cn(
+              "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all",
+              refFile ? "border-blue-500/40 bg-blue-500/5" : "border-white/10 hover:border-white/20"
+            )}>
+              {refFile ? (
+                <div className="space-y-1">
+                  <Music4 className="w-5 h-5 mx-auto text-blue-400" />
+                  <p className="text-sm font-medium truncate">{refFile.name}</p>
+                  <p className="text-xs text-muted-foreground">Click to change</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <UploadCloud className="w-6 h-6 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Drop or click to select WAV</p>
+                </div>
+              )}
+            </div>
+          </label>
+          {refMetrics && (
+            <TonalDashboard
+              spectralTilt={refMetrics.spectralTilt}
+              rolloffFreq={refMetrics.rolloffFreq}
+              smoothScore={refMetrics.smoothScore}
+              maxNotchDepth={refMetrics.maxNotchDepth}
+              notchCount={refMetrics.notchCount}
+              spectralCentroid={refMetrics.spectralCentroid}
+              tailLevelDb={refMetrics.tailLevelDb}
+              tailStatus={refMetrics.tailStatus}
+              logBandEnergies={refMetrics.logBandEnergies}
+              subBassPercent={refMetrics.subBassEnergy}
+              bassPercent={refMetrics.bassEnergy}
+              lowMidPercent={refMetrics.lowMidEnergy}
+              midPercent={refMetrics.midEnergy6}
+              highMidPercent={refMetrics.highMidEnergy}
+              presencePercent={refMetrics.presenceEnergy}
+              ultraHighPercent={refMetrics.ultraHighEnergy}
+            />
+          )}
+        </div>
+
+        {/* Candidate (B) */}
+        <div className="glass-panel p-5 rounded-2xl space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold">B</span>
+            <span className="text-sm font-medium">Candidate IR</span>
+          </div>
+          <label className="block">
+            <input
+              type="file"
+              accept=".wav,audio/wav"
+              className="hidden"
+              data-testid="input-cand-file"
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null, 'cand')}
+            />
+            <div className={cn(
+              "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all",
+              candFile ? "border-amber-500/40 bg-amber-500/5" : "border-white/10 hover:border-white/20"
+            )}>
+              {candFile ? (
+                <div className="space-y-1">
+                  <Music4 className="w-5 h-5 mx-auto text-amber-400" />
+                  <p className="text-sm font-medium truncate">{candFile.name}</p>
+                  <p className="text-xs text-muted-foreground">Click to change</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <UploadCloud className="w-6 h-6 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Drop or click to select WAV</p>
+                </div>
+              )}
+            </div>
+          </label>
+          {candMetrics && (
+            <TonalDashboard
+              spectralTilt={candMetrics.spectralTilt}
+              rolloffFreq={candMetrics.rolloffFreq}
+              smoothScore={candMetrics.smoothScore}
+              maxNotchDepth={candMetrics.maxNotchDepth}
+              notchCount={candMetrics.notchCount}
+              spectralCentroid={candMetrics.spectralCentroid}
+              tailLevelDb={candMetrics.tailLevelDb}
+              tailStatus={candMetrics.tailStatus}
+              logBandEnergies={candMetrics.logBandEnergies}
+              subBassPercent={candMetrics.subBassEnergy}
+              bassPercent={candMetrics.bassEnergy}
+              lowMidPercent={candMetrics.lowMidEnergy}
+              midPercent={candMetrics.midEnergy6}
+              highMidPercent={candMetrics.highMidEnergy}
+              presencePercent={candMetrics.presenceEnergy}
+              ultraHighPercent={candMetrics.ultraHighEnergy}
+            />
+          )}
+        </div>
+      </div>
+
+      {analyzing && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Analyzing...
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Delta Section */}
+      {delta && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-5 rounded-2xl space-y-4"
+        >
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-primary" />
+            <h3 className="text-base font-semibold">Delta (B - A)</h3>
+          </div>
+
+          {/* Key delta metrics */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1" data-testid="delta-tilt">
+              <p className="text-xs text-muted-foreground">Tilt</p>
+              <p className={cn("text-lg font-mono font-bold", deltaColor(delta.deltaTilt))}>
+                {formatDelta(delta.deltaTilt, "dB/oct")}
+              </p>
+            </div>
+            <div className="space-y-1" data-testid="delta-centroid">
+              <p className="text-xs text-muted-foreground">Centroid</p>
+              <p className={cn("text-lg font-mono font-bold", deltaColor(delta.deltaCentroid / 100))}>
+                {formatDelta(delta.deltaCentroid, "Hz", 0)}
+              </p>
+            </div>
+            <div className="space-y-1" data-testid="delta-rolloff">
+              <p className="text-xs text-muted-foreground">Rolloff</p>
+              <p className={cn("text-lg font-mono font-bold", deltaColor(delta.deltaRolloff / 100))}>
+                {formatDelta(delta.deltaRolloff, "Hz", 0)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Direction</p>
+              <p className="text-lg font-bold">
+                {delta.deltaTilt > 0.5 ? "Brighter" : delta.deltaTilt < -0.5 ? "Darker" : "Similar"}
+              </p>
+            </div>
+          </div>
+
+          {/* Band deltas */}
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Band Energy Difference (dB)</p>
+            <div className="space-y-1.5">
+              {Object.entries(delta.deltaBands).map(([key, val]) => {
+                const v = val as number;
+                const maxRange = 12;
+                const pct = Math.min(Math.abs(v) / maxRange, 1) * 50;
+                return (
+                  <div key={key} className="flex items-center gap-2" data-testid={`delta-band-${key}`}>
+                    <span className="text-xs text-muted-foreground w-16 text-right shrink-0">
+                      {BAND_LABELS[key] || key}
+                    </span>
+                    <div className="flex-1 h-4 relative bg-white/5 rounded-sm overflow-hidden">
+                      <div className="absolute inset-y-0 left-1/2 w-px bg-white/20" />
+                      {v !== 0 && (
+                        <div
+                          className={cn(
+                            "absolute inset-y-0 rounded-sm",
+                            v > 0 ? "bg-emerald-500/60" : "bg-orange-500/60"
+                          )}
+                          style={{
+                            left: v > 0 ? "50%" : `${50 - pct}%`,
+                            width: `${pct}%`,
+                          }}
+                        />
+                      )}
+                    </div>
+                    <span className={cn("text-xs font-mono w-20 text-right shrink-0", deltaColor(v))}>
+                      {formatDelta(v, "dB", 1)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
 }
 
 export default function Analyzer() {
@@ -3408,6 +3673,19 @@ export default function Analyzer() {
             >
               <Layers className="w-4 h-4 inline-block mr-2" />
               Batch Analysis
+            </button>
+            <button
+              onClick={() => setMode('compare')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                mode === 'compare' 
+                  ? "bg-primary text-primary-foreground" 
+                  : "bg-white/5 text-muted-foreground hover:bg-white/10"
+              )}
+              data-testid="button-mode-compare"
+            >
+              <Activity className="w-4 h-4 inline-block mr-2" />
+              A/B Compare
             </button>
           </div>
 
@@ -5835,6 +6113,11 @@ export default function Analyzer() {
             </AnimatePresence>
             </div>
           </motion.div>
+        )}
+
+        {/* A/B Compare Mode */}
+        {mode === 'compare' && (
+          <CompareMode />
         )}
 
         {/* Single IR Mode */}

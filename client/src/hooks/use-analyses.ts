@@ -145,6 +145,16 @@ function computePowerSpectrum(samples: Float32Array, sampleRate: number): {
   const imag = new Float64Array(FFT_SIZE);
 
   const copyLen = Math.min(analysisWindowSamples, FFT_SIZE);
+
+  if (copyLen < 2) {
+    return {
+      power: new Float64Array(FFT_SIZE >> 1),
+      binCount: FFT_SIZE >> 1,
+      binSize: sampleRate / FFT_SIZE,
+      freqByteData: new Uint8Array(FFT_SIZE >> 1),
+    };
+  }
+
   const twoPiOverN = 2 * Math.PI / (copyLen - 1);
   for (let i = 0; i < copyLen; i++) {
     real[i] = samples[i] * (0.42 - 0.5 * Math.cos(twoPiOverN * i) + 0.08 * Math.cos(2 * twoPiOverN * i));
@@ -275,6 +285,7 @@ function computeSpectralCentroid(power: Float64Array, binSize: number, binCount:
 function computeSpectralTilt(power: Float64Array, binSize: number, binCount: number): number {
   const minFreq = 200;
   const maxFreq = 8000;
+
   const xs: number[] = [];
   const ys: number[] = [];
 
@@ -282,23 +293,30 @@ function computeSpectralTilt(power: Float64Array, binSize: number, binCount: num
     const freq = k * binSize;
     if (freq < minFreq) continue;
     if (freq > maxFreq) break;
-    if (power[k] <= 0) continue;
-    xs.push(Math.log(freq));
-    ys.push(Math.log(power[k]));
+
+    const p = power[k];
+    if (p <= 0) continue;
+
+    const db = 10 * Math.log10(p);
+    xs.push(Math.log2(freq));
+    ys.push(db);
   }
 
-  if (xs.length < 10) return 0;
+  if (xs.length < 20) return 0;
 
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
   const n = xs.length;
+
   for (let i = 0; i < n; i++) {
     sumX += xs[i];
     sumY += ys[i];
     sumXY += xs[i] * ys[i];
     sumXX += xs[i] * xs[i];
   }
+
   const denom = n * sumXX - sumX * sumX;
   if (denom === 0) return 0;
+
   return (n * sumXY - sumX * sumY) / denom;
 }
 
@@ -581,4 +599,36 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     tailLevelDb: tail.tailLevelDb,
     tailStatus: tail.tailStatus,
   };
+}
+
+export function computeDeltaMetrics(a: AudioMetrics | null, b: AudioMetrics | null) {
+  if (!a || !b) return null;
+
+  const deltaTilt = (b.spectralTilt ?? 0) - (a.spectralTilt ?? 0);
+  const deltaCentroid = (b.spectralCentroid ?? 0) - (a.spectralCentroid ?? 0);
+  const deltaRolloff = (b.rolloffFreq ?? 0) - (a.rolloffFreq ?? 0);
+
+  const bandKeys = ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air"] as const;
+  type BandKey = typeof bandKeys[number];
+
+  const getBand = (m: AudioMetrics, key: BandKey): number => {
+    switch (key) {
+      case "subBass": return m.subBassEnergy ?? 0;
+      case "bass": return m.bassEnergy ?? 0;
+      case "lowMid": return m.lowMidEnergy ?? 0;
+      case "mid": return m.midEnergy6 ?? 0;
+      case "highMid": return m.highMidEnergy ?? 0;
+      case "presence": return m.presenceEnergy ?? 0;
+      case "air": return m.ultraHighEnergy ?? 0;
+    }
+  };
+
+  const deltaBands: Record<string, number> = {};
+  for (const k of bandKeys) {
+    const aDb = getBand(a, k) > 0 ? 10 * Math.log10(getBand(a, k)) : -120;
+    const bDb = getBand(b, k) > 0 ? 10 * Math.log10(getBand(b, k)) : -120;
+    deltaBands[k] = bDb - aDb;
+  }
+
+  return { deltaBands, deltaTilt, deltaCentroid, deltaRolloff };
 }

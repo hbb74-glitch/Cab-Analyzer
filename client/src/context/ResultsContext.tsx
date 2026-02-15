@@ -3,7 +3,7 @@ import type { RecommendationsResponse, SpeakerRecommendationsResponse, AmpRecomm
 import type { Analysis } from "@shared/schema";
 
 type RecommendationsMode = 'by-speaker' | 'by-amp' | 'import-positions' | 'shot-designer';
-type AnalyzerMode = 'single' | 'batch';
+type AnalyzerMode = 'single' | 'batch' | 'compare';
 
 interface RenameSuggestion {
   suggestedModifier: string;

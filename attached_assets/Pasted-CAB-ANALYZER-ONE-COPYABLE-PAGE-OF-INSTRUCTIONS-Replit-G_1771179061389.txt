@@ -1,0 +1,191 @@
+CAB-ANALYZER — ONE COPYABLE PAGE OF INSTRUCTIONS (Replit / GitHub)
+
+GOAL
+- Implement true A vs B comparison INSIDE Analyzer page:
+  - Select Reference IR (A) and Candidate IR (B)
+  - Compute and display Delta = (B − A) for: Tilt (dB/oct), 7 band energies, (optional) centroid + rolloff
+- Fix Tilt math so it is truly dB per octave (currently mislabeled / wrong units)
+- Add guard for very short/corrupt IRs so FFT window math can’t divide by zero
+
+=====================================================================
+1) FIX TILT MATH (TRUE dB/oct)
+FILE: client/src/hooks/use-analyses.ts
+ACTION: Replace existing computeSpectralTilt(...) with the following:
+
+function computeSpectralTilt(power: Float64Array, binSize: number, binCount: number): number {
+  const minFreq = 200;
+  const maxFreq = 8000;
+
+  const xs: number[] = []; // log2(freq) => octaves
+  const ys: number[] = []; // dB
+
+  for (let k = 1; k < binCount; k++) {
+    const freq = k * binSize;
+    if (freq < minFreq) continue;
+    if (freq > maxFreq) break;
+
+    const p = power[k];
+    if (p <= 0) continue;
+
+    const db = 10 * Math.log10(p); // power -> dB
+    xs.push(Math.log2(freq));
+    ys.push(db);
+  }
+
+  if (xs.length < 20) return 0;
+
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  const n = xs.length;
+
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i];
+    sumY += ys[i];
+    sumXY += xs[i] * ys[i];
+    sumXX += xs[i] * xs[i];
+  }
+
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return 0;
+
+  // slope in dB per octave
+  return (n * sumXY - sumX * sumY) / denom;
+}
+
+=====================================================================
+2) SHORT IR / INVALID IR GUARD (PREVENT DIVIDE-BY-ZERO)
+FILE: client/src/hooks/use-analyses.ts
+FUNCTION: computePowerSpectrum(...)
+ACTION: Before computing the Hann window coefficient (before any line like
+  const twoPiOverN = 2 * Math.PI / (copyLen - 1);
+add this guard:
+
+if (copyLen < 2) {
+  return {
+    power: new Float64Array(FFT_SIZE >> 1),
+    binCount: FFT_SIZE >> 1,
+    binSize: sampleRate / FFT_SIZE,
+    freqByteData: new Uint8Array(FFT_SIZE >> 1),
+  };
+}
+
+=====================================================================
+3) ADD DELTA METRICS HELPER (B − A)
+FILE: client/src/hooks/use-analyses.ts
+ACTION: Add this exported helper near the bottom:
+
+export function computeDeltaMetrics(a: any, b: any) {
+  const bandKeys = ["sub", "bass", "lowmid", "mid", "highmid", "presence", "air"] as const;
+
+  const deltaBands: Record<string, number> = {};
+  for (const k of bandKeys) {
+    const av = a?.bandEnergies?.[k] ?? 0;
+    const bv = b?.bandEnergies?.[k] ?? 0;
+    deltaBands[k] = bv - av; // B - A
+  }
+
+  const deltaTilt = (b?.spectralTilt ?? 0) - (a?.spectralTilt ?? 0);
+  const deltaCentroid = (b?.spectralCentroid ?? 0) - (a?.spectralCentroid ?? 0);
+  const deltaRolloff = (b?.rolloffFreq ?? 0) - (a?.rolloffFreq ?? 0);
+
+  return { deltaBands, deltaTilt, deltaCentroid, deltaRolloff };
+}
+
+NOTE:
+- This assumes your metrics object already has:
+  - bandEnergies.{sub,bass,lowmid,mid,highmid,presence,air}
+  - spectralTilt
+  - spectralCentroid
+  - rolloffFreq
+If any names differ, map them accordingly.
+
+=====================================================================
+4) MAKE ANALYZER PAGE A/B + DELTA
+FILE: client/src/pages/Analyzer.tsx
+ACTION A: Add state for A and B file selection + analyses + delta:
+
+const [refFile, setRefFile] = useState<File | null>(null);   // A
+const [candFile, setCandFile] = useState<File | null>(null); // B
+const [refAnalysis, setRefAnalysis] = useState<any | null>(null);
+const [candAnalysis, setCandAnalysis] = useState<any | null>(null);
+const [delta, setDelta] = useState<any | null>(null);
+
+ACTION B: Import analysis + delta helper:
+- Ensure analyzeAudioFile is exported from use-analyses.ts (export it if needed)
+- Add import:
+
+import { analyzeAudioFile, computeDeltaMetrics } from "@/hooks/use-analyses";
+
+ACTION C: Add an effect that runs when both files exist:
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function run() {
+    if (!refFile || !candFile) {
+      setDelta(null);
+      return;
+    }
+
+    const [a, b] = await Promise.all([
+      analyzeAudioFile(refFile),
+      analyzeAudioFile(candFile),
+    ]);
+
+    if (cancelled) return;
+
+    setRefAnalysis(a);
+    setCandAnalysis(b);
+    setDelta(computeDeltaMetrics(a.metrics, b.metrics));
+  }
+
+  run();
+  return () => { cancelled = true; };
+}, [refFile, candFile]);
+
+ACTION D: Replace the single upload control with TWO controls:
+- “Reference (A)” file picker
+- “Candidate (B)” file picker
+
+Example:
+<input type="file" accept="audio/wav" onChange={(e) => setRefFile(e.target.files?.[0] ?? null)} />
+<input type="file" accept="audio/wav" onChange={(e) => setCandFile(e.target.files?.[0] ?? null)} />
+
+ACTION E: Display Delta section ABOVE existing single-IR dashboards:
+- Show ΔTilt (dB/oct) prominently
+- Show ΔBands (sub→air)
+- Optionally show ΔCentroid, ΔRolloff
+
+Example (adapt to your UI components):
+
+{delta && (
+  <Card>
+    <CardHeader>Delta (B − A)</CardHeader>
+    <CardContent>
+      <div>ΔTilt: {delta.deltaTilt.toFixed(2)} dB/oct</div>
+      <div>ΔCentroid: {delta.deltaCentroid.toFixed(0)} Hz</div>
+      <div>ΔRolloff: {delta.deltaRolloff.toFixed(0)} Hz</div>
+      {Object.entries(delta.deltaBands).map(([k,v]) => (
+        <div key={k}>{k}: {v.toFixed(2)} dB</div>
+      ))}
+    </CardContent>
+  </Card>
+)}
+
+ACTION F: Keep your existing per-IR displays (optional but recommended):
+- Show A metrics dashboard
+- Show B metrics dashboard
+This lets you see both absolute and delta.
+
+=====================================================================
+5) OPTIONAL (BUT RECOMMENDED NEXT): DELTA FREQUENCY CURVE GRAPH
+- Current FrequencyGraph looks visualizer-like (byte amplitude). For a true Δ curve:
+  - Modify computePowerSpectrum to also return dbBins (Float32Array) = 10*log10(power[k])
+  - In Analyzer compute deltaDbBins = b.dbBins - a.dbBins
+  - Render a second graph “Delta Curve (B − A)” using real freq axis
+(If you want, I can provide the exact patch once you confirm log-x vs linear-x.)
+
+DONE WHEN:
+- Analyzer lets you pick A and B
+- Analyzer shows Delta section (ΔTilt + ΔBands)
+- Tilt numbers are correct in dB/oct
+- Very short IRs don’t crash FFT windowing
