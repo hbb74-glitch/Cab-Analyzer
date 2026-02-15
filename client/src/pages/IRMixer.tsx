@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2 } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -342,6 +342,7 @@ function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: Learne
   const [correctionText, setCorrectionText] = useState("");
   const [toneRequestText, setToneRequestText] = useState("");
   const [toneResults, setToneResults] = useState<{ suggestions: ToneSuggestion[]; interpretation: string } | null>(null);
+  const [toneCopied, setToneCopied] = useState(false);
   const { toast } = useToast();
 
   const correctionMutation = useMutation({
@@ -513,7 +514,32 @@ function TonalInsightsPanel({ learnedProfile, allIRs }: { learnedProfile: Learne
                         className="mt-3 space-y-2"
                         data-testid="tone-results"
                       >
-                        <p className="text-[10px] text-muted-foreground italic">{toneResults.interpretation}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[10px] text-muted-foreground italic">{toneResults.interpretation}</p>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              const lines: string[] = [];
+                              lines.push(`Tone: "${toneRequestText}"`);
+                              lines.push(toneResults.interpretation);
+                              lines.push("");
+                              for (const sug of toneResults.suggestions) {
+                                lines.push(`[${Math.round(sug.confidence * 100)}%] ${sug.baseIR.replace(/\.wav$/i, '')} + ${sug.featureIR.replace(/\.wav$/i, '')} (${sug.ratio})`);
+                                lines.push(`  Tone: ${sug.expectedTone}`);
+                                lines.push(`  Why: ${sug.reasoning}`);
+                                lines.push("");
+                              }
+                              navigator.clipboard.writeText(lines.join("\n")).then(() => {
+                                setToneCopied(true);
+                                setTimeout(() => setToneCopied(false), 2000);
+                              });
+                            }}
+                            data-testid="button-copy-tone-results"
+                          >
+                            {toneCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          </Button>
+                        </div>
                         {toneResults.suggestions.map((sug, i) => (
                           <div
                             key={i}
