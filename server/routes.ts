@@ -645,6 +645,7 @@ interface CacheEntry {
 
 const batchAnalysisCache = new Map<string, CacheEntry>();
 const singleAnalysisCache = new Map<string, CacheEntry>();
+const textFeedbackCache = new Map<string, CacheEntry>();
 
 // Clear caches on startup to ensure prompt changes take effect
 console.log('[Cache] Cleared all caches on startup for prompt consistency');
@@ -664,7 +665,104 @@ function cleanExpiredEntries(cache: Map<string, CacheEntry>): void {
 setInterval(() => {
   cleanExpiredEntries(batchAnalysisCache);
   cleanExpiredEntries(singleAnalysisCache);
+  cleanExpiredEntries(textFeedbackCache);
 }, 60 * 60 * 1000);
+
+interface AITextNudges {
+  subBass: number;
+  bass: number;
+  lowMid: number;
+  mid: number;
+  highMid: number;
+  presence: number;
+  ratio: number;
+  strength: number;
+  summary: string;
+}
+
+async function parseTextFeedbackWithAI(
+  texts: { text: string; action: string; blendBands: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number } }[]
+): Promise<AITextNudges | null> {
+  if (texts.length === 0) return null;
+
+  const cacheKey = texts.map(t => `${t.action}:${t.text}`).sort().join("|");
+  const cached = textFeedbackCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data as AITextNudges;
+  }
+
+  try {
+    const feedbackEntries = texts.map(t => {
+      const sentiment = t.action === "love" ? "loved" : t.action === "like" ? "liked" : t.action === "meh" ? "was lukewarm about" : "disliked";
+      return `- User ${sentiment} a blend (subBass:${t.blendBands.subBass}%, bass:${t.blendBands.bass}%, lowMid:${t.blendBands.lowMid}%, mid:${t.blendBands.mid}%, highMid:${t.blendBands.highMid}%, presence:${t.blendBands.presence}%, ratio:${t.blendBands.ratio}) and wrote: "${t.text}"`;
+    }).join("\n");
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a guitar tone expert analyzing free-text feedback about impulse response blends.
+
+The user rates IR blends (love/like/meh/nope) and sometimes writes text comments. Each blend has a 6-band tonal breakdown:
+- subBass, bass, lowMid (lower frequencies)
+- mid (body/fundamental)
+- highMid (bite/cut)
+- presence (top-end sizzle/air)
+- ratio = highMid/mid (>1.5 = scooped/bright, <1.2 = mid-heavy/warm)
+
+Your job: interpret ALL the text comments together to derive what tonal adjustments the user wants. Consider:
+1. DIRECTION matters: "too bright" means REDUCE presence/highMid. "needs more bite" means INCREASE highMid.
+2. CONTEXT of the rating: text on a "nope" likely describes what they DON'T want. Text on a "love" describes what they DO want.
+3. RELATIVE to the blend data: if someone says "perfect highs" on a blend with 35% presence, they like ~35% presence.
+4. Implicit preferences: "this would sit great in a mix" suggests they value balanced, usable tones.
+5. Combined sentiment: look at ALL comments together for a coherent picture.
+
+Return JSON with band nudges (positive = user wants MORE, negative = user wants LESS):
+{
+  "subBass": number (-3 to 3),
+  "bass": number (-3 to 3),
+  "lowMid": number (-3 to 3),
+  "mid": number (-5 to 5),
+  "highMid": number (-5 to 5),
+  "presence": number (-5 to 5),
+  "ratio": number (-0.3 to 0.3),
+  "strength": number (0.5 to 2.0, how confident you are in these nudges),
+  "summary": string (1-2 sentence summary of what the user's text tells us about their preference)
+}
+
+Use 0 for bands the text doesn't address. Only use large values when the text is very explicit.`
+        },
+        { role: "user", content: `Here are all the user's text feedback comments:\n\n${feedbackEntries}\n\nInterpret these comments and return the tonal adjustment nudges as JSON.` }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) return null;
+
+    const parsed = JSON.parse(content);
+    const result: AITextNudges = {
+      subBass: Math.max(-3, Math.min(3, parsed.subBass ?? 0)),
+      bass: Math.max(-3, Math.min(3, parsed.bass ?? 0)),
+      lowMid: Math.max(-3, Math.min(3, parsed.lowMid ?? 0)),
+      mid: Math.max(-5, Math.min(5, parsed.mid ?? 0)),
+      highMid: Math.max(-5, Math.min(5, parsed.highMid ?? 0)),
+      presence: Math.max(-5, Math.min(5, parsed.presence ?? 0)),
+      ratio: Math.max(-0.3, Math.min(0.3, parsed.ratio ?? 0)),
+      strength: Math.max(0.5, Math.min(2.0, parsed.strength ?? 1)),
+      summary: parsed.summary ?? "",
+    };
+
+    textFeedbackCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    console.log(`[AI Text Feedback] Parsed ${texts.length} comments: ${result.summary}`);
+    return result;
+  } catch (err) {
+    console.error("[AI Text Feedback] Failed to parse:", err);
+    return null;
+  }
+}
 
 
 // Generate a stable hash for batch analysis input
@@ -1353,7 +1451,7 @@ interface LearnedProfileData {
   ratioPreference: RatioPreference | null;
 }
 
-function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData {
+async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<LearnedProfileData> {
   if (signals.length === 0) {
     return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null };
   }
@@ -1443,7 +1541,7 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
   }
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
-  const feedbackNudges = { mid: 0, highMid: 0, presence: 0, ratio: 0, bass: 0, lowMid: 0 };
+  const feedbackNudges = { subBass: 0, mid: 0, highMid: 0, presence: 0, ratio: 0, bass: 0, lowMid: 0 };
   const feedbackMap: Record<string, Partial<typeof feedbackNudges>> = {
     thin:        { bass: -2, lowMid: -1.5 },
     muddy:       { lowMid: 2, mid: 1.5 },
@@ -1521,6 +1619,31 @@ function computeLearnedProfile(signals: PreferenceSignal[]): LearnedProfileData 
       }
     }
   }
+
+  const textsForAI = signals
+    .filter((s) => s.feedbackText && s.feedbackText.trim().length > 0)
+    .map((s) => ({
+      text: s.feedbackText!,
+      action: s.action,
+      blendBands: { subBass: s.subBass, bass: s.bass, lowMid: s.lowMid, mid: s.mid, highMid: s.highMid, presence: s.presence, ratio: s.ratio },
+    }));
+
+  const aiNudges = await parseTextFeedbackWithAI(textsForAI);
+  if (aiNudges) {
+    const aiWeight = aiNudges.strength * confidence;
+    feedbackNudges.subBass += aiNudges.subBass * aiWeight;
+    feedbackNudges.bass += aiNudges.bass * aiWeight;
+    feedbackNudges.lowMid += aiNudges.lowMid * aiWeight;
+    feedbackNudges.mid += aiNudges.mid * aiWeight;
+    feedbackNudges.highMid += aiNudges.highMid * aiWeight;
+    feedbackNudges.presence += aiNudges.presence * aiWeight;
+    feedbackNudges.ratio += aiNudges.ratio * aiWeight;
+    feedbackCount += textsForAI.length;
+    if (aiNudges.summary) {
+      courseCorrections.push(`AI text interpretation: ${aiNudges.summary}`);
+    }
+  }
+
   const feedbackScale = feedbackCount > 0 ? Math.min(feedbackCount / 5, 1) * confidence : 0;
   if (allResolvedTags.length > 0) {
     const uniqueTags = Array.from(new Set(allResolvedTags));
@@ -2466,7 +2589,7 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
       try {
         const signals = await storage.getPreferenceSignals();
         if (signals.length >= 5) {
-          const learned = computeLearnedProfile(signals);
+          const learned = await computeLearnedProfile(signals);
           const gearPrompt = buildGearPreferencePrompt(learned, micType, speakerModel);
           if (gearPrompt) {
             userMessage += gearPrompt;
@@ -2865,7 +2988,7 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
       try {
         const signals = await storage.getPreferenceSignals();
         if (signals.length >= 5) {
-          const learned = computeLearnedProfile(signals);
+          const learned = await computeLearnedProfile(signals);
           const gearPrompt = buildGearPreferencePrompt(learned, undefined, speakerModel);
           if (gearPrompt) {
             userMessage += gearPrompt;
@@ -4224,7 +4347,7 @@ Output JSON:
       try {
         const signals = await storage.getPreferenceSignals();
         if (signals.length >= 5) {
-          const learned = computeLearnedProfile(signals);
+          const learned = await computeLearnedProfile(signals);
           const gearPrompt = buildGearPreferencePrompt(learned);
           if (gearPrompt) {
             userMessage += gearPrompt;
@@ -4994,7 +5117,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
   app.get(api.preferences.learned.path, async (_req, res) => {
     try {
       const signals = await storage.getPreferenceSignals();
-      const learned = computeLearnedProfile(signals);
+      const learned = await computeLearnedProfile(signals);
       res.json(learned);
     } catch (err) {
       console.error('Learned profile error:', err);
@@ -5217,7 +5340,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       const input = api.tonalProfiles.gapFinder.input.parse(req.body);
       const profiles = await storage.getTonalProfiles();
       const signals = await storage.getPreferenceSignals();
-      const learned = computeLearnedProfile(signals);
+      const learned = await computeLearnedProfile(signals);
       const gearPrompt = buildGearPreferencePrompt(learned);
       const genreGuidance = input.genre ? expandGenreToTonalGuidance(input.genre) : '';
 
