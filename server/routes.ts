@@ -8,6 +8,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
+import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
@@ -5956,6 +5957,101 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
       res.status(500).json({ message: "Failed to analyze gaps" });
+    }
+  });
+
+  app.post('/api/amp-designer', async (req, res) => {
+    try {
+      const input = z.object({
+        category: z.enum(['amp', 'drive']),
+        baseModelId: z.string().min(1),
+        baseModelLabel: z.string().min(1),
+        modId: z.string().optional(),
+        modLabel: z.string().optional(),
+        customDescription: z.string().optional(),
+        additionalNotes: z.string().optional(),
+      }).refine(data => data.modId || data.customDescription, {
+        message: "Either select a known mod or provide a custom description"
+      }).parse(req.body);
+
+      const model = input.category === 'amp'
+        ? FRACTAL_AMP_MODELS.find(m => m.id === input.baseModelId)
+        : FRACTAL_DRIVE_MODELS.find(m => m.id === input.baseModelId);
+
+      const knownMod = input.modId ? KNOWN_MODS.find(m => m.id === input.modId) : null;
+      if (input.modId && input.modId !== 'custom' && !knownMod) {
+        return res.status(400).json({ message: "Unknown modification ID" });
+      }
+      const paramGlossary = formatParameterGlossary(input.category);
+      const modelLabel = model ? model.label : input.baseModelLabel;
+      const modelContext = model ? formatModelContext(model) : `Base Model: ${modelLabel}`;
+      const modContext = knownMod ? formatKnownModContext(knownMod) : '';
+      const modLabel = knownMod ? knownMod.label : (input.modLabel || 'Custom Modification');
+
+      const systemPrompt = `You are an expert amp tech and guitar electronics engineer with deep knowledge of both real amp/pedal circuits AND the Fractal Audio Axe-FX/FM3 parameter system. You understand how real-world circuit modifications translate to Fractal's digital parameters.
+
+Your task: Given a base ${input.category === 'amp' ? 'amplifier' : 'drive/fuzz pedal'} model and a modification request, provide specific Fractal Audio parameter recommendations that recreate the effect of that real-world circuit modification.
+
+${modelContext}
+
+${modContext}
+
+PARAMETER GLOSSARY (${input.category === 'amp' ? 'Amp Block Expert' : 'Drive Block'} Parameters):
+${paramGlossary}
+
+${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''}
+
+IMPORTANT GUIDELINES:
+- Map circuit modifications to their closest Fractal parameter equivalents
+- Explain WHY each parameter change recreates the mod's effect
+- Include the direction of change (increase/decrease) and suggested value or range
+- Note any parameters that interact with each other
+- Mention any limitations (things the mod does that can't be perfectly replicated digitally)
+- If the mod involves changes that affect multiple parameter domains, cover all of them
+- Be specific about values where possible, but note these are starting points for ear-tuning
+
+Respond in JSON format:
+{
+  "modName": "Name of the modification",
+  "summary": "Brief 1-2 sentence overview of what this mod does to the tone",
+  "history": "Brief background on the mod's origin and who uses it (2-3 sentences)",
+  "parameterChanges": [
+    {
+      "parameter": "Parameter name",
+      "direction": "increase" | "decrease" | "set to",
+      "suggestedValue": "Specific value or range",
+      "rationale": "Why this change recreates the mod's effect (reference the circuit change)"
+    }
+  ],
+  "startingPoint": "Brief description of recommended starting settings before applying the mod (e.g., which amp model to start with, gain level, etc.)",
+  "toneDescription": "What the final result should sound like - describe the tonal character",
+  "cautions": ["Any warnings or things to watch out for"],
+  "interactionNotes": "How these parameters interact with each other - what to adjust if something sounds off",
+  "alternatives": ["Any alternative approaches or related mods to try"]
+}`;
+
+      const userMessage = input.customDescription
+        ? `Apply this modification to the ${modelLabel}: ${input.customDescription}`
+        : `Apply the "${modLabel}" modification to the ${modelLabel}.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Amp designer error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      res.status(500).json({ message: "Failed to generate mod parameters" });
     }
   });
 

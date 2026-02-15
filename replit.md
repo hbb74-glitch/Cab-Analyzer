@@ -53,6 +53,7 @@ Preferred communication style: Simple, everyday language.
 - **Reference Set Comparison**: Client-side feature to compare new IR batches against a saved "reference palette" for flavor coverage.
 - **A/B Taste Check**: Progressive multi-round taste profiling to learn preferred tonal axes, starting with broad comparisons and narrowing down. Confidence-adaptive based on learned profile status.
 - **A/B Ratio Refinement**: Phase for learning preferred blend ratios through side-by-side band chart previews at different ratios.
+- **Amp Designer / Mod Lab**: Translates real-world amp and pedal circuit mods (Jose Arredondo, Snorkler, Cameron, diode swaps, op-amp mods, etc.) into Fractal Audio Axe-FX/FM3 Expert parameters. Knowledge base covers 24 amp models, 15 drive/fuzz models, 15 known mods, and 20+ Expert parameter definitions. AI generates parameter recipes with rationale, starting points, interaction notes, and alternatives.
 
 ## External Dependencies
 - **Database**: PostgreSQL
