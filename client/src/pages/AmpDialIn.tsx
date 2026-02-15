@@ -29,12 +29,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { FRACTAL_AMP_MODELS } from "@shared/knowledge/amp-designer";
-import { getDialInPresets, type DialInPreset, type DialInSettings } from "@shared/knowledge/amp-dial-in";
+import {
+  getDialInPresets,
+  type DialInPreset,
+  type DialInSettings,
+  type AmpControlLayout,
+} from "@shared/knowledge/amp-dial-in";
 
 interface AIDialInResult {
   modelName: string;
   basedOn: string;
   settings: DialInSettings;
+  controlLayout: AmpControlLayout;
   expertTips: { parameter: string; suggestion: string; why: string }[];
   tips: string[];
   whatToListenFor: string[];
@@ -81,7 +87,7 @@ function AmpKnob({ label, value, max = 10 }: { label: string; value: number; max
   const pointerOuter = 28;
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" data-testid={`knob-${label.toLowerCase().replace(/\s+/g, '-')}`}>
       <svg viewBox="0 0 100 100" className="w-20 h-20 sm:w-24 sm:h-24">
         {ticks.map((tick, i) => (
           <line
@@ -153,7 +159,7 @@ function AmpKnob({ label, value, max = 10 }: { label: string; value: number; max
 
 function ToggleIndicator({ label, active }: { label: string; active: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" data-testid={`toggle-${label.toLowerCase().replace(/\s+/g, '-')}`}>
       <div className={cn(
         "w-4 h-4 rounded-full border-2 transition-colors",
         active
@@ -167,7 +173,121 @@ function ToggleIndicator({ label, active }: { label: string; active: boolean }) 
   );
 }
 
-function PresetDisplay({ preset, isAI }: { preset: DialInPreset | null; isAI?: boolean }) {
+function MultiSwitchIndicator({ label, value, options }: { label: string; value: string; options: string[] }) {
+  return (
+    <div className="flex flex-col items-center gap-1" data-testid={`switch-${label.toLowerCase().replace(/\s+/g, '-')}`}>
+      <div className="flex items-center gap-1 rounded-md border border-border overflow-hidden">
+        {options.map((opt) => (
+          <div
+            key={opt}
+            className={cn(
+              "px-2 py-1 text-xs font-mono transition-colors",
+              opt === value
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/50 text-muted-foreground"
+            )}
+          >
+            {opt}
+          </div>
+        ))}
+      </div>
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function GraphicEQDisplay({ settings }: { settings: DialInSettings }) {
+  const bands = [
+    { id: "eq80", label: "80", freq: "80Hz" },
+    { id: "eq240", label: "240", freq: "240Hz" },
+    { id: "eq750", label: "750", freq: "750Hz" },
+    { id: "eq2200", label: "2.2k", freq: "2.2kHz" },
+    { id: "eq6600", label: "6.6k", freq: "6.6kHz" },
+  ];
+
+  const hasBands = bands.some(b => settings[b.id] !== undefined);
+  if (!hasBands) return null;
+
+  return (
+    <div className="space-y-2" data-testid="graphic-eq-display">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Graphic EQ</span>
+        <Badge variant="outline" className="text-xs">5-Band</Badge>
+      </div>
+      <div className="flex items-end justify-center gap-3 sm:gap-4 py-2">
+        {bands.map((band) => {
+          const val = (settings[band.id] as number) ?? 5;
+          const percentage = val / 10;
+          return (
+            <div key={band.id} className="flex flex-col items-center gap-1">
+              <div className="relative w-4 h-24 sm:h-28 bg-muted/30 rounded-full border border-border overflow-hidden">
+                <div
+                  className="absolute bottom-0 w-full rounded-full transition-all"
+                  style={{
+                    height: `${percentage * 100}%`,
+                    background: `linear-gradient(to top, hsl(var(--primary) / 0.4), hsl(var(--primary)))`,
+                  }}
+                />
+                <div
+                  className="absolute w-full flex items-center justify-center"
+                  style={{ bottom: `${percentage * 100 - 4}%` }}
+                >
+                  <div className="w-6 h-2 rounded-full bg-primary border border-primary-foreground/20 shadow-sm" />
+                </div>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground">{val.toFixed(0)}</span>
+              <span className="text-[10px] text-muted-foreground/70">{band.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DynamicControlDisplay({ settings, controlLayout }: { settings: DialInSettings; controlLayout: AmpControlLayout }) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap py-4">
+        {controlLayout.knobs.map((knob) => {
+          const val = settings[knob.id];
+          const numVal = typeof val === 'number' ? val : 5;
+          return <AmpKnob key={knob.id} label={knob.label} value={numVal} max={knob.max || 10} />;
+        })}
+      </div>
+
+      {controlLayout.switches.length > 0 && (
+        <div className="flex items-center justify-center gap-6 flex-wrap">
+          {controlLayout.switches.map((sw) => {
+            const val = settings[sw.id];
+            if (sw.type === "toggle") {
+              return <ToggleIndicator key={sw.id} label={sw.label} active={val === true} />;
+            }
+            if (sw.type === "multi" && sw.options) {
+              return (
+                <MultiSwitchIndicator
+                  key={sw.id}
+                  label={sw.label}
+                  value={(val as string) || sw.options[0]}
+                  options={sw.options}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
+      )}
+
+      {controlLayout.graphicEQ && (
+        <GraphicEQDisplay settings={settings} />
+      )}
+    </div>
+  );
+}
+
+function PresetDisplay({ preset, controlLayout, isAI }: { preset: DialInPreset | null; controlLayout: AmpControlLayout; isAI?: boolean }) {
   if (!preset) return null;
 
   return (
@@ -190,28 +310,7 @@ function PresetDisplay({ preset, isAI }: { preset: DialInPreset | null; isAI?: b
         <span className="text-xs text-muted-foreground ml-auto">{preset.source}</span>
       </div>
 
-      <div className="flex items-center justify-center gap-2 sm:gap-4 flex-wrap py-4">
-        <AmpKnob label="Gain" value={preset.settings.gain} />
-        <AmpKnob label="Bass" value={preset.settings.bass} />
-        <AmpKnob label="Mid" value={preset.settings.mid} />
-        <AmpKnob label="Treble" value={preset.settings.treble} />
-        <AmpKnob label="Master" value={preset.settings.master} />
-        <AmpKnob label="Presence" value={preset.settings.presence} />
-      </div>
-
-      {(preset.settings.bright !== undefined || preset.settings.depth !== undefined || preset.settings.boost !== undefined) && (
-        <div className="flex items-center justify-center gap-6">
-          {preset.settings.bright !== undefined && (
-            <ToggleIndicator label="Bright" active={preset.settings.bright} />
-          )}
-          {preset.settings.depth !== undefined && (
-            <ToggleIndicator label="Depth" active={preset.settings.depth} />
-          )}
-          {preset.settings.boost !== undefined && (
-            <ToggleIndicator label="Boost" active={preset.settings.boost} />
-          )}
-        </div>
-      )}
+      <DynamicControlDisplay settings={preset.settings} controlLayout={controlLayout} />
     </motion.div>
   );
 }
@@ -230,7 +329,7 @@ function AIResultDisplay({ result }: { result: AIDialInResult }) {
 
   return (
     <div className="space-y-6">
-      <PresetDisplay preset={asPreset} isAI />
+      <PresetDisplay preset={asPreset} controlLayout={result.controlLayout} isAI />
 
       {result.famousUsers && (
         <Card>
@@ -425,7 +524,7 @@ export default function AmpDialIn() {
             </h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Starting settings for every Fractal Audio amp model. Pick a model, get dialing.
+            Amp-accurate starting settings for every Fractal Audio model. Real controls, real layouts.
           </p>
         </motion.div>
 
@@ -537,7 +636,7 @@ export default function AmpDialIn() {
 
                   {!showAI && currentPreset && (
                     <>
-                      <PresetDisplay preset={currentPreset} />
+                      <PresetDisplay preset={currentPreset} controlLayout={staticPresets.controlLayout} />
 
                       {currentPreset.tips.length > 0 && (
                         <Card>

@@ -1,13 +1,24 @@
+export interface AmpControl {
+  id: string;
+  label: string;
+  max?: number;
+}
+
+export interface AmpSwitch {
+  id: string;
+  label: string;
+  type: "toggle" | "multi";
+  options?: string[];
+}
+
+export interface AmpControlLayout {
+  knobs: AmpControl[];
+  switches: AmpSwitch[];
+  graphicEQ?: boolean;
+}
+
 export interface DialInSettings {
-  gain: number;
-  bass: number;
-  mid: number;
-  treble: number;
-  master: number;
-  presence: number;
-  bright?: boolean;
-  depth?: boolean;
-  boost?: boolean;
+  [key: string]: number | boolean | string;
 }
 
 export interface DialInPreset {
@@ -23,50 +34,499 @@ export interface AmpFamilyDefaults {
   familyId: string;
   familyName: string;
   modelPatterns: string[];
+  controlLayout: AmpControlLayout;
   presets: DialInPreset[];
 }
 
 export interface ModelOverride {
   modelId: string;
+  controlLayout?: AmpControlLayout;
   presets: DialInPreset[];
 }
+
+const STANDARD_MV: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [],
+};
+
+const STANDARD_MV_BRIGHT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+  ],
+};
+
+const STANDARD_MV_BRIGHT_DEPTH: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "depth", label: "Depth", type: "toggle" },
+  ],
+};
+
+const NON_MV_VOLUME_ONLY: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+  ],
+  switches: [],
+};
+
+const NON_MV_TWEED: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "tone", label: "Tone" },
+  ],
+  switches: [],
+};
+
+const DUAL_VOLUME_TWEED: AmpControlLayout = {
+  knobs: [
+    { id: "volume1", label: "Normal Vol" },
+    { id: "volume2", label: "Bright Vol" },
+    { id: "bass", label: "Bass" },
+    { id: "treble", label: "Treble" },
+  ],
+  switches: [],
+};
+
+const DUAL_VOLUME_BASSMAN: AmpControlLayout = {
+  knobs: [
+    { id: "volume1", label: "Normal Vol" },
+    { id: "volume2", label: "Bright Vol" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "deep", label: "Deep", type: "toggle" },
+  ],
+};
+
+const BLACKFACE_NORMAL: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "treble", label: "Treble" },
+  ],
+  switches: [],
+};
+
+const BLACKFACE_VIBRATO: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "treble", label: "Treble" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+  ],
+};
+
+const BLACKFACE_TWIN: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+  ],
+};
+
+const NON_MV_PLEXI: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [],
+};
+
+const DUAL_VOLUME_PLEXI: AmpControlLayout = {
+  knobs: [
+    { id: "volume1", label: "Volume I" },
+    { id: "volume2", label: "Volume II" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [],
+};
+
+const VOX_TOP_BOOST: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "treble", label: "Treble" },
+    { id: "cut", label: "Cut" },
+  ],
+  switches: [],
+};
+
+const VOX_NORMAL: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "tone", label: "Tone" },
+    { id: "cut", label: "Cut" },
+  ],
+  switches: [],
+};
+
+const JCM800_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "boost", label: "Boost", type: "toggle" },
+  ],
+};
+
+const MESA_MARK_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+  ],
+  graphicEQ: true,
+};
+
+const MESA_RECTO_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bold_spongy", label: "Rectifier", type: "multi", options: ["Bold", "Spongy"] },
+  ],
+};
+
+const PEAVEY_5150_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Low" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "High" },
+    { id: "master", label: "Post Gain" },
+    { id: "resonance", label: "Resonance" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+  ],
+};
+
+const FRIEDMAN_BE_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "sat", label: "SAT", type: "toggle" },
+    { id: "voicing", label: "Voicing", type: "multi", options: ["Fat", "Tight"] },
+  ],
+};
+
+const REVV_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "aggression", label: "Aggression", type: "multi", options: ["Off", "On"] },
+  ],
+};
+
+const BOGNER_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "structure", label: "Structure", type: "multi", options: ["Tight", "Open"] },
+  ],
+};
+
+const DIEZEL_VH4_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+    { id: "deep", label: "Deep" },
+  ],
+  switches: [],
+};
+
+const SOLDANO_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "depth", label: "Depth", type: "toggle" },
+  ],
+};
+
+const DUMBLE_ODS_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "overdrive", label: "OD" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "pab", label: "PAB", type: "toggle" },
+  ],
+};
+
+const HIWATT_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Brilliant", type: "toggle" },
+  ],
+};
+
+const TRAINWRECK_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "cut", label: "Cut" },
+  ],
+  switches: [],
+};
+
+const ENGL_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "contour", label: "Contour", type: "toggle" },
+  ],
+};
+
+const MESA_TC_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "voicing", label: "Voicing", type: "multi", options: ["Tight", "Normal", "Loose"] },
+  ],
+};
+
+const JC120_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "volume", label: "Volume" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "distortion", label: "Distortion", type: "toggle" },
+  ],
+};
 
 export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
 
   {
-    familyId: "fender-tweed",
-    familyName: "Fender Tweed Era",
-    modelPatterns: ["5f1-tweed", "5f8-tweed", "deluxe-tweed", "59-bassguy", "junior-tweed"],
+    familyId: "fender-tweed-champ",
+    familyName: "Fender Tweed Champ / Princeton",
+    modelPatterns: ["5f1-tweed", "princetone-5f2"],
+    controlLayout: NON_MV_VOLUME_ONLY,
     presets: [
       {
-        id: "tweed-clean",
-        style: "Clean",
-        settings: { gain: 3, bass: 6, mid: 5, treble: 6, master: 5, presence: 5 },
+        id: "champ-breakup",
+        style: "Sweet Breakup",
+        settings: { volume: 7 },
         tips: [
-          "Tweed amps are interactive — the volume controls on both channels affect each other when jumped",
-          "These amps break up early so keep gain conservative for cleans",
-          "The tone stack in tweed amps is passive and works differently from later Fenders",
-          "Try backing off guitar volume for sparkling cleans"
+          "The Champ has one knob: Volume. That's it. Pure simplicity",
+          "Below 5 you get clean tones, above 7 it starts breaking up beautifully",
+          "Eric Clapton recorded his Layla solos through a cranked Champ",
+          "In Fractal, the Gain parameter IS the volume knob — there is no master"
         ],
         whatToListenFor: [
-          "Warm, rounded clean tone with slight harmonic richness",
-          "Touch sensitivity — should clean up nicely with lighter picking"
+          "Warm, compressed breakup that responds to pick dynamics",
+          "Natural sag and compression from the single-ended circuit"
         ],
         source: "Yek's Guide / Fractal Wiki"
       },
       {
-        id: "tweed-crunch",
-        style: "Crunch",
-        settings: { gain: 6, bass: 7, mid: 4, treble: 5, master: 6, presence: 5 },
+        id: "champ-clean",
+        style: "Clean",
+        settings: { volume: 3 },
         tips: [
-          "Tweed crunch is thick and hairy — Neil Young territory",
-          "The sag and compression are a big part of the tone, use the Supply Sag parameter",
-          "Bass can get woofy fast on tweed amps — pull it back if it gets muddy",
-          "Master volume interacts heavily with gain — experiment with the ratio"
+          "Low volume settings give you a sweet, pure clean tone",
+          "Single-ended amps have a unique compression character",
+          "Great for recording — quiet, warm, intimate"
         ],
         whatToListenFor: [
-          "Chewy, harmonically rich breakup that responds to pick attack",
-          "Natural compression that evens out dynamics without squashing them"
+          "Pure, uncolored tone with natural warmth",
+          "The simplicity of the circuit means what you hear is pure guitar"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "fender-tweed-deluxe",
+    familyName: "Fender Tweed Deluxe (5E3)",
+    modelPatterns: ["deluxe-tweed"],
+    controlLayout: NON_MV_TWEED,
+    presets: [
+      {
+        id: "tweed-dlx-crunch",
+        style: "Neil Young Crunch",
+        settings: { volume: 8, tone: 6 },
+        tips: [
+          "The 5E3 has interactive Volume and Tone controls — they affect each other",
+          "Cranking the volume is how you get the famous Tweed breakup",
+          "There is no master volume — this amp is designed to be played loud",
+          "The tone control is a simple treble roll-off"
+        ],
+        whatToListenFor: [
+          "Thick, hairy breakup with tons of harmonic content",
+          "Touch sensitivity — dig in for grit, back off for cleaner tones"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      },
+      {
+        id: "tweed-dlx-clean",
+        style: "Clean",
+        settings: { volume: 4, tone: 5 },
+        tips: [
+          "Below about 4-5 you get clean tones with natural warmth",
+          "The amp doesn't have tons of headroom — it breaks up early",
+          "Roll back guitar volume for cleaner sounds"
+        ],
+        whatToListenFor: [
+          "Warm, rounded clean with a slightly compressed feel",
+          "Early hints of breakup even at lower volumes"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "fender-tweed-jumped",
+    familyName: "Fender Tweed (Jumped Channels)",
+    modelPatterns: ["deluxe-tweed-jumped", "5f8-tweed-jumped", "59-bassguy-jumped", "59-bassguy-ri-jumped", "supertweed"],
+    controlLayout: DUAL_VOLUME_TWEED,
+    presets: [
+      {
+        id: "tweed-jumped-full",
+        style: "Full Crunch",
+        settings: { volume1: 6, volume2: 8, bass: 6, treble: 6 },
+        tips: [
+          "Jumped channels combine Normal and Bright for a fuller tone",
+          "Volume I (Normal) adds warmth, Volume II (Bright) adds sparkle and bite",
+          "Balance the two volumes to blend the channel characteristics",
+          "Tweeds break up early — start lower than you think"
+        ],
+        whatToListenFor: [
+          "Rich, full-spectrum tone combining warmth and clarity",
+          "Complex harmonic content from both channels interacting"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      },
+      {
+        id: "tweed-jumped-warm",
+        style: "Warm Blend",
+        settings: { volume1: 7, volume2: 5, bass: 7, treble: 5 },
+        tips: [
+          "Higher Normal volume with lower Bright gives a fatter, warmer tone",
+          "Great for blues and roots — Neil Young / early Zeppelin territory",
+          "The Bassman jumped is the amp that inspired Jim Marshall"
+        ],
+        whatToListenFor: [
+          "Fat, warm crunch with smooth top end",
+          "The channels interact — changing one volume affects the other"
         ],
         source: "Yek's Guide / Fractal Forum"
       }
@@ -74,36 +534,86 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   },
 
   {
+    familyId: "fender-tweed-single",
+    familyName: "Fender Tweed (Single Channel)",
+    modelPatterns: ["5f8-tweed-bright", "5f8-tweed-normal", "59-bassguy-bright", "59-bassguy-normal"],
+    controlLayout: DUAL_VOLUME_BASSMAN,
+    presets: [
+      {
+        id: "bassguy-classic",
+        style: "Classic Blues",
+        settings: { volume1: 6, volume2: 0, bass: 6, mid: 5, treble: 6, presence: 5, bright: false, deep: false },
+        tips: [
+          "The Bassman is the amp that inspired the Marshall — the grandfather of rock tone",
+          "Bright channel has more treble and earlier breakup",
+          "Normal channel is fatter and warmer — great for jazz and blues",
+          "The Presence control shapes the power amp response"
+        ],
+        whatToListenFor: [
+          "Warm, fat Fender tone with smooth breakup when pushed",
+          "The amp that launched a thousand imitators"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "fender-brownface",
+    familyName: "Fender Brownface Era",
+    modelPatterns: ["6g4-super", "6g12-concert", "deluxe-6g3"],
+    controlLayout: BLACKFACE_VIBRATO,
+    presets: [
+      {
+        id: "brownface-clean",
+        style: "Clean",
+        settings: { volume: 4, bass: 5, treble: 6, bright: false },
+        tips: [
+          "Brownface Fenders are warmer and more harmonically rich than Blackface",
+          "The tremolo circuit on these is considered superior to later Fenders",
+          "Less headroom than Blackface — breaks up earlier for a warmer crunch"
+        ],
+        whatToListenFor: [
+          "Warm, lush tone with more harmonic complexity than Blackface",
+          "A slightly grittier, more organic character"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
     familyId: "fender-blackface",
     familyName: "Fender Blackface / Silverface",
-    modelPatterns: ["deluxe-verb", "double-verb", "us-deluxe", "prince-tone", "vibrato-king", "super-verb"],
+    modelPatterns: ["deluxe-verb", "super-verb", "us-deluxe", "prince-tone", "vibrato-king"],
+    controlLayout: BLACKFACE_VIBRATO,
     presets: [
       {
         id: "bf-clean",
-        style: "Clean",
-        settings: { gain: 4, bass: 5, mid: 5, treble: 6, master: 5, presence: 4 },
+        style: "Crystal Clean",
+        settings: { volume: 4, bass: 5, treble: 6, bright: true },
         tips: [
-          "Blackface Fenders are the gold standard for clean tone — crystal clear with a scooped mid character",
-          "The Normal channel is warmer, the Vibrato channel has more sparkle and reverb",
-          "Keep presence moderate — too high adds an ice-pick quality",
-          "Bass and treble interact on these amps — cutting bass adds perceived brightness",
-          "The Bright switch adds a cap across the volume pot — most useful at lower gain settings"
+          "Blackface Fenders define clean tone — bell-like clarity with natural scoop",
+          "The Vibrato channel has the reverb — this is the one everyone uses",
+          "No master volume — the Volume IS your gain control",
+          "Bright switch adds a cap across the volume pot — most useful at lower volumes",
+          "Keep it below 5-6 for cleans, above 6 for edge of breakup"
         ],
         whatToListenFor: [
-          "Bell-like clean tone with natural scoop in the mids",
-          "The classic Fender 'spank' on single coils — snappy attack with warm body"
+          "The classic Fender 'spank' on single coils — snappy attack with warm body",
+          "Bell-like clean tone with natural scoop in the mids"
         ],
         source: "Yek's Guide / Fractal Wiki"
       },
       {
         id: "bf-edge",
         style: "Edge of Breakup",
-        settings: { gain: 6, bass: 4, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { volume: 6, bass: 4, treble: 6, bright: false },
         tips: [
-          "Blackface breakup is glassy and chimey — the magic happens right at the edge",
-          "Use guitar volume knob to ride between clean and dirty",
-          "Adding mids helps the breakup character — don't be afraid to boost them",
-          "This is classic SRV, John Mayer territory"
+          "The magic happens right at the edge of breakup around 6-7 on volume",
+          "Turn Bright OFF at higher volumes — it adds too much fizz",
+          "Use guitar volume to ride between clean and dirty",
+          "SRV, John Mayer territory — the amp should sing when you dig in"
         ],
         whatToListenFor: [
           "Clean notes when picking lightly, gritty bite when digging in",
@@ -115,35 +625,62 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   },
 
   {
-    familyId: "vox-ac",
-    familyName: "Vox AC Series",
-    modelPatterns: ["ac-20", "class-a-15", "class-a-30"],
+    familyId: "fender-twin",
+    familyName: "Fender Twin / Large Fender",
+    modelPatterns: ["double-verb", "vibrato-verb", "us-ultra"],
+    controlLayout: BLACKFACE_TWIN,
+    presets: [
+      {
+        id: "twin-clean",
+        style: "Pristine Clean",
+        settings: { volume: 4, bass: 5, mid: 5, treble: 6, bright: true },
+        tips: [
+          "The Twin Reverb has massive headroom — it stays clean very loud",
+          "100W means it rarely breaks up naturally — use pedals for dirt",
+          "The bright switch adds sparkle and is useful at most volume settings",
+          "Great pedal platform — the clean stays clean even with effects"
+        ],
+        whatToListenFor: [
+          "Ultra-clean, full-range tone with excellent clarity",
+          "Massive headroom with zero breakup at moderate volumes"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "vox-ac-tb",
+    familyName: "Vox AC Top Boost",
+    modelPatterns: ["class-a-30w-tb", "class-a-15w-tb", "ac-20-dlx-tb"],
+    controlLayout: VOX_TOP_BOOST,
     presets: [
       {
         id: "vox-chime",
         style: "Chimey Clean",
-        settings: { gain: 3, bass: 4, mid: 5, treble: 7, master: 5, presence: 6 },
+        settings: { volume: 4, bass: 4, treble: 7, cut: 3 },
         tips: [
-          "Vox amps have a unique top-boost circuit — the treble and bass controls on the top-boost channel are where the magic is",
-          "The Cut control acts like reverse presence — it rolls off highs at the power amp stage",
-          "These are cathode-biased Class A — they compress naturally and feel very responsive",
-          "The Normal channel (no top boost) is warmer and fatter — try it for blues"
+          "The Top Boost channel has the Bass and Treble EQ — this is 'the AC30 sound'",
+          "There is no Mid control — the midrange is fixed and prominent",
+          "The Cut control rolls off highs at the power amp — turn it UP to tame brightness",
+          "No master volume — the Volume IS your gain. Crank it for breakup",
+          "The Beatles, Brian May, The Edge — this amp is everywhere"
         ],
         whatToListenFor: [
           "Jangly, chimey highs with a pronounced upper-mid presence",
-          "The characteristic Vox 'chime' that made The Beatles and The Edge famous"
+          "The characteristic Vox 'chime' — bright, complex, musical"
         ],
         source: "Yek's Guide / Fractal Wiki"
       },
       {
         id: "vox-crunch",
         style: "British Crunch",
-        settings: { gain: 6, bass: 4, mid: 6, treble: 6, master: 7, presence: 5 },
+        settings: { volume: 7, bass: 4, treble: 6, cut: 4 },
         tips: [
-          "AC30 crunch is jangly and aggressive — great for rhythm guitar",
-          "The amp sags beautifully when pushed — Supply Sag parameter is key",
-          "Brian May got his tone with a Vox cranked to the edge with a treble booster",
-          "Tom Petty, U2 Edge, Radiohead — this is a desert island amp tone"
+          "Crank the volume for AC30 crunch — the power amp saturation is the magic",
+          "Use the Cut control to tame harsh treble at higher volumes",
+          "The amp sags beautifully when pushed — Supply Sag parameter is key in Fractal",
+          "Brian May's tone: AC30 cranked with a treble booster in front"
         ],
         whatToListenFor: [
           "Aggressive, chimey breakup with lots of harmonic content",
@@ -155,42 +692,133 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   },
 
   {
-    familyId: "marshall-plexi",
-    familyName: "Marshall Plexi / JTM / SLP",
-    modelPatterns: ["plexi", "1959slp", "brit-pre", "brit-silver"],
+    familyId: "vox-ac-normal",
+    familyName: "Vox AC Normal Channel",
+    modelPatterns: ["class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "class-a-15w", "ac-20-dlx-normal", "ac-20-12ax7", "ac-20-ef86"],
+    controlLayout: VOX_NORMAL,
     presets: [
       {
-        id: "plexi-classic",
-        style: "Classic Rock",
-        settings: { gain: 5, bass: 5, mid: 7, treble: 6, master: 7, presence: 6 },
+        id: "vox-normal-warm",
+        style: "Warm Clean",
+        settings: { volume: 5, tone: 5, cut: 3 },
         tips: [
-          "Plexis want to be cranked — the magic is in the power amp section",
-          "Jump the channels for fuller tone — Fractal models this with jumped channel variants",
-          "Presence control is critical on Marshalls — it shapes the power amp response",
-          "These amps are mid-forward by nature — embrace it, that's the Marshall sound",
-          "A Tube Screamer in front is the classic formula for more gain and tighter bass"
+          "The Normal channel is warmer and fatter than the Top Boost",
+          "Only has a single Tone control — simpler but effective",
+          "Great for blues and jazz — less chimey, more round",
+          "Cut control still works to tame brightness"
         ],
         whatToListenFor: [
-          "Thick, aggressive midrange growl with singing sustain when pushed",
-          "The roar — when the power tubes start to saturate, the amp comes alive"
+          "Warmer, darker tone compared to the Top Boost channel",
+          "Smooth, round breakup when pushed"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "marshall-plexi-single",
+    familyName: "Marshall Plexi (Single Channel)",
+    modelPatterns: ["1959slp-normal", "1959slp-treble", "1987x-normal", "1987x-treble", "plexi-100w-high", "plexi-100w-normal", "plexi-50w-high", "plexi-100w-1970", "plexi-50w-6550", "plexi-50w-6ca7"],
+    controlLayout: NON_MV_PLEXI,
+    presets: [
+      {
+        id: "plexi-single-rock",
+        style: "Classic Rock",
+        settings: { volume: 7, bass: 5, mid: 7, treble: 6, presence: 6 },
+        tips: [
+          "Plexis have NO master volume — the Volume IS your gain control",
+          "These amps want to be cranked — the power amp saturation is the magic",
+          "Presence shapes the power amp frequency response, not the preamp",
+          "Marshall mids are the key — don't scoop them, embrace them"
+        ],
+        whatToListenFor: [
+          "Thick, aggressive midrange growl with singing sustain",
+          "The roar — when the power tubes saturate, the amp comes alive"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      },
+      {
+        id: "plexi-single-crunch",
+        style: "Hard Crunch",
+        settings: { volume: 8, bass: 4, mid: 8, treble: 7, presence: 5 },
+        tips: [
+          "Full-volume Plexi is the sound of rock and roll",
+          "Pull bass back to keep it tight when cranked",
+          "The Treble/High input is brighter, the Normal input is fatter",
+          "AC/DC, Led Zeppelin, early Van Halen — this is the foundation"
+        ],
+        whatToListenFor: [
+          "Aggressive, punchy midrange attack with harmonic overtones",
+          "String separation even at high gain — notes stay defined"
+        ],
+        source: "Yek's Guide / Fractal Forum"
+      }
+    ]
+  },
+
+  {
+    familyId: "marshall-plexi-jumped",
+    familyName: "Marshall Plexi (Jumped Channels)",
+    modelPatterns: ["1959slp-jumped", "1987x-jumped", "plexi-100w-jumped", "plexi-50w-6ca7-jumped", "plexi-50w-high-1-jumped"],
+    controlLayout: DUAL_VOLUME_PLEXI,
+    presets: [
+      {
+        id: "plexi-jumped-acdc",
+        style: "AC/DC Rock",
+        settings: { volume1: 5, volume2: 7, bass: 4, mid: 8, treble: 6, presence: 6 },
+        tips: [
+          "Jumped channels combine Volume I (darker) and Volume II (brighter) for the fullest tone",
+          "Volume II higher than Volume I gives the classic bright, aggressive Plexi tone",
+          "Angus Young: Volume I around 5, Volume II around 7 — the classic recipe",
+          "NO master volume — both Volume controls together set your overall gain",
+          "Balance the two for your preferred blend of warmth and bite"
+        ],
+        whatToListenFor: [
+          "Full-spectrum Plexi tone — warm body from Ch I, bite from Ch II",
+          "The amp should feel alive and reactive to every touch"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
       },
       {
-        id: "plexi-crunch",
-        style: "Hard Crunch",
-        settings: { gain: 7, bass: 4, mid: 8, treble: 7, master: 8, presence: 5 },
+        id: "plexi-jumped-brown",
+        style: "Brown Sound",
+        settings: { volume1: 7, volume2: 8, bass: 5, mid: 7, treble: 7, presence: 5 },
         tips: [
-          "Pull back bass to keep the low end tight — Plexis can get woolly",
-          "High master volume drives the power tubes harder — this is where the feel comes from",
-          "Try the Bright switch on — it adds clarity at higher gain settings",
-          "AC/DC, Led Zeppelin, early Van Halen — this is the sound of rock and roll"
+          "Both volumes high pushes the preamp harder for more saturation",
+          "Presence lower smooths the top end — key for the 'brown sound'",
+          "Eddie Van Halen's early tone: cranked Plexi + Variac for sag",
+          "In Fractal, use Supply Sag and Bias parameters to emulate the Variac"
         ],
         whatToListenFor: [
-          "Aggressive, punchy midrange attack with harmonic overtones",
-          "String separation even at high gain — each note should be distinguishable"
+          "Thick, harmonically rich crunch with smooth top end",
+          "Natural compression and sag that makes notes bloom"
         ],
-        source: "Yek's Guide / Fractal Forum"
+        source: "Fractal Forum / Yek's Guide"
+      }
+    ]
+  },
+
+  {
+    familyId: "marshall-plexi-mv",
+    familyName: "Marshall Plexi with Master Volume",
+    modelPatterns: ["plexi-2204", "plexi-studio-20"],
+    controlLayout: STANDARD_MV_BRIGHT,
+    presets: [
+      {
+        id: "plexi-mv-crunch",
+        style: "Cranked Plexi",
+        settings: { gain: 7, bass: 5, mid: 7, treble: 6, master: 7, presence: 5, bright: false },
+        tips: [
+          "These Plexi variants have a master volume for gain control",
+          "The Studio 20 (SV20H) is a 20W reissue — breaks up earlier",
+          "Plexi 2204 is the JMP-era transition model — Plexi character with master volume"
+        ],
+        whatToListenFor: [
+          "Classic Plexi roar with master volume for better gain control",
+          "Power tube saturation at more manageable volumes"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
       }
     ]
   },
@@ -199,17 +827,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "marshall-800",
     familyName: "Marshall JCM 800",
     modelPatterns: ["brit-800", "brit-studio-20"],
+    controlLayout: JCM800_LAYOUT,
     presets: [
       {
         id: "jcm800-rhythm",
         style: "Hard Rock Rhythm",
-        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6 },
+        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, boost: false },
         tips: [
-          "The JCM 800 is a one-channel amp — the 2203 (master volume) and 2204 (lower wattage) are the classics",
-          "It's a medium-gain amp by modern standards — use a boost pedal for more saturation",
-          "The preamp clip on these is aggressive and bright — Presence tames the fizz",
-          "Zakk Wylde, Randy Rhoads, Slash — the 80s metal/hard rock standard",
-          "The 2204 version is lower wattage and breaks up earlier"
+          "The JCM 800 is a medium-gain amp — use a boost for more saturation",
+          "The 2203 (100W) and 2204 (50W) are the classics",
+          "It's bright and aggressive — Presence tames the fizz",
+          "Zakk Wylde, Randy Rhoads, Slash — the 80s rock standard"
         ],
         whatToListenFor: [
           "Tight, aggressive crunch with excellent note definition",
@@ -222,13 +850,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
         style: "Boosted High Gain",
         settings: { gain: 8, bass: 4, mid: 8, treble: 6, master: 7, presence: 5, boost: true },
         tips: [
-          "A Tube Screamer (gain low, level high) in front is THE classic JCM 800 trick",
-          "The boost tightens the bass and pushes the preamp into saturation",
-          "Keep bass conservative when boosted — it tightens the palm mutes",
-          "This is the Zakk Wylde / Slash / AFD approach to getting modern gain from a vintage circuit"
+          "A Tube Screamer in front is THE classic JCM 800 trick",
+          "The boost tightens bass and pushes the preamp into saturation",
+          "Keep bass conservative when boosted — tightens palm mutes",
+          "This is the Zakk Wylde / Slash approach to modern gain from a vintage circuit"
         ],
         whatToListenFor: [
-          "Tighter, more saturated version of the stock tone with better note articulation",
+          "Tighter, more saturated version with better note articulation",
           "Palm mutes should be chunky and defined, not loose or flubby"
         ],
         source: "Fractal Forum / Yek's Guide"
@@ -237,38 +865,15 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   },
 
   {
-    familyId: "marshall-jcm900",
-    familyName: "Marshall JCM 900",
-    modelPatterns: ["brit-jm45", "brit-j-45"],
-    presets: [
-      {
-        id: "jcm900-drive",
-        style: "90s Rock",
-        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 6, presence: 5 },
-        tips: [
-          "JCM 900s use diode clipping in the preamp — more gain than JCM 800 but a different character",
-          "Some players feel the tone is less organic than pure-tube Marshalls",
-          "Works great for 90s grunge and alternative rock tones",
-          "Try rolling back the gain for a more open, dynamic response"
-        ],
-        whatToListenFor: [
-          "More compressed, saturated distortion than a JCM 800",
-          "Tighter overall response with less sag"
-        ],
-        source: "Yek's Guide"
-      }
-    ]
-  },
-
-  {
     familyId: "marshall-jvm",
     familyName: "Marshall JVM / Modern",
     modelPatterns: ["brit-ap", "brit-2020"],
+    controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
         id: "jvm-crunch",
         style: "Modern Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false },
         tips: [
           "Modern Marshalls have more gain on tap and more versatile EQ",
           "The Orange (crunch) channel on the JVM is many players' favorite",
@@ -287,16 +892,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "marshall-jubilee",
     familyName: "Marshall Silver Jubilee",
     modelPatterns: ["brit-silver"],
+    controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
         id: "jubilee-lead",
         style: "Hot Rod Lead",
-        settings: { gain: 7, bass: 5, mid: 7, treble: 6, master: 6, presence: 6 },
+        settings: { gain: 7, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, bright: false },
         tips: [
-          "The Silver Jubilee (2555) is a hot-rodded Marshall with a diode clipping circuit",
-          "It bridges the gap between JCM 800 and JCM 900 — more gain than the 800 but retains tube feel",
+          "The Silver Jubilee is a hot-rodded Marshall with diode clipping",
+          "Bridges the gap between JCM 800 and JCM 900",
           "Slash used a Jubilee extensively — it's the 'other' Slash amp",
-          "The Lead channel has a lot of gain — start lower than you think"
+          "Start gain lower than you think — it has plenty"
         ],
         whatToListenFor: [
           "Rich, creamy lead tone with more sustain than a stock JCM 800",
@@ -311,15 +917,15 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "mesa-recto",
     familyName: "Mesa/Boogie Rectifier",
     modelPatterns: ["recto", "usa-pre-recto"],
+    controlLayout: MESA_RECTO_LAYOUT,
     presets: [
       {
         id: "recto-modern",
         style: "Modern High Gain",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7 },
+        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7, bold_spongy: "Bold" },
         tips: [
-          "Rectifiers are notorious for too much bass — start with bass lower than you'd expect",
-          "Modern mode has more gain and tighter response than Vintage mode",
-          "The Bold/Spongy switch (silicon/tube rectifier) dramatically changes feel",
+          "Rectifiers are notorious for too much bass — start with bass lower than expected",
+          "Bold = silicon rectifier (tighter), Spongy = tube rectifier (more sag and compression)",
           "Presence and Master interact — higher master with lower presence can be smoother",
           "Metallica, Dream Theater, Foo Fighters — the modern high-gain standard"
         ],
@@ -331,16 +937,16 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       },
       {
         id: "recto-vintage",
-        style: "Vintage Mode",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 7, presence: 5 },
+        style: "Vintage Spongy",
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 7, presence: 5, bold_spongy: "Spongy" },
         tips: [
+          "Spongy mode adds tube rectifier sag and compression — great for feel",
           "Vintage mode has less gain but more dynamic response",
-          "Spongy (tube rectifier) mode adds sag and compression — great for feel",
-          "More mid-forward than Modern mode — better for cutting through a mix",
+          "More mid-forward than Modern — better for cutting through a mix",
           "Try this for blues-rock and classic rock tones"
         ],
         whatToListenFor: [
-          "More open, dynamic high-gain tone with better note definition",
+          "More open, dynamic high-gain with better note definition",
           "Sag and compression that responds to pick dynamics"
         ],
         source: "Yek's Guide / Fractal Forum"
@@ -352,33 +958,40 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "mesa-mark",
     familyName: "Mesa/Boogie Mark Series",
     modelPatterns: ["usa-mk", "usa-lead", "usa-pre"],
+    controlLayout: MESA_MARK_LAYOUT,
     presets: [
       {
         id: "mark-rhythm",
         style: "Mark IIC+ Rhythm",
-        settings: { gain: 6, bass: 3, mid: 4, treble: 7, master: 7, presence: 5 },
+        settings: {
+          gain: 6, bass: 3, mid: 4, treble: 7, master: 7, presence: 5, bright: false,
+          eq80: 4, eq240: 3, eq750: 2, eq2200: 7, eq6600: 6
+        },
         tips: [
-          "The Mark series tone stack is very powerful — small changes make big differences",
-          "The classic V-shaped EQ (bass 3, mid 3, treble 7) is the Metallica Master of Puppets setting",
-          "The graphic EQ is critical on Mark amps — the preset 'V' curve is legendary",
-          "Pull the bass back to tighten the low end for metal rhythm",
-          "John Petrucci, Metallica, Lamb of God — the progressive/thrash metal standard"
+          "The Graphic EQ is CRITICAL on Mark amps — it reshapes the tone dramatically",
+          "The classic V-curve: 80Hz up, 240Hz down, 750Hz down, 2.2kHz up, 6.6kHz up",
+          "Without the GEQ, Mark amps sound thin and buzzy — the GEQ IS the tone",
+          "The Mark IIC+ is the Metallica Master of Puppets / Dream Theater standard",
+          "Keep bass low in the main EQ — the GEQ handles the low-end shaping"
         ],
         whatToListenFor: [
           "Tight, focused distortion with cutting treble and controlled bass",
-          "Extreme clarity and note definition even at high gain settings"
+          "Extreme clarity and note definition even at high gain"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
       },
       {
         id: "mark-lead",
         style: "Singing Lead",
-        settings: { gain: 7, bass: 3, mid: 5, treble: 6, master: 8, presence: 4 },
+        settings: {
+          gain: 7, bass: 3, mid: 5, treble: 6, master: 8, presence: 4, bright: false,
+          eq80: 5, eq240: 4, eq750: 5, eq2200: 6, eq6600: 5
+        },
         tips: [
+          "For leads, flatten the V-curve slightly — more mids help leads cut through",
           "Push the master higher for more power tube saturation and sustain",
-          "Adding mids helps leads cut through — the scooped rhythm EQ doesn't always work for solos",
-          "The Mark IIC+ lead channel is one of the most sought-after high-gain lead tones ever",
-          "Lower presence helps smooth out the top end for liquid lead tones"
+          "The Mark IIC+ lead channel is one of the most sought-after tones ever",
+          "Lower presence helps smooth out the top for liquid leads"
         ],
         whatToListenFor: [
           "Liquid, singing sustain with a smooth top end",
@@ -393,15 +1006,15 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "mesa-lonestar",
     familyName: "Mesa/Boogie Lone Star",
     modelPatterns: ["lone-star"],
+    controlLayout: STANDARD_MV,
     presets: [
       {
         id: "lonestar-clean",
         style: "Boutique Clean",
         settings: { gain: 3, bass: 5, mid: 6, treble: 6, master: 5, presence: 5 },
         tips: [
-          "The Lone Star excels at clean and low-gain tones — it's Mesa's clean machine",
+          "The Lone Star excels at clean and low-gain tones — Mesa's clean machine",
           "Channel 1 is pure clean, Channel 2 adds more gain staging",
-          "The Drive control on Channel 2 adds a warm, organic crunch",
           "Great for country, jazz, and worship music"
         ],
         whatToListenFor: [
@@ -417,16 +1030,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "bogner",
     familyName: "Bogner (Euro Series)",
     modelPatterns: ["euro"],
+    controlLayout: BOGNER_LAYOUT,
     presets: [
       {
         id: "bogner-crunch",
         style: "Boutique Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, structure: "Open" },
         tips: [
-          "Bogner amps (Euro in Fractal naming) blend Marshall aggression with American warmth",
-          "The Ecstasy is incredibly versatile — from clean to high gain on one amp",
+          "Bogner Ecstasy blends Marshall aggression with American warmth",
+          "Structure switch: Tight = tighter low end, Open = fuller, more organic",
           "The Blue channel is Plexi-like, Red is high gain, Green is clean",
-          "Structure switch changes the voicing dramatically"
+          "Try Bright ON at lower gains, OFF at higher gains"
         ],
         whatToListenFor: [
           "Refined, articulate crunch with a touch of American smoothness",
@@ -437,14 +1051,14 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "bogner-highgain",
         style: "High Gain Lead",
-        settings: { gain: 7, bass: 5, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { gain: 7, bass: 5, mid: 6, treble: 6, master: 6, presence: 5, bright: false, structure: "Tight" },
         tips: [
-          "The Ecstasy Red channel is a high-gain monster with incredible feel",
-          "It tracks fast riffs better than most high-gain amps",
-          "Try lower presence for smoother lead tones — it's naturally bright enough"
+          "Red channel is a high-gain monster with incredible feel",
+          "Structure = Tight keeps the low end focused for metal rhythm",
+          "It tracks fast riffs better than most high-gain amps"
         ],
         whatToListenFor: [
-          "Articulate high-gain tone that retains clarity even at extreme settings",
+          "Articulate high-gain that retains clarity even at extreme settings",
           "Smooth compression that enhances sustain without killing dynamics"
         ],
         source: "Yek's Guide / Fractal Forum"
@@ -456,20 +1070,20 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "diezel",
     familyName: "Diezel (Dizzy Series)",
     modelPatterns: ["dizzy"],
+    controlLayout: DIEZEL_VH4_LAYOUT,
     presets: [
       {
         id: "diezel-modern",
         style: "Modern Metal",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7 },
+        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7, deep: 3 },
         tips: [
-          "Diezel amps (Dizzy in Fractal) are tight, aggressive, and incredibly detailed",
-          "The VH4 channel 3 is the legendary high-gain channel — tight and crushing",
-          "Channel 4 is even more gained up but looser — great for doom/sludge",
-          "Deep switch adds low-end resonance — use sparingly for tight rhythm",
+          "Diezel amps are tight, aggressive, and incredibly detailed",
+          "The VH4 Channel 3 is the legendary high-gain channel",
+          "The Deep control adds low-end resonance — use sparingly for tight rhythm",
           "Herbert and VH4 are different beasts — Herbert is tighter, VH4 is thicker"
         ],
         whatToListenFor: [
-          "Extremely tight, articulate high-gain tone with pristine clarity",
+          "Extremely tight, articulate high-gain with pristine clarity",
           "Machine-gun palm mutes with zero flub in the low end"
         ],
         source: "Yek's Guide / Fractal Wiki"
@@ -481,15 +1095,16 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "engl",
     familyName: "ENGL (Angle Series)",
     modelPatterns: ["angle"],
+    controlLayout: ENGL_LAYOUT,
     presets: [
       {
         id: "engl-lead",
         style: "Modern Lead",
-        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, contour: false },
         tips: [
-          "ENGL amps (Angle in Fractal) are known for extremely tight, focused high-gain tones",
-          "The Fireball and Savage models are metal staples",
-          "ENGL amps tend to have more midrange presence than Mesa Rectifiers",
+          "ENGL amps are known for extremely tight, focused high-gain tones",
+          "The Contour switch scoops the midrange — keep it OFF for better mix presence",
+          "Turn Contour ON for solo/bedroom playing where scooped tones sound bigger",
           "Great for progressive metal and djent-style tones"
         ],
         whatToListenFor: [
@@ -505,33 +1120,34 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "peavey-5150",
     familyName: "Peavey 5150 / 6505 / EVH",
     modelPatterns: ["pvh-6160", "pvh-v1", "pvh-v2", "pvh-v3"],
+    controlLayout: PEAVEY_5150_LAYOUT,
     presets: [
       {
         id: "5150-chug",
         style: "Metal Rhythm",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, presence: 7 },
+        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, resonance: 5, presence: 7, bright: false },
         tips: [
-          "The 5150 Block Letter (original) has a more raw, aggressive character than the later versions",
-          "Keep bass lower than you think — the 5150 has massive low end",
-          "The resonance control adds low-end thump — use it, but don't overdo it",
-          "5150/6505 is THE modern metal amp — used by everyone from Killswitch Engage to August Burns Red",
-          "Bright switch should generally be OFF for high gain — it adds fizz"
+          "The 5150 Block Letter is raw and aggressive — the original",
+          "Keep bass low — the 5150 has massive low end",
+          "Resonance adds low-end thump — use it but don't overdo it",
+          "Bright switch OFF for high gain — it adds fizz",
+          "Killswitch Engage, August Burns Red — the modern metal standard"
         ],
         whatToListenFor: [
           "Crushing, aggressive palm mutes with extreme tightness",
-          "Raw, aggressive distortion character that sits perfectly for modern metal"
+          "Raw, aggressive distortion that sits perfectly for modern metal"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
       },
       {
         id: "5150-lead",
         style: "High Gain Lead",
-        settings: { gain: 7, bass: 5, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { gain: 7, bass: 5, mid: 6, treble: 6, master: 6, resonance: 6, presence: 5, bright: false },
         tips: [
-          "For leads, add more mids and reduce presence for a smoother top end",
-          "The 5150 III (EVH) has more gain and better lead tones than the original",
-          "Push the master slightly higher for more sustain and compression",
-          "Rolling back presence prevents the fizzy top end on lead passages"
+          "For leads, add more mids and reduce presence for smoother top",
+          "The 5150 III (EVH) has better lead tones than the original",
+          "Push the master slightly higher for more sustain",
+          "Rolling back presence prevents fizzy top on lead passages"
         ],
         whatToListenFor: [
           "Sustained, singing lead tone with enough aggression to cut through",
@@ -545,20 +1161,21 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "dumble",
     familyName: "Dumble ODS / SSS",
-    modelPatterns: ["ods-100", "bludojai", "mr-z"],
+    modelPatterns: ["ods-100", "bludojai"],
+    controlLayout: DUMBLE_ODS_LAYOUT,
     presets: [
       {
         id: "dumble-clean",
         style: "Boutique Clean",
-        settings: { gain: 3, bass: 5, mid: 5, treble: 5, master: 5, presence: 5 },
+        settings: { gain: 3, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 5, presence: 5, pab: false },
         tips: [
-          "Dumble amps are the holy grail of boutique tones — the ODS-100 is the most famous",
-          "The clean channel is Fender-derived but richer and more three-dimensional",
-          "These amps are incredibly touch-sensitive — the feel is the magic",
-          "Robben Ford, Larry Carlton, John Mayer (Dumble-style) — smooth, singing leads"
+          "The ODS-100 clean is Fender-derived but richer and more three-dimensional",
+          "OD (Overdrive) knob controls the overdrive channel gain — set to 0 for clean",
+          "PAB (Pre Amp Boost) switch adds gain staging — leave OFF for clean",
+          "These amps are incredibly touch-sensitive — the feel is the magic"
         ],
         whatToListenFor: [
-          "Rich, three-dimensional clean tone that sounds 'expensive'",
+          "Rich, three-dimensional clean that sounds 'expensive'",
           "Incredible depth and dimension compared to a standard Fender clean"
         ],
         source: "Yek's Guide / Fractal Wiki"
@@ -566,12 +1183,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "dumble-overdrive",
         style: "Smooth Overdrive",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 5, master: 6, presence: 5 },
+        settings: { gain: 5, overdrive: 6, bass: 5, mid: 6, treble: 5, master: 6, presence: 5, pab: true },
         tips: [
-          "The overdrive channel of a Dumble is smooth, creamy, and incredibly musical",
-          "It's the ultimate blues-rock lead tone — warm, singing sustain",
+          "The overdrive channel is smooth, creamy, and incredibly musical",
+          "PAB ON + OD dial at 5-7 = the classic Dumble lead tone",
           "The amp responds to guitar volume changes like no other",
-          "PAF-style humbuckers or single coils both sound incredible through a Dumble"
+          "Robben Ford, Larry Carlton, Carlos Santana territory"
         ],
         whatToListenFor: [
           "Creamy, vocal-like overdrive that sings and sustains",
@@ -586,16 +1203,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "orange",
     familyName: "Orange (Citrus Series)",
     modelPatterns: ["citrus"],
+    controlLayout: STANDARD_MV,
     presets: [
       {
         id: "orange-dirty",
         style: "Dirty Rock",
         settings: { gain: 6, bass: 5, mid: 6, treble: 5, master: 6, presence: 5 },
         tips: [
-          "Orange amps (Citrus in Fractal) have a distinctive thick, chewy midrange",
-          "The Rockerverb is more versatile, the OR has that classic raw Orange tone",
-          "Orange amps tend to be mid-heavy — they cut through dense mixes naturally",
-          "Great for stoner rock, doom, and British rock tones"
+          "Orange amps have a distinctive thick, chewy midrange",
+          "The Rockerverb is more versatile, the OR has that classic raw tone",
+          "Orange amps tend to be mid-heavy — they cut through naturally",
+          "Great for stoner rock, doom, and British rock"
         ],
         whatToListenFor: [
           "Thick, chewy midrange with a warm, almost fuzzy breakup",
@@ -610,17 +1228,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "soldano",
     familyName: "Soldano SLO",
     modelPatterns: ["solo", "cameron-chs"],
+    controlLayout: SOLDANO_LAYOUT,
     presets: [
       {
         id: "slo-crunch",
         style: "Hot Rod Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, depth: false },
         tips: [
-          "The SLO-100 was one of the first modern high-gain amps — designed by Mike Soldano in 1987",
-          "The Crunch channel is Plexi-derived with more gain on tap",
-          "The Overdrive channel is smooth, singing, and incredibly musical",
-          "Presence on the SLO is very powerful — start moderate",
-          "Used by Eric Clapton, Mark Knopfler, Lou Reed"
+          "The SLO-100 was one of the first modern high-gain amps — 1987",
+          "Crunch channel is Plexi-derived with more gain",
+          "Presence is very powerful — start moderate",
+          "Eric Clapton, Mark Knopfler, Lou Reed — more versatile than you'd think"
         ],
         whatToListenFor: [
           "Refined, muscular crunch with excellent note articulation",
@@ -631,12 +1249,11 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "slo-overdrive",
         style: "High Gain Overdrive",
-        settings: { gain: 7, bass: 4, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { gain: 7, bass: 4, mid: 6, treble: 6, master: 6, presence: 5, bright: false, depth: true },
         tips: [
-          "The SLO overdrive channel is THE benchmark for smooth, singing high-gain lead tones",
-          "It's creamy and musical without being muddy or fizzy",
-          "The Depth control adds low-end resonance — use judiciously for tight tones",
-          "Lower presence smooths the top for liquid leads"
+          "The SLO overdrive channel is THE benchmark for smooth high-gain leads",
+          "Depth switch adds low-end resonance — try ON for thicker leads",
+          "It's creamy and musical without being muddy or fizzy"
         ],
         whatToListenFor: [
           "Smooth, liquid high-gain that sustains forever",
@@ -650,16 +1267,26 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "matchless",
     familyName: "Matchless / Bad Cat (Class-A)",
-    modelPatterns: ["matchbox", "mr-z", "herbie"],
+    modelPatterns: ["matchbox", "herbie"],
+    controlLayout: {
+      knobs: [
+        { id: "volume", label: "Volume" },
+        { id: "bass", label: "Bass" },
+        { id: "treble", label: "Treble" },
+        { id: "cut", label: "Cut" },
+        { id: "master", label: "Master" },
+      ],
+      switches: [],
+    },
     presets: [
       {
         id: "matchless-clean",
         style: "Boutique Clean",
-        settings: { gain: 3, bass: 5, mid: 6, treble: 6, master: 5, presence: 5 },
+        settings: { volume: 4, bass: 5, treble: 6, cut: 3, master: 5 },
         tips: [
           "Matchless amps combine Vox-like chime with more headroom and refinement",
-          "The DC30 and HC30 are the flagships — chimey, responsive, and musical",
-          "Class A operation gives natural compression and a lively feel",
+          "The DC30 and HC30 are the flagships — chimey, responsive, musical",
+          "The Cut control is like the Vox — rolls off power amp highs",
           "Great for indie, jangly pop, and worship clean tones"
         ],
         whatToListenFor: [
@@ -675,20 +1302,21 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "friedman",
     familyName: "Friedman BE / HBE",
     modelPatterns: ["friedman"],
+    controlLayout: FRIEDMAN_BE_LAYOUT,
     presets: [
       {
         id: "friedman-be",
         style: "Hot Rod Marshall",
-        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6 },
+        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, bright: false, sat: false, voicing: "Tight" },
         tips: [
           "Dave Friedman's amps are hot-rodded Marshalls with modern refinements",
-          "The BE-100 has tighter bass, more gain, and better note definition than a stock Plexi",
-          "The SAT switch changes gain structure — toggle it to find your sweet spot",
-          "The Friedman HBE channel has even more gain for modern metal rhythm"
+          "SAT switch changes gain structure — OFF is more open, ON is more saturated",
+          "Voicing: Tight = focused low end, Fat = fuller, more open response",
+          "The Friedman HBE channel has even more gain for modern metal"
         ],
         whatToListenFor: [
           "The best of Marshall with modern tightness and clarity",
-          "Rich, harmonically complex crunch that stays articulate at any gain level"
+          "Rich, harmonically complex crunch that stays articulate at any gain"
         ],
         source: "Yek's Guide / Fractal Wiki"
       }
@@ -699,22 +1327,38 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "revv",
     familyName: "REVV Generator",
     modelPatterns: ["revv"],
+    controlLayout: REVV_LAYOUT,
     presets: [
       {
         id: "revv-purple",
         style: "Modern High Gain",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, aggression: "Off" },
         tips: [
           "REVV amps are extremely responsive and tight modern high-gain designs",
-          "The Purple channel is the high-gain monster — incredibly detailed and clear",
-          "Red channel has more gain but retains dynamics — good for progressive styles",
-          "The aggression switch changes the voicing — try both"
+          "The Aggression switch changes voicing — OFF is tighter, ON is more aggressive/scooped",
+          "Purple channel is the high-gain monster — incredibly detailed",
+          "Try Aggression ON for thrash/death metal, OFF for progressive/modern metal"
         ],
         whatToListenFor: [
           "Pristine, detailed high-gain with excellent pick dynamics",
           "Clarity in complex chord voicings even at high gain settings"
         ],
         source: "Yek's Guide / Fractal Wiki"
+      },
+      {
+        id: "revv-aggressive",
+        style: "Aggressive Metal",
+        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, presence: 7, aggression: "On" },
+        tips: [
+          "Aggression ON scoops mids slightly and adds a more aggressive attack",
+          "Great for fast riffing and thrash styles",
+          "Keep bass low when Aggression is ON — it adds low-end energy"
+        ],
+        whatToListenFor: [
+          "More aggressive, scooped character with faster attack",
+          "Percussive palm mutes with extra bite and aggression"
+        ],
+        source: "Yek's Guide / Fractal Forum"
       }
     ]
   },
@@ -723,19 +1367,20 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "splawn",
     familyName: "Splawn (Spawn Series)",
     modelPatterns: ["spawn"],
+    controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
         id: "splawn-nitrous",
         style: "Aggressive Rock/Metal",
-        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6 },
+        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, bright: false },
         tips: [
-          "Splawn amps (Spawn in Fractal) are hot-rodded Marshalls with more gain and tighter bass",
-          "The Nitrous has a raw, aggressive character — not refined but powerful",
+          "Splawn amps are hot-rodded Marshalls with more gain and tighter bass",
+          "The Nitrous has a raw, aggressive character",
           "The Quick Rod is tighter and more modern-sounding",
           "Great for aggressive rock, punk, and metalcore"
         ],
         whatToListenFor: [
-          "Raw, aggressive Marshall-derived tone with more gain and tightness",
+          "Raw, aggressive Marshall-derived tone with more tightness",
           "Punchy, in-your-face character that cuts through any mix"
         ],
         source: "Yek's Guide / Fractal Wiki"
@@ -747,19 +1392,20 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "fryette",
     familyName: "Fryette / VHT",
     modelPatterns: ["fryette", "pittbull"],
+    controlLayout: STANDARD_MV_BRIGHT_DEPTH,
     presets: [
       {
         id: "fryette-ultra",
         style: "Modern Lead",
-        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 6, presence: 5, bright: false, depth: false },
         tips: [
           "Fryette (formerly VHT) amps are smooth, refined high-gain machines",
-          "The Pittbull Ultra Lead is legendary for its smooth, singing lead tone",
-          "The Deliverance is tighter and more aggressive — great for modern metal",
-          "Sig:X series adds more versatility with different gain structures"
+          "The Pittbull Ultra Lead is legendary for smooth, singing leads",
+          "Depth switch adds low-end resonance — try ON for solo work",
+          "Bright switch adds top-end sparkle — useful at lower gain settings"
         ],
         whatToListenFor: [
-          "Smooth, refined high-gain with excellent sustain and feel",
+          "Smooth, refined high-gain with excellent sustain",
           "A singing quality on lead lines that few other amps achieve"
         ],
         source: "Yek's Guide / Fractal Wiki"
@@ -771,21 +1417,22 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "trainwreck",
     familyName: "Trainwreck (Wrecker Series)",
     modelPatterns: ["wrecker"],
+    controlLayout: TRAINWRECK_LAYOUT,
     presets: [
       {
         id: "wreck-express",
         style: "Dynamic Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 6, presence: 5 },
+        settings: { volume: 6, bass: 5, mid: 6, treble: 6, cut: 4 },
         tips: [
           "Trainwreck amps are among the most coveted boutique amps ever made",
-          "They're incredibly touch-sensitive — the amp breathes with your playing",
-          "The Express is the most popular — Vox-meets-Marshall character",
-          "The Liverpool is more Vox-like, the Rocket is more aggressive",
-          "Low wattage, high expressiveness — these amps want to be played hard"
+          "No master volume — the Volume IS your gain control",
+          "The Cut control tames brightness like a Vox — turn UP to darken",
+          "The Express is Vox-meets-Marshall, Liverpool is more Vox-like",
+          "Low wattage, high expressiveness — these want to be played hard"
         ],
         whatToListenFor: [
           "Extraordinary touch sensitivity — the amp reacts to every nuance",
-          "Complex harmonic content that evolves as you change pick dynamics"
+          "Complex harmonic content that evolves with pick dynamics"
         ],
         source: "Yek's Guide / Fractal Wiki"
       }
@@ -796,15 +1443,15 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "suhr",
     familyName: "Suhr Badger",
     modelPatterns: ["badger"],
+    controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
         id: "badger-crunch",
         style: "Boutique Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 5 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 5, bright: false },
         tips: [
-          "The Suhr Badger is a modern boutique design with classic British voicing",
-          "Incredibly responsive to pick dynamics and guitar volume changes",
-          "The Badger 18 is lower wattage and breaks up earlier — more bedroom friendly",
+          "Modern boutique design with classic British voicing",
+          "Incredibly responsive to pick dynamics and guitar volume",
           "Great for blues-rock, classic rock, and roots music"
         ],
         whatToListenFor: [
@@ -820,16 +1467,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "triple-crown",
     familyName: "Mesa Triple Crown",
     modelPatterns: ["triple-crest"],
+    controlLayout: MESA_TC_LAYOUT,
     presets: [
       {
         id: "tc-crunch",
         style: "Versatile Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 5 },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 5, voicing: "Normal" },
         tips: [
           "The Triple Crown is Mesa's most versatile modern design",
+          "Voicing switch: Tight = focused lows, Normal = balanced, Loose = full/open",
           "Channel 2 is the sweet spot — great crunch to medium gain",
-          "Channel 3 has more gain for modern rock and metal",
-          "The Tight/Normal/Loose switch changes the low-end response dramatically"
+          "Channel 3 has more gain for modern rock and metal"
         ],
         whatToListenFor: [
           "A refined, modern rock tone that works across multiple genres",
@@ -844,16 +1492,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "hiwatt",
     familyName: "Hiwatt (Hipower Series)",
     modelPatterns: ["hipower"],
+    controlLayout: HIWATT_LAYOUT,
     presets: [
       {
         id: "hiwatt-clean",
         style: "Powerful Clean",
-        settings: { gain: 4, bass: 5, mid: 6, treble: 6, master: 5, presence: 6 },
+        settings: { volume: 5, bass: 5, mid: 6, treble: 6, presence: 6, bright: false },
         tips: [
-          "Hiwatt amps have massive clean headroom — they stay clean at deafening volumes",
-          "The tone is tighter and more focused than a Fender clean",
-          "Pete Townshend, David Gilmour, The Who — power and clarity",
-          "The midrange is more present than Fender — great for cutting through a loud band"
+          "Hiwatt amps have massive clean headroom — stay clean at deafening volumes",
+          "No master volume — the Volume is your only gain control",
+          "The Brilliant switch adds brightness — works well at moderate volumes",
+          "Pete Townshend, David Gilmour — power and clarity"
         ],
         whatToListenFor: [
           "Massive, clear, powerful clean tone with excellent projection",
@@ -868,16 +1517,16 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "carol-ann",
     familyName: "Carol-Ann (Tucana Series)",
     modelPatterns: ["tucana", "triptik"],
+    controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
         id: "carol-ann-lead",
         style: "Boutique Lead",
-        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 5, presence: 5 },
+        settings: { gain: 6, bass: 5, mid: 6, treble: 6, master: 5, presence: 5, bright: false },
         tips: [
           "Carol-Ann amps are handbuilt boutique designs known for incredible feel",
-          "The Tucana is the flagship — smooth, dynamic, and harmonically rich",
-          "These amps are favorites among Nashville session players",
-          "Great for country, pop, and worship styles where clarity and feel matter"
+          "The Tucana is the flagship — smooth, dynamic, harmonically rich",
+          "Great for country, pop, and worship styles"
         ],
         whatToListenFor: [
           "Refined, articulate tone with a warm, inviting character",
@@ -892,14 +1541,15 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "morgan",
     familyName: "Morgan AC",
     modelPatterns: ["morgan"],
+    controlLayout: VOX_TOP_BOOST,
     presets: [
       {
         id: "morgan-breakup",
         style: "Chimey Breakup",
-        settings: { gain: 5, bass: 4, mid: 6, treble: 7, master: 6, presence: 5 },
+        settings: { volume: 6, bass: 4, treble: 7, cut: 3 },
         tips: [
-          "Morgan amps are inspired by vintage British circuits with modern refinements",
-          "The AC20 is their take on the Vox AC — chimey, responsive, and musical",
+          "Morgan amps are inspired by vintage Vox circuits with modern refinements",
+          "The AC20 is their take on the Vox AC — chimey, responsive, musical",
           "Low wattage means early breakup and natural compression",
           "Excellent for blues, roots, and indie rock"
         ],
@@ -916,16 +1566,17 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "jc120",
     familyName: "Roland JC-120 / Solid State",
     modelPatterns: ["jazz-120", "super-trem"],
+    controlLayout: JC120_LAYOUT,
     presets: [
       {
         id: "jc120-clean",
         style: "Pristine Clean",
-        settings: { gain: 4, bass: 5, mid: 5, treble: 6, master: 5, presence: 5 },
+        settings: { volume: 4, bass: 5, mid: 5, treble: 6, bright: true, distortion: false },
         tips: [
           "The JC-120 is THE clean tone reference — crystal clear with no breakup",
-          "The built-in chorus is legendary — it defines the '80s clean tone",
-          "Solid-state cleans have zero sag — the response is immediate and articulate",
-          "Andy Summers (The Police), Robert Smith (The Cure), jazz players worldwide"
+          "Solid-state — zero sag, immediate response, ultra-precise",
+          "Bright switch adds sparkle — useful for single coils",
+          "Andy Summers, Robert Smith, jazz players worldwide"
         ],
         whatToListenFor: [
           "Crystal clear, transparent clean with no harmonic coloring",
@@ -939,17 +1590,18 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "supro",
     familyName: "Supro / Valco",
-    modelPatterns: ["supremo", "prince-tone"],
+    modelPatterns: ["supremo"],
+    controlLayout: NON_MV_VOLUME_ONLY,
     presets: [
       {
         id: "supro-grit",
         style: "Dirty Clean",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 5, master: 5, presence: 5 },
+        settings: { volume: 6 },
         tips: [
           "Supro amps have a raw, gritty character unlike any other amp",
-          "Jimmy Page used Supros extensively on early Zeppelin recordings",
-          "They break up early and have a fuzzy, almost broken quality when pushed",
-          "Low wattage means they come alive at lower volumes"
+          "Jimmy Page used Supros on early Zeppelin recordings",
+          "They break up early with a fuzzy, almost broken quality",
+          "In Fractal the Volume is your only control — simplicity is the point"
         ],
         whatToListenFor: [
           "Raw, gritty breakup with a unique fuzzy character",
@@ -964,39 +1616,55 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
 export const MODEL_OVERRIDES: ModelOverride[] = [
   {
     modelId: "deluxe-verb-vibrato",
+    controlLayout: BLACKFACE_VIBRATO,
     presets: [
       {
         id: "dlx-reverb-clean",
         style: "Classic Fender Clean",
-        settings: { gain: 4, bass: 6, mid: 5, treble: 6, master: 5, presence: 4, bright: true },
+        settings: { volume: 4, bass: 6, treble: 6, bright: true },
         tips: [
           "The Deluxe Reverb is arguably the most recorded amp in history",
-          "The Vibrato channel is the one everyone uses — it has the reverb circuit",
-          "At 22 watts it breaks up at manageable volumes — perfect for studio work",
-          "Keep Presence low for warmer tones, higher for more sparkle and cut",
-          "The amp's natural compression is part of the tone — don't fight it"
+          "The Vibrato channel has the reverb — everyone uses this one",
+          "At 22W it breaks up at manageable volumes — perfect for studio",
+          "No master volume — Volume IS your gain. Keep below 5 for cleans"
         ],
         whatToListenFor: [
           "Warm, three-dimensional clean with natural compression",
           "The signature Fender 'drip' reverb that defines the amp's character"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
+      },
+      {
+        id: "dlx-reverb-edge",
+        style: "Edge of Breakup",
+        settings: { volume: 6, bass: 5, treble: 5, bright: false },
+        tips: [
+          "Around 6 the Deluxe Reverb starts breaking up — this is the sweet spot",
+          "Turn Bright OFF at higher volumes to avoid fizz",
+          "SRV lived in this territory — ride your guitar volume"
+        ],
+        whatToListenFor: [
+          "Musical breakup that responds to every touch",
+          "Clean when gentle, gritty when you dig in"
+        ],
+        source: "Yek's Guide / Fractal Forum"
       }
     ]
   },
   {
     modelId: "1959slp-jumped",
+    controlLayout: DUAL_VOLUME_PLEXI,
     presets: [
       {
         id: "slp-acdc",
         style: "Classic AC/DC Rock",
-        settings: { gain: 6, bass: 4, mid: 8, treble: 6, master: 8, presence: 6 },
+        settings: { volume1: 5, volume2: 7, bass: 4, mid: 8, treble: 6, presence: 6 },
         tips: [
           "The 1959 SLP is THE Marshall Plexi — the sound of rock and roll",
-          "Jumped channels combine both inputs for the fullest tone",
-          "Angus and Malcolm Young used SLPs cranked to the max with no pedals",
-          "Keep bass conservative — these amps have plenty of low end",
-          "The power amp section is where the magic happens — push the master"
+          "Volume I = Normal (darker), Volume II = Treble (brighter)",
+          "Angus and Malcolm Young: Volume II higher for cutting bite",
+          "NO master volume — the two Volume controls together set your gain",
+          "Keep bass conservative — these amps have plenty of low end"
         ],
         whatToListenFor: [
           "Thick, aggressive midrange roar with singing overtones",
@@ -1007,83 +1675,122 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
     ]
   },
   {
-    modelId: "plexi-100w-1970",
+    modelId: "plexi-100w-jumped",
+    controlLayout: DUAL_VOLUME_PLEXI,
     presets: [
       {
-        id: "plexi-70s",
+        id: "plexi-100-jumped",
         style: "70s Hard Rock",
-        settings: { gain: 7, bass: 4, mid: 7, treble: 7, master: 8, presence: 5 },
+        settings: { volume1: 6, volume2: 7, bass: 5, mid: 7, treble: 7, presence: 5 },
         tips: [
-          "The 1970 Plexi has a slightly different character from the '60s models — more aggressive",
-          "The aluminum-panel era introduced subtle circuit changes that added bite",
-          "Think early Judas Priest, UFO, early Iron Maiden",
-          "Crank the master and control gain with your guitar volume"
+          "Both volumes fairly high pushes the preamp for more saturation",
+          "Balance Volume I (warmth) and Volume II (bite) to taste",
+          "Think early Judas Priest, UFO, Thin Lizzy"
         ],
         whatToListenFor: [
-          "Brighter, more aggressive version of the classic Plexi tone",
-          "More bite and presence than the earlier 1959 models"
+          "Full-spectrum Plexi crunch with rich harmonic overtones",
+          "The roar of power tubes being pushed hard"
         ],
         source: "Fractal Wiki / Yek's Guide"
       }
     ]
   },
   {
-    modelId: "plexi-studio-20",
+    modelId: "class-a-30w-tb",
+    controlLayout: VOX_TOP_BOOST,
     presets: [
       {
-        id: "studio20-crunch",
-        style: "Low Watt Plexi Crunch",
-        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 7, presence: 5 },
+        id: "ac30-jangle",
+        style: "Chimey Jangle",
+        settings: { volume: 4, bass: 4, treble: 7, cut: 3 },
         tips: [
-          "The Studio 20 is Marshall's SV20H — a 20W reissue of the Plexi",
-          "Lower wattage means earlier breakup — the sweet spot is more accessible",
-          "It captures the essential Plexi character in a more manageable package",
-          "Great for recording — you get cranked Plexi tones at lower SPL",
-          "The power section saturates earlier giving more of that sought-after feel"
+          "The AC30 Top Boost is one of the most iconic amps ever made",
+          "NO master volume, NO mid control — this is how the real amp works",
+          "The Cut control is key — turn UP to tame harsh highs",
+          "The Beatles, Brian May, The Edge, Radiohead — this amp is everywhere"
         ],
         whatToListenFor: [
-          "Classic Plexi roar in a more compressed, manageable package",
-          "Earlier power tube saturation — the feel is more immediate"
+          "Glassy, chimey treble with a pronounced upper-mid presence peak",
+          "The jangly character that defined British Invasion and modern indie"
         ],
-        source: "Fractal Wiki / Fractal Forum"
+        source: "Yek's Guide / Fractal Wiki / Fractal Forum"
+      },
+      {
+        id: "ac30-breakup",
+        style: "Cranked AC30",
+        settings: { volume: 7, bass: 4, treble: 6, cut: 5 },
+        tips: [
+          "Cranking the volume is how you get AC30 breakup — no other way",
+          "Turn Cut UP as you increase volume to control harshness",
+          "Brian May: AC30 cranked with treble booster in front",
+          "Supply Sag parameter in Fractal is critical for the AC30 feel"
+        ],
+        whatToListenFor: [
+          "Aggressive, chimey breakup with musical compression",
+          "Natural sag that makes playing feel bouncy and responsive"
+        ],
+        source: "Yek's Guide / Fractal Forum"
       }
     ]
   },
   {
-    modelId: "brit-800-2204",
+    modelId: "usa-mk-v-red-iic",
+    controlLayout: MESA_MARK_LAYOUT,
     presets: [
       {
-        id: "800-2204-rock",
-        style: "80s Hard Rock",
-        settings: { gain: 7, bass: 5, mid: 7, treble: 6, master: 6, presence: 6 },
+        id: "mkv-iic-metal",
+        style: "IIC+ Metal",
+        settings: {
+          gain: 7, bass: 2, mid: 3, treble: 8, master: 7, presence: 5, bright: false,
+          eq80: 6, eq240: 3, eq750: 2, eq2200: 8, eq6600: 7
+        },
         tips: [
-          "The 2204 is the 50W JCM 800 — breaks up earlier than the 100W 2203",
-          "This is the amp that defined 80s metal and hard rock",
-          "A Tube Screamer or SD-1 in front is the classic recipe for more gain",
-          "Keep mids high — the midrange bark is what makes a JCM 800 special",
-          "Randy Rhoads used a 2203, Zakk Wylde used both"
+          "The Graphic EQ is ESSENTIAL — without it the tone is thin and buzzy",
+          "Classic V-curve: 80Hz UP, 240Hz DOWN, 750Hz DOWN, 2.2kHz UP, 6.6kHz UP",
+          "The V-curve reshapes the scooped preamp into a tight, focused monster",
+          "Dream Theater, Metallica Master of Puppets — THE progressive/thrash tone",
+          "Bass extremely low in main EQ — the GEQ adds back the right bass frequencies"
         ],
         whatToListenFor: [
-          "Bright, aggressive crunch with that signature Marshall 'bark'",
-          "Tight, punchy response that cuts through a band like a knife"
+          "Laser-focused, cutting high-gain with extreme clarity",
+          "Detailed note articulation even during fast passages"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
+      },
+      {
+        id: "mkv-iic-lead",
+        style: "IIC+ Singing Lead",
+        settings: {
+          gain: 7, bass: 2, mid: 5, treble: 7, master: 8, presence: 4, bright: false,
+          eq80: 5, eq240: 4, eq750: 5, eq2200: 6, eq6600: 5
+        },
+        tips: [
+          "For leads, flatten the V-curve — more mids help you cut through",
+          "Push master higher for power tube saturation and singing sustain",
+          "Lower presence smooths the top for liquid leads",
+          "The Mark IIC+ lead tone is legendary — one of the most musical ever"
+        ],
+        whatToListenFor: [
+          "Liquid, singing sustain with a smooth, musical top end",
+          "Notes that bloom naturally without harsh fizz"
+        ],
+        source: "Yek's Guide / Fractal Forum"
       }
     ]
   },
   {
     modelId: "recto-orange-modern",
+    controlLayout: MESA_RECTO_LAYOUT,
     presets: [
       {
         id: "recto-djent",
         style: "Modern Djent/Metal",
-        settings: { gain: 5, bass: 3, mid: 5, treble: 7, master: 7, presence: 8 },
+        settings: { gain: 5, bass: 3, mid: 5, treble: 7, master: 7, presence: 8, bold_spongy: "Bold" },
         tips: [
-          "For djent and modern metal, less gain is more — it keeps the tone tight",
-          "Bass should be very low to prevent the characteristic Recto mud",
-          "Presence should be high for the percussive attack that defines the style",
-          "Combine with a tight boost (TS or Precision Drive) for maximum definition",
-          "Used by Periphery, After the Burial, Monuments for the modern metal sound"
+          "For djent and modern metal, less gain is more — keeps things tight",
+          "Bold (silicon rectifier) for maximum tightness and attack",
+          "Bass very low to prevent the characteristic Recto mud",
+          "Combine with a tight boost (TS or Precision Drive) for maximum definition"
         ],
         whatToListenFor: [
           "Extremely tight, percussive distortion with zero flub",
@@ -1095,65 +1802,21 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
   },
   {
     modelId: "pvh-6160-block",
+    controlLayout: PEAVEY_5150_LAYOUT,
     presets: [
       {
         id: "6160-metalcore",
         style: "Metalcore Rhythm",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, presence: 7 },
+        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, resonance: 5, presence: 7, bright: false },
         tips: [
           "The Block Letter 5150 is the original — raw and aggressive",
-          "Keep Resonance (low-end depth) moderate for tight chugs",
-          "The Lead channel has more than enough gain — start at 5-6",
-          "Bright switch should be OFF for high gain use",
+          "Resonance moderate for tight chugs — don't overdo it",
+          "Bright switch OFF for high gain — it adds fizz",
           "Killswitch Engage, Trivium, All That Remains — the metalcore standard"
         ],
         whatToListenFor: [
           "Raw, aggressive distortion with extreme tightness",
-          "The 'chainsaw' quality that defines modern metalcore rhythm tones"
-        ],
-        source: "Yek's Guide / Fractal Wiki / Fractal Forum"
-      }
-    ]
-  },
-  {
-    modelId: "class-a-30-tb",
-    presets: [
-      {
-        id: "ac30-jangle",
-        style: "Chimey Jangle",
-        settings: { gain: 4, bass: 4, mid: 5, treble: 7, master: 5, presence: 5, bright: true },
-        tips: [
-          "The AC30 Top Boost is one of the most iconic amps ever made",
-          "The Top Boost circuit adds the treble/bass EQ section — this is 'the sound'",
-          "The Cut control acts as reverse presence — turn it up to tame harsh treble",
-          "The Beatles, Brian May, The Edge, Radiohead — this amp is everywhere",
-          "Treble and bass controls are passive and interactive"
-        ],
-        whatToListenFor: [
-          "Glassy, chimey treble with a pronounced upper-mid presence peak",
-          "The jangly character that defined British Invasion and modern indie"
-        ],
-        source: "Yek's Guide / Fractal Wiki / Fractal Forum"
-      }
-    ]
-  },
-  {
-    modelId: "usa-mk-v-red-iic",
-    presets: [
-      {
-        id: "mkv-iic-metal",
-        style: "IIC+ Metal",
-        settings: { gain: 7, bass: 2, mid: 3, treble: 8, master: 7, presence: 5 },
-        tips: [
-          "The Mark V's IIC+ mode recreates the legendary Mesa Mark IIC+ tone",
-          "Use the classic V-shaped EQ: bass low, mid low, treble high",
-          "The Graphic EQ is essential — use the famous 'V' curve",
-          "Dream Theater, Metallica Master of Puppets — this is THE progressive/thrash tone",
-          "Keep bass extremely low for tight, focused palm mutes"
-        ],
-        whatToListenFor: [
-          "Laser-focused, cutting high-gain with extreme clarity",
-          "Detailed note articulation even during fast passages"
+          "The 'chainsaw' quality that defines metalcore rhythm tones"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
       }
@@ -1161,21 +1824,21 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
   },
   {
     modelId: "ods-100-clean",
+    controlLayout: DUMBLE_ODS_LAYOUT,
     presets: [
       {
         id: "ods-boutique-clean",
         style: "Ultimate Clean",
-        settings: { gain: 3, bass: 5, mid: 5, treble: 5, master: 5, presence: 5 },
+        settings: { gain: 3, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 5, presence: 5, pab: false },
         tips: [
-          "The Dumble ODS-100 clean channel is Fender-derived but with more body and dimension",
+          "The Dumble ODS-100 clean is Fender-derived with more body and dimension",
           "Real Dumbles sell for $50k-$150k — Fractal modeling is the accessible path",
-          "The PAB (Pre Amp Boost) switch adds gain staging for overdrive tones",
-          "Robben Ford, Larry Carlton, Carlos Santana — the boutique clean standard",
-          "Try with single coils for that glassy, three-dimensional quality"
+          "PAB OFF and OD at 0 = pure, rich clean channel",
+          "Robben Ford, Larry Carlton, Carlos Santana — the boutique clean standard"
         ],
         whatToListenFor: [
-          "An almost 3D quality to the clean tone — depth, width, and presence",
-          "Every note should have body and weight without being tubby"
+          "An almost 3D quality — depth, width, and presence in the clean tone",
+          "Every note has body and weight without being tubby"
         ],
         source: "Yek's Guide / Fractal Wiki"
       }
@@ -1183,15 +1846,32 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
   }
 ];
 
-export function getDialInPresets(modelId: string, allModels: { id: string; label: string; basedOn: string; characteristics: string }[]): { presets: DialInPreset[]; source: "model" | "family" | "generic"; familyName?: string } {
+export function getControlLayout(modelId: string, allModels: { id: string; label: string; basedOn: string; characteristics: string }[]): AmpControlLayout {
   const override = MODEL_OVERRIDES.find(o => o.modelId === modelId);
-  if (override) {
-    return { presets: override.presets, source: "model" };
+  if (override?.controlLayout) {
+    return override.controlLayout;
   }
 
   for (const family of AMP_FAMILY_DEFAULTS) {
     if (family.modelPatterns.some(pattern => modelId.startsWith(pattern) || modelId.includes(pattern))) {
-      return { presets: family.presets, source: "family", familyName: family.familyName };
+      return family.controlLayout;
+    }
+  }
+
+  return STANDARD_MV;
+}
+
+export function getDialInPresets(modelId: string, allModels: { id: string; label: string; basedOn: string; characteristics: string }[]): { presets: DialInPreset[]; source: "model" | "family" | "generic"; familyName?: string; controlLayout: AmpControlLayout } {
+  const controlLayout = getControlLayout(modelId, allModels);
+
+  const override = MODEL_OVERRIDES.find(o => o.modelId === modelId);
+  if (override) {
+    return { presets: override.presets, source: "model", controlLayout };
+  }
+
+  for (const family of AMP_FAMILY_DEFAULTS) {
+    if (family.modelPatterns.some(pattern => modelId.startsWith(pattern) || modelId.includes(pattern))) {
+      return { presets: family.presets, source: "family", familyName: family.familyName, controlLayout };
     }
   }
 
@@ -1211,7 +1891,7 @@ export function getDialInPresets(modelId: string, allModels: { id: string; label
           "Experiment with the Bright switch at lower gain settings"
         ],
         whatToListenFor: [
-          "A clear, balanced tone as a starting point for further tweaking",
+          "A clear, balanced tone as a starting point",
           "Check how the amp responds to pick dynamics"
         ],
         source: "General starting point"
@@ -1239,7 +1919,7 @@ export function getDialInPresets(modelId: string, allModels: { id: string; label
         settings: { gain: 5, bass: 5, mid: 5, treble: 5, master: 5, presence: 5 },
         tips: [
           "Start with everything at noon and adjust from there",
-          "Move one knob at a time to hear what each control does on this particular model",
+          "Move one knob at a time to hear what each control does",
           "Listen for the amp's natural voicing before shaping with EQ"
         ],
         whatToListenFor: [
@@ -1250,7 +1930,7 @@ export function getDialInPresets(modelId: string, allModels: { id: string; label
       };
     }
 
-    return { presets: [defaultPreset], source: "generic" };
+    return { presets: [defaultPreset], source: "generic", controlLayout };
   }
 
   return {
@@ -1262,6 +1942,7 @@ export function getDialInPresets(modelId: string, allModels: { id: string; label
       whatToListenFor: ["The amp's natural voicing and response to dynamics"],
       source: "Default"
     }],
-    source: "generic"
+    source: "generic",
+    controlLayout
   };
 }

@@ -9,6 +9,7 @@ import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
+import { getControlLayout } from "@shared/knowledge/amp-dial-in";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
@@ -6115,6 +6116,26 @@ Respond in JSON format:
         return res.status(400).json({ message: "Unknown amp model" });
       }
 
+      const controlLayout = getControlLayout(input.modelId, FRACTAL_AMP_MODELS);
+
+      const knobsList = controlLayout.knobs.map(k => `"${k.id}": number (0-${k.max || 10}) // labeled "${k.label}"`).join(",\n    ");
+      const switchesList = controlLayout.switches.map(s => {
+        if (s.type === "toggle") return `"${s.id}": boolean // ${s.label} switch`;
+        return `"${s.id}": "${s.options?.join('" | "')}" // ${s.label} selector`;
+      }).join(",\n    ");
+      const eqFields = controlLayout.graphicEQ ? `"eq80": number (0-10),\n    "eq240": number (0-10),\n    "eq750": number (0-10),\n    "eq2200": number (0-10),\n    "eq6600": number (0-10)` : '';
+
+      const settingsSchema = [knobsList, switchesList, eqFields].filter(Boolean).join(",\n    ");
+
+      const controlDescription = [
+        `KNOBS: ${controlLayout.knobs.map(k => k.label).join(', ')}`,
+        controlLayout.switches.length > 0 ? `SWITCHES: ${controlLayout.switches.map(s => {
+          if (s.type === "toggle") return `${s.label} (on/off)`;
+          return `${s.label} (${s.options?.join('/')})`;
+        }).join(', ')}` : '',
+        controlLayout.graphicEQ ? 'GRAPHIC EQ: 5-band (80Hz, 240Hz, 750Hz, 2.2kHz, 6.6kHz)' : '',
+      ].filter(Boolean).join('\n');
+
       const systemPrompt = `You are an expert guitar amp tech and tone consultant with deep knowledge of the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 amp modeling platform, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, Yek's Guide to Fractal Audio Drive Models, and the Fractal Audio Forum extensively.
 
 You are deeply familiar with:
@@ -6127,6 +6148,12 @@ You are deeply familiar with:
 
 Your task: Provide detailed dial-in guidance for a specific Fractal Audio amp model. Give practical starting settings, tips, and advice that helps a guitarist get a great tone quickly.
 
+CRITICAL: This amp has these EXACT controls (matching the real hardware):
+${controlDescription}
+
+ONLY provide settings for the controls listed above. Do NOT add controls that don't exist on this amp.
+For example: Non-master-volume amps have "Volume" instead of separate Gain/Master. Jumped-channel amps have "Volume I" and "Volume II" instead of a single Gain. Vox AC30 Top Boost has no Mid control but has a Cut control. Mesa Mark amps have a 5-band Graphic EQ. Some amps have unique switches like Aggression, SAT, Voicing, Contour, etc.
+
 The amp model is: ${model.label}
 Based on: ${model.basedOn}
 Characteristics: ${model.characteristics}
@@ -6136,23 +6163,18 @@ ${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''
 
 IMPORTANT:
 - Be specific about knob positions (use 0-10 scale)
+- ONLY include the exact controls listed above in your settings object
 - Reference the real amp this model is based on
 - Include practical tips from Fractal community knowledge
 - Mention relevant Expert/Advanced parameters if they significantly improve the tone
 - Reference famous players/tones where relevant
-- Note any model-specific quirks or behaviors documented on the Fractal Wiki or forum
 
 Respond in JSON format:
 {
   "modelName": "Name of the model",
   "basedOn": "What real amp it's based on",
   "settings": {
-    "gain": number (0-10),
-    "bass": number (0-10),
-    "mid": number (0-10),
-    "treble": number (0-10),
-    "master": number (0-10),
-    "presence": number (0-10)
+    ${settingsSchema}
   },
   "expertTips": [
     {
@@ -6179,6 +6201,7 @@ Respond in JSON format:
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
+      result.controlLayout = controlLayout;
       res.json(result);
     } catch (err) {
       console.error('Amp dial-in error:', err);
