@@ -14,6 +14,7 @@ import FractalSettings from "@/pages/FractalSettings";
 import MikingGuide from "@/pages/MikingGuide";
 import IRMixer from "@/pages/IRMixer";
 import AmpDesigner from "@/pages/AmpDesigner";
+import AmpDialIn from "@/pages/AmpDialIn";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/miking-guide" component={MikingGuide} />
       <Route path="/mixer" component={IRMixer} />
       <Route path="/amp-designer" component={AmpDesigner} />
+      <Route path="/amp-dial-in" component={AmpDialIn} />
       <Route component={NotFound} />
     </Switch>
   );

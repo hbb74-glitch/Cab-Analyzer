@@ -53,7 +53,8 @@ Preferred communication style: Simple, everyday language.
 - **Reference Set Comparison**: Client-side feature to compare new IR batches against a saved "reference palette" for flavor coverage.
 - **A/B Taste Check**: Progressive multi-round taste profiling to learn preferred tonal axes, starting with broad comparisons and narrowing down. Confidence-adaptive based on learned profile status.
 - **A/B Ratio Refinement**: Phase for learning preferred blend ratios through side-by-side band chart previews at different ratios.
-- **Amp Designer / Mod Lab**: Translates real-world amp and pedal circuit mods (Jose Arredondo, Snorkler, Cameron, diode swaps, op-amp mods, etc.) into Fractal Audio Axe-FX/FM3 Expert parameters. Knowledge base covers 24 amp models, 15 drive/fuzz models, 15 known mods, and 20+ Expert parameter definitions. AI generates parameter recipes with rationale, starting points, interaction notes, and alternatives.
+- **Amp Designer / Mod Lab**: Translates real-world amp and pedal circuit mods (Jose Arredondo, Snorkler, Cameron, diode swaps, op-amp mods, etc.) into Fractal Audio Axe-FX/FM3 Expert parameters. Knowledge base covers 326 amp models, 15 drive/fuzz models, 15 known mods, and 20+ Expert parameter definitions. AI generates parameter recipes with rationale, starting points, interaction notes, and alternatives.
+- **Amp Dial-In Guide**: Starting settings for every Fractal Audio amp model (326 models). Provides curated dial-in presets organized by amp family (Fender Tweed, Blackface, Vox AC, Marshall Plexi/JCM800, Mesa Recto/Mark, Peavey 5150, Dumble, etc.) with per-model overrides for popular amps. Features SVG knob visualizations, multiple style presets per family, tips, and "what to listen for" guidance. AI-powered advisor generates personalized settings using Fractal Wiki, Yek's Guide, and forum knowledge.
 
 ## External Dependencies
 - **Database**: PostgreSQL

@@ -6102,5 +6102,92 @@ Respond in JSON format:
     }
   });
 
+  app.post('/api/amp-dial-in', async (req, res) => {
+    try {
+      const input = z.object({
+        modelId: z.string().min(1),
+        style: z.string().optional(),
+        additionalNotes: z.string().optional(),
+      }).parse(req.body);
+
+      const model = FRACTAL_AMP_MODELS.find(m => m.id === input.modelId);
+      if (!model) {
+        return res.status(400).json({ message: "Unknown amp model" });
+      }
+
+      const systemPrompt = `You are an expert guitar amp tech and tone consultant with deep knowledge of the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 amp modeling platform, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, Yek's Guide to Fractal Audio Drive Models, and the Fractal Audio Forum extensively.
+
+You are deeply familiar with:
+- Fractal Audio's naming conventions (Brit = Marshall, Dizzy = Diezel, Recto = Mesa Rectifier, Euro = Bogner, Class-A = Vox, Citrus = Orange, USA = Mesa Mark, Angle = Engl, etc.)
+- How each real-world amp's controls translate to the Fractal interface
+- The tonal characteristics of each amp model across different gain settings
+- Common EQ, gain staging, and dialing-in techniques from the Fractal community
+- Famous players associated with each amp and their typical settings
+- How the Cygnus engine interacts with different amp model types
+
+Your task: Provide detailed dial-in guidance for a specific Fractal Audio amp model. Give practical starting settings, tips, and advice that helps a guitarist get a great tone quickly.
+
+The amp model is: ${model.label}
+Based on: ${model.basedOn}
+Characteristics: ${model.characteristics}
+
+${input.style ? `The user wants to achieve this style/tone: ${input.style}` : 'Provide a versatile starting point.'}
+${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''}
+
+IMPORTANT:
+- Be specific about knob positions (use 0-10 scale)
+- Reference the real amp this model is based on
+- Include practical tips from Fractal community knowledge
+- Mention relevant Expert/Advanced parameters if they significantly improve the tone
+- Reference famous players/tones where relevant
+- Note any model-specific quirks or behaviors documented on the Fractal Wiki or forum
+
+Respond in JSON format:
+{
+  "modelName": "Name of the model",
+  "basedOn": "What real amp it's based on",
+  "settings": {
+    "gain": number (0-10),
+    "bass": number (0-10),
+    "mid": number (0-10),
+    "treble": number (0-10),
+    "master": number (0-10),
+    "presence": number (0-10)
+  },
+  "expertTips": [
+    {
+      "parameter": "Expert or Advanced parameter name",
+      "suggestion": "What to try",
+      "why": "Brief explanation"
+    }
+  ],
+  "tips": ["Practical tip 1", "Practical tip 2", ...],
+  "whatToListenFor": ["What to listen for 1", "What to listen for 2"],
+  "famousUsers": "Brief mention of famous players/tones associated with this amp",
+  "styleNotes": "How this setting works for the requested style",
+  "quickTweak": "One key adjustment that makes the biggest difference on this model"
+}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Give me detailed dial-in settings for the ${model.label} (${model.basedOn}).${input.style ? ` I want to achieve: ${input.style}` : ''} ${input.additionalNotes || ''}` }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const result = JSON.parse(response.choices[0].message.content || "{}");
+      res.json(result);
+    } catch (err) {
+      console.error('Amp dial-in error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      res.status(500).json({ message: "Failed to generate dial-in advice" });
+    }
+  });
+
   return httpServer;
 }

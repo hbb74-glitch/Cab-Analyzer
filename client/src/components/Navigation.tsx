@@ -2,6 +2,16 @@ import { Link, useLocation } from "wouter";
 import { Mic2, Activity, BarChart3, Radio, Lightbulb, Zap, BookOpen, Cherry, Blend, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+function KnobNavIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="9" x2="12" y2="5" />
+    </svg>
+  );
+}
+
 export function Navigation() {
   const [location] = useLocation();
 
@@ -13,6 +23,7 @@ export function Navigation() {
     { href: "/miking-guide", label: "Miking", icon: BookOpen },
     { href: "/fractal", label: "AM4", icon: Zap },
     { href: "/amp-designer", label: "Mod Lab", icon: Wrench },
+    { href: "/amp-dial-in", label: "Dial-In", icon: KnobNavIcon },
     { href: "/history", label: "History", icon: BarChart3 },
   ];
 
