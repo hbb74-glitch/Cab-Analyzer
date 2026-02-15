@@ -531,28 +531,6 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     frequencyData.push(freqByteData[i]);
   }
 
-  const originalLength = audioBuffer.length;
-  const interpolationFactor = Math.max(1, Math.round(FFT_SIZE / originalLength));
-  let smoothnessVarianceSum = 0;
-  let smoothnessCount = 0;
-  const minBin = Math.floor(75 / binSize);
-  const maxBin = Math.min(Math.floor(5000 / binSize), freqByteData.length - 1);
-  const smoothWindowSize = Math.max(5, Math.ceil(interpolationFactor / 2));
-  const smoothStep = Math.max(1, Math.floor(interpolationFactor / 2));
-  for (let i = minBin + smoothWindowSize; i < maxBin - smoothWindowSize; i += smoothStep) {
-    let localSum = 0;
-    for (let j = i - smoothWindowSize; j <= i + smoothWindowSize; j++) {
-      localSum += freqByteData[j];
-    }
-    const localAvg = localSum / (smoothWindowSize * 2 + 1);
-    const deviation = Math.abs(freqByteData[i] - localAvg);
-    smoothnessVarianceSum += deviation;
-    smoothnessCount++;
-  }
-  const avgDeviation = smoothnessCount > 0 ? smoothnessVarianceSum / smoothnessCount : 0;
-  const maxExpectedDeviation = 25;
-  const frequencySmoothness = Math.max(0, Math.min(100, 100 * (1 - avgDeviation / maxExpectedDeviation)));
-
   const tail = computeTailLevel(channelData, sampleRate);
 
   return {
@@ -574,7 +552,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     hasClipping,
     clippedSamples,
     crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),
-    frequencySmoothness: parseFloat(frequencySmoothness.toFixed(1)),
+    frequencySmoothness: smoothScore,
     noiseFloorDb: parseFloat(tail.noiseFloorDb.toFixed(1)),
     isTruncatedIR: tail.isTruncatedIR,
     spectralTilt: parseFloat(spectralTilt.toFixed(4)),
