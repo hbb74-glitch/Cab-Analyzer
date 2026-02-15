@@ -50,20 +50,83 @@ export function scoreToLabel(score: number): "strong" | "close" | "partial" | "m
 export function computeTonalFeatures(metrics: any): TonalFeatures {
   const bandsRaw = extractBandsRaw(metrics);
 
+  const bandsPercent = bandsToPercent(bandsRaw);
+  const bandsShapeDb = bandsToShapeDb(bandsRaw);
+
+  const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
+  const smoothScore =
+    Number.isFinite(smoothFromMetrics)
+      ? smoothFromMetrics!
+      : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
+
   return {
     bandsRaw,
-    bandsPercent: bandsToPercent(bandsRaw),
-    bandsShapeDb: bandsToShapeDb(bandsRaw),
+    bandsPercent,
+    bandsShapeDb,
 
     tiltDbPerOct: safeNumber(metrics?.spectralTilt),
 
-    smoothScore: metrics?.smoothScore,
+    smoothScore,
     notchCount: metrics?.notchCount,
     maxNotchDepth: metrics?.maxNotchDepth,
     rolloffFreq: metrics?.rolloffFreq,
     tailLevelDb: metrics?.tailLevelDb,
     tailStatus: metrics?.tailStatus,
   };
+}
+
+function normalizeSmoothScore(v: any): number | undefined {
+  const n = safeNumber(v);
+  if (!Number.isFinite(n)) return undefined;
+  if (n === 0) return undefined;
+
+  if (n >= 0 && n <= 1.2) return clamp01(n) * 100;
+  if (n >= 0 && n <= 100) return n;
+
+  return undefined;
+}
+
+function computeProxySmoothScoreFromShapeDb(shape: TonalBands): number {
+  const keys: BandKey[] = BAND_KEYS;
+  const v = keys.map((k) => safeNumber(shape[k]));
+
+  const diffs: number[] = [];
+  for (let i = 0; i < v.length - 1; i++) diffs.push(Math.abs(v[i + 1] - v[i]));
+  const meanDiff = diffs.reduce((a, b) => a + b, 0) / Math.max(1, diffs.length);
+
+  const curvs: number[] = [];
+  for (let i = 0; i < v.length - 2; i++) {
+    curvs.push(Math.abs(v[i + 2] - 2 * v[i + 1] + v[i]));
+  }
+  const meanCurv = curvs.reduce((a, b) => a + b, 0) / Math.max(1, curvs.length);
+
+  const air = safeNumber(shape.air);
+  const presence = safeNumber(shape.presence);
+  const highMid = safeNumber(shape.highMid);
+  const fizzExcess = air - Math.max(presence, highMid);
+
+  const presenceSpike = presence - highMid;
+
+  const roughness =
+    meanDiff * 1.0 +
+    meanCurv * 0.7 +
+    Math.max(0, fizzExcess - 1.0) * 1.2 +
+    Math.max(0, presenceSpike - 2.0) * 0.9;
+
+  const score = 100 - roughness * 10;
+
+  return Math.round(clamp(score, 0, 100));
+}
+
+function clamp01(x: number): number {
+  return clamp(x, 0, 1);
+}
+
+function clamp(x: number, lo: number, hi: number): number {
+  if (!Number.isFinite(x)) return lo;
+  if (x < lo) return lo;
+  if (x > hi) return hi;
+  return x;
 }
 
 function extractBandsRaw(metrics: any): TonalBands {
@@ -145,21 +208,23 @@ export function blendFeatures(
   const blendedRaw: any = {};
 
   for (const k of BAND_KEYS) {
-    blendedRaw[k] =
-      a.bandsRaw[k] * aGain +
-      b.bandsRaw[k] * bGain;
+    blendedRaw[k] = a.bandsRaw[k] * aGain + b.bandsRaw[k] * bGain;
   }
+
+  const blendedPercent = bandsToPercent(blendedRaw);
+  const blendedShapeDb = bandsToShapeDb(blendedRaw);
+
+  const blendedSmooth = computeProxySmoothScoreFromShapeDb(blendedShapeDb);
 
   return {
     bandsRaw: blendedRaw,
-    bandsPercent: bandsToPercent(blendedRaw),
-    bandsShapeDb: bandsToShapeDb(blendedRaw),
+    bandsPercent: blendedPercent,
+    bandsShapeDb: blendedShapeDb,
 
-    tiltDbPerOct:
-      a.tiltDbPerOct * aGain +
-      b.tiltDbPerOct * bGain,
+    tiltDbPerOct: a.tiltDbPerOct * aGain + b.tiltDbPerOct * bGain,
 
-    smoothScore: blendScalar(a.smoothScore, b.smoothScore, aGain, bGain),
+    smoothScore: blendedSmooth,
+
     notchCount: blendScalar(a.notchCount, b.notchCount, aGain, bGain),
     maxNotchDepth: blendScalar(a.maxNotchDepth, b.maxNotchDepth, aGain, bGain),
     rolloffFreq: blendScalar(a.rolloffFreq, b.rolloffFreq, aGain, bGain),
@@ -209,9 +274,9 @@ export function scoreBlend(
     tiltWeight;
 
   if (features.smoothScore !== undefined) {
-    if (features.smoothScore < 0.55) {
+    if (features.smoothScore < 55) {
       score +=
-        (0.55 - features.smoothScore) *
+        ((55 - features.smoothScore) / 100) *
         smoothPenaltyWeight;
     }
   }

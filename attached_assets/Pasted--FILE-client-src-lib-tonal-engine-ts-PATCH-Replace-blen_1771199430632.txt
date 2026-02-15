@@ -1,0 +1,151 @@
+// FILE: client/src/lib/tonal-engine.ts
+// PATCH: Replace “blended smoothness” with a deterministic proxy computed from bandsShapeDb,
+//        and (optionally) auto-normalize any upstream smoothScore (0–1 vs 0–100).
+
+// ===============================
+// 1) Update computeTonalFeatures()
+// ===============================
+
+export function computeTonalFeatures(metrics: any): TonalFeatures {
+  const bandsRaw = extractBandsRaw(metrics);
+
+  const bandsPercent = bandsToPercent(bandsRaw);
+  const bandsShapeDb = bandsToShapeDb(bandsRaw);
+
+  // If upstream provides smoothScore, it may be 0–1 or 0–100 depending on the analyzer.
+  const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
+  const smoothScore =
+    Number.isFinite(smoothFromMetrics)
+      ? smoothFromMetrics
+      : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
+
+  return {
+    bandsRaw,
+    bandsPercent,
+    bandsShapeDb,
+
+    tiltDbPerOct: safeNumber(metrics?.spectralTilt),
+
+    smoothScore,
+    notchCount: metrics?.notchCount,
+    maxNotchDepth: metrics?.maxNotchDepth,
+    rolloffFreq: metrics?.rolloffFreq,
+    tailLevelDb: metrics?.tailLevelDb,
+    tailStatus: metrics?.tailStatus,
+  };
+}
+
+// ===========================================
+// 2) Add these helper functions (NEW CODE)
+//    Put them right below computeTonalFeatures
+// ===========================================
+
+function normalizeSmoothScore(v: any): number | undefined {
+  const n = safeNumber(v);
+  if (!Number.isFinite(n)) return undefined;
+
+  // Common cases:
+  // - 0..1 (fraction): scale to 0..100
+  // - 0..100 already: keep
+  if (n >= 0 && n <= 1.2) return clamp01(n) * 100;
+  if (n >= 0 && n <= 100) return n;
+
+  // Anything else is suspicious (wrong scale); ignore it and use proxy.
+  return undefined;
+}
+
+function computeProxySmoothScoreFromShapeDb(shape: TonalBands): number {
+  // This is a spectrum-free proxy:
+  // “Smooth” ≈ low jaggedness across adjacent bands + low ‘air’ excess (fizz proxy).
+  // It’s deterministic, stable, blend-responsive, and prevents “smooth=100 always”.
+
+  // Use all bands except subBass? (Keep subBass in; it helps detect low-end weirdness.)
+  const keys: BandKey[] = BAND_KEYS;
+  const v = keys.map((k) => safeNumber(shape[k]));
+
+  // 1st derivative: adjacent band-to-band jumps (jaggedness)
+  const diffs: number[] = [];
+  for (let i = 0; i < v.length - 1; i++) diffs.push(Math.abs(v[i + 1] - v[i]));
+  const meanDiff = diffs.reduce((a, b) => a + b, 0) / Math.max(1, diffs.length);
+
+  // 2nd derivative: curvature (spikiness between bands)
+  const curvs: number[] = [];
+  for (let i = 0; i < v.length - 2; i++) {
+    curvs.push(Math.abs(v[i + 2] - 2 * v[i + 1] + v[i]));
+  }
+  const meanCurv = curvs.reduce((a, b) => a + b, 0) / Math.max(1, curvs.length);
+
+  // Fizz proxy: “air” meaningfully higher than presence/highMid implies hash/fizz potential
+  const air = safeNumber(shape.air);
+  const presence = safeNumber(shape.presence);
+  const highMid = safeNumber(shape.highMid);
+  const fizzExcess = air - Math.max(presence, highMid);
+
+  // Presence spike proxy: presence much higher than highMid can correlate with harsh peaks
+  const presenceSpike = presence - highMid;
+
+  // Convert “roughness” into 0..100 smooth score.
+  // Tune factors to keep values spread (not all 95–100).
+  const roughness =
+    meanDiff * 1.0 +
+    meanCurv * 0.7 +
+    Math.max(0, fizzExcess - 1.0) * 1.2 +
+    Math.max(0, presenceSpike - 2.0) * 0.9;
+
+  // Mapping: higher roughness -> lower smooth score
+  // Roughness 0 => 100; roughness ~8 => ~20 (approx)
+  const score = 100 - roughness * 10;
+
+  return Math.round(clamp(score, 0, 100));
+}
+
+function clamp01(x: number): number {
+  return clamp(x, 0, 1);
+}
+
+function clamp(x: number, lo: number, hi: number): number {
+  if (!Number.isFinite(x)) return lo;
+  if (x < lo) return lo;
+  if (x > hi) return hi;
+  return x;
+}
+
+// =====================================
+// 3) Update blendFeatures() (CRITICAL)
+// =====================================
+
+export function blendFeatures(
+  a: TonalFeatures,
+  b: TonalFeatures,
+  aGain: number,
+  bGain: number
+): TonalFeatures {
+  const blendedRaw: any = {};
+
+  for (const k of BAND_KEYS) {
+    blendedRaw[k] = a.bandsRaw[k] * aGain + b.bandsRaw[k] * bGain;
+  }
+
+  const blendedPercent = bandsToPercent(blendedRaw);
+  const blendedShapeDb = bandsToShapeDb(blendedRaw);
+
+  // IMPORTANT: do NOT blend smoothScore as a scalar — compute it from blended shape.
+  const blendedSmooth = computeProxySmoothScoreFromShapeDb(blendedShapeDb);
+
+  return {
+    bandsRaw: blendedRaw,
+    bandsPercent: blendedPercent,
+    bandsShapeDb: blendedShapeDb,
+
+    tiltDbPerOct: a.tiltDbPerOct * aGain + b.tiltDbPerOct * bGain,
+
+    smoothScore: blendedSmooth,
+
+    // These can remain scalar blends until/unless you have spectrum to recompute:
+    notchCount: blendScalar(a.notchCount, b.notchCount, aGain, bGain),
+    maxNotchDepth: blendScalar(a.maxNotchDepth, b.maxNotchDepth, aGain, bGain),
+    rolloffFreq: blendScalar(a.rolloffFreq, b.rolloffFreq, aGain, bGain),
+    tailLevelDb: blendScalar(a.tailLevelDb, b.tailLevelDb, aGain, bGain),
+    tailStatus: undefined,
+  };
+}
