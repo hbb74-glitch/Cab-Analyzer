@@ -2,6 +2,7 @@ import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, Ale
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, getGearContext, parseGearFromFilename, inferShotIntentFromFilename, type TonalBands, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { TonalDashboard } from "./TonalDashboard";
 
 interface BestPosition {
   position: string;
@@ -34,6 +35,18 @@ interface TonalBalance {
   highMidMidRatio?: number;
 }
 
+interface TonalMetrics {
+  spectralTilt?: number | null;
+  rolloffFreq?: number | null;
+  smoothScore?: number | null;
+  maxNotchDepth?: number | null;
+  notchCount?: number | null;
+  spectralCentroid?: number | null;
+  tailLevelDb?: number | null;
+  tailStatus?: string | null;
+  logBandEnergies?: number[] | null;
+}
+
 interface ResultCardProps {
   score: number;
   isPerfect: boolean;
@@ -45,6 +58,7 @@ interface ResultCardProps {
     smoothness?: number;
     noiseFloor?: number;
   };
+  tonalMetrics?: TonalMetrics | null;
   micLabel?: string;
   bestPositions?: BestPosition[];
   renameSuggestion?: RenameSuggestion | null;
@@ -321,7 +335,7 @@ const POSITION_LABELS: Record<string, string> = {
   "cap-off-center": "Cap_OffCenter",
 };
 
-export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation, tonalBalance, activeProfiles, learnedProfile }: ResultCardProps) {
+export function ResultCard({ score, isPerfect, advice, metrics, tonalMetrics, micLabel, bestPositions, renameSuggestion, filename, spectralDeviation, tonalBalance, activeProfiles, learnedProfile }: ResultCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -417,52 +431,61 @@ export function ResultCard({ score, isPerfect, advice, metrics, micLabel, bestPo
             </p>
           </div>
           
-          <div className="grid grid-cols-3 md:grid-cols-5 gap-4 pt-2">
-            <div className="space-y-1">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Peak</span>
-              <p className={cn("text-lg font-mono font-medium", metrics.peak > -0.5 ? "text-destructive" : "text-foreground")}>
-                {metrics.peak} dB
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Samples</span>
-              <p className="text-lg font-mono font-medium text-foreground">
-                {metrics.duration}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs uppercase tracking-wider text-muted-foreground">Centroid</span>
-              <p className="text-lg font-mono font-medium text-foreground">
-                {metrics.centroid} Hz
-              </p>
-            </div>
-            {metrics.smoothness != null && (
+          {tonalMetrics && (
+            <TonalDashboard
+              spectralTilt={tonalMetrics.spectralTilt}
+              rolloffFreq={tonalMetrics.rolloffFreq}
+              smoothScore={tonalMetrics.smoothScore}
+              maxNotchDepth={tonalMetrics.maxNotchDepth}
+              notchCount={tonalMetrics.notchCount}
+              spectralCentroid={tonalMetrics.spectralCentroid}
+              tailLevelDb={tonalMetrics.tailLevelDb}
+              tailStatus={tonalMetrics.tailStatus}
+              logBandEnergies={tonalMetrics.logBandEnergies}
+              subBassPercent={tonalBalance?.subBassPercent}
+              bassPercent={tonalBalance?.bassPercent}
+              lowMidPercent={tonalBalance?.lowMidPercent}
+              midPercent={tonalBalance?.midPercent}
+              highMidPercent={tonalBalance?.highMidPercent}
+              presencePercent={tonalBalance?.presencePercent}
+              ultraHighPercent={tonalBalance?.ultraHighPercent}
+            />
+          )}
+          {!tonalMetrics && (
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-4 pt-2">
               <div className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Smoothness</span>
-                <p className={cn(
-                  "text-lg font-mono font-medium",
-                  metrics.smoothness >= 80 ? "text-emerald-400" :
-                  metrics.smoothness >= 60 ? "text-foreground" :
-                  metrics.smoothness >= 45 ? "text-amber-400" : "text-red-400"
-                )}>
-                  {Math.round(metrics.smoothness)}/100
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Peak</span>
+                <p className={cn("text-lg font-mono font-medium", metrics.peak > -0.5 ? "text-destructive" : "text-foreground")}>
+                  {metrics.peak} dB
                 </p>
               </div>
-            )}
-            {metrics.noiseFloor != null && (
               <div className="space-y-1">
-                <span className="text-xs uppercase tracking-wider text-muted-foreground">Noise Floor</span>
-                <p className={cn(
-                  "text-lg font-mono font-medium",
-                  metrics.noiseFloor <= -60 ? "text-emerald-400" :
-                  metrics.noiseFloor <= -45 ? "text-foreground" :
-                  metrics.noiseFloor <= -35 ? "text-amber-400" : "text-red-400"
-                )}>
-                  {metrics.noiseFloor.toFixed(1)} dB
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Samples</span>
+                <p className="text-lg font-mono font-medium text-foreground">
+                  {metrics.duration}
                 </p>
               </div>
-            )}
-          </div>
+              <div className="space-y-1">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Centroid</span>
+                <p className="text-lg font-mono font-medium text-foreground">
+                  {metrics.centroid} Hz
+                </p>
+              </div>
+              {metrics.smoothness != null && (
+                <div className="space-y-1">
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground">Smoothness</span>
+                  <p className={cn(
+                    "text-lg font-mono font-medium",
+                    metrics.smoothness >= 80 ? "text-emerald-400" :
+                    metrics.smoothness >= 60 ? "text-foreground" :
+                    metrics.smoothness >= 45 ? "text-amber-400" : "text-red-400"
+                  )}>
+                    {Math.round(metrics.smoothness)}/100
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {spectralDeviation && (
             <div className={cn(

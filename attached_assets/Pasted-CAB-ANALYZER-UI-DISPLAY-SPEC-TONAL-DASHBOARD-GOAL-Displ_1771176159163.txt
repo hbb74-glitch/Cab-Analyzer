@@ -1,0 +1,109 @@
+CAB ANALYZER — UI DISPLAY SPEC (TONAL DASHBOARD)
+
+GOAL
+- Display only metrics that are perceptually meaningful.
+- Keep presentation musician-friendly, not scientific.
+- Every metric must answer: “What does this mean for tone?”
+
+============================================================
+PRIMARY TONAL DASHBOARD (TOP SECTION)
+============================================================
+
+1) GLOBAL TILT
+--------------------------------
+Label: "Tilt"
+Value:
+  - Dark
+  - Neutral
+  - Bright
+Subtext:
+  Numeric slope (optional small text)
+Color Bar:
+  Blue → Neutral → Orange
+
+Meaning:
+  Overall tonal slope from 200 Hz–8 kHz.
+
+============================================================
+
+2) ROLLOFF (HIGH EXTENSION)
+--------------------------------
+Label: "High Extension"
+Value:
+  - Early Rolloff
+  - Moderate
+  - Extended High End
+Subtext:
+  Rolloff Frequency (Hz)
+
+Meaning:
+  Where 85% of energy lies.
+
+============================================================
+
+3) BODY INDEX (250–500 Hz)
+--------------------------------
+Label: "Body"
+Value:
+  Lean / Balanced / Thick
+Subtext:
+  Relative low-mid energy %
+
+Meaning:
+  Thickness / woodiness.
+
+============================================================
+
+4) PRESENCE BITE (2–4 kHz)
+--------------------------------
+Label: "Bite"
+Value:
+  Soft / Defined / Aggressive
+Subtext:
+  Relative high-mid %
+
+Meaning:
+  Attack / cut / pick clarity.
+
+============================================================
+
+5) SMOOTHNESS
+--------------------------------
+Label: "Smoothness"
+Value:
+  Smooth / Moderate Ripple / Comb Risk
+Subtext:
+  SmoothScore (0–100)
+Optional:
+  Max Notch Depth (dB)
+
+Meaning:
+  Risk of phasey/hollow character.
+
+============================================================
+
+6) TONAL BALANCE VISUAL
+--------------------------------
+Horizontal 6–7 band bar:
+  Sub | Bass | Low-Mid | Mid | High-Mid | Presence | Air
+Normalized visual bars.
+
+Purpose:
+  Quick visual tonal fingerprint.
+
+============================================================
+
+SECONDARY SECTION (ADVANCED PANEL)
+============================================================
+
+- Spectral Centroid (Hz)
+- Spectral Tilt numeric value
+- Rolloff Hz
+- Notch Count (>6 dB)
+- Tail Level (if applicable)
+
+These are collapsible.
+
+============================================================
+END UI SPEC
+============================================================

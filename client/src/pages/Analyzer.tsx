@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCreateAnalysis, analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { FrequencyGraph } from "@/components/FrequencyGraph";
 import { ResultCard } from "@/components/ResultCard";
+import { TonalDashboard, TonalDashboardCompact } from "@/components/TonalDashboard";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
@@ -3617,23 +3618,15 @@ export default function Analyzer() {
                               )}
                             </div>
                             {ir.metrics && (
-                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span>{ir.metrics.durationMs.toFixed(1)}ms</span>
-                                <span>Centroid: <span className="text-foreground">{ir.metrics.spectralCentroid.toFixed(0)}Hz</span></span>
-                                <span>Smooth: <span className="text-foreground">{((ir.metrics as any).smoothScore ?? ir.metrics.frequencySmoothness).toFixed(0)}</span></span>
-                                {ir.metrics.hasClipping && (
-                                  <span>Crest: <span className="text-amber-400">{ir.metrics.crestFactorDb.toFixed(1)}dB</span></span>
-                                )}
-                                {(ir.metrics as any).tailLevelDb != null && (ir.metrics as any).tailLevelDb > -45 && (
-                                  <span>Tail: <span className={(ir.metrics as any).tailLevelDb > -35 ? "text-amber-400" : "text-foreground"}>{((ir.metrics as any).tailLevelDb as number).toFixed(0)}dB</span></span>
-                                )}
-                                {(ir.metrics as any).tailLevelDb == null && ir.metrics.noiseFloorDb > -45 && (
-                                  <span>Tail: <span className={ir.metrics.noiseFloorDb > -35 ? "text-amber-400" : "text-foreground"}>{ir.metrics.noiseFloorDb.toFixed(0)}dB</span></span>
-                                )}
-                                {(ir.metrics as any).spectralTilt != null && (
-                                  <span>Tilt: <span className={(ir.metrics as any).spectralTilt > 0.5 ? "text-amber-400" : (ir.metrics as any).spectralTilt < -2.0 ? "text-blue-400" : "text-foreground"}>{((ir.metrics as any).spectralTilt as number).toFixed(2)}</span></span>
-                                )}
-                              </div>
+                              <TonalDashboardCompact
+                                spectralTilt={ir.metrics.spectralTilt}
+                                rolloffFreq={ir.metrics.rolloffFreq}
+                                smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
+                                lowMidPercent={(ir.metrics as any).lowMidPercent}
+                                bassPercent={(ir.metrics as any).bassPercent}
+                                highMidPercent={(ir.metrics as any).highMidPercent}
+                                presencePercent={(ir.metrics as any).presencePercent}
+                              />
                             )}
                             {ir.error && (
                               <p className="text-xs text-destructive">{ir.error}</p>
@@ -4366,126 +4359,31 @@ export default function Analyzer() {
                           </div>
                         )}
 
-                        {/* Quality Metrics: Smoothness, Tail Level, Tilt, Rolloff */}
-                        {(r.frequencySmoothness != null || r.noiseFloorDb != null || (r as any).smoothScore != null) && (
-                          <div className="mt-2 p-2 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-center gap-3 text-xs">
-                            <Activity className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                            <div className="flex-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                              {(r as any).smoothScore != null && (
-                                <span className="text-muted-foreground">
-                                  Smoothness: <span className={cn(
-                                    "font-mono font-medium",
-                                    (r as any).smoothScore >= 80 ? "text-emerald-400" :
-                                    (r as any).smoothScore >= 60 ? "text-foreground" :
-                                    (r as any).smoothScore >= 45 ? "text-amber-400" : "text-red-400"
-                                  )}>{Math.round((r as any).smoothScore)}/100</span>
-                                </span>
-                              )}
-                              {(r as any).smoothScore == null && r.frequencySmoothness != null && (
-                                <span className="text-muted-foreground">
-                                  Smoothness: <span className={cn(
-                                    "font-mono font-medium",
-                                    r.frequencySmoothness >= 80 ? "text-emerald-400" :
-                                    r.frequencySmoothness >= 60 ? "text-foreground" :
-                                    r.frequencySmoothness >= 45 ? "text-amber-400" : "text-red-400"
-                                  )}>{Math.round(r.frequencySmoothness)}/100</span>
-                                </span>
-                              )}
-                              {(r as any).tailLevelDb != null && (
-                                <span className="text-muted-foreground">
-                                  Tail: <span className={cn(
-                                    "font-mono font-medium",
-                                    (r as any).tailLevelDb <= -60 ? "text-emerald-400" :
-                                    (r as any).tailLevelDb <= -45 ? "text-foreground" :
-                                    (r as any).tailLevelDb <= -35 ? "text-amber-400" : "text-red-400"
-                                  )}>{((r as any).tailLevelDb as number).toFixed(1)} dB</span>
-                                  {(r as any).tailStatus && (r as any).tailStatus !== 'measured' && (
-                                    <span className="text-muted-foreground/60 ml-1">({(r as any).tailStatus})</span>
-                                  )}
-                                </span>
-                              )}
-                              {(r as any).tailLevelDb == null && r.noiseFloorDb != null && (
-                                <span className="text-muted-foreground">
-                                  Tail: <span className={cn(
-                                    "font-mono font-medium",
-                                    r.noiseFloorDb <= -60 ? "text-emerald-400" :
-                                    r.noiseFloorDb <= -45 ? "text-foreground" :
-                                    r.noiseFloorDb <= -35 ? "text-amber-400" : "text-red-400"
-                                  )}>{r.noiseFloorDb.toFixed(1)} dB</span>
-                                </span>
-                              )}
-                              {(r as any).spectralTilt != null && (
-                                <span className="text-muted-foreground">
-                                  Tilt: <span className={cn(
-                                    "font-mono font-medium",
-                                    (r as any).spectralTilt > 0.5 ? "text-amber-400" :
-                                    (r as any).spectralTilt < -2.0 ? "text-blue-400" : "text-foreground"
-                                  )}>{((r as any).spectralTilt as number).toFixed(2)}</span>
-                                  <span className="text-muted-foreground/60 ml-0.5">
-                                    {(r as any).spectralTilt > 0.5 ? "(bright)" : (r as any).spectralTilt < -2.0 ? "(dark)" : ""}
-                                  </span>
-                                </span>
-                              )}
-                              {(r as any).rolloffFreq != null && (
-                                <span className="text-muted-foreground">
-                                  Rolloff: <span className="font-mono font-medium text-foreground">{((r as any).rolloffFreq as number) >= 1000 ? `${((r as any).rolloffFreq / 1000).toFixed(1)}k` : `${Math.round((r as any).rolloffFreq)}`}Hz</span>
-                                </span>
-                              )}
-                              {(r as any).maxNotchDepth != null && (r as any).maxNotchDepth > 6 && (
-                                <span className="text-muted-foreground">
-                                  Notch: <span className={cn(
-                                    "font-mono font-medium",
-                                    (r as any).maxNotchDepth > 15 ? "text-red-400" :
-                                    (r as any).maxNotchDepth > 10 ? "text-amber-400" : "text-foreground"
-                                  )}>-{((r as any).maxNotchDepth as number).toFixed(0)}dB</span>
-                                  {(r as any).notchCount > 1 && (
-                                    <span className="text-muted-foreground/60 ml-0.5">({(r as any).notchCount}x)</span>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                        {/* Tonal Dashboard */}
+                        <div className="mt-2">
+                          <TonalDashboard
+                            spectralTilt={(r as any).spectralTilt}
+                            rolloffFreq={(r as any).rolloffFreq}
+                            smoothScore={(r as any).smoothScore ?? r.frequencySmoothness}
+                            maxNotchDepth={(r as any).maxNotchDepth}
+                            notchCount={(r as any).notchCount}
+                            spectralCentroid={(r as any).spectralCentroid}
+                            tailLevelDb={(r as any).tailLevelDb}
+                            tailStatus={(r as any).tailStatus}
+                            logBandEnergies={(r as any).logBandEnergies}
+                            subBassPercent={r.subBassPercent}
+                            bassPercent={r.bassPercent}
+                            lowMidPercent={r.lowMidPercent}
+                            midPercent={r.midPercent}
+                            highMidPercent={r.highMidPercent}
+                            presencePercent={r.presencePercent}
+                            ultraHighPercent={(r as any).ultraHighPercent}
+                          />
+                        </div>
 
-                        {/* 6-Band Tonal Balance */}
+                        {/* Preference Match (from old tonal balance) */}
                         {r.midPercent != null && r.highMidPercent != null && r.presencePercent != null && (
                           <div className="mt-2 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Layers className="w-4 h-4 text-indigo-400" />
-                              <span className="text-xs font-medium text-indigo-400">Tonal Balance</span>
-                              {r.highMidMidRatio != null && (
-                                <span className={cn(
-                                  "ml-auto text-xs font-mono px-1.5 py-0.5 rounded",
-                                  r.highMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                                  r.highMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                                  "bg-amber-500/20 text-amber-400"
-                                )}>
-                                  HiMid/Mid: {r.highMidMidRatio.toFixed(2)}
-                                  {r.highMidMidRatio < 1.0 ? " (dark)" : r.highMidMidRatio > 2.0 ? " (bright)" : ""}
-                                </span>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-6 gap-1 text-[10px]">
-                              {[
-                                { label: "SubB", value: r.subBassPercent, color: "bg-purple-500" },
-                                { label: "Bass", value: r.bassPercent, color: "bg-blue-500" },
-                                { label: "LowM", value: r.lowMidPercent, color: "bg-cyan-500" },
-                                { label: "Mid", value: r.midPercent, color: "bg-green-500" },
-                                { label: "HiMid", value: r.highMidPercent, color: "bg-yellow-500" },
-                                { label: "Pres", value: r.presencePercent, color: "bg-orange-500" },
-                              ].map((band) => (
-                                <div key={band.label} className="flex flex-col items-center">
-                                  <div className="w-full h-16 bg-white/5 rounded-sm overflow-hidden flex flex-col-reverse">
-                                    <div 
-                                      className={cn(band.color, "w-full transition-all")}
-                                      style={{ height: `${Math.min(band.value || 0, 100)}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-muted-foreground mt-1">{band.label}</span>
-                                  <span className="text-foreground font-mono">{band.value?.toFixed(1)}%</span>
-                                </div>
-                              ))}
-                            </div>
                             {(() => {
                               const bands: TonalBands = {
                                 subBass: r.subBassPercent || 0,
@@ -6198,6 +6096,17 @@ export default function Analyzer() {
                       centroid: metrics.spectralCentroid,
                       smoothness: metrics.smoothScore ?? metrics.frequencySmoothness,
                       noiseFloor: metrics.noiseFloorDb
+                    }}
+                    tonalMetrics={{
+                      spectralTilt: metrics.spectralTilt,
+                      rolloffFreq: metrics.rolloffFreq,
+                      smoothScore: metrics.smoothScore,
+                      maxNotchDepth: metrics.maxNotchDepth,
+                      notchCount: metrics.notchCount,
+                      spectralCentroid: metrics.spectralCentroid,
+                      tailLevelDb: metrics.tailLevelDb,
+                      tailStatus: metrics.tailStatus,
+                      logBandEnergies: metrics.logBandEnergies,
                     }}
                     micLabel={result.micLabel}
                     renameSuggestion={result.renameSuggestion}
