@@ -33,30 +33,44 @@ export interface ExpertParameter {
 }
 
 export const FRACTAL_AMP_MODELS: AmpModel[] = [
-  { id: "plexi-50w", label: "Plexi 50W", basedOn: "Marshall JTM45 / JMP50", category: "amp", characteristics: "Classic British crunch, mid-forward, no master volume. Clean to medium gain, very dynamic and touch-sensitive." },
-  { id: "plexi-100w", label: "Plexi 100W", basedOn: "Marshall Super Lead 100W 1959", category: "amp", characteristics: "Louder, tighter low-end than 50W. Iconic classic rock tone. Needs to be cranked for breakup." },
-  { id: "1987x", label: "1987X", basedOn: "Marshall 1987X reissue", category: "amp", characteristics: "Modern reissue of the Plexi circuit. Slightly tighter than original, faithful to the Plexi character." },
-  { id: "jcm800", label: "JCM 800", basedOn: "Marshall JCM 800 2203/2204", category: "amp", characteristics: "Single-channel master volume Marshall. More gain than Plexi, tighter response. Iconic 80s rock/metal tone." },
-  { id: "jcm2000", label: "JCM 2000", basedOn: "Marshall JCM 2000 DSL/TSL", category: "amp", characteristics: "Dual-channel Marshall with more modern voicing. More gain, smoother distortion than JCM 800." },
-  { id: "afb100", label: "AFB100 (Friedman)", basedOn: "Friedman BE-100", category: "amp", characteristics: "Hot-rodded Marshall-style. Very high gain, tight low-end, aggressive midrange. Modern high-gain rock/metal." },
-  { id: "sol-100", label: "Solo 100", basedOn: "Soldano SLO-100", category: "amp", characteristics: "Legendary high-gain amp. Smooth, liquid lead tone with singing sustain. Defined low-end, vocal midrange." },
-  { id: "usa-lead", label: "USA Lead", basedOn: "Mesa Boogie Mark IIC+", category: "amp", characteristics: "Scooped, tight, aggressive. The Metallica Master of Puppets tone. Heavy low-end, searing highs, scooped mids." },
-  { id: "usa-rhythm", label: "USA Rhythm", basedOn: "Mesa Boogie Mark IV", category: "amp", characteristics: "Versatile Mesa tone. Tight, percussive rhythm with adjustable voicing. Works clean to high gain." },
-  { id: "recto-red", label: "Recto Red Modern", basedOn: "Mesa Dual/Triple Rectifier", category: "amp", characteristics: "Massive, saturated gain. Loose low-end, scooped mids, huge wall of sound. Defines modern heavy tones." },
-  { id: "euro-red", label: "Euro Red", basedOn: "Bogner Ecstasy Red", category: "amp", characteristics: "Refined high-gain with European voicing. Smooth, articulate, not as aggressive as Recto. Complex harmonics." },
-  { id: "euro-blue", label: "Euro Blue", basedOn: "Bogner Ecstasy Blue", category: "amp", characteristics: "Lower gain Bogner channel. Beautiful crunch, very dynamic. Excellent clean-to-crunch range." },
-  { id: "brit-800", label: "Brit 800", basedOn: "Marshall JCM 800 (Fractal model)", category: "amp", characteristics: "Fractal's take on the JCM 800. Tight, punchy, aggressive midrange. Great for classic hard rock and metal." },
-  { id: "class-a-30", label: "Class A 30W", basedOn: "Vox AC30", category: "amp", characteristics: "Class A chimey cleans, complex breakup with harmonics. The Beatles/Brian May/The Edge tone." },
-  { id: "class-a-15", label: "Class A 15W", basedOn: "Vox AC15", category: "amp", characteristics: "Smaller, earlier breakup than AC30. Warmer, more compressed. Great for blues and indie." },
-  { id: "deluxe-verb", label: "Deluxe Verb", basedOn: "Fender Deluxe Reverb", category: "amp", characteristics: "Classic American clean. Sweet, chimey, breaks up nicely when pushed. Studio workhorse." },
-  { id: "twin-verb", label: "Twin Verb", basedOn: "Fender Twin Reverb", category: "amp", characteristics: "Maximum Fender clean headroom. Crystal clear, scooped, very loud. Country, jazz, clean tones." },
-  { id: "bassman", label: "Bassman", basedOn: "Fender Bassman", category: "amp", characteristics: "The original. Predecessor to Marshall. Warm, fat, breaks up beautifully. Blues standard." },
-  { id: "5153-red", label: "5153 Red", basedOn: "EVH 5150III Red Channel", category: "amp", characteristics: "Eddie Van Halen's modern high-gain. Tight, aggressive, very defined palm mutes. Modern rock/metal standard." },
-  { id: "5153-blue", label: "5153 Blue", basedOn: "EVH 5150III Blue Channel", category: "amp", characteristics: "Clean/crunch channel. Fender-ish cleans with hot-rod capabilities. Very versatile." },
-  { id: "das-metal", label: "Das Metall", basedOn: "Diezel VH4", category: "amp", characteristics: "German engineering for extreme tones. Tight, aggressive, surgical precision. Modern metal monster." },
-  { id: "herbie", label: "Herbie", basedOn: "Diezel Herbert", category: "amp", characteristics: "Versatile Diezel. Three channels from clean to crushing. More flexibility than VH4." },
-  { id: "cameron-chl", label: "Cameron CCV", basedOn: "Cameron-modded Marshall", category: "amp", characteristics: "Mark Cameron's hot-rodded Marshall. Higher gain, tighter response, more modern voicing than stock." },
+  { id: "1959slp", label: "1959SLP (Plexi 100W)", basedOn: "Marshall Super Lead 100W 1959 reissue", category: "amp", characteristics: "Iconic 100W Plexi. Louder, tighter low-end. Classic rock tone from Led Zeppelin to EVH early tones. Needs to be cranked for breakup. Treble/Normal/Jumped channels." },
+  { id: "1987x", label: "1987X (Plexi 50W)", basedOn: "Marshall 1987X reissue (50W)", category: "amp", characteristics: "50W Plexi reissue. Classic British crunch, mid-forward, no master volume. Clean to medium gain, very dynamic and touch-sensitive. Treble/Normal/Jumped channels." },
+  { id: "brit-jm45", label: "Brit JM45", basedOn: "Marshall JTM 45", category: "amp", characteristics: "The original Marshall. Based on the Fender Bassman circuit with British voicing. Warm, fat crunch. Predecessor to all Marshall designs." },
+  { id: "brit-800-2204", label: "Brit 800 2204", basedOn: "Marshall JCM 800 2204 (50W)", category: "amp", characteristics: "50W single-channel master volume Marshall. Tight, punchy, aggressive midrange. High/Low inputs. Iconic 80s rock/metal tone." },
+  { id: "brit-800-2203", label: "Brit 800 2203", basedOn: "Marshall JCM 800 2203 (100W)", category: "amp", characteristics: "100W JCM 800. More headroom than 2204, same aggressive character. High/Low inputs. The NWOBHM and early thrash standard." },
+  { id: "brit-800-mod", label: "Brit 800 Mod", basedOn: "Modified Marshall JCM 800", category: "amp", characteristics: "JCM 800 with virtual modifications for more gain and tighter response. Hot-rodded 800 character." },
+  { id: "brit-800-34", label: "Brit 800 #34", basedOn: "Marshall JCM 800 with Santiago #34 mods", category: "amp", characteristics: "JCM 800 with virtual Santiago #34 modifications. Enhanced gain staging, tighter low-end." },
+  { id: "brit-jvm", label: "Brit JVM", basedOn: "Marshall JVM410H", category: "amp", characteristics: "Modern Marshall with multiple channels and gain stages. OD1/OD2 channels with Green/Orange/Red modes. Very versatile from clean to extreme gain." },
+  { id: "brit-silver", label: "Brit Silver", basedOn: "Marshall Silver Jubilee 2555", category: "amp", characteristics: "Marshall's 25th anniversary amp. Diode clipping option, switchable pentode/triode. Slash, Alex Lifeson tones." },
+  { id: "brit-brown", label: "Brit Brown", basedOn: "Custom Plexi 'Brown Sound' model", category: "amp", characteristics: "Custom Fractal model capturing the 'Brown Sound' character. Hot-rodded Plexi voicing with extra gain and saturation." },
+  { id: "brit-afs100", label: "Brit AFS100", basedOn: "Marshall AFD100 Slash signature", category: "amp", characteristics: "Slash's signature Marshall. Based on modified Super Lead circuit. The Appetite For Destruction tone." },
+  { id: "brit-super", label: "Brit Super", basedOn: "Marshall AFD100 schematic variant", category: "amp", characteristics: "Based on Marshall AFD100 schematics. Related to the Slash circuit but with different voicing." },
+  { id: "friedman-be", label: "Friedman BE", basedOn: "Friedman BE-100", category: "amp", characteristics: "Dave Friedman's hot-rodded Marshall. Very high gain, tight low-end, aggressive midrange. Modern high-gain rock/metal." },
+  { id: "friedman-hbe", label: "Friedman HBE", basedOn: "Friedman HBE (Hairy Brown Eye)", category: "amp", characteristics: "Higher gain Friedman variant. Even more saturation and compression than BE. Extended gain range." },
   { id: "dirty-shirley", label: "Dirty Shirley", basedOn: "Friedman Dirty Shirley", category: "amp", characteristics: "Lower-gain Friedman. Plexi-inspired but with modern refinements. Great crunch, responds to pick dynamics." },
+  { id: "cameron-ccv", label: "Cameron CCV", basedOn: "Cameron CCV-100", category: "amp", characteristics: "Mark Cameron's hot-rodded Marshall. Multiple channels from clean to crushing gain. Tight response with Plexi heritage." },
+  { id: "atomica", label: "Atomica", basedOn: "Cameron Atomica", category: "amp", characteristics: "Cameron's high-gain design. Tight, aggressive, modern voicing. High and Low gain channels." },
+  { id: "sol-100", label: "Solo 100", basedOn: "Soldano SLO-100", category: "amp", characteristics: "Legendary high-gain amp. Smooth, liquid lead tone with singing sustain. Defined low-end, vocal midrange. Clean/Crunch/Overdrive channels." },
+  { id: "usa-lead", label: "USA Lead+", basedOn: "Mesa Boogie Mark IIC+", category: "amp", characteristics: "Scooped, tight, aggressive. The Metallica Master of Puppets tone. Heavy low-end, searing highs, scooped mids." },
+  { id: "usa-rhythm", label: "USA Rhythm", basedOn: "Mesa Boogie Mark IV", category: "amp", characteristics: "Versatile Mesa tone. Tight, percussive rhythm with adjustable voicing. Works clean to high gain." },
+  { id: "recto-red", label: "Recto Red", basedOn: "Mesa Dual/Triple Rectifier", category: "amp", characteristics: "Massive, saturated gain. Modern/Vintage/Raw modes. Tube/Silicon rectifier switching changes feel dramatically." },
+  { id: "recto-orange", label: "Recto Orange", basedOn: "Mesa Dual Rectifier Vintage channel", category: "amp", characteristics: "Vintage-voiced Recto channel. Less saturated than Red, more classic rock feel with Recto character." },
+  { id: "euro-red", label: "Euro Red", basedOn: "Bogner Ecstasy Red channel", category: "amp", characteristics: "Refined high-gain with European voicing. Smooth, articulate, not as aggressive as Recto. Complex harmonics." },
+  { id: "euro-blue", label: "Euro Blue", basedOn: "Bogner Ecstasy Blue channel", category: "amp", characteristics: "Lower gain Bogner channel. Beautiful crunch, very dynamic. Excellent clean-to-crunch range." },
+  { id: "class-a-30", label: "Class A 30W", basedOn: "Vox AC30 (Top Boost)", category: "amp", characteristics: "Class A chimey cleans, complex breakup with harmonics. The Beatles/Brian May/The Edge tone. Top Boost channel." },
+  { id: "class-a-15", label: "Class A 15W", basedOn: "Vox AC15", category: "amp", characteristics: "Smaller, earlier breakup than AC30. Warmer, more compressed. Great for blues and indie." },
+  { id: "deluxe-verb", label: "Deluxe Verb", basedOn: "Fender '65 Deluxe Reverb", category: "amp", characteristics: "Classic American clean. Sweet, chimey, breaks up nicely when pushed. Studio workhorse." },
+  { id: "twin-verb", label: "Twin Verb", basedOn: "Fender Twin Reverb", category: "amp", characteristics: "Maximum Fender clean headroom. Crystal clear, scooped, very loud. Country, jazz, clean tones." },
+  { id: "59-bassguy", label: "59 Bassguy", basedOn: "1959 Fender Tweed Bassman 5F6-A", category: "amp", characteristics: "The amp that started Marshall. Warm, fat, breaks up beautifully. Bright/Normal/Jumped channels. Blues standard." },
+  { id: "5153-blue", label: "5153 Blue", basedOn: "EVH 5150III Blue Channel", category: "amp", characteristics: "Clean/crunch channel. Fender-ish cleans with hot-rod capabilities. Very versatile." },
+  { id: "5153-green", label: "5153 Green", basedOn: "EVH 5150III Green Channel", category: "amp", characteristics: "Medium gain crunch channel. Great for classic rock tones. Bridge between clean and high gain." },
+  { id: "5153-red", label: "5153 Red", basedOn: "EVH 5150III Red Channel", category: "amp", characteristics: "Eddie Van Halen's modern high-gain. Tight, aggressive, very defined palm mutes. Modern rock/metal standard." },
+  { id: "dizzy-v4", label: "Dizzy V4", basedOn: "Diezel VH4", category: "amp", characteristics: "German engineering for extreme tones. Four channels. Tight, aggressive, surgical precision. Channel 3/4 are modern metal monsters." },
+  { id: "herbie", label: "Herbie", basedOn: "Diezel Herbert", category: "amp", characteristics: "Versatile Diezel. Three channels from clean to crushing. More midrange flexibility than VH4." },
+  { id: "angle-severe", label: "Angle Severe", basedOn: "Engl Savage 120", category: "amp", characteristics: "German high-gain. Tight, precise, articulate. Multiple gain stages. Well-suited for technical metal." },
+  { id: "archean", label: "Archean", basedOn: "PRS Archon", category: "amp", characteristics: "Paul Reed Smith's high-gain design. Versatile from clean to crushing. Balanced EQ with tight low-end." },
+  { id: "citrus-terrier", label: "Citrus Terrier", basedOn: "Orange Tiny Terror", category: "amp", characteristics: "Simple British tone machine. 7/15W switchable. Great crunch at low volumes. Responsive to pick dynamics." },
+  { id: "das-benzin", label: "Das Benzin", basedOn: "Diezel D-Moll", category: "amp", characteristics: "Diezel's take on more classic British-flavored tones with German precision. More Marshall-like than VH4." },
 ];
 
 export const FRACTAL_DRIVE_MODELS: DriveModel[] = [
@@ -81,7 +95,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "jose-arredondo",
     label: "Jose Arredondo Mod",
-    appliesTo: ["plexi-50w", "plexi-100w", "1987x"],
+    appliesTo: ["1959slp", "1987x", "brit-jm45"],
     category: "amp",
     description: "Jose Arredondo's legendary Plexi modification as done for Eddie Van Halen, Steve Lukather, and others.",
     circuitChanges: "Added post-phase-inverter master volume (PPIMV). Cascaded gain stages by jumping channels internally. Removed bright cap on channel 2. Changed cathode follower plate resistor for more drive. Added clipping diodes in some versions. Changed coupling caps for tighter bass response. Modified negative feedback loop for more gain and midrange push."
@@ -89,7 +103,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "snorkler",
     label: "Snorkler Mod",
-    appliesTo: ["jcm800", "plexi-100w", "plexi-50w"],
+    appliesTo: ["brit-800-2204", "brit-800-2203", "1959slp", "1987x"],
     category: "amp",
     description: "Cascaded gain stages mod for more distortion while retaining the amp's core character.",
     circuitChanges: "Routes signal from V1a to V1b (cascading the preamp stages) instead of running them in parallel. Adds a coupling cap and grid leak resistor between stages. Effectively doubles the preamp gain. Similar concept to the Jose mod but simpler. May include cathode bypass cap changes for more gain on the second stage."
@@ -97,7 +111,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "cameron-mod",
     label: "Mark Cameron Mod",
-    appliesTo: ["plexi-50w", "plexi-100w", "1987x", "jcm800"],
+    appliesTo: ["1959slp", "1987x", "brit-800-2204", "brit-800-2203"],
     category: "amp",
     description: "Mark Cameron's hot-rod Marshall modification, known for tight high-gain with Plexi feel.",
     circuitChanges: "Complete preamp redesign with cascaded stages and additional clipping. Modified tone stack for tighter bass. Added extra gain stage. Modified cathode follower. Reduced negative feedback for more gain. Added series/parallel effects loop. Clipping diode network for controlled saturation. Often includes channel switching."
@@ -105,7 +119,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "plexi-to-jcm800",
     label: "Plexi-to-JCM800 Conversion",
-    appliesTo: ["plexi-50w", "plexi-100w", "1987x"],
+    appliesTo: ["1959slp", "1987x", "brit-jm45"],
     category: "amp",
     description: "Convert a Plexi circuit to JCM 800 specs by adding a master volume and preamp gain.",
     circuitChanges: "Add master volume after the phase inverter. Change the first preamp stage cathode bypass cap from 0.68uF to 0.82uF for more low-end gain. Add a 470pF bright cap across the master volume. Change coupling caps to 0.022uF for tighter bass. Reduce plate resistors on V1 for hotter signal. May change negative feedback resistor."
@@ -113,7 +127,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "jcm800-gain-mod",
     label: "JCM 800 Extra Gain Mod",
-    appliesTo: ["jcm800", "brit-800"],
+    appliesTo: ["brit-800-2204", "brit-800-2203", "brit-800-mod"],
     category: "amp",
     description: "Increase gain in a JCM 800 beyond stock levels for heavier tones.",
     circuitChanges: "Add or increase cathode bypass cap on second preamp stage (from 0.68uF to 1uF or higher). Change coupling cap between stages for more bass into the clipping stages. Reduce the bright cap value to tame ice-pick highs at higher gain. Some versions add a clipping diode pair to ground after the second gain stage."
@@ -129,7 +143,7 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "mesa-gain-mod",
     label: "Mesa Gain Structure Mod",
-    appliesTo: ["usa-lead", "usa-rhythm", "recto-red"],
+    appliesTo: ["usa-lead", "usa-rhythm", "recto-red", "recto-orange"],
     category: "amp",
     description: "Modify Mesa gain staging for tighter or looser feel.",
     circuitChanges: "Adjust cascaded gain stage coupling caps to control bass entering each stage. Modify cathode bypass caps to change gain character at each stage. Change plate load resistors to alter headroom per stage. In Rectos, changing the rectifier tube type (silicon vs tube) dramatically changes feel and sag."
