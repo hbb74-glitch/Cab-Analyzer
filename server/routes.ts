@@ -6055,5 +6055,47 @@ Respond in JSON format:
     }
   });
 
+  app.get('/api/custom-mods', async (_req, res) => {
+    try {
+      const mods = await storage.getCustomMods();
+      res.json(mods);
+    } catch (err) {
+      console.error('Get custom mods error:', err);
+      res.status(500).json({ message: "Failed to fetch saved mods" });
+    }
+  });
+
+  app.post('/api/custom-mods', async (req, res) => {
+    try {
+      const input = z.object({
+        name: z.string().min(1).max(200),
+        category: z.enum(['amp', 'drive']),
+        appliesTo: z.array(z.string().min(1)),
+        description: z.string().min(1),
+        resultJson: z.record(z.unknown()),
+      }).parse(req.body);
+      const mod = await storage.createCustomMod(input);
+      res.json(mod);
+    } catch (err) {
+      console.error('Save custom mod error:', err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message });
+      }
+      res.status(500).json({ message: "Failed to save mod" });
+    }
+  });
+
+  app.delete('/api/custom-mods/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      await storage.deleteCustomMod(id);
+      res.json({ success: true });
+    } catch (err) {
+      console.error('Delete custom mod error:', err);
+      res.status(500).json({ message: "Failed to delete mod" });
+    }
+  });
+
   return httpServer;
 }

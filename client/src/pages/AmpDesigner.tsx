@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Zap,
@@ -20,6 +20,9 @@ import {
   CircuitBoard,
   Loader2,
   Search,
+  Save,
+  Trash2,
+  Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   FRACTAL_AMP_MODELS,
@@ -39,6 +43,7 @@ import {
   KNOWN_MODS,
   getModsForModel,
 } from "@shared/knowledge/amp-designer";
+import type { CustomMod } from "@shared/schema";
 
 interface ParameterChange {
   parameter: string;
@@ -80,21 +85,33 @@ export default function AmpDesigner() {
   const [copiedParam, setCopiedParam] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [result, setResult] = useState<DesignerResult | null>(null);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveModName, setSaveModName] = useState("");
+  const [wasCustomGeneration, setWasCustomGeneration] = useState(false);
+
+  const { data: savedMods = [] } = useQuery<CustomMod[]>({
+    queryKey: ["/api/custom-mods"],
+  });
 
   const models = category === "amp" ? FRACTAL_AMP_MODELS : FRACTAL_DRIVE_MODELS;
   const selectedModel = models.find((m) => m.id === selectedModelId);
 
-  const availableMods = useMemo(() => {
+  const availableKnownMods = useMemo(() => {
     if (!selectedModelId) return [];
-    const modelMods = getModsForModel(selectedModelId);
-    const categoryMods = KNOWN_MODS.filter(
+    return getModsForModel(selectedModelId).filter(
       (m) => m.category === category || m.category === "both"
     );
-    const combined = Array.from(new Map([...modelMods, ...categoryMods].map((m) => [m.id, m] as const)).values());
-    return combined;
   }, [selectedModelId, category]);
 
-  const selectedMod = KNOWN_MODS.find((m) => m.id === selectedModId);
+  const availableSavedMods = useMemo(() => {
+    if (!selectedModelId) return [];
+    return savedMods.filter(
+      (m) => m.category === category && (m.appliesTo as string[]).includes(selectedModelId)
+    );
+  }, [selectedModelId, category, savedMods]);
+
+  const selectedKnownMod = KNOWN_MODS.find((m) => m.id === selectedModId);
+  const selectedSavedMod = savedMods.find((m) => `saved-${m.id}` === selectedModId);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -103,9 +120,9 @@ export default function AmpDesigner() {
         baseModelId: selectedModelId,
         baseModelLabel: selectedModel?.label || selectedModelId,
       };
-      if (selectedModId && selectedModId !== "custom") {
+      if (selectedModId && selectedModId !== "custom" && !selectedModId.startsWith("saved-")) {
         body.modId = selectedModId;
-        body.modLabel = selectedMod?.label || selectedModId;
+        body.modLabel = selectedKnownMod?.label || selectedModId;
       }
       if (customDescription.trim()) {
         body.customDescription = customDescription.trim();
@@ -118,6 +135,13 @@ export default function AmpDesigner() {
     },
     onSuccess: (data) => {
       setResult(data);
+      setWasCustomGeneration(
+        selectedModId === "custom" ||
+        selectedModId === "" ||
+        (!selectedModId && customDescription.trim().length > 0)
+      );
+      setShowSaveForm(false);
+      setSaveModName("");
     },
     onError: (err: Error) => {
       toast({
@@ -128,9 +152,59 @@ export default function AmpDesigner() {
     },
   });
 
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!result || !saveModName.trim()) return;
+      const body = {
+        name: saveModName.trim(),
+        category,
+        appliesTo: [selectedModelId],
+        description: customDescription.trim() || result.summary,
+        resultJson: result,
+      };
+      const res = await apiRequest("POST", "/api/custom-mods", body);
+      return res.json() as Promise<CustomMod>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/custom-mods"] });
+      setShowSaveForm(false);
+      setSaveModName("");
+      setWasCustomGeneration(false);
+      toast({
+        title: "Mod Saved",
+        description: "Your custom mod has been saved and will appear in the mod list for this model.",
+      });
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to save mod",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/custom-mods/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/custom-mods"] });
+      setSelectedModId("");
+      setResult(null);
+      toast({
+        title: "Mod Deleted",
+        description: "Saved mod has been removed.",
+      });
+    },
+  });
+
+  const hasAnyMods = availableKnownMods.length > 0 || availableSavedMods.length > 0;
+
   const canSubmit =
     selectedModelId &&
     (selectedModId || customDescription.trim()) &&
+    !selectedModId.startsWith("saved-") &&
     !mutation.isPending;
 
   const handleCategoryChange = (val: string) => {
@@ -139,12 +213,16 @@ export default function AmpDesigner() {
     setSelectedModId("");
     setCustomDescription("");
     setResult(null);
+    setShowSaveForm(false);
+    setWasCustomGeneration(false);
   };
 
   const handleModelChange = (val: string) => {
     setSelectedModelId(val);
     setSelectedModId("");
     setResult(null);
+    setShowSaveForm(false);
+    setWasCustomGeneration(false);
   };
 
   const handleModChange = (val: string) => {
@@ -152,7 +230,17 @@ export default function AmpDesigner() {
     if (val !== "custom") {
       setCustomDescription("");
     }
-    setResult(null);
+    setShowSaveForm(false);
+    setWasCustomGeneration(false);
+
+    if (val.startsWith("saved-")) {
+      const saved = savedMods.find((m) => `saved-${m.id}` === val);
+      if (saved) {
+        setResult(saved.resultJson as unknown as DesignerResult);
+      }
+    } else {
+      setResult(null);
+    }
   };
 
   const copyAllParameters = () => {
@@ -287,40 +375,98 @@ export default function AmpDesigner() {
                   <label className="text-sm font-medium text-foreground">
                     Modification
                   </label>
-                  <Select
-                    value={selectedModId}
-                    onValueChange={handleModChange}
-                  >
-                    <SelectTrigger data-testid="select-mod">
-                      <SelectValue placeholder="Select a known mod or choose custom..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableMods.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.label}
+                  {hasAnyMods ? (
+                    <Select
+                      value={selectedModId}
+                      onValueChange={handleModChange}
+                    >
+                      <SelectTrigger data-testid="select-mod">
+                        <SelectValue placeholder="Select a mod or describe your own..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableKnownMods.length > 0 && (
+                          <>
+                            {availableKnownMods.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        {availableSavedMods.length > 0 && (
+                          <>
+                            {availableKnownMods.length > 0 && (
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t border-border mt-1 pt-2">
+                                Your Saved Mods
+                              </div>
+                            )}
+                            {availableSavedMods.map((m) => (
+                              <SelectItem key={`saved-${m.id}`} value={`saved-${m.id}`}>
+                                <span className="flex items-center gap-2">
+                                  <Bookmark className="w-3 h-3 text-primary" />
+                                  {m.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                        <SelectItem value="custom">
+                          <span className="flex items-center gap-2">
+                            <Wrench className="w-4 h-4" />
+                            Custom Mod Description
+                          </span>
                         </SelectItem>
-                      ))}
-                      <SelectItem value="custom">
-                        <span className="flex items-center gap-2">
-                          <Wrench className="w-4 h-4" />
-                          Custom Mod Description
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="p-3 rounded-md bg-muted/50 border border-border space-y-2" data-testid="text-no-known-mods">
+                      <p className="text-sm text-muted-foreground">
+                        No known mods cataloged for {selectedModel?.label}. Describe a custom mod below.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {selectedMod && (
+                {selectedSavedMod && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="p-3 rounded-lg bg-muted/50 border border-border space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Bookmark className="w-4 h-4 text-primary shrink-0" />
+                        <p className="text-sm text-foreground font-medium">
+                          {selectedSavedMod.name}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMutation.mutate(selectedSavedMod.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid="button-delete-saved-mod"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedSavedMod.description}
+                    </p>
+                  </motion.div>
+                )}
+
+                {selectedKnownMod && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     className="p-3 rounded-lg bg-muted/50 border border-border space-y-2"
                   >
                     <p className="text-sm text-foreground font-medium">
-                      {selectedMod.label}
+                      {selectedKnownMod.label}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedMod.description}
+                      {selectedKnownMod.description}
                     </p>
                     <Button
                       variant="ghost"
@@ -343,17 +489,17 @@ export default function AmpDesigner() {
                           exit={{ opacity: 0, height: 0 }}
                           className="text-xs text-muted-foreground/80 italic"
                         >
-                          {selectedMod.circuitChanges}
+                          {selectedKnownMod.circuitChanges}
                         </motion.p>
                       )}
                     </AnimatePresence>
                   </motion.div>
                 )}
 
-                {(selectedModId === "custom" || !selectedModId) && (
+                {(selectedModId === "custom" || !selectedModId || !hasAnyMods) && !selectedSavedMod && (
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-muted-foreground">
-                      {selectedModId === "custom"
+                      {selectedModId === "custom" || !hasAnyMods
                         ? "Describe the mod you want"
                         : "Or describe a custom mod"}
                     </label>
@@ -372,38 +518,42 @@ export default function AmpDesigner() {
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-muted-foreground">
-                    Additional notes (optional)
-                  </label>
-                  <Textarea
-                    value={additionalNotes}
-                    onChange={(e) => setAdditionalNotes(e.target.value)}
-                    placeholder="e.g., I play metal with downtuned guitars, using V30 cab, prefer tight low end..."
-                    className="resize-none"
-                    rows={2}
-                    data-testid="input-additional-notes"
-                  />
-                </div>
+                {!selectedSavedMod && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Additional notes (optional)
+                      </label>
+                      <Textarea
+                        value={additionalNotes}
+                        onChange={(e) => setAdditionalNotes(e.target.value)}
+                        placeholder="e.g., I play metal with downtuned guitars, using V30 cab, prefer tight low end..."
+                        className="resize-none"
+                        rows={2}
+                        data-testid="input-additional-notes"
+                      />
+                    </div>
 
-                <Button
-                  onClick={() => mutation.mutate()}
-                  disabled={!canSubmit}
-                  className="w-full"
-                  data-testid="button-generate-mod"
-                >
-                  {mutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Analyzing Circuit Mod...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="w-4 h-4" />
-                      Generate Parameter Recipe
-                    </>
-                  )}
-                </Button>
+                    <Button
+                      onClick={() => mutation.mutate()}
+                      disabled={!canSubmit}
+                      className="w-full"
+                      data-testid="button-generate-mod"
+                    >
+                      {mutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analyzing Circuit Mod...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="w-4 h-4" />
+                          Generate Parameter Recipe
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
               </motion.div>
             )}
           </CardContent>
@@ -431,21 +581,82 @@ export default function AmpDesigner() {
                       {result.summary}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={copyAllParameters}
-                    data-testid="button-copy-all-params"
-                  >
-                    {copied ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
+                  <div className="flex items-center gap-2">
+                    {wasCustomGeneration && !showSaveForm && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowSaveForm(true);
+                          setSaveModName(result.modName || "");
+                        }}
+                        data-testid="button-save-mod"
+                      >
+                        <Save className="w-4 h-4" />
+                        Save as Preset
+                      </Button>
                     )}
-                    {copied ? "Copied" : "Copy All"}
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copyAllParameters}
+                      data-testid="button-copy-all-params"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-green-400" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                      {copied ? "Copied" : "Copy All"}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <AnimatePresence>
+                    {showSaveForm && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-3"
+                      >
+                        <p className="text-sm font-medium text-foreground">
+                          Save this mod as a reusable preset for {selectedModel?.label}?
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={saveModName}
+                            onChange={(e) => setSaveModName(e.target.value)}
+                            placeholder="Preset name..."
+                            className="flex-1"
+                            data-testid="input-save-mod-name"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => saveMutation.mutate()}
+                            disabled={!saveModName.trim() || saveMutation.isPending}
+                            data-testid="button-confirm-save-mod"
+                          >
+                            {saveMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
+                            Save
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSaveForm(false)}
+                            data-testid="button-cancel-save-mod"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   {result.history && (
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border">
                       <Music className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />

@@ -111,3 +111,21 @@ export const insertTonalProfileSchema = createInsertSchema(tonalProfiles).omit({
 
 export type TonalProfile = typeof tonalProfiles.$inferSelect;
 export type InsertTonalProfile = z.infer<typeof insertTonalProfileSchema>;
+
+export const customMods = pgTable("custom_mods", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  appliesTo: text("applies_to").array().notNull(),
+  description: text("description").notNull(),
+  resultJson: jsonb("result_json").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCustomModSchema = createInsertSchema(customMods).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type CustomMod = typeof customMods.$inferSelect;
+export type InsertCustomMod = z.infer<typeof insertCustomModSchema>;

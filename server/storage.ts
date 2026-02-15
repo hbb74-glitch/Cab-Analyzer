@@ -1,6 +1,6 @@
 
 import { db } from "./db";
-import { analyses, preferenceSignals, tonalProfiles, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile } from "@shared/schema";
+import { analyses, preferenceSignals, tonalProfiles, customMods, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile, type CustomMod, type InsertCustomMod } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
@@ -19,6 +19,10 @@ export interface IStorage {
 
   upsertTonalProfiles(entries: { mic: string; position: string; distance: string; speaker: string; subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number; centroid: number; smoothness: number }[]): Promise<number>;
   getTonalProfiles(): Promise<TonalProfile[]>;
+
+  createCustomMod(mod: InsertCustomMod): Promise<CustomMod>;
+  getCustomMods(): Promise<CustomMod[]>;
+  deleteCustomMod(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -98,6 +102,19 @@ export class DatabaseStorage implements IStorage {
 
   async getTonalProfiles(): Promise<TonalProfile[]> {
     return await db.select().from(tonalProfiles).orderBy(desc(tonalProfiles.sampleCount));
+  }
+
+  async createCustomMod(mod: InsertCustomMod): Promise<CustomMod> {
+    const [row] = await db.insert(customMods).values(mod).returning();
+    return row;
+  }
+
+  async getCustomMods(): Promise<CustomMod[]> {
+    return await db.select().from(customMods).orderBy(desc(customMods.createdAt));
+  }
+
+  async deleteCustomMod(id: number): Promise<void> {
+    await db.delete(customMods).where(eq(customMods.id, id));
   }
 }
 
