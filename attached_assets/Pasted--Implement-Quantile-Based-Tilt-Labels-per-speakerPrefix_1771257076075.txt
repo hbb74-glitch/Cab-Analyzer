@@ -1,0 +1,127 @@
+# Implement Quantile-Based Tilt Labels (per speakerPrefix) using tiltRelative
+Goal: Always get a meaningful spread across: Dark / Dark-ish / Neutral / Bright-ish / Bright,
+without hand-tuning dB thresholds. We keep the *number* (tiltRelative) as-is; we only change labeling.
+
+Assumptions:
+- You already compute speakerPrefix (getSpeakerPrefix)
+- You already compute tiltMedianBySpeaker and tiltRel = spectralTilt - median
+- You currently pass tiltRelative into TonalDashboard/TonalDashboardCompact
+
+-------------------------------------------------------------------
+STEP 1) Compute per-speaker quantile cutoffs for tiltRelative
+FILE: client/src/pages/Analyzer.tsx
+
+Add this helper somewhere near other helpers:
+
+function quantile(sorted: number[], q: number): number {
+  if (!sorted.length) return 0;
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const a = sorted[base];
+  const b = sorted[Math.min(base + 1, sorted.length - 1)];
+  return a + (b - a) * rest;
+}
+
+Now create a memo that builds quantile thresholds per speaker:
+
+const tiltQuantilesBySpeaker = React.useMemo(() => {
+  // Build arrays of tiltRelative per speaker
+  const map = new Map<string, number[]>();
+
+  for (const ir of analyzedIRs /* <-- use your actual rendered array */) {
+    const abs = ir?.metrics?.spectralTilt;
+    if (!Number.isFinite(abs)) continue;
+
+    const spk = getSpeakerPrefix(ir.filename);
+    const med = tiltMedianBySpeaker.get(spk) ?? 0;
+    const rel = abs - med;
+
+    if (!map.has(spk)) map.set(spk, []);
+    map.get(spk)!.push(rel);
+  }
+
+  // Convert each array to quantiles
+  const out = new Map<string, { q10: number; q30: number; q70: number; q90: number }>();
+  for (const [spk, arr] of map.entries()) {
+    arr.sort((a, b) => a - b);
+    out.set(spk, {
+      q10: quantile(arr, 0.10),
+      q30: quantile(arr, 0.30),
+      q70: quantile(arr, 0.70),
+      q90: quantile(arr, 0.90),
+    });
+  }
+  return out;
+}, [analyzedIRs, tiltMedianBySpeaker]);
+
+-------------------------------------------------------------------
+STEP 2) Pass tiltRelative AND tiltQuantiles into the dashboard
+FILE: client/src/pages/Analyzer.tsx
+
+Wherever you render an IR card/dashboard, compute:
+
+const absTilt = ir.metrics.spectralTilt;
+const spk = getSpeakerPrefix(ir.filename);
+const med = tiltMedianBySpeaker.get(spk) ?? 0;
+const tiltRel = absTilt - med;
+const tq = tiltQuantilesBySpeaker.get(spk); // may be undefined
+
+Then pass these props:
+
+<TonalDashboardCompact
+  spectralTilt={absTilt}          // keep absolute for details
+  tiltRelative={tiltRel}          // used for Tilt label
+  tiltQuantiles={tq}              // used for quantile labeling
+  rolloffFreq={ir.metrics.rolloffFreq}
+  smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
+/>
+
+Do the same for TonalDashboard (non-compact) wherever used.
+
+-------------------------------------------------------------------
+STEP 3) Use quantiles for labeling in TonalDashboard
+FILE: client/src/components/TonalDashboard.tsx
+
+1) Update props interface to include:
+
+tiltRelative?: number | null;
+tiltQuantiles?: { q10: number; q30: number; q70: number; q90: number } | null;
+
+2) Replace your getTiltLabel logic with this quantile-based one:
+
+function getTiltLabelQuantile(
+  tiltRel: number,
+  q?: { q10: number; q30: number; q70: number; q90: number } | null
+): { label: string; color: string } {
+  if (!Number.isFinite(tiltRel) || !q) return { label: "Neutral", color: "text-foreground" };
+
+  if (tiltRel <= q.q10) return { label: "Dark", color: "text-blue-500" };
+  if (tiltRel <= q.q30) return { label: "Dark-ish", color: "text-sky-400" };
+  if (tiltRel <  q.q70) return { label: "Neutral", color: "text-foreground" };
+  if (tiltRel <  q.q90) return { label: "Bright-ish", color: "text-amber-300" };
+  return                 { label: "Bright", color: "text-amber-500" };
+}
+
+3) In TonalDashboard / TonalDashboardCompact, compute:
+
+const absTilt = Number.isFinite(props.spectralTilt) ? props.spectralTilt! : 0;
+const tiltRel = Number.isFinite(props.tiltRelative) ? props.tiltRelative! : 0;
+const tiltInfo = getTiltLabelQuantile(tiltRel, props.tiltQuantiles ?? null);
+
+- Use tiltInfo for the Tilt card label/color.
+- Keep displaying absTilt in DETAILS as “Spectral Tilt”.
+
+4) Gauge position (optional but recommended):
+Use a symmetric clamp on tiltRel (prevents peg-left/right):
+
+const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+const pos = (clamp(tiltRel, -6, 6) + 6) / 12; // 0..1
+
+Use pos for the bar/slider position.
+
+-------------------------------------------------------------------
+RESULT
+- You will reliably see Dark / Dark-ish / Neutral / Bright-ish / Bright within each speakerPrefix dataset.
+- Labels automatically adapt if a speaker is generally darker/brighter.
+- Numbers remain meaningful (tiltRelative displayed) and absolute spectralTilt stays visible in DETAILS.

@@ -294,6 +294,16 @@ function detectPosToken(filename: string): string | null {
   return null;
 }
 
+function quantile(sorted: number[], q: number): number {
+  if (!sorted.length) return 0;
+  const pos = (sorted.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const a = sorted[base];
+  const b = sorted[Math.min(base + 1, sorted.length - 1)];
+  return a + (b - a) * rest;
+}
+
 function detectSpeakerPrefix(filename: string): string {
   const lower = filename.toLowerCase();
   const mic = detectMicToken(lower);
@@ -2573,6 +2583,42 @@ export default function Analyzer() {
     return out;
   }, [batchIRs, batchResult]);
 
+  const tiltQuantilesBySpeaker = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const ir of batchIRs) {
+      const abs = (ir.metrics as any)?.spectralTilt;
+      if (!Number.isFinite(abs)) continue;
+      const spk = detectSpeakerPrefix(ir.file.name);
+      const med = tiltMedianBySpeaker.get(spk) ?? 0;
+      const rel = abs - med;
+      if (!map.has(spk)) map.set(spk, []);
+      map.get(spk)!.push(rel);
+    }
+    if (batchResult) {
+      for (const r of batchResult.results) {
+        const abs = (r as any).spectralTilt;
+        if (!Number.isFinite(abs)) continue;
+        const spk = detectSpeakerPrefix(r.filename);
+        const med = tiltMedianBySpeaker.get(spk) ?? 0;
+        const rel = abs - med;
+        if (!map.has(spk)) map.set(spk, []);
+        map.get(spk)!.push(rel);
+      }
+    }
+    const out = new Map<string, { q10: number; q30: number; q70: number; q90: number }>();
+    for (const entries of Array.from(map.entries())) {
+      const [spk, arr] = entries;
+      arr.sort((a: number, b: number) => a - b);
+      out.set(spk, {
+        q10: quantile(arr, 0.10),
+        q30: quantile(arr, 0.30),
+        q70: quantile(arr, 0.70),
+        q90: quantile(arr, 0.90),
+      });
+    }
+    return out;
+  }, [batchIRs, batchResult, tiltMedianBySpeaker]);
+
   // Sync cull count input with numeric state
   const handleCullCountChange = (value: string) => {
     setCullCountInput(value);
@@ -4127,10 +4173,12 @@ export default function Analyzer() {
                               const absTilt = features.tiltDbPerOct;
                               const spk = detectSpeakerPrefix(ir.file.name);
                               const med = tiltMedianBySpeaker.get(spk) ?? 0;
+                              const tq = tiltQuantilesBySpeaker.get(spk);
                               return (
                                 <TonalDashboardCompact
                                   tiltCanonical={absTilt}
                                   tiltRelative={absTilt - med}
+                                  tiltQuantiles={tq}
                                   rolloffFreq={ir.metrics.rolloffFreq}
                                   smoothScore={features.smoothScore}
                                 />
@@ -4919,10 +4967,12 @@ export default function Analyzer() {
                             const absTilt = computeTonalFeatures(r as any).tiltDbPerOct || (r as any).spectralTilt || 0;
                             const spk = detectSpeakerPrefix(r.filename);
                             const med = tiltMedianBySpeaker.get(spk) ?? 0;
+                            const tq = tiltQuantilesBySpeaker.get(spk);
                             return (
                               <TonalDashboard
                                 tiltCanonical={absTilt}
                                 tiltRelative={absTilt - med}
+                                tiltQuantiles={tq}
                                 rolloffFreq={(r as any).rolloffFreq}
                                 smoothScore={computeTonalFeatures(r as any).smoothScore ?? (r as any).smoothScore ?? r.frequencySmoothness}
                                 maxNotchDepth={(r as any).maxNotchDepth}

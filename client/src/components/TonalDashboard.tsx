@@ -2,9 +2,17 @@ import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface TiltQuantiles {
+  q10: number;
+  q30: number;
+  q70: number;
+  q90: number;
+}
+
 interface TonalDashboardProps {
   tiltCanonical?: number | null;
   tiltRelative?: number | null;
+  tiltQuantiles?: TiltQuantiles | null;
   rolloffFreq?: number | null;
   smoothScore?: number | null;
   maxNotchDepth?: number | null;
@@ -22,14 +30,30 @@ interface TonalDashboardProps {
   ultraHighPercent?: number | null;
 }
 
-function getTiltLabel(tilt: number): { label: string; color: string } {
+function getTiltLabelFixed(tilt: number): { label: string; color: string } {
   if (!Number.isFinite(tilt)) return { label: "Neutral", color: "text-foreground" };
-
   if (tilt <= -3)  return { label: "Dark", color: "text-blue-400" };
   if (tilt <= -1.5) return { label: "Dark-ish", color: "text-sky-400" };
   if (tilt < 1.5)  return { label: "Neutral", color: "text-foreground" };
   if (tilt < 3)    return { label: "Bright-ish", color: "text-amber-300" };
   return            { label: "Bright", color: "text-amber-400" };
+}
+
+function getTiltLabelQuantile(
+  tiltRel: number,
+  q?: TiltQuantiles | null
+): { label: string; color: string } {
+  if (!Number.isFinite(tiltRel) || !q) return getTiltLabelFixed(tiltRel);
+  if (tiltRel <= q.q10) return { label: "Dark", color: "text-blue-400" };
+  if (tiltRel <= q.q30) return { label: "Dark-ish", color: "text-sky-400" };
+  if (tiltRel <  q.q70) return { label: "Neutral", color: "text-foreground" };
+  if (tiltRel <  q.q90) return { label: "Bright-ish", color: "text-amber-300" };
+  return                 { label: "Bright", color: "text-amber-400" };
+}
+
+function getTiltLabel(tilt: number, q?: TiltQuantiles | null): { label: string; color: string } {
+  if (q) return getTiltLabelQuantile(tilt, q);
+  return getTiltLabelFixed(tilt);
 }
 
 function getTiltWhy(tilt: number, rolloff: number | null): string {
@@ -205,7 +229,7 @@ export function TonalDashboard(props: TonalDashboardProps) {
   const presence = props.presencePercent ?? 0;
   const air = props.ultraHighPercent ?? 0;
 
-  const tiltInfo = getTiltLabel(tiltForLabel);
+  const tiltInfo = getTiltLabel(tiltForLabel, props.tiltQuantiles ?? null);
   const bodyInfo = getBodyLabel(lowMid, bass);
   const biteInfo = getBiteLabel(highMid, presence);
   const fizzInfo = getFizzLabel(presence, air);
@@ -349,7 +373,7 @@ export function TonalDashboardCompact(props: TonalDashboardProps) {
   const presence = props.presencePercent ?? 0;
   const air = props.ultraHighPercent ?? 0;
 
-  const tiltInfo = getTiltLabel(tiltForLabel);
+  const tiltInfo = getTiltLabel(tiltForLabel, props.tiltQuantiles ?? null);
   const bodyInfo = getBodyLabel(lowMid, bass);
   const biteInfo = getBiteLabel(highMid, presence);
   const fizzInfo = getFizzLabel(presence, air);
@@ -377,4 +401,4 @@ export function TonalDashboardCompact(props: TonalDashboardProps) {
 }
 
 export { getTiltLabel, getBodyLabel, getBiteLabel, getFizzLabel, getSmoothnessLabel };
-export type { TonalDashboardProps };
+export type { TonalDashboardProps, TiltQuantiles };
