@@ -1,0 +1,64 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ export function computeTonalFeatures(metrics: any): TonalFeatures {
+   const bandsRaw = extractBandsRaw(metrics);
+   const bandsPercent = bandsToPercent(bandsRaw);
+   const bandsShapeDb = bandsToShapeDb(bandsRaw);
+ 
+-  // Compute raw dB (pre shape normalization)
+-  const rawDb: any = {};
+-  const EPS = 1e-12;
+-  for (const k of BAND_KEYS) {
+-    const energy = Math.max(EPS, bandsRaw[k]);
+-    rawDb[k] = 10 * Math.log10(energy);
+-  }
+-
+-  const tiltDbPerOct =
+-    ((rawDb.presence + rawDb.air) / 2) -
+-    ((rawDb.bass + rawDb.subBass) / 2);
++  // Canonical tilt MUST be in RELATIVE/SHAPE dB space (not raw dB),
++  // otherwise dark mics (R121/R10) produce absurd values like -50 dB.
++  // tilt = avg(presence, air) - avg(bass, subBass) in shapeDb
++  const tiltDbPerOct =
++    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
++    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw,
+     bandsPercent,
+     bandsShapeDb,
+     tiltDbPerOct,
+@@
+ }
+@@
+ export function blendFeatures(
+   a: TonalFeatures,
+   b: TonalFeatures,
+   aGain: number,
+   bGain: number
+ ): TonalFeatures {
+@@
+   const blendedPercent = bandsToPercent(blendedRaw);
+   const blendedShapeDb = bandsToShapeDb(blendedRaw);
+ 
+-  const blendedRawDb: any = {};
+-  const EPS = 1e-12;
+-  for (const k of BAND_KEYS) {
+-    const energy = Math.max(EPS, blendedRaw[k]);
+-    blendedRawDb[k] = 10 * Math.log10(energy);
+-  }
+-
+-  const tiltDbPerOct =
+-    ((blendedRawDb.presence + blendedRawDb.air) / 2) -
+-    ((blendedRawDb.bass + blendedRawDb.subBass) / 2);
++  const tiltDbPerOct =
++    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
++    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw: blendedRaw,
+     bandsPercent: blendedPercent,
+     bandsShapeDb: blendedShapeDb,
+     tiltDbPerOct,
+*** End Patch

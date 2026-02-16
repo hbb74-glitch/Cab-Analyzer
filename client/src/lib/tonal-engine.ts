@@ -52,22 +52,9 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
   const bandsPercent = bandsToPercent(bandsRaw);
   const bandsShapeDb = bandsToShapeDb(bandsRaw);
 
-  const rawDb: any = {};
-  const EPS = 1e-12;
-  for (const k of BAND_KEYS) {
-    const energy = Math.max(EPS, bandsRaw[k]);
-    rawDb[k] = 10 * Math.log10(energy);
-  }
-
   const tiltDbPerOct =
-    ((rawDb.presence + rawDb.air) / 2) -
-    ((rawDb.bass + rawDb.subBass) / 2);
-
-  console.log("DEBUG TILT", {
-    tilt: tiltDbPerOct,
-    rawDb,
-    bandsRaw
-  });
+    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
+    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
 
   const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
   const smoothScore =
@@ -298,10 +285,9 @@ export function blendFeatures(
   const blendedPercent = bandsToPercent(blendedRaw);
   const blendedShapeDb = bandsToShapeDb(blendedRaw);
 
-  const blendedRawDb = bandsToRawDb(blendedRaw);
   const tiltDbPerOct =
-    ((safeNumber(blendedRawDb.presence) + safeNumber(blendedRawDb.air)) / 2) -
-    ((safeNumber(blendedRawDb.bass) + safeNumber(blendedRawDb.subBass)) / 2);
+    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
+    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
 
   const aSmooth = normalizeSmoothScore(a.smoothScore);
   const bSmooth = normalizeSmoothScore(b.smoothScore);
