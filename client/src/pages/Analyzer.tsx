@@ -3315,13 +3315,35 @@ export default function Analyzer() {
     const groups: SmartThinGroup[] = [];
     
     // Helper functions
-    const getMic = (filename: string): string => {
+    const getSpeakerPrefix = (filename: string): string => {
       const lower = filename.toLowerCase();
-      const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+      const mics = ['sm57','r121','m160','md421','md421kompakt','md441','pr30','e906','m201','sm7b','c414','r92','r10','m88','roswell'];
+      let firstIdx = Number.POSITIVE_INFINITY;
       for (const mic of mics) {
-        if (lower.includes(mic)) return mic;
+        const idx = lower.indexOf(mic);
+        if (idx !== -1 && idx < firstIdx) firstIdx = idx;
       }
-      return 'unknown';
+      if (!Number.isFinite(firstIdx) || firstIdx === Number.POSITIVE_INFINITY) return (lower.split("_")[0] ?? lower).trim();
+      return lower.slice(0, firstIdx).trim();
+    };
+
+    const getAllMics = (filename: string): string[] => {
+      const lower = filename.toLowerCase();
+      const mics = ['sm57','r121','m160','md421','md421kompakt','md441','pr30','e906','m201','sm7b','c414','r92','r10','m88','roswell'];
+      const found: string[] = [];
+      for (const mic of mics) if (lower.includes(mic)) found.push(mic);
+      return found;
+    };
+
+    const getMicKey = (filename: string): string => {
+      const found = getAllMics(filename);
+      if (found.length >= 2) return `combo_${[...found].sort().join("_")}`;
+      if (found.length === 1) return found[0];
+      return "unknown";
+    };
+
+    const getMic = (filename: string): string => {
+      return getMicKey(filename);
     };
     
     const getPos = (filename: string): string => {
@@ -3338,13 +3360,7 @@ export default function Analyzer() {
     
     // Detect if this is a combo IR (e.g., sm57_r121)
     const isCombo = (filename: string): boolean => {
-      const lower = filename.toLowerCase();
-      const mics = ['sm57', 'r121', 'm160', 'md421', 'pr30', 'e906', 'm201', 'c414', 'r92', 'roswell'];
-      let micCount = 0;
-      for (const mic of mics) {
-        if (lower.includes(mic)) micCount++;
-      }
-      return micCount >= 2;
+      return getAllMics(filename).length >= 2;
     };
     
     // Get combo position variant (A, B, C, etc.)
@@ -3370,20 +3386,21 @@ export default function Analyzer() {
     for (const ir of irs) {
       let groupKey: string;
       let displayName: string;
+      const spk = getSpeakerPrefix(ir.filename);
       
       if (isCombo(ir.filename)) {
-        // Combo: group by mic combo + position variant + voicing
-        const mic = getMic(ir.filename);
+        // Combo: group by speaker + mic combo + position variant + voicing
+        const mic = getMicKey(ir.filename);
         const variant = getComboVariant(ir.filename);
         const voicing = getVoicing(ir.filename);
-        groupKey = `combo_${mic}_${variant}_${voicing}`;
-        displayName = `${mic.toUpperCase()} Combo (${variant}${voicing !== 'default' ? `, ${voicing}` : ''})`;
+        groupKey = `${spk}__${mic}_${variant}_${voicing}`;
+        displayName = `${spk.toUpperCase()} • ${mic.replace('combo_','').toUpperCase()} Combo (${variant}${voicing !== 'default' ? `, ${voicing}` : ''})`;
       } else {
-        // Single mic: group by mic + position
-        const mic = getMic(ir.filename);
+        // Single mic: group by speaker + mic + position
+        const mic = getMicKey(ir.filename);
         const pos = getPos(ir.filename);
-        groupKey = `${mic}_${pos}`;
-        displayName = `${mic.toUpperCase()} @ ${pos.replace(/_/g, ' ')}`;
+        groupKey = `${spk}__${mic}_${pos}`;
+        displayName = `${spk.toUpperCase()} • ${mic.toUpperCase()} @ ${pos.replace(/_/g, ' ')}`;
       }
       
       if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
