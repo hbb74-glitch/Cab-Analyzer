@@ -41,7 +41,7 @@ export function makeTasteKey(ctx: TasteContext): string {
   return `${ctx.speakerPrefix}__${ctx.mode}__${ctx.intent}`;
 }
 
-function loadState(): StoreState {
+export function loadState(): StoreState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;

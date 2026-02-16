@@ -5,13 +5,13 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, loadState, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { computeTonalFeatures, blendFeatures } from "@/lib/tonal-engine";
+import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
 import {
   type TonalBands,
   type TonalFeatures,
@@ -679,6 +679,7 @@ export default function IRMixer() {
   const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
   const [tasteEnabled, setTasteEnabled] = useState(true);
   const [tasteVersion, setTasteVersion] = useState(0);
+  const [debugVisible, setDebugVisible] = useState(false);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -1750,6 +1751,29 @@ export default function IRMixer() {
     setCrossCabDismissed(new Set());
   }, [crossCabResults, crossCabRankings, crossCabFeedback, crossCabFeedbackText, crossCabDismissed, submitSignalsMutation]);
 
+  function explainPair(p: any): string {
+    const st = loadState();
+    const ctx = tasteContext;
+    const key = `${ctx.speakerPrefix}__${ctx.mode}__${ctx.intent}`;
+    const entry = st.models[key];
+    if (!entry || entry.nVotes === 0) return "No taste data yet";
+    const w = entry.weights;
+    const bF = featuresByFilename.get(p.baseFilename);
+    const fF = featuresByFilename.get(p.featureFilename);
+    if (!bF || !fF) return "Missing tonal data";
+    const ratio = p.suggestedRatio?.base ?? 0.5;
+    const vec = featurizeBlend(bF, fF, ratio);
+    const labels = [...BAND_KEYS.map(k => k.replace("band_", "")), "tilt", "smooth"];
+    const parts: string[] = [];
+    for (let i = 0; i < labels.length; i++) {
+      const contrib = w[i] * vec[i];
+      if (Math.abs(contrib) > 0.01) {
+        parts.push(`${labels[i]} ${contrib > 0 ? "+" : ""}${contrib.toFixed(2)}`);
+      }
+    }
+    return parts.length > 0 ? parts.join(", ") : "Neutral taste";
+  }
+
   const TasteControlBar = (
     <div className="flex items-center gap-2 text-xs opacity-90 mb-2" data-testid="taste-control-bar">
       <button
@@ -1792,6 +1816,17 @@ export default function IRMixer() {
         Simulate 20 votes
       </button>
 
+      <button
+        className={cn(
+          "px-2 py-1 rounded border",
+          debugVisible ? "border-yellow-500" : "border-zinc-600"
+        )}
+        onClick={() => setDebugVisible(v => !v)}
+        data-testid="button-taste-debug-toggle"
+      >
+        Debug
+      </button>
+
       <div className="ml-2" data-testid="text-taste-context">
         Context:
         <span className="opacity-80 ml-1">
@@ -1814,7 +1849,7 @@ export default function IRMixer() {
 
         {TasteControlBar}
 
-        {tasteEnabled && suggestedPairsDebug.length > 0 && (
+        {debugVisible && tasteEnabled && suggestedPairsDebug.length > 0 && (
           <div className="mt-1 mb-4 text-xs border rounded p-2 opacity-90" data-testid="taste-debug-panel">
             <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
             <div className="space-y-1">
@@ -2639,6 +2674,11 @@ export default function IRMixer() {
                         </p>
                         <ShotIntentBadge filename={pair.featureFilename} />
                       </div>
+                      {tasteEnabled && tasteStatus.nVotes > 0 && (
+                        <p className="text-[9px] text-yellow-400/80 italic truncate" data-testid={`text-pair-explain-${idx}`}>
+                          Why: {explainPair(pair)}
+                        </p>
+                      )}
                     </div>
 
                     {!isDismissed && (

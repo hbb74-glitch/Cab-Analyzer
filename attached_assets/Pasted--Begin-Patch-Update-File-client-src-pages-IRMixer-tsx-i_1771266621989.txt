@@ -1,0 +1,135 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+ import { featurizeBlend, getTasteBias, recordPreference, meanVector, centerVector, type TasteContext } from "@/lib/tasteStore";
++import { loadState } from "@/lib/tasteStore";
+@@
+   const [tasteEnabled, setTasteEnabled] = useState(true);
+   const [tasteVersion, setTasteVersion] = useState(0);
++  const [debugVisible, setDebugVisible] = useState(false);
+@@
+   const suggestedPairs = useMemo(() => {
+@@
+     const top = rescored.slice(0, 4);
+     return top.map((p, idx) => ({ ...p, rank: idx + 1 }));
+@@
+   }, [
+@@
+   ]);
+ 
++  // ------------------------------
++  // Phase 2 Step 2 – Why This?
++  // ------------------------------
++  const explainPair = (pair: any) => {
++    if (!tasteEnabled) return [];
++
++    const state = loadState?.() ?? null;
++    if (!state) return [];
++
++    const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
++    const model = state.models?.[key];
++    if (!model || !model.w) return [];
++
++    const bF = featuresByFilename.get(pair.baseFilename);
++    const fF = featuresByFilename.get(pair.featureFilename);
++    const ratio = pair.suggestedRatio?.base ?? 0.5;
++    if (!bF || !fF) return [];
++
++    const x = featurizeBlend(bF, fF, ratio);
++
++    // Pair contribution per dimension = w_i * x_i
++    const contributions = model.w.map((w: number, i: number) => w * (x[i] ?? 0));
++
++    // Sort by absolute contribution
++    const sorted = contributions
++      .map((v: number, i: number) => ({ idx: i, val: v }))
++      .sort((a: any, b: any) => Math.abs(b.val) - Math.abs(a.val))
++      .slice(0, 2);
++
++    const labels = [...BAND_KEYS, "Tilt", "Smooth"];
++
++    return sorted.map((c: any) => {
++      const label = labels[c.idx] ?? `F${c.idx}`;
++      const dir = c.val > 0 ? "↑" : "↓";
++      return `${label} ${dir}`;
++    });
++  };
++
+@@
+   const TasteControlBar = (
+     <div className="flex items-center gap-2 text-xs opacity-90 mb-2">
+@@
+       <button
+         className="px-2 py-1 rounded border border-zinc-600"
+         onClick={() => {
+           const vecs: number[][] = [];
+           for (const p of suggestedPairs.slice(0, 8)) {
+             const bF = featuresByFilename.get(p.baseFilename);
+             const fF = featuresByFilename.get(p.featureFilename);
+             const ratio = p.suggestedRatio?.base ?? 0.5;
+             if (bF && fF) vecs.push(featurizeBlend(bF, fF, ratio));
+           }
+           simulateVotes(tasteContext, vecs, 20);
+           setTasteVersion(v => v + 1);
+         }}
+       >
+         Simulate 20 votes
+       </button>
++
++      <button
++        className="px-2 py-1 rounded border border-zinc-600"
++        onClick={() => setDebugVisible(v => !v)}
++      >
++        Debug
++      </button>
+@@
+       <div className="ml-2">
+         Context:
+@@
+       </div>
+     </div>
+   );
+@@
+   return (
+     <div className="space-y-4">
+       {TasteControlBar}
+ 
+       {/* Suggested Pairs */}
+       {suggestedPairs.map((pair: any) => (
+         <div key={pair.rank} className="p-3 border rounded">
+           <div className="flex justify-between">
+             <div>{pair.baseFilename} + {pair.featureFilename}</div>
+             <div>{pair.score.toFixed(1)}</div>
+           </div>
++
++          {/* Why This */}
++          {tasteEnabled && (
++            <div className="text-xs opacity-70 mt-1">
++              Why: {explainPair(pair).join(", ")}
++            </div>
++          )}
+         </div>
+       ))}
+ 
++      {/* Debug Table (hidden unless toggled) */}
++      {debugVisible && suggestedPairsDebug.length > 0 && (
++        <div className="mt-3 text-xs border rounded p-2 opacity-90">
++          <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
++          <div className="space-y-1">
++            {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
++              <div key={i} className="flex gap-2">
++                <span className="w-6 opacity-70">{i + 1}.</span>
++                <span className="flex-1 truncate opacity-90">
++                  {p.baseFilename} + {p.featureFilename}
++                </span>
++                <span className="w-16 text-right opacity-70">base {p.baseScore.toFixed(1)}</span>
++                <span className="w-16 text-right opacity-70">taste {p.tasteBoost.toFixed(1)}</span>
++                <span className="w-16 text-right">tot {p.totalScore.toFixed(1)}</span>
++              </div>
++            ))}
++          </div>
++        </div>
++      )}
+     </div>
+   );
+*** End Patch
