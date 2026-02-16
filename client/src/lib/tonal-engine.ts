@@ -141,24 +141,48 @@ function clamp(x: number, lo: number, hi: number): number {
 }
 
 function extractBandsRaw(metrics: any): TonalBands {
-  const be = metrics?.bandEnergies ?? {};
-
-  const raw: TonalBands = {
-    subBass: be.sub ?? metrics?.subBassEnergy ?? 0,
-    bass: be.bass ?? metrics?.bassEnergy ?? 0,
-    lowMid: be.lowmid ?? metrics?.lowMidEnergy ?? 0,
-    mid: be.mid ?? metrics?.midEnergy6 ?? metrics?.midEnergy ?? 0,
-    highMid: be.highmid ?? metrics?.highMidEnergy ?? 0,
-    presence: be.pres ?? metrics?.presenceEnergy ?? 0,
-    air: be.air ?? metrics?.ultraHighEnergy ?? metrics?.airEnergy ?? 0,
+  const getKey = (obj: any, keys: string[]): number | undefined => {
+    for (const key of keys) {
+      const v = obj?.[key];
+      if (Number.isFinite(v)) return v;
+    }
+    return undefined;
   };
 
-  for (const k of BAND_KEYS) {
-    const v = raw[k];
-    raw[k] = Number.isFinite(v) && v > 0 ? v : 0;
+  const be = metrics?.bandEnergies ?? {};
+  const src = metrics?.bandsRaw ?? metrics ?? {};
+
+  const out: any = {
+    subBass:  safeNumber(getKey(be, ["sub"]) ?? getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy"])),
+    bass:     safeNumber(getKey(be, ["bass"]) ?? getKey(src, ["bass", "bassEnergy"])),
+    lowMid:   safeNumber(getKey(be, ["lowmid"]) ?? getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy"])),
+    mid:      safeNumber(getKey(be, ["mid"]) ?? getKey(src, ["mid", "midEnergy6", "midEnergy"])),
+    highMid:  safeNumber(getKey(be, ["highmid"]) ?? getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy"])),
+    presence: safeNumber(getKey(be, ["pres"]) ?? getKey(src, ["presence", "pres", "presenceEnergy"])),
+    air:      safeNumber(getKey(be, ["air"]) ?? getKey(src, ["air", "ultraHighEnergy", "airEnergy"])),
+  } as TonalBands;
+
+  const sum = BAND_KEYS.reduce((s, k) => s + Math.abs(out[k]), 0);
+  const bins: number[] | undefined = Array.isArray(metrics?.logBandEnergies)
+    ? metrics.logBandEnergies
+    : Array.isArray(metrics?.bandEnergiesLog)
+      ? metrics.bandEnergiesLog
+      : undefined;
+
+  if (sum < 1e-9 && bins && bins.length >= 12) {
+    const b = bins.map((x) => (Number.isFinite(x) ? x : 0));
+    const bucket = (i0: number, i1: number) => b.slice(i0, i1 + 1).reduce((a, v) => a + v, 0);
+
+    out.subBass  = bucket(0, 2);
+    out.bass     = bucket(3, 5);
+    out.lowMid   = bucket(6, 8);
+    out.mid      = bucket(9, 11);
+    out.highMid  = bucket(12, 14);
+    out.presence = bucket(15, 18);
+    out.air      = bucket(19, Math.min(23, b.length - 1));
   }
 
-  return raw;
+  return out as TonalBands;
 }
 
 export function bandsToPercent(bandsRaw: TonalBands): TonalBands {

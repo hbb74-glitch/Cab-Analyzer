@@ -1,0 +1,63 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+-function extractBandsRaw(metrics: any): TonalBands {
+-  const result: any = {};
+-  for (const k of BAND_KEYS) {
+-    result[k] = safeNumber(metrics?.bandsRaw?.[k] ?? metrics?.[k] ?? 0);
+-  }
+-  return result;
+-}
++function extractBandsRaw(metrics: any): TonalBands {
++  // Robust band extraction:
++  // 1) metrics.bandsRaw.{subBass,bass,...}
++  // 2) direct keys (camel/snake/variants)
++  // 3) fallback: derive from metrics.logBandEnergies (24 bins) if available
++
++  const getKey = (obj: any, keys: string[]): number | undefined => {
++    for (const key of keys) {
++      const v = obj?.[key];
++      if (Number.isFinite(v)) return v;
++    }
++    return undefined;
++  };
++
++  const src = metrics?.bandsRaw ?? metrics ?? {};
++
++  const out: any = {
++    subBass: safeNumber(getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy"]), 0),
++    bass:    safeNumber(getKey(src, ["bass", "bassEnergy"]), 0),
++    lowMid:  safeNumber(getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy"]), 0),
++    mid:     safeNumber(getKey(src, ["mid", "midEnergy"]), 0),
++    highMid: safeNumber(getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy"]), 0),
++    presence:safeNumber(getKey(src, ["presence", "pres", "presenceEnergy"]), 0),
++    air:     safeNumber(getKey(src, ["air", "airEnergy"]), 0),
++  } as TonalBands;
++
++  // If everything is zero and we have 24-bin logBandEnergies, derive bands.
++  // NOTE: This is a fallback; it prevents silent 0 tilt everywhere.
++  const sum = BAND_KEYS.reduce((s, k) => s + Math.abs(out[k]), 0);
++  const bins: number[] | undefined = Array.isArray(metrics?.logBandEnergies)
++    ? metrics.logBandEnergies
++    : Array.isArray(metrics?.bandEnergiesLog)
++      ? metrics.bandEnergiesLog
++      : undefined;
++
++  if (sum < 1e-9 && bins && bins.length >= 12) {
++    // Coarse mapping of bins -> 7 bands (tweak if your bin layout differs)
++    // We treat bins as energies already (not dB). If they are dB, exponentiate first.
++    const b = bins.map((x) => (Number.isFinite(x) ? x : 0));
++    const bucket = (i0: number, i1: number) => b.slice(i0, i1 + 1).reduce((a, v) => a + v, 0);
++
++    out.subBass = bucket(0, 2);
++    out.bass    = bucket(3, 5);
++    out.lowMid  = bucket(6, 8);
++    out.mid     = bucket(9, 11);
++    out.highMid = bucket(12, 14);
++    out.presence= bucket(15, 18);
++    out.air     = bucket(19, Math.min(23, b.length - 1));
++  }
++
++  return out as TonalBands;
++}
+*** End Patch
