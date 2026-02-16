@@ -6634,6 +6634,7 @@ export default function Analyzer() {
                     }}
                     tonalMetrics={{
                       spectralTilt: metrics.spectralTilt,
+                      tiltCanonical: computeTonalFeatures(metrics).tiltDbPerOct,
                       rolloffFreq: metrics.rolloffFreq,
                       smoothScore: metrics.smoothScore,
                       maxNotchDepth: metrics.maxNotchDepth,
