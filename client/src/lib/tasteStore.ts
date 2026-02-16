@@ -172,13 +172,20 @@ export function simulateVotes(ctx: TasteContext, vectors: number[][], count = 20
   if (!vectors.length) return;
 
   const n = vectors.length;
+  const tiltIndex = vectors[0].length - 2;
+  const meanTilt =
+    vectors.reduce((s, v) => s + (Number.isFinite(v?.[tiltIndex]) ? (v[tiltIndex] as number) : 0), 0) /
+    Math.max(1, vectors.length);
+
   for (let i = 0; i < count; i++) {
     const a = vectors[Math.floor(Math.random() * n)];
     const b = vectors[Math.floor(Math.random() * n)];
     if (!a || !b || a === b) continue;
 
-    const tiltIndex = a.length - 2;
-    const winner = (a[tiltIndex] ?? 0) > (b[tiltIndex] ?? 0) ? a : b;
+    const aT = (Number.isFinite(a[tiltIndex]) ? (a[tiltIndex] as number) : 0) - meanTilt;
+    const bT = (Number.isFinite(b[tiltIndex]) ? (b[tiltIndex] as number) : 0) - meanTilt;
+
+    const winner = aT >= bT ? a : b;
     const loser  = winner === a ? b : a;
 
     recordPreference(ctx, winner, loser, { lr: 0.06 });
