@@ -91,31 +91,26 @@ function computeProxySmoothScoreFromShapeDb(shape: TonalBands): number {
   const v = keys.map((k) => safeNumber(shape[k]));
 
   const diffs: number[] = [];
-  for (let i = 0; i < v.length - 1; i++) diffs.push(Math.abs(v[i + 1] - v[i]));
-  const meanDiff = diffs.reduce((a, b) => a + b, 0) / Math.max(1, diffs.length);
+  for (let i = 0; i < v.length - 1; i++) {
+    diffs.push(Math.abs(v[i + 1] - v[i]));
+  }
 
   const curvs: number[] = [];
   for (let i = 0; i < v.length - 2; i++) {
     curvs.push(Math.abs(v[i + 2] - 2 * v[i + 1] + v[i]));
   }
-  const meanCurv = curvs.reduce((a, b) => a + b, 0) / Math.max(1, curvs.length);
 
-  const air = safeNumber(shape.air);
-  const presence = safeNumber(shape.presence);
-  const highMid = safeNumber(shape.highMid);
-  const fizzExcess = air - Math.max(presence, highMid);
+  const meanDiff =
+    diffs.reduce((a, b) => a + b, 0) / Math.max(1, diffs.length);
 
-  const presenceSpike = presence - highMid;
+  const meanCurv =
+    curvs.reduce((a, b) => a + b, 0) / Math.max(1, curvs.length);
 
-  const roughness =
-    meanDiff * 1.0 +
-    meanCurv * 0.7 +
-    Math.max(0, fizzExcess - 1.0) * 1.2 +
-    Math.max(0, presenceSpike - 2.0) * 0.9;
+  const roughness = meanDiff + 0.7 * meanCurv;
 
-  const score = 100 - roughness * 10;
+  const normalized = 100 * Math.exp(-roughness / 6);
 
-  return Math.round(clamp(score, 0, 100));
+  return Math.round(clamp(normalized, 5, 100));
 }
 
 function clamp01(x: number): number {
