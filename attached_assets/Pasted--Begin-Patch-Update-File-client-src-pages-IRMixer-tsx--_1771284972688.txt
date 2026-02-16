@@ -1,0 +1,156 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-    // ------------------------------------------------------------
+-    // AM4-friendly 4-pick selection (STRONGER DIVERSITY / LESS CLUSTERING)
+-    // Your feedback: picks are too clustered. So we switch to MMR selection:
+-    //   pick next = maximize:  λ * score  -  (1-λ) * maxSimilarityToSelected
+-    // This forces diversity while still respecting score.
+-    // ------------------------------------------------------------
++    // ------------------------------------------------------------
++    // AM4-friendly 4-pick selection (UNCERTAINTY-DRIVEN / ACTIVE-LEARNING)
++    // Goal: stop clustered top-4 by forcing informative comparisons:
++    //   1) Exploit: best total score
++    //   2) Boundary: closest total score to #1 (hard decision)
++    //   3) Contrarian: highest disagreement with the current taste model
++    //   4) Diversity: least similar to selected set (but still decent score)
++    // ------------------------------------------------------------
+@@
+-    // Work on two pools:
+-    // - rankPool: high-quality candidates (used to seed/anchor)
+-    // - divPool: wider pool for diversity (prevents “clustered top-60” issue)
+-    const RANK_N = 60;
+-    const DIV_N = 220;
+-    const rankPool = rescored.slice(0, Math.min(RANK_N, rescored.length));
+-    const divPool = rescored.slice(0, Math.min(DIV_N, rescored.length));
++    // Wider pool so active learning can escape local maxima
++    const POOL_N = 250;
++    const pool = rescored.slice(0, Math.min(POOL_N, rescored.length));
+@@
+-    // Always seed with the top scorer from rankPool
+-    if (rankPool[0]) add(rankPool[0]);
++    // Seed with the top scorer (exploit)
++    if (pool[0]) add(pool[0]);
+@@
+-    // Max similarity helper
++    // Max similarity helper (centered feature space)
+     const maxSimToSelected = (cand: any): number => {
+       const v = vecOf(cand);
+       if (!v) return 1; // treat missing vectors as "very similar" so they won't be chosen for diversity
+       let maxSim = -1;
+       for (const s of selected) {
+         const sv = vecOf(s);
+         if (!sv) continue;
+         maxSim = Math.max(maxSim, cosineSim(v, sv));
+       }
+       return maxSim;
+     };
+ 
+-    // MMR picker: maximize λ*score - (1-λ)*simPenalty, searching over a provided pool
+-    const pickMMR = (lambda: number, poolArr: any[], minScore: number): any | null => {
+-      let best: any | null = null;
+-      let bestVal = -Number.POSITIVE_INFINITY;
+-      for (const cand of poolArr) {
+-        if (used.has(keyOf(cand))) continue;
+-        const score = Number.isFinite(cand.score) ? cand.score : 0;
+-        if (score < minScore) continue;
+-        const sim = selected.length ? maxSimToSelected(cand) : 0;
+-        const val = lambda * score - (1 - lambda) * sim * 100; // similarity penalty scaled
+-        if (val > bestVal) {
+-          bestVal = val;
+-          best = cand;
+-        }
+-      }
+-      return best;
+-    };
++    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (pool[0]?.score ?? 0);
++    const minOkScore = topScore - 22; // allow exploration while avoiding garbage
++
++    // 2) Boundary pick: closest total score to #1 (uncertainty near decision boundary)
++    let boundary: any | null = null;
++    let bestGap = Number.POSITIVE_INFINITY;
++    for (let i = 1; i < pool.length; i++) {
++      const cand = pool[i];
++      if (used.has(keyOf(cand))) continue;
++      const score = Number.isFinite(cand.score) ? cand.score : 0;
++      if (score < minOkScore) continue;
++      const gap = Math.abs(score - topScore);
++      if (gap < bestGap) {
++        bestGap = gap;
++        boundary = cand;
++      }
++    }
++    if (boundary) add(boundary);
++
++    // 3) Contrarian pick: strongest disagreement with taste model
++    // Heuristic: pick candidate with the most negative tasteBoost among decent-score options.
++    // We approximate tasteBoost as (cand.score - baseScoreGuess) if debug fields exist; otherwise use score rank.
++    let contrarian: any | null = null;
++    let lowestScore = Number.POSITIVE_INFINITY;
++    for (let i = 1; i < pool.length; i++) {
++      const cand = pool[i];
++      if (used.has(keyOf(cand))) continue;
++      const score = Number.isFinite(cand.score) ? cand.score : 0;
++      if (score < minOkScore) continue;
++      // Prefer items far down the total-score list but still above minOkScore: proxy for disagreement
++      // (This works because taste bias is already baked into cand.score in rescored.)
++      if (score < lowestScore) {
++        lowestScore = score;
++        contrarian = cand;
++      }
++    }
++    if (contrarian) add(contrarian);
+ 
+-    // Minimum acceptable score for diversity pool (prevents garbage)
+-    // Anchor to top score so threshold adapts to different sessions.
+-    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (rankPool[0]?.score ?? 0);
+-    const minDivScore = topScore - 18; // allow diversity to reach down but not too far
+-
+-    // Pick #2: strong diversity from WIDE pool
+-    const p2 = pickMMR(0.55, divPool, minDivScore);
+-    if (p2) add(p2);
+-
+-    // Pick #3: boundary vs current best (closest score to #1 but not too similar)
+-    let boundary: any | null = null;
+-    let bestGap = Number.POSITIVE_INFINITY;
+-    for (const cand of rankPool) {
+-      if (used.has(keyOf(cand))) continue;
+-      const gap = Math.abs((cand.score ?? 0) - topScore);
+-      const sim = selected.length ? maxSimToSelected(cand) : 0;
+-      // require at least some diversity for boundary too
+-      if (sim > 0.92) continue;
+-      if (gap < bestGap) {
+-        bestGap = gap;
+-        boundary = cand;
+-      }
+-    }
+-    if (boundary) add(boundary);
+-
+-    // Pick #4: diversity again from WIDE pool
+-    const p4 = pickMMR(0.55, divPool, minDivScore);
+-    if (p4) add(p4);
++    // 4) Diversity pick: least similar to selected set, but still above minOkScore
++    let diverse: any | null = null;
++    let lowestMaxSim = Number.POSITIVE_INFINITY;
++    for (let i = 1; i < pool.length; i++) {
++      const cand = pool[i];
++      if (used.has(keyOf(cand))) continue;
++      const score = Number.isFinite(cand.score) ? cand.score : 0;
++      if (score < minOkScore) continue;
++      const sim = selected.length ? maxSimToSelected(cand) : 0;
++      if (sim < lowestMaxSim) {
++        lowestMaxSim = sim;
++        diverse = cand;
++      }
++    }
++    if (diverse) add(diverse);
+ 
+     // Final fallback: fill by score if needed
+-    for (const cand of rankPool) {
++    for (const cand of pool) {
+       if (selected.length >= 4) break;
+       add(cand);
+     }
+ 
+     return selected.slice(0, 4).map((p, idx) => ({ ...p, rank: idx + 1 }));
+*** End Patch

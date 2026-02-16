@@ -1028,10 +1028,8 @@ export default function IRMixer() {
       return centerVector(xRaw, mean);
     };
 
-    const RANK_N = 60;
-    const DIV_N = 220;
-    const rankPool = rescored.slice(0, Math.min(RANK_N, rescored.length));
-    const divPool = rescored.slice(0, Math.min(DIV_N, rescored.length));
+    const POOL_N = 250;
+    const pool = rescored.slice(0, Math.min(POOL_N, rescored.length));
 
     const selected: any[] = [];
     const used = new Set<string>();
@@ -1043,7 +1041,7 @@ export default function IRMixer() {
       return true;
     };
 
-    if (rankPool[0]) add(rankPool[0]);
+    if (pool[0]) add(pool[0]);
 
     const maxSimToSelected = (cand: any): number => {
       const v = vecOf(cand);
@@ -1057,36 +1055,17 @@ export default function IRMixer() {
       return maxSim;
     };
 
-    const pickMMR = (lambda: number, poolArr: any[], minScore: number): any | null => {
-      let best: any | null = null;
-      let bestVal = -Number.POSITIVE_INFINITY;
-      for (const cand of poolArr) {
-        if (used.has(keyOf(cand))) continue;
-        const score = Number.isFinite(cand.score) ? cand.score : 0;
-        if (score < minScore) continue;
-        const sim = selected.length ? maxSimToSelected(cand) : 0;
-        const val = lambda * score - (1 - lambda) * sim * 100;
-        if (val > bestVal) {
-          bestVal = val;
-          best = cand;
-        }
-      }
-      return best;
-    };
-
-    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (rankPool[0]?.score ?? 0);
-    const minDivScore = topScore - 18;
-
-    const p2 = pickMMR(0.55, divPool, minDivScore);
-    if (p2) add(p2);
+    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (pool[0]?.score ?? 0);
+    const minOkScore = topScore - 22;
 
     let boundary: any | null = null;
     let bestGap = Number.POSITIVE_INFINITY;
-    for (const cand of rankPool) {
+    for (let i = 1; i < pool.length; i++) {
+      const cand = pool[i];
       if (used.has(keyOf(cand))) continue;
-      const gap = Math.abs((cand.score ?? 0) - topScore);
-      const sim = selected.length ? maxSimToSelected(cand) : 0;
-      if (sim > 0.92) continue;
+      const score = Number.isFinite(cand.score) ? cand.score : 0;
+      if (score < minOkScore) continue;
+      const gap = Math.abs(score - topScore);
       if (gap < bestGap) {
         bestGap = gap;
         boundary = cand;
@@ -1094,10 +1073,36 @@ export default function IRMixer() {
     }
     if (boundary) add(boundary);
 
-    const p4 = pickMMR(0.55, divPool, minDivScore);
-    if (p4) add(p4);
+    let contrarian: any | null = null;
+    let lowestScore = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < pool.length; i++) {
+      const cand = pool[i];
+      if (used.has(keyOf(cand))) continue;
+      const score = Number.isFinite(cand.score) ? cand.score : 0;
+      if (score < minOkScore) continue;
+      if (score < lowestScore) {
+        lowestScore = score;
+        contrarian = cand;
+      }
+    }
+    if (contrarian) add(contrarian);
 
-    for (const cand of rankPool) {
+    let diverse: any | null = null;
+    let lowestMaxSim = Number.POSITIVE_INFINITY;
+    for (let i = 1; i < pool.length; i++) {
+      const cand = pool[i];
+      if (used.has(keyOf(cand))) continue;
+      const score = Number.isFinite(cand.score) ? cand.score : 0;
+      if (score < minOkScore) continue;
+      const sim = selected.length ? maxSimToSelected(cand) : 0;
+      if (sim < lowestMaxSim) {
+        lowestMaxSim = sim;
+        diverse = cand;
+      }
+    }
+    if (diverse) add(diverse);
+
+    for (const cand of pool) {
       if (selected.length >= 4) break;
       add(cand);
     }
