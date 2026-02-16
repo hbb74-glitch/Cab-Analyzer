@@ -317,3 +317,28 @@ export function scoreBlend(
 
   return score;
 }
+
+export function redundancySimilarity(aShape: TonalBands, bShape: TonalBands): number {
+  const keys: BandKey[] = ["lowMid", "mid", "highMid", "presence", "air"];
+
+  const va = keys.map(k => safeNumber(aShape[k]));
+  const vb = keys.map(k => safeNumber(bShape[k]));
+
+  const ma = va.reduce((s, x) => s + x, 0) / va.length;
+  const mb = vb.reduce((s, x) => s + x, 0) / vb.length;
+
+  const xa = va.map(x => x - ma);
+  const xb = vb.map(x => x - mb);
+
+  const dot = xa.reduce((s, x, i) => s + x * xb[i], 0);
+  const na = Math.sqrt(xa.reduce((s, x) => s + x * x, 0));
+  const nb = Math.sqrt(xb.reduce((s, x) => s + x * x, 0));
+
+  if (na < 1e-9 || nb < 1e-9) return 0;
+  return dot / (na * nb);
+}
+
+export function isRedundant(a: TonalBands, b: TonalBands): boolean {
+  const sim = redundancySimilarity(a, b);
+  return sim >= 0.94;
+}
