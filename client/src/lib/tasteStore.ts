@@ -76,9 +76,12 @@ export function featurizeBlend(base: TonalFeatures, feat: TonalFeatures, baseRat
 
   const vec: number[] = [];
 
-  for (const k of BAND_KEYS) vec.push(safeNumber(blended.bandsShapeDb[k]));
-  vec.push(safeNumber(blended.tiltDbPerOct));
-  vec.push(safeNumber(blended.smoothScore));
+  for (const k of BAND_KEYS) {
+    vec.push(safeNumber(blended.bandsShapeDb[k]) / 10);
+  }
+
+  vec.push(safeNumber(blended.tiltDbPerOct) / 10);
+  vec.push(safeNumber(blended.smoothScore) / 100);
 
   return vec;
 }
