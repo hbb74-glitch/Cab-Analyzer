@@ -5,6 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { featurizeBlend, getTasteBias, recordPreference, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -936,11 +937,47 @@ export default function IRMixer() {
     return pool.length >= 2 ? pool : [];
   }, [allIRs, baseIR, featureIRs]);
 
+  const tasteContext: TasteContext = useMemo(() => {
+    const speakerPrefix = (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+    return { speakerPrefix, mode: "blend", intent: "rhythm" };
+  }, [baseIR?.filename, pairingPool]);
+
+  const featuresByFilename = useMemo(() => {
+    const m = new Map<string, TonalFeatures>();
+    for (const ir of pairingPool) {
+      if (ir?.filename && ir?.features) m.set(ir.filename, ir.features);
+    }
+    return m;
+  }, [pairingPool]);
+
   const suggestedPairs = useMemo(() => {
     if (pairingPool.length < 2) return [];
-    return suggestPairings(pairingPool, activeProfiles, 4, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined, exposureCounts.size > 0 ? exposureCounts : undefined);
+    const baseList = suggestPairings(
+      pairingPool,
+      activeProfiles,
+      6,
+      learnedProfile || undefined,
+      evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
+      exposureCounts.size > 0 ? exposureCounts : undefined
+    );
+
+    const rescored = baseList.map((p) => {
+      const bF = featuresByFilename.get(p.baseFilename);
+      const fF = featuresByFilename.get(p.featureFilename);
+      const ratio = p.suggestedRatio?.base ?? 0.5;
+      if (!bF || !fF) return p;
+
+      const x = featurizeBlend(bF, fF, ratio);
+      const { bias, confidence } = getTasteBias(tasteContext, x);
+      const tasteBoost = bias * (1 + 0.5 * confidence);
+
+      return { ...p, score: p.score + tasteBoost };
+    });
+
+    rescored.sort((a, b) => b.score - a.score);
+    return rescored.map((p, idx) => ({ ...p, rank: idx + 1 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts]);
+  }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts, featuresByFilename, tasteContext]);
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -1201,6 +1238,27 @@ export default function IRMixer() {
       },
     ];
 
+    try {
+      const winner = tasteCheckPhase.candidates[pickedIndex];
+      const wBase = featuresByFilename.get(winner.baseFilename);
+      const wFeat = featuresByFilename.get(winner.featureFilename);
+      const wRatio = winner.suggestedRatio?.base ?? 0.5;
+      if (wBase && wFeat) {
+        const xW = featurizeBlend(wBase, wFeat, wRatio);
+        for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
+          if (i === pickedIndex) continue;
+          const loser = tasteCheckPhase.candidates[i];
+          const lBase = featuresByFilename.get(loser.baseFilename);
+          const lFeat = featuresByFilename.get(loser.featureFilename);
+          const lRatio = loser.suggestedRatio?.base ?? 0.5;
+          if (!lBase || !lFeat) continue;
+          const xL = featurizeBlend(lBase, lFeat, lRatio);
+          recordPreference(tasteContext, xW, xL);
+        }
+      }
+    } catch {
+    }
+
     const nextRound = tasteCheckPhase.round + 1;
 
     tasteCheckTimeoutRef.current = setTimeout(() => {
@@ -1263,7 +1321,7 @@ export default function IRMixer() {
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
       });
     }, 1500);
-  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode]);
+  }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, featuresByFilename, tasteContext]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -1511,6 +1569,20 @@ export default function IRMixer() {
     const { step, matchups, lowIdx, highIdx } = ratioRefinePhase;
     const current = matchups[step];
 
+    try {
+      const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx ?? 0];
+      const pair = cand?.pair;
+      const bF = cand?.baseFeatures;
+      const fF = cand?.featFeatures;
+      if (pair && bF && fF) {
+        const xA = featurizeBlend(bF, fF, current.a);
+        const xB = featurizeBlend(bF, fF, current.b);
+        if (pickedSide === "a") recordPreference(tasteContext, xA, xB);
+        else if (pickedSide === "b") recordPreference(tasteContext, xB, xA);
+      }
+    } catch {
+    }
+
     if (pickedSide === "tie") {
       const MAX_RATIO_ROUNDS = 3;
       const aIdx = RATIO_GRID.indexOf(snapToGrid(current.a));
@@ -1564,7 +1636,7 @@ export default function IRMixer() {
 
     const updated = [...matchups.slice(0, step + 1), { a: RATIO_GRID[nextAIdx], b: RATIO_GRID[nextBIdx] }];
     setRatioRefinePhase({ ...ratioRefinePhase, step: step + 1, matchups: updated, lowIdx: newLow, highIdx: newHigh });
-  }, [ratioRefinePhase, completeRatioRefine]);
+  }, [ratioRefinePhase, completeRatioRefine, featuresByFilename, tasteContext]);
 
   const handleNoRatioHelps = useCallback(() => {
     completeRatioRefine(null, true);

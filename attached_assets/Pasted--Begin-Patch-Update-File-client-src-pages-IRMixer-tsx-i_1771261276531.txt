@@ -1,0 +1,118 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+ import { cn } from "@/lib/utils";
+ import { useToast } from "@/hooks/use-toast";
++import { featurizeBlend, getTasteBias, recordPreference, type TasteContext } from "@/lib/tasteStore";
+@@
+   const pairingPool = useMemo(() => {
+@@
+   }, [allIRs, baseIR, featureIRs]);
++
++  // --- Phase 2 Step 1: taste context (MVP) ---
++  // (We’ll add a UI selector later; for now default to rhythm.)
++  const tasteContext: TasteContext = useMemo(() => {
++    const speakerPrefix = (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
++    return { speakerPrefix, mode: "blend", intent: "rhythm" };
++  }, [baseIR?.filename, pairingPool]);
++
++  const featuresByFilename = useMemo(() => {
++    const m = new Map<string, TonalFeatures>();
++    for (const ir of pairingPool) {
++      if (ir?.filename && ir?.features) m.set(ir.filename, ir.features);
++    }
++    return m;
++  }, [pairingPool]);
+@@
+   const suggestedPairs = useMemo(() => {
+     if (pairingPool.length < 2) return [];
+-    return suggestPairings(pairingPool, activeProfiles, 4, learnedProfile || undefined, evaluatedPairs.size > 0 ? evaluatedPairs : undefined, exposureCounts.size > 0 ? exposureCounts : undefined);
++    const baseList = suggestPairings(
++      pairingPool,
++      activeProfiles,
++      6,
++      learnedProfile || undefined,
++      evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
++      exposureCounts.size > 0 ? exposureCounts : undefined
++    );
++
++    // Apply taste bias as a small additive score term
++    const rescored = baseList.map((p) => {
++      const bF = featuresByFilename.get(p.baseFilename);
++      const fF = featuresByFilename.get(p.featureFilename);
++      const ratio = p.suggestedRatio?.base ?? 0.5;
++      if (!bF || !fF) return p;
++
++      const x = featurizeBlend(bF, fF, ratio);
++      const { bias, confidence } = getTasteBias(tasteContext, x);
++      // Scale bias gently so it nudges but doesn’t dominate
++      const tasteBoost = bias * (1 + 0.5 * confidence);
++
++      return { ...p, score: p.score + tasteBoost };
++    });
++
++    // Re-rank after taste bias
++    rescored.sort((a, b) => b.score - a.score);
++    return rescored.map((p, idx) => ({ ...p, rank: idx + 1 }));
+   }, [pairingPool, activeProfiles,
+-    learnedProfile, evaluatedPairs, exposureCounts]);
++    learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext]);
+@@
+   const handleTasteCheckPick = useCallback((pickedIndex: number) => {
+     if (!tasteCheckPhase) return;
+@@
+     const newHistory: TasteCheckRoundResult[] = [
+@@
+     ];
++
++    // Phase 2 Step 1: record preference updates from taste-check picks
++    // Binary round: winner vs loser
++    // Quad round: winner vs each other candidate
++    try {
++      const winner = tasteCheckPhase.candidates[pickedIndex];
++      const wBase = featuresByFilename.get(winner.baseFilename);
++      const wFeat = featuresByFilename.get(winner.featureFilename);
++      const wRatio = winner.suggestedRatio?.base ?? 0.5;
++      if (wBase && wFeat) {
++        const xW = featurizeBlend(wBase, wFeat, wRatio);
++        for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
++          if (i === pickedIndex) continue;
++          const loser = tasteCheckPhase.candidates[i];
++          const lBase = featuresByFilename.get(loser.baseFilename);
++          const lFeat = featuresByFilename.get(loser.featureFilename);
++          const lRatio = loser.suggestedRatio?.base ?? 0.5;
++          if (!lBase || !lFeat) continue;
++          const xL = featurizeBlend(lBase, lFeat, lRatio);
++          recordPreference(tasteContext, xW, xL);
++        }
++      }
++    } catch {
++      // ignore vote failures
++    }
+@@
+   }, [tasteCheckPhase, learnedProfile, proceedToRatioRefine, pairingPool, activeProfiles, tasteCheckMode, featuresByFilename, tasteContext]);
+@@
+   const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
+     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
+@@
+     const current = matchups[step];
++
++    // Phase 2 Step 1: record ratio preference as a pairwise preference between two ratios
++    // We treat this as a preference over two blend results.
++    try {
++      const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx ?? 0];
++      const pair = cand?.pair;
++      const bF = cand?.baseFeatures;
++      const fF = cand?.featFeatures;
++      if (pair && bF && fF) {
++        const xA = featurizeBlend(bF, fF, current.a);
++        const xB = featurizeBlend(bF, fF, current.b);
++        if (pickedSide === "a") recordPreference(tasteContext, xA, xB);
++        else if (pickedSide === "b") recordPreference(tasteContext, xB, xA);
++        // tie => no update
++      }
++    } catch {
++      // ignore
++    }
+*** End Patch
