@@ -1,0 +1,95 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ function bandsToShapeDb(raw: TonalBands): TonalBands {
+   const EPS = 1e-12;
+ 
+-  const dbValues: any = {};
++  const dbValues: any = {};
+   for (const k of BAND_KEYS) {
+     const energy = Math.max(EPS, raw[k]);
+     dbValues[k] = 10 * Math.log10(energy);
+   }
+@@
+   return result;
+ }
+ 
++// Raw band dB (pre shape normalization). This is what tilt should be based on.
++function bandsToRawDb(raw: TonalBands): TonalBands {
++  const EPS = 1e-12;
++  const out: any = {};
++  for (const k of BAND_KEYS) {
++    const energy = Math.max(EPS, raw[k]);
++    out[k] = 10 * Math.log10(energy);
++  }
++  return out as TonalBands;
++}
++
+ export function computeTonalFeatures(metrics: any): TonalFeatures {
+   const bandsRaw = extractBandsRaw(metrics);
+   const bandsPercent = bandsToPercent(bandsRaw);
+   const bandsShapeDb = bandsToShapeDb(bandsRaw);
+ 
+-  // Canonical tilt (symmetric, avoids mid-anchor bias):
+-  // tilt = avg(presence, air) - avg(bass, subBass) in SHAPE dB space.
+-  const tiltDbPerOct =
+-    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
+-    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
++  // Canonical tilt (symmetric, stable magnitude):
++  // Compute from RAW dB (pre shape normalization), not shapeDb.
++  // tilt = avg(presence, air) - avg(bass, subBass)
++  const rawDb = bandsToRawDb(bandsRaw);
++  const tiltDbPerOct =
++    ((safeNumber(rawDb.presence) + safeNumber(rawDb.air)) / 2) -
++    ((safeNumber(rawDb.bass) + safeNumber(rawDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw,
+     bandsPercent,
+     bandsShapeDb,
+     tiltDbPerOct,
+     smoothScore,
+     notchCount: metrics?.notchCount,
+     maxNotchDepth: metrics?.maxNotchDepth,
+     rolloffFreq: metrics?.rolloffFreq,
+     tailLevelDb: metrics?.tailLevelDb,
+     tailStatus: metrics?.tailStatus,
+   };
+ }
+@@
+ export function blendFeatures(
+   a: TonalFeatures,
+   b: TonalFeatures,
+   aGain: number,
+   bGain: number
+ ): TonalFeatures {
+   const blendedRaw: any = {};
+   for (const k of BAND_KEYS) {
+     blendedRaw[k] = a.bandsRaw[k] * aGain + b.bandsRaw[k] * bGain;
+   }
+ 
+   const blendedPercent = bandsToPercent(blendedRaw);
+   const blendedShapeDb = bandsToShapeDb(blendedRaw);
+ 
+-  const tiltDbPerOct =
+-    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
+-    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
++  const blendedRawDb = bandsToRawDb(blendedRaw);
++  const tiltDbPerOct =
++    ((safeNumber(blendedRawDb.presence) + safeNumber(blendedRawDb.air)) / 2) -
++    ((safeNumber(blendedRawDb.bass) + safeNumber(blendedRawDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw: blendedRaw,
+     bandsPercent: blendedPercent,
+     bandsShapeDb: blendedShapeDb,
+     tiltDbPerOct,
+     smoothScore: blendedSmooth,
+     notchCount: blendScalar(a.notchCount, b.notchCount, aGain, bGain),
+     maxNotchDepth: blendScalar(a.maxNotchDepth, b.maxNotchDepth, aGain, bGain),
+     rolloffFreq: blendScalar(a.rolloffFreq, b.rolloffFreq, aGain, bGain),
+     tailLevelDb: blendScalar(a.tailLevelDb, b.tailLevelDb, aGain, bGain),
+     tailStatus: undefined,
+   };
+ }
+*** End Patch

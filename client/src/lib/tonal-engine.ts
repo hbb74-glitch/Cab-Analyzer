@@ -59,9 +59,10 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
       ? smoothFromMetrics!
       : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
 
+  const rawDb = bandsToRawDb(bandsRaw);
   const tiltDbPerOct =
-    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
-    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+    ((safeNumber(rawDb.presence) + safeNumber(rawDb.air)) / 2) -
+    ((safeNumber(rawDb.bass) + safeNumber(rawDb.subBass)) / 2);
 
   return {
     bandsRaw,
@@ -246,6 +247,16 @@ export function bandsToShapeDb(bandsRaw: TonalBands): TonalBands {
   return shape;
 }
 
+function bandsToRawDb(raw: TonalBands): TonalBands {
+  const EPS = 1e-12;
+  const out: any = {};
+  for (const k of BAND_KEYS) {
+    const energy = Math.max(EPS, raw[k]);
+    out[k] = 10 * Math.log10(energy);
+  }
+  return out as TonalBands;
+}
+
 function clampDb(v: number) {
   if (!Number.isFinite(v)) return DB_FLOOR;
   if (v < DB_FLOOR) return DB_FLOOR;
@@ -278,9 +289,10 @@ export function blendFeatures(
   const blendedPercent = bandsToPercent(blendedRaw);
   const blendedShapeDb = bandsToShapeDb(blendedRaw);
 
+  const blendedRawDb = bandsToRawDb(blendedRaw);
   const tiltDbPerOct =
-    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
-    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
+    ((safeNumber(blendedRawDb.presence) + safeNumber(blendedRawDb.air)) / 2) -
+    ((safeNumber(blendedRawDb.bass) + safeNumber(blendedRawDb.subBass)) / 2);
 
   const aSmooth = normalizeSmoothScore(a.smoothScore);
   const bSmooth = normalizeSmoothScore(b.smoothScore);
