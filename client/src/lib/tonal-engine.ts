@@ -178,13 +178,13 @@ function extractBandsRaw(metrics: any): TonalBands {
   const src = metrics?.bandsRaw ?? metrics ?? {};
 
   const out: any = {
-    subBass:  safeNumber(getKey(be, ["sub"]) ?? getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy"])),
-    bass:     safeNumber(getKey(be, ["bass"]) ?? getKey(src, ["bass", "bassEnergy"])),
-    lowMid:   safeNumber(getKey(be, ["lowmid"]) ?? getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy"])),
-    mid:      safeNumber(getKey(be, ["mid"]) ?? getKey(src, ["mid", "midEnergy6", "midEnergy"])),
-    highMid:  safeNumber(getKey(be, ["highmid"]) ?? getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy"])),
-    presence: safeNumber(getKey(be, ["pres"]) ?? getKey(src, ["presence", "pres", "presenceEnergy"])),
-    air:      safeNumber(getKey(be, ["air"]) ?? getKey(src, ["air", "ultraHighEnergy", "airEnergy"])),
+    subBass:  safeNumber(getKey(be, ["sub"]) ?? getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy", "subBassPercent"])),
+    bass:     safeNumber(getKey(be, ["bass"]) ?? getKey(src, ["bass", "bassEnergy", "bassPercent"])),
+    lowMid:   safeNumber(getKey(be, ["lowmid"]) ?? getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy", "lowMidPercent"])),
+    mid:      safeNumber(getKey(be, ["mid"]) ?? getKey(src, ["mid", "midEnergy6", "midEnergy", "midPercent"])),
+    highMid:  safeNumber(getKey(be, ["highmid"]) ?? getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy", "highMidPercent"])),
+    presence: safeNumber(getKey(be, ["pres"]) ?? getKey(src, ["presence", "pres", "presenceEnergy", "presencePercent"])),
+    air:      safeNumber(getKey(be, ["air"]) ?? getKey(src, ["air", "ultraHighEnergy", "airEnergy", "ultraHighPercent"])),
   } as TonalBands;
 
   const directVals = BAND_KEYS.map(k => out[k]);

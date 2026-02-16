@@ -1,0 +1,65 @@
+# Replit: Fix Batch Analysis Tilt Stuck at 0 (Make Batch Return Full Metrics Like Single)
+
+Symptom:
+- Single IR analysis shows proper tilt (Bright/Dark/Neutral)
+- Batch analysis tilt becomes 0 / Neutral for everything
+
+Root cause:
+Batch analysis endpoint is returning "summary metrics" and is missing band data required to compute tilt:
+- missing metrics.bandsRaw (7-band energies)
+and/or
+- missing metrics.logBandEnergies (24-bin array)
+
+computeTonalFeatures() then sees no bands, extracts zeros, tilt becomes 0.
+
+Fix:
+Make the batch analysis endpoint return the SAME metrics structure as the single analysis endpoint.
+
+-----------------------
+WHAT TO DO (Replit)
+-----------------------
+
+1) Find the SINGLE analysis handler (the one used for analyzing one file).
+   Look for routes like:
+   - /api/analyze
+   - /api/analyze-ir
+   - /api/analyze-file
+
+   Identify the object it returns as `metrics`.
+   Confirm that it includes ONE of:
+   - metrics.bandsRaw = { subBass,bass,lowMid,mid,highMid,presence,air }
+   - metrics.logBandEnergies = [ ... ] (typically length 24)
+
+2) Find the BATCH analysis handler (the one used for analyzing multiple files).
+   Look for routes like:
+   - /api/analyze-batch
+   - /api/analyze-multiple
+   - /api/analyze-files
+
+   Compare its returned metrics fields to the SINGLE endpoint.
+
+3) Update the batch endpoint so that for EACH file it returns the full metrics,
+   not a reduced subset.
+
+   Concretely:
+   - If batch currently returns only { spectralTilt, rolloffFreq, smoothScore, ... }
+     then replace that with the full `metrics` object produced by the same analyzer
+     function used in the single endpoint.
+
+4) Ensure the batch code does NOT “strip” or “pick” only some keys.
+   Remove any code like:
+   - pick(metrics, ["spectralTilt","rolloffFreq"...])
+   - { spectralTilt: metrics.spectralTilt, rolloffFreq: metrics.rolloffFreq, ... }
+   and return the full metrics instead.
+
+5) Validation (no console needed):
+   After the change, batch tilt should no longer be 0.
+   In Analyzer list, you should see a mix of Bright / Neutral / Dark similar to single analysis.
+
+-----------------------
+If you want an explicit safeguard:
+-----------------------
+If a batch item still somehow lacks bandsRaw and logBandEnergies, do NOT overwrite tilt with 0.
+Instead keep the analyzer-provided spectralTilt for display as a fallback.
+
+But the real fix is making batch return the same metrics as single.

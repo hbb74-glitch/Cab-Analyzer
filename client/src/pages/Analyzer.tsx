@@ -4886,9 +4886,9 @@ export default function Analyzer() {
                         {/* Tonal Dashboard */}
                         <div className="mt-2">
                           <TonalDashboard
-                            tiltCanonical={computeTonalFeatures(r as any).tiltDbPerOct}
+                            tiltCanonical={computeTonalFeatures(r as any).tiltDbPerOct || (r as any).spectralTilt || 0}
                             rolloffFreq={(r as any).rolloffFreq}
-                            smoothScore={(r as any).smoothScore ?? r.frequencySmoothness}
+                            smoothScore={computeTonalFeatures(r as any).smoothScore ?? (r as any).smoothScore ?? r.frequencySmoothness}
                             maxNotchDepth={(r as any).maxNotchDepth}
                             notchCount={(r as any).notchCount}
                             spectralCentroid={(r as any).spectralCentroid}
