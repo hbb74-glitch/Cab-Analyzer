@@ -661,12 +661,41 @@ function cullIRs(
   const CLOSE_CALL_THRESHOLD = 0.05; // 5% difference in combined score triggers close call
 
   // Parse filenames for mic/position info
-  const getMicType = (filename: string): string => {
+  const getSpeakerPrefix = (filename: string): string => {
     const lower = filename.toLowerCase();
     const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    let firstIdx = Number.POSITIVE_INFINITY;
     for (const mic of mics) {
-      if (lower.includes(mic)) return mic;
+      const idx = lower.indexOf(mic);
+      if (idx !== -1 && idx < firstIdx) firstIdx = idx;
     }
+    if (!Number.isFinite(firstIdx) || firstIdx === Number.POSITIVE_INFINITY) {
+      return (lower.split("_")[0] ?? lower).trim();
+    }
+    return lower.slice(0, firstIdx).trim();
+  };
+
+  const detectBlendMicsCull = (filename: string): { mics: string[]; isTechnique: boolean } => {
+    const lower = filename.toLowerCase();
+    const BLEND_TECHNIQUES: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
+    for (const [technique, mics] of Object.entries(BLEND_TECHNIQUES)) {
+      if (lower.includes(technique)) return { mics, isTechnique: true };
+    }
+    const detected: string[] = [];
+    const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+    for (const mic of mics) {
+      if (lower.includes(mic)) detected.push(mic);
+    }
+    return { mics: detected, isTechnique: false };
+  };
+
+  const getMicType = (filename: string): string => {
+    const det = detectBlendMicsCull(filename);
+    if (det.mics.length >= 2 && !det.isTechnique) {
+      const combo = [...det.mics].sort().join("_");
+      return `combo_${combo}`;
+    }
+    if (det.mics.length === 1) return det.mics[0];
     return 'unknown';
   };
 
@@ -682,36 +711,29 @@ function cullIRs(
     return 'unknown';
   };
 
-  // Build similarity matrix for diversity consideration within each mic
+  // Build similarity matrix for diversity consideration
+  // Do NOT let cross-speaker similarities drive culling.
   const n = irs.length;
   const similarityMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
   
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
+      if (getSpeakerPrefix(irs[i].filename) !== getSpeakerPrefix(irs[j].filename)) {
+        similarityMatrix[i][j] = 0;
+        similarityMatrix[j][i] = 0;
+        continue;
+      }
       const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
       similarityMatrix[i][j] = similarity;
       similarityMatrix[j][i] = similarity;
     }
   }
 
-  const BLEND_TECHNIQUES: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
-  const detectBlendMics = (filename: string): { mics: string[]; isTechnique: boolean } => {
-    const lower = filename.toLowerCase();
-    for (const [technique, mics] of Object.entries(BLEND_TECHNIQUES)) {
-      if (lower.includes(technique)) return { mics, isTechnique: true };
-    }
-    const detected: string[] = [];
-    const mics = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
-    for (const mic of mics) {
-      if (lower.includes(mic)) detected.push(mic);
-    }
-    return { mics: detected, isTechnique: false };
-  };
-
-  const countSoloShots = (micName: string): number => {
+  const countSoloShots = (micName: string, speakerPrefix: string): number => {
     let count = 0;
     for (let j = 0; j < n; j++) {
-      const det = detectBlendMics(irs[j].filename);
+      if (getSpeakerPrefix(irs[j].filename) !== speakerPrefix) continue;
+      const det = detectBlendMicsCull(irs[j].filename);
       if (det.mics.length === 1 && det.mics[0] === micName) count++;
     }
     return count;
@@ -719,7 +741,7 @@ function cullIRs(
 
   const blendInfoMap = new Map<number, BlendRedundancyInfo>();
   for (let i = 0; i < n; i++) {
-    const { mics: blendMics, isTechnique } = detectBlendMics(irs[i].filename);
+    const { mics: blendMics, isTechnique } = detectBlendMicsCull(irs[i].filename);
     if (blendMics.length < 2 && !isTechnique) continue;
 
     if (isTechnique) {
@@ -739,7 +761,7 @@ function cullIRs(
       let bestFile = '';
       for (let j = 0; j < n; j++) {
         if (j === i) continue;
-        const jDet = detectBlendMics(irs[j].filename);
+        const jDet = detectBlendMicsCull(irs[j].filename);
         if (jDet.mics.length === 1 && jDet.mics[0] === mic) {
           const sim = similarityMatrix[i][j];
           if (sim > bestSim) {
@@ -768,7 +790,8 @@ function cullIRs(
     const closestComponent = componentMatches.reduce((a, b) => a.similarity > b.similarity ? a : b);
     const simPct = Math.round(closestComponent.similarity * 100);
 
-    const allComponentsWellCovered = uniqueMics.every(m => countSoloShots(m) >= 3);
+    const spk = getSpeakerPrefix(irs[i].filename);
+    const allComponentsWellCovered = uniqueMics.every(m => countSoloShots(m, spk) >= 3);
     const effectiveThreshold = allComponentsWellCovered
       ? Math.max(blendThresholdOverride - 0.08, 0.78)
       : blendThresholdOverride;
