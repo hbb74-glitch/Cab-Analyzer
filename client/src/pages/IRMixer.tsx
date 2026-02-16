@@ -972,13 +972,13 @@ export default function IRMixer() {
       const fF = featuresByFilename.get(p.featureFilename);
       const ratio = p.suggestedRatio?.base ?? 0.5;
 
-      if (!tasteEnabled || !bF || !fF) return p;
+      if (!tasteEnabled || !bF || !fF) return { ...p, _tasteBoost: 0, _baseScore: p.score, _totalScore: p.score };
 
       const x = featurizeBlend(bF, fF, ratio);
       const { bias, confidence } = getTasteBias(tasteContext, x);
       const tasteBoost = bias * 25 * (0.5 + confidence);
-
-      return { ...p, score: p.score + tasteBoost };
+      const total = p.score + tasteBoost;
+      return { ...p, score: total, _tasteBoost: tasteBoost, _baseScore: p.score, _totalScore: total };
     });
 
     rescored.sort((a, b) => b.score - a.score);
