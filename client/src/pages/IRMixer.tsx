@@ -961,29 +961,30 @@ export default function IRMixer() {
     const baseList = suggestPairings(
       pairingPool,
       activeProfiles,
-      6,
+      20,
       learnedProfile || undefined,
       evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
       exposureCounts.size > 0 ? exposureCounts : undefined
     );
 
     const rescored = baseList.map((p) => {
-      if (!tasteEnabled) return p;
-
       const bF = featuresByFilename.get(p.baseFilename);
       const fF = featuresByFilename.get(p.featureFilename);
       const ratio = p.suggestedRatio?.base ?? 0.5;
-      if (!bF || !fF) return p;
+
+      if (!tasteEnabled || !bF || !fF) return p;
 
       const x = featurizeBlend(bF, fF, ratio);
       const { bias, confidence } = getTasteBias(tasteContext, x);
-      const tasteBoost = bias * (1 + 0.5 * confidence);
+      const tasteBoost = bias * (1 + confidence);
 
       return { ...p, score: p.score + tasteBoost };
     });
 
     rescored.sort((a, b) => b.score - a.score);
-    return rescored.map((p, idx) => ({ ...p, rank: idx + 1 }));
+
+    const top = rescored.slice(0, 4);
+    return top.map((p, idx) => ({ ...p, rank: idx + 1 }));
   }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion]);
 
   const hasPairingPool = pairingPool.length >= 2;
