@@ -976,7 +976,7 @@ export default function IRMixer() {
 
       const x = featurizeBlend(bF, fF, ratio);
       const { bias, confidence } = getTasteBias(tasteContext, x);
-      const tasteBoost = bias * (1 + confidence);
+      const tasteBoost = bias * 25 * (0.5 + confidence);
 
       return { ...p, score: p.score + tasteBoost };
     });
