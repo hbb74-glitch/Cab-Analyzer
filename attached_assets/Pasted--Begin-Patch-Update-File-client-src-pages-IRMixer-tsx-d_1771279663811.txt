@@ -1,0 +1,44 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-      {debugVisible && suggestedPairsDebug.length > 0 && (
+-        <div className="mt-3 text-xs border rounded p-2 opacity-90">
+-          <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
+-          <div className="space-y-1">
+-            {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
+-              <div key={i} className="flex gap-2">
+-                <span className="w-6 opacity-70">{i + 1}.</span>
+-                <span className="flex-1 truncate opacity-90">
+-                  {p.baseFilename} + {p.featureFilename}
+-                </span>
+-                <span className="w-16 text-right opacity-70">base {p.baseScore.toFixed(1)}</span>
+-                <span className="w-16 text-right opacity-70">taste {p.tasteBoost.toFixed(1)}</span>
+-                <span className="w-16 text-right">tot {p.totalScore.toFixed(1)}</span>
+-              </div>
+-            ))}
+-          </div>
+-        </div>
+-      )}
++      {debugVisible && suggestedPairsDebug.length > 0 && (
++        <div className="mt-3 text-xs border rounded p-2 opacity-90 max-h-80 overflow-auto">
++          <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
++          <div className="space-y-2">
++            {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
++              <div key={i} className="border-b border-zinc-700 pb-1">
++                <div className="opacity-70">
++                  {i + 1}.
++                </div>
++                <div className="break-words opacity-90">
++                  {p.baseFilename} + {p.featureFilename}
++                </div>
++                <div className="flex gap-4 opacity-80">
++                  <div>base: {p.baseScore.toFixed(1)}</div>
++                  <div>taste: {p.tasteBoost.toFixed(1)}</div>
++                  <div>total: {p.totalScore.toFixed(1)}</div>
++                </div>
++              </div>
++            ))}
++          </div>
++        </div>
++      )}
+*** End Patch

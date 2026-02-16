@@ -978,7 +978,7 @@ export default function IRMixer() {
         vecByKey.set(k, featurizeBlend(bF, fF, ratio));
       }
     }
-    const allVecs = [...vecByKey.values()];
+    const allVecs = Array.from(vecByKey.values());
     const mean = meanVector(allVecs);
 
     const rescored = baseList.map((p) => {
@@ -1043,7 +1043,7 @@ export default function IRMixer() {
     const runnerUpScore = rescored[1]?.score ?? rescored[0]?.score ?? 0;
     let boundary: any | null = null;
     let bestGap = Number.POSITIVE_INFINITY;
-    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
+    for (let i = 2; i < Math.min(rescored.length, 30); i++) {
       const p = rescored[i];
       const k = keyOf(p);
       if (used.has(k)) continue;
@@ -1056,21 +1056,31 @@ export default function IRMixer() {
     if (boundary) add(boundary);
 
     let diverse: any | null = null;
-    let lowestMaxSim = Number.POSITIVE_INFINITY;
-    const selVecs = selected.map(vecOf).filter(Boolean) as number[][];
-    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
+    let lowestSimilarity = Number.POSITIVE_INFINITY;
+
+    for (let i = 2; i < Math.min(rescored.length, 30); i++) {
       const p = rescored[i];
       const k = keyOf(p);
       if (used.has(k)) continue;
+
       const v = vecOf(p);
-      if (!v || selVecs.length === 0) continue;
-      let maxSim = -1;
-      for (const sv of selVecs) maxSim = Math.max(maxSim, cosineSim(v, sv));
-      if (maxSim < lowestMaxSim) {
-        lowestMaxSim = maxSim;
+      if (!v) continue;
+
+      let maxSimToSelected = -1;
+
+      for (const s of selected) {
+        const sv = vecOf(s);
+        if (!sv) continue;
+        const sim = cosineSim(v, sv);
+        if (sim > maxSimToSelected) maxSimToSelected = sim;
+      }
+
+      if (maxSimToSelected < lowestSimilarity) {
+        lowestSimilarity = maxSimToSelected;
         diverse = p;
       }
     }
+
     if (diverse) add(diverse);
 
     for (let i = 0; selected.length < 4 && i < rescored.length; i++) {
@@ -2031,7 +2041,7 @@ export default function IRMixer() {
 
         {TasteControlBar}
 
-        {debugVisible && tasteEnabled && suggestedPairsDebug.length > 0 && (
+        {debugVisible && suggestedPairsDebug.length > 0 && (
           <div className="mt-1 mb-4 text-xs border rounded p-2 opacity-90" data-testid="taste-debug-panel">
             <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
             <div className="space-y-1">

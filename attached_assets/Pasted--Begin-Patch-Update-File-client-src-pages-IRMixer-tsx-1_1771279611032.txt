@@ -1,0 +1,81 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-    // 1) Top 2
+-    if (rescored[0]) add(rescored[0]);
+-    if (rescored[1]) add(rescored[1]);
++    // 1) Top 2 by score
++    if (rescored[0]) add(rescored[0]);
++    if (rescored[1]) add(rescored[1]);
+@@
+-    const runnerUpScore = rescored[1]?.score ?? rescored[0]?.score ?? 0;
++    const runnerUpScore = rescored[1]?.score ?? rescored[0]?.score ?? 0;
+     let boundary: any | null = null;
+     let bestGap = Number.POSITIVE_INFINITY;
+     for (let i = 2; i < Math.min(rescored.length, 30); i++) {
+       const p = rescored[i];
+       const k = keyOf(p);
+       if (used.has(k)) continue;
+-      const gap = Math.abs((p.score ?? 0) - runnerUpScore);
++      const gap = Math.abs((p.score ?? 0) - runnerUpScore);
+       if (gap < bestGap) {
+         bestGap = gap;
+         boundary = p;
+       }
+     }
+     if (boundary) add(boundary);
+@@
+-    let diverse: any | null = null;
+-    let lowestMaxSim = Number.POSITIVE_INFINITY;
+-    const selVecs = selected.map(vecOf).filter(Boolean) as number[][];
+-    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
+-      const p = rescored[i];
+-      const k = keyOf(p);
+-      if (used.has(k)) continue;
+-      const v = vecOf(p);
+-      if (!v || selVecs.length === 0) continue;
+-      let maxSim = -1;
+-      for (const sv of selVecs) maxSim = Math.max(maxSim, cosineSim(v, sv));
+-      if (maxSim < lowestMaxSim) {
+-        lowestMaxSim = maxSim;
+-        diverse = p;
+-      }
+-    }
+-    if (diverse) add(diverse);
++    // 3) Diversity pick
++    let diverse: any | null = null;
++    let lowestSimilarity = Number.POSITIVE_INFINITY;
++
++    for (let i = 2; i < Math.min(rescored.length, 30); i++) {
++      const p = rescored[i];
++      const k = keyOf(p);
++      if (used.has(k)) continue;
++
++      const v = vecOf(p);
++      if (!v) continue;
++
++      let maxSimToSelected = -1;
++
++      for (const s of selected) {
++        const sv = vecOf(s);
++        if (!sv) continue;
++        const sim = cosineSim(v, sv);
++        if (sim > maxSimToSelected) maxSimToSelected = sim;
++      }
++
++      if (maxSimToSelected < lowestSimilarity) {
++        lowestSimilarity = maxSimToSelected;
++        diverse = p;
++      }
++    }
++
++    if (diverse) add(diverse);
+@@
+-      {tasteEnabled && suggestedPairsDebug.length > 0 && (
++      {debugVisible && suggestedPairsDebug.length > 0 && (
+         <div className="mt-3 text-xs border rounded p-2 opacity-90">
+           <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
+           <div className="space-y-1">
+             {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
+               <div key={i} className="flex gap-2">
+*** End Patch
