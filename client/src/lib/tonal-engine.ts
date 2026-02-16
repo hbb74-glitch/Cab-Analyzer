@@ -49,9 +49,25 @@ export function scoreToLabel(score: number): "strong" | "close" | "partial" | "m
 
 export function computeTonalFeatures(metrics: any): TonalFeatures {
   const bandsRaw = extractBandsRaw(metrics);
-
   const bandsPercent = bandsToPercent(bandsRaw);
   const bandsShapeDb = bandsToShapeDb(bandsRaw);
+
+  const rawDb: any = {};
+  const EPS = 1e-12;
+  for (const k of BAND_KEYS) {
+    const energy = Math.max(EPS, bandsRaw[k]);
+    rawDb[k] = 10 * Math.log10(energy);
+  }
+
+  const tiltDbPerOct =
+    ((rawDb.presence + rawDb.air) / 2) -
+    ((rawDb.bass + rawDb.subBass) / 2);
+
+  console.log("DEBUG TILT", {
+    tilt: tiltDbPerOct,
+    rawDb,
+    bandsRaw
+  });
 
   const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
   const smoothScore =
@@ -59,18 +75,11 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
       ? smoothFromMetrics!
       : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
 
-  const rawDb = bandsToRawDb(bandsRaw);
-  const tiltDbPerOct =
-    ((safeNumber(rawDb.presence) + safeNumber(rawDb.air)) / 2) -
-    ((safeNumber(rawDb.bass) + safeNumber(rawDb.subBass)) / 2);
-
   return {
     bandsRaw,
     bandsPercent,
     bandsShapeDb,
-
     tiltDbPerOct,
-
     smoothScore,
     notchCount: metrics?.notchCount,
     maxNotchDepth: metrics?.maxNotchDepth,

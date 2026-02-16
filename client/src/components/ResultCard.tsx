@@ -36,7 +36,6 @@ interface TonalBalance {
 }
 
 interface TonalMetrics {
-  spectralTilt?: number | null;
   tiltCanonical?: number | null;
   rolloffFreq?: number | null;
   smoothScore?: number | null;
@@ -438,7 +437,6 @@ export function ResultCard({ score, isPerfect, advice, metrics, tonalMetrics, mi
           
           {tonalMetrics && (
             <TonalDashboard
-              spectralTilt={tonalMetrics.spectralTilt}
               tiltCanonical={tonalMetrics.tiltCanonical}
               rolloffFreq={tonalMetrics.rolloffFreq}
               smoothScore={tonalMetrics.smoothScore}

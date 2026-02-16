@@ -1,0 +1,124 @@
+# IR.Scope – TILT HARD FIX + DEBUG (Single Unified Patch)
+
+GOAL:
+Tilt is stuck at 0.0 after analysis.
+We will:
+1) Remove all spectralTilt usage.
+2) Force Analyzer + Mixer to use canonical tilt.
+3) Add temporary logging to verify real tilt values.
+4) Prevent silent 0 fallback.
+
+------------------------------------------------------------
+STEP 1 — Fix tonal-engine tilt (canonical + debug)
+
+File: client/src/lib/tonal-engine.ts
+
+REPLACE the entire computeTonalFeatures function with this version:
+
+------------------------------------------------------------
+
+export function computeTonalFeatures(metrics: any): TonalFeatures {
+  const bandsRaw = extractBandsRaw(metrics);
+  const bandsPercent = bandsToPercent(bandsRaw);
+  const bandsShapeDb = bandsToShapeDb(bandsRaw);
+
+  // Compute raw dB (pre shape normalization)
+  const rawDb: any = {};
+  const EPS = 1e-12;
+  for (const k of BAND_KEYS) {
+    const energy = Math.max(EPS, bandsRaw[k]);
+    rawDb[k] = 10 * Math.log10(energy);
+  }
+
+  const tiltDbPerOct =
+    ((rawDb.presence + rawDb.air) / 2) -
+    ((rawDb.bass + rawDb.subBass) / 2);
+
+  // DEBUG — REMOVE LATER
+  console.log("DEBUG TILT", {
+    tilt: tiltDbPerOct,
+    rawDb,
+    bandsRaw
+  });
+
+  return {
+    bandsRaw,
+    bandsPercent,
+    bandsShapeDb,
+    tiltDbPerOct,
+    smoothScore: metrics?.smoothScore ?? 0,
+    notchCount: metrics?.notchCount,
+    maxNotchDepth: metrics?.maxNotchDepth,
+    rolloffFreq: metrics?.rolloffFreq,
+    tailLevelDb: metrics?.tailLevelDb,
+    tailStatus: metrics?.tailStatus,
+  };
+}
+
+------------------------------------------------------------
+STEP 2 — Remove spectralTilt from dashboard entirely
+
+File: client/src/components/TonalDashboard.tsx
+
+1) Remove spectralTilt from interface:
+
+CHANGE:
+
+interface TonalDashboardProps {
+  spectralTilt?: number | null;
+  tiltCanonical?: number | null;
+
+TO:
+
+interface TonalDashboardProps {
+  tiltCanonical?: number | null;
+
+2) Replace tilt logic with:
+
+const tilt = Number.isFinite(props.tiltCanonical)
+  ? props.tiltCanonical!
+  : 0;
+
+------------------------------------------------------------
+STEP 3 — Force Analyzer to always use canonical tilt
+
+File: client/src/pages/Analyzer.tsx
+
+Find ALL TonalDashboard and TonalDashboardCompact usage.
+
+REPLACE each usage with:
+
+<TonalDashboard
+  tiltCanonical={computeTonalFeatures(ir.metrics).tiltDbPerOct}
+  rolloffFreq={ir.metrics.rolloffFreq}
+  smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
+/>
+
+Do NOT pass spectralTilt anywhere anymore.
+
+------------------------------------------------------------
+STEP 4 — Run and Observe Console
+
+Open browser dev console.
+
+Look at:
+
+DEBUG TILT
+
+You should now see non-zero tilt values.
+
+If tilt values in console are:
+- Non-zero → UI now reflects real tilt.
+- All 0 → bandsRaw is wrong. We then inspect metrics object.
+
+------------------------------------------------------------
+STOP HERE AND REPORT:
+
+After applying this:
+1) What does console show for DEBUG TILT?
+2) Are rawDb values identical across all bands?
+3) Does bandsRaw contain zeros?
+
+This will tell us immediately where the issue is.
+
+DO NOT modify anything else yet.

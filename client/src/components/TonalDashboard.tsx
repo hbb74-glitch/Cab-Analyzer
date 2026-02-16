@@ -3,7 +3,6 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TonalDashboardProps {
-  spectralTilt?: number | null;
   tiltCanonical?: number | null;
   rolloffFreq?: number | null;
   smoothScore?: number | null;
@@ -186,15 +185,14 @@ function TonalBalanceBars({ bands }: { bands: { label: string; value: number; co
 export function TonalDashboard(props: TonalDashboardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const hasTilt = props.tiltCanonical != null || props.spectralTilt != null;
+  const hasTilt = props.tiltCanonical != null;
   const hasRolloff = props.rolloffFreq != null;
   const hasSmooth = props.smoothScore != null;
   const hasBands = props.lowMidPercent != null && props.highMidPercent != null;
 
   if (!hasTilt && !hasRolloff && !hasSmooth && !hasBands) return null;
 
-  const tiltValue = (props.tiltCanonical ?? props.spectralTilt ?? 0) as number;
-  const tilt = Number.isFinite(tiltValue) ? tiltValue : 0;
+  const tilt = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
   const rolloff = props.rolloffFreq ?? 3000;
   const smooth = props.smoothScore ?? 0;
   const lowMid = props.lowMidPercent ?? 0;
@@ -332,14 +330,13 @@ export function TonalDashboard(props: TonalDashboardProps) {
 }
 
 export function TonalDashboardCompact(props: TonalDashboardProps) {
-  const hasTilt = props.tiltCanonical != null || props.spectralTilt != null;
+  const hasTilt = props.tiltCanonical != null;
   const hasSmooth = props.smoothScore != null;
   const hasBands = props.lowMidPercent != null && props.highMidPercent != null;
 
   if (!hasTilt && !hasSmooth && !hasBands) return null;
 
-  const tiltValue = (props.tiltCanonical ?? props.spectralTilt ?? 0) as number;
-  const tilt = Number.isFinite(tiltValue) ? tiltValue : 0;
+  const tilt = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
   const smooth = props.smoothScore ?? 0;
   const lowMid = props.lowMidPercent ?? 0;
   const bass = props.bassPercent ?? 0;

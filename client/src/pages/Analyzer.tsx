@@ -1493,7 +1493,6 @@ function CompareMode() {
           </label>
           {refMetrics && (
             <TonalDashboard
-              spectralTilt={refMetrics.spectralTilt}
               tiltCanonical={computeTonalFeatures(refMetrics).tiltDbPerOct}
               rolloffFreq={refMetrics.rolloffFreq}
               smoothScore={refMetrics.smoothScore}
@@ -1548,7 +1547,6 @@ function CompareMode() {
           </label>
           {candMetrics && (
             <TonalDashboard
-              spectralTilt={candMetrics.spectralTilt}
               tiltCanonical={computeTonalFeatures(candMetrics).tiltDbPerOct}
               rolloffFreq={candMetrics.rolloffFreq}
               smoothScore={candMetrics.smoothScore}
@@ -4099,7 +4097,6 @@ export default function Analyzer() {
                             </div>
                             {ir.metrics && (
                               <TonalDashboardCompact
-                                spectralTilt={ir.metrics.spectralTilt}
                                 tiltCanonical={computeTonalFeatures(ir.metrics).tiltDbPerOct}
                                 rolloffFreq={ir.metrics.rolloffFreq}
                                 smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
@@ -4889,7 +4886,6 @@ export default function Analyzer() {
                         {/* Tonal Dashboard */}
                         <div className="mt-2">
                           <TonalDashboard
-                            spectralTilt={(r as any).spectralTilt}
                             tiltCanonical={computeTonalFeatures(r as any).tiltDbPerOct}
                             rolloffFreq={(r as any).rolloffFreq}
                             smoothScore={(r as any).smoothScore ?? r.frequencySmoothness}
@@ -6633,7 +6629,6 @@ export default function Analyzer() {
                       noiseFloor: metrics.noiseFloorDb
                     }}
                     tonalMetrics={{
-                      spectralTilt: metrics.spectralTilt,
                       tiltCanonical: computeTonalFeatures(metrics).tiltDbPerOct,
                       rolloffFreq: metrics.rolloffFreq,
                       smoothScore: metrics.smoothScore,
