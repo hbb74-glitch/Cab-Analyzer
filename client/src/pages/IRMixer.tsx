@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -973,13 +973,15 @@ export default function IRMixer() {
       const fF = featuresByFilename.get(p.featureFilename);
       const ratio = p.suggestedRatio?.base ?? 0.5;
 
-      if (!tasteEnabled || !bF || !fF) return { ...p, _tasteBoost: 0, _baseScore: p.score, _totalScore: p.score };
+      if (!tasteEnabled || !bF || !fF) return { ...p, _tasteBoost: 0, _complementBoost: 0, _baseScore: p.score, _totalScore: p.score };
 
       const x = featurizeBlend(bF, fF, ratio);
       const { bias, confidence } = getTasteBias(tasteContext, x);
       const tasteBoost = bias * 25 * (0.5 + confidence);
-      const total = p.score + tasteBoost;
-      return { ...p, score: total, _tasteBoost: tasteBoost, _baseScore: p.score, _totalScore: total };
+      const pairKey = `${p.baseFilename}__${p.featureFilename}`;
+      const complementBoost = getComplementBoost(tasteContext, pairKey);
+      const total = p.score + tasteBoost + complementBoost;
+      return { ...p, score: total, _tasteBoost: tasteBoost, _complementBoost: complementBoost, _baseScore: p.score, _totalScore: total };
     });
 
     rescored.sort((a, b) => b.score - a.score);
@@ -1835,6 +1837,27 @@ export default function IRMixer() {
         data-testid="button-taste-simulate"
       >
         Simulate 20 votes
+      </button>
+
+      <button
+        className="px-2 py-1 rounded border border-zinc-600"
+        onClick={() => {
+          const top = suggestedPairs?.[0];
+          if (!top) return;
+          const bF = featuresByFilename.get(top.baseFilename);
+          const fF = featuresByFilename.get(top.featureFilename);
+          const ratio = top.suggestedRatio?.base ?? 0.5;
+          if (!bF || !fF) return;
+          const xA = featurizeBlend(bF, fF, ratio);
+          const xB = xA;
+          const pairKey = `${top.baseFilename}__${top.featureFilename}`;
+          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+          setTasteVersion(v => v + 1);
+        }}
+        title="Mark the top suggestion as 'both useful' (complement) to boost it modestly"
+        data-testid="button-taste-both-useful"
+      >
+        Both useful
       </button>
 
       <button

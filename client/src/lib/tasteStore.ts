@@ -16,15 +16,17 @@ type ModelState = {
 };
 
 type StoreState = {
-  version: 1;
+  version: 2;
   models: Record<string, ModelState>;
+  complements: Record<string, Record<string, number>>;
 };
 
 const STORAGE_KEY = "irscope.taste.v1";
 
 const DEFAULT_STATE: StoreState = {
-  version: 1,
+  version: 2,
   models: {},
+  complements: {},
 };
 
 function safeNumber(v: any, fallback = 0): number {
@@ -46,7 +48,19 @@ export function loadState(): StoreState {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
     const parsed = JSON.parse(raw);
-    if (!parsed || parsed.version !== 1) return DEFAULT_STATE;
+    if (!parsed) return DEFAULT_STATE;
+
+    if (parsed.version === 1) {
+      const migrated: StoreState = {
+        version: 2,
+        models: parsed.models ?? {},
+        complements: {},
+      };
+      return migrated;
+    }
+
+    if (parsed.version !== 2) return DEFAULT_STATE;
+    if (!parsed.complements) parsed.complements = {};
     return parsed as StoreState;
   } catch {
     return DEFAULT_STATE;
@@ -148,6 +162,50 @@ export function recordPreference(
   saveState(state);
 }
 
+export type VoteOutcome = "a" | "b" | "tie" | "both";
+
+export function recordOutcome(
+  ctx: TasteContext,
+  xA: number[],
+  xB: number[],
+  outcome: VoteOutcome,
+  opts?: { lr?: number; pairKey?: string }
+) {
+  const state = loadState();
+  const key = makeTasteKey(ctx);
+
+  if (outcome === "tie") {
+    const dim = Math.min(xA.length, xB.length);
+    const model = getOrCreateModel(state, key, dim);
+    model.nVotes += 0.25;
+    saveState(state);
+    return;
+  }
+
+  if (outcome === "both") {
+    const pk = opts?.pairKey;
+    if (pk) {
+      if (!state.complements[key]) state.complements[key] = {};
+      state.complements[key][pk] = (state.complements[key][pk] ?? 0) + 1;
+    }
+    const dim = Math.min(xA.length, xB.length);
+    const model = getOrCreateModel(state, key, dim);
+    model.nVotes += 0.15;
+    saveState(state);
+    return;
+  }
+
+  if (outcome === "a") recordPreference(ctx, xA, xB, { lr: opts?.lr ?? 0.06 });
+  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr: opts?.lr ?? 0.06 });
+}
+
+export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
+  const state = loadState();
+  const key = makeTasteKey(ctx);
+  const c = state.complements?.[key]?.[pairKey] ?? 0;
+  return clamp(c, 0, 5) * 0.8;
+}
+
 export function resetTaste(ctx?: TasteContext) {
   const state = loadState();
   if (!ctx) {
@@ -156,6 +214,7 @@ export function resetTaste(ctx?: TasteContext) {
   }
   const key = makeTasteKey(ctx);
   delete state.models[key];
+  delete state.complements[key];
   saveState(state);
 }
 

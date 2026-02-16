@@ -1,0 +1,175 @@
+*** Begin Patch
+*** Update File: client/src/lib/tasteStore.ts
+@@
+ export type TasteIntent = "rhythm" | "lead" | "clean";
+@@
+ type ModelState = {
+   w: number[];          // learned weight vector
+   nVotes: number;       // vote count (confidence proxy)
+ };
+ 
+ type StoreState = {
+-  version: 1;
+-  models: Record<string, ModelState>;
++  version: 2;
++  models: Record<string, ModelState>;
++  // Complement learning: “both useful” counts per context, keyed by pairKey
++  complements: Record<string, Record<string, number>>;
+ };
+ 
+ const STORAGE_KEY = "irscope.taste.v1";
+ 
+ const DEFAULT_STATE: StoreState = {
+-  version: 1,
+-  models: {},
++  version: 2,
++  models: {},
++  complements: {},
+ };
+@@
+ function loadState(): StoreState {
+   try {
+     const raw = localStorage.getItem(STORAGE_KEY);
+     if (!raw) return DEFAULT_STATE;
+     const parsed = JSON.parse(raw);
+-    if (!parsed || parsed.version !== 1) return DEFAULT_STATE;
+-    return parsed as StoreState;
++    if (!parsed) return DEFAULT_STATE;
++
++    // Migrate v1 -> v2
++    if (parsed.version === 1) {
++      const migrated: StoreState = {
++        version: 2,
++        models: parsed.models ?? {},
++        complements: {},
++      };
++      return migrated;
++    }
++
++    if (parsed.version !== 2) return DEFAULT_STATE;
++    // Ensure complements exists
++    if (!parsed.complements) parsed.complements = {};
++    return parsed as StoreState;
+   } catch {
+     return DEFAULT_STATE;
+   }
+ }
+@@
+ function saveState(state: StoreState) {
+   try {
+     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+   } catch {
+     // ignore storage failures
+   }
+ }
+@@
+ export function getTasteBias(ctx: TasteContext, x: number[]): { bias: number; confidence: number } {
+   const state = loadState();
+   const key = makeTasteKey(ctx);
+   const model = state.models[key];
+   if (!model) return { bias: 0, confidence: 0 };
+ 
+   const bias = dot(model.w, x);
+   // simple confidence proxy that grows with votes and saturates
+   const confidence = clamp(model.nVotes / 30, 0, 1);
+   return { bias, confidence };
+ }
+ 
+ // -----------------------------
+ // Centering helpers (Phase 2.1)
+ // -----------------------------
+ // These remove "common-mode" features shared by most candidates so taste becomes discriminative.
+ export function meanVector(vectors: number[][]): number[] {
+@@
+ export function centerVector(x: number[], mean: number[]): number[] {
+@@
+ }
+ 
+ // Update rule: w += lr * (xWinner - xLoser)
+ // (Perceptron-style preference learning; stable for MVP Phase 2 Step 1)
+ export function recordPreference(
+   ctx: TasteContext,
+   xWinner: number[],
+   xLoser: number[],
+   opts?: { lr?: number; tie?: boolean }
+ ): void {
+   if (opts?.tie) return;
+ 
+   const lr = opts?.lr ?? 0.06; // safer default; prevents runaway weight drift
+   const state = loadState();
+   const key = makeTasteKey(ctx);
+   const dim = Math.min(xWinner.length, xLoser.length);
+   const model = getOrCreateModel(state, key, dim);
+ 
+   for (let i = 0; i < dim; i++) {
+     model.w[i] += lr * (xWinner[i] - xLoser[i]);
+   }
+   model.nVotes += 1;
+ 
+   saveState(state);
+ }
+ 
++// -----------------------------
++// Phase 2 Step 3: Tie + Both Useful
++// -----------------------------
++export type VoteOutcome = "a" | "b" | "tie" | "both";
++
++// Tie: no weight update, but small confidence increase
++// Both: no weight update, but record complement count for this pairKey
++export function recordOutcome(
++  ctx: TasteContext,
++  xA: number[],
++  xB: number[],
++  outcome: VoteOutcome,
++  opts?: { lr?: number; pairKey?: string }
++) {
++  const state = loadState();
++  const key = makeTasteKey(ctx);
++
++  if (outcome === "tie") {
++    const dim = Math.min(xA.length, xB.length);
++    const model = getOrCreateModel(state, key, dim);
++    model.nVotes += 0.25; // small confidence gain, no learning drift
++    saveState(state);
++    return;
++  }
++
++  if (outcome === "both") {
++    const pk = opts?.pairKey;
++    if (pk) {
++      if (!state.complements[key]) state.complements[key] = {};
++      state.complements[key][pk] = (state.complements[key][pk] ?? 0) + 1;
++    }
++    // “both useful” still provides a little confidence that the context is stable
++    const dim = Math.min(xA.length, xB.length);
++    const model = getOrCreateModel(state, key, dim);
++    model.nVotes += 0.15;
++    saveState(state);
++    return;
++  }
++
++  // a/b => normal preference update
++  if (outcome === "a") recordPreference(ctx, xA, xB, { lr: opts?.lr ?? 0.06 });
++  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr: opts?.lr ?? 0.06 });
++}
++
++export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
++  const state = loadState();
++  const key = makeTasteKey(ctx);
++  const c = state.complements?.[key]?.[pairKey] ?? 0;
++  // modest boost; capped
++  return clamp(c, 0, 5) * 0.8; // up to +4.0
++}
++
+ export function resetTaste(ctx?: TasteContext) {
+   const state = loadState();
+   if (!ctx) {
+     saveState(DEFAULT_STATE);
+     return;
+   }
+   const key = makeTasteKey(ctx);
+   delete state.models[key];
++  delete state.complements[key];
+   saveState(state);
+ }
+*** End Patch
