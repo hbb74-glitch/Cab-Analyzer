@@ -678,6 +678,7 @@ export default function IRMixer() {
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
   const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
   const [tasteEnabled, setTasteEnabled] = useState(true);
+  const [tasteVersion, setTasteVersion] = useState(0);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -945,7 +946,7 @@ export default function IRMixer() {
 
   const tasteStatus = useMemo(() => {
     return getTasteStatus(tasteContext);
-  }, [tasteContext, tasteEnabled]);
+  }, [tasteContext, tasteEnabled, tasteVersion]);
 
   const featuresByFilename = useMemo(() => {
     const m = new Map<string, TonalFeatures>();
@@ -983,7 +984,7 @@ export default function IRMixer() {
 
     rescored.sort((a, b) => b.score - a.score);
     return rescored.map((p, idx) => ({ ...p, rank: idx + 1 }));
-  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled]);
+  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion]);
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -1754,7 +1755,10 @@ export default function IRMixer() {
 
       <button
         className="px-2 py-1 rounded border border-zinc-600"
-        onClick={() => resetTaste(tasteContext)}
+        onClick={() => {
+          resetTaste(tasteContext);
+          setTasteVersion(v => v + 1);
+        }}
         data-testid="button-taste-reset"
       >
         Reset
@@ -1771,8 +1775,7 @@ export default function IRMixer() {
             if (bF && fF) vecs.push(featurizeBlend(bF, fF, ratio));
           }
           simulateVotes(tasteContext, vecs, 20);
-          setTasteEnabled(v => !v);
-          setTimeout(() => setTasteEnabled(v => !v), 0);
+          setTasteVersion(v => v + 1);
         }}
         data-testid="button-taste-simulate"
       >
