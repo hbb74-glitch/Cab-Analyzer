@@ -1,0 +1,110 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+     rescored.sort((a, b) => b.score - a.score);
+ 
+-    // Only return 4 (AM4 constraint)
+-    const top = rescored.slice(0, 4);
+-    return top.map((p, idx) => ({ ...p, rank: idx + 1 }));
++    // ------------------------------------------------------------
++    // AM4-friendly intelligent 4-candidate selection:
++    //  - 2x Top score (best)
++    //  - 1x Boundary (closest score to #2, i.e., most uncertain vs runner-up)
++    //  - 1x Diversity (least similar to selected set)
++    // ------------------------------------------------------------
++    const cosineSim = (a: number[], b: number[]): number => {
++      const n = Math.min(a.length, b.length);
++      let dot = 0, na = 0, nb = 0;
++      for (let i = 0; i < n; i++) {
++        const x = Number.isFinite(a[i]) ? a[i] : 0;
++        const y = Number.isFinite(b[i]) ? b[i] : 0;
++        dot += x * y;
++        na += x * x;
++        nb += y * y;
++      }
++      const den = Math.sqrt(na) * Math.sqrt(nb);
++      if (den < 1e-9) return 0;
++      return dot / den; // -1..1
++    };
++
++    const keyOf = (p: any): string => {
++      const ratio = p.suggestedRatio?.base ?? 0.5;
++      return `${p.baseFilename}__${p.featureFilename}__${ratio}`;
++    };
++
++    const vecOf = (p: any): number[] | null => {
++      const ratio = p.suggestedRatio?.base ?? 0.5;
++      const k = `${p.baseFilename}__${p.featureFilename}__${ratio}`;
++      const xRaw = vecByKey.get(k);
++      if (!xRaw) return null;
++      return centerVector(xRaw, mean);
++    };
++
++    const selected: any[] = [];
++    const used = new Set<string>();
++    const add = (p: any) => {
++      const k = keyOf(p);
++      if (used.has(k)) return;
++      used.add(k);
++      selected.push(p);
++    };
++
++    // 1) Top 2
++    if (rescored[0]) add(rescored[0]);
++    if (rescored[1]) add(rescored[1]);
++
++    // 2) Boundary: closest score to #2 among the next candidates
++    // (most informative "near-decision" comparison)
++    const runnerUpScore = rescored[1]?.score ?? rescored[0]?.score ?? 0;
++    let boundary: any | null = null;
++    let bestGap = Number.POSITIVE_INFINITY;
++    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
++      const p = rescored[i];
++      const k = keyOf(p);
++      if (used.has(k)) continue;
++      const gap = Math.abs((p.score ?? 0) - runnerUpScore);
++      if (gap < bestGap) {
++        bestGap = gap;
++        boundary = p;
++      }
++    }
++    if (boundary) add(boundary);
++
++    // 3) Diversity: choose candidate least similar to the already-selected set
++    let diverse: any | null = null;
++    let lowestMaxSim = Number.POSITIVE_INFINITY;
++    const selVecs = selected.map(vecOf).filter(Boolean) as number[][];
++    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
++      const p = rescored[i];
++      const k = keyOf(p);
++      if (used.has(k)) continue;
++      const v = vecOf(p);
++      if (!v || selVecs.length === 0) continue;
++      let maxSim = -1;
++      for (const sv of selVecs) maxSim = Math.max(maxSim, cosineSim(v, sv));
++      if (maxSim < lowestMaxSim) {
++        lowestMaxSim = maxSim;
++        diverse = p;
++      }
++    }
++    if (diverse) add(diverse);
++
++    // Fallback: if we couldn't fill 4 (e.g., missing vectors), fill by score
++    for (let i = 0; selected.length < 4 && i < rescored.length; i++) {
++      add(rescored[i]);
++    }
++
++    return selected.slice(0, 4).map((p, idx) => ({ ...p, rank: idx + 1 }));
+ 
+   }, [
+     pairingPool,
+     activeProfiles,
+     learnedProfile,
+     evaluatedPairs,
+     exposureCounts,
+     featuresByFilename,
+     tasteContext,
+     tasteEnabled,
+     tasteVersion
+   ]);
+*** End Patch

@@ -968,6 +968,19 @@ export default function IRMixer() {
       exposureCounts.size > 0 ? exposureCounts : undefined
     );
 
+    const vecByKey = new Map<string, number[]>();
+    for (const p of baseList) {
+      const bF = featuresByFilename.get(p.baseFilename);
+      const fF = featuresByFilename.get(p.featureFilename);
+      const ratio = p.suggestedRatio?.base ?? 0.5;
+      if (bF && fF) {
+        const k = `${p.baseFilename}__${p.featureFilename}__${ratio}`;
+        vecByKey.set(k, featurizeBlend(bF, fF, ratio));
+      }
+    }
+    const allVecs = [...vecByKey.values()];
+    const mean = meanVector(allVecs);
+
     const rescored = baseList.map((p) => {
       const bF = featuresByFilename.get(p.baseFilename);
       const fF = featuresByFilename.get(p.featureFilename);
@@ -975,9 +988,11 @@ export default function IRMixer() {
 
       if (!tasteEnabled || !bF || !fF) return { ...p, _tasteBoost: 0, _complementBoost: 0, _baseScore: p.score, _totalScore: p.score };
 
-      const x = featurizeBlend(bF, fF, ratio);
+      const k = `${p.baseFilename}__${p.featureFilename}__${ratio}`;
+      const xRaw = vecByKey.get(k) ?? featurizeBlend(bF, fF, ratio);
+      const x = centerVector(xRaw, mean);
       const { bias, confidence } = getTasteBias(tasteContext, x);
-      const tasteBoost = bias * 25 * (0.5 + confidence);
+      const tasteBoost = bias * 12 * (0.5 + confidence);
       const pairKey = `${p.baseFilename}__${p.featureFilename}`;
       const complementBoost = getComplementBoost(tasteContext, pairKey);
       const total = p.score + tasteBoost + complementBoost;
@@ -986,8 +1001,84 @@ export default function IRMixer() {
 
     rescored.sort((a, b) => b.score - a.score);
 
-    const top = rescored.slice(0, 4);
-    return { all: rescored, top: top.map((p, idx) => ({ ...p, rank: idx + 1 })) };
+    const cosineSim = (a: number[], b: number[]): number => {
+      const n = Math.min(a.length, b.length);
+      let dot = 0, na = 0, nb = 0;
+      for (let i = 0; i < n; i++) {
+        const xi = Number.isFinite(a[i]) ? a[i] : 0;
+        const yi = Number.isFinite(b[i]) ? b[i] : 0;
+        dot += xi * yi;
+        na += xi * xi;
+        nb += yi * yi;
+      }
+      const den = Math.sqrt(na) * Math.sqrt(nb);
+      if (den < 1e-9) return 0;
+      return dot / den;
+    };
+
+    const keyOf = (p: any): string => {
+      const ratio = p.suggestedRatio?.base ?? 0.5;
+      return `${p.baseFilename}__${p.featureFilename}__${ratio}`;
+    };
+
+    const vecOf = (p: any): number[] | null => {
+      const k = keyOf(p);
+      const xRaw = vecByKey.get(k);
+      if (!xRaw) return null;
+      return centerVector(xRaw, mean);
+    };
+
+    const selected: any[] = [];
+    const used = new Set<string>();
+    const add = (p: any) => {
+      const k = keyOf(p);
+      if (used.has(k)) return;
+      used.add(k);
+      selected.push(p);
+    };
+
+    if (rescored[0]) add(rescored[0]);
+    if (rescored[1]) add(rescored[1]);
+
+    const runnerUpScore = rescored[1]?.score ?? rescored[0]?.score ?? 0;
+    let boundary: any | null = null;
+    let bestGap = Number.POSITIVE_INFINITY;
+    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
+      const p = rescored[i];
+      const k = keyOf(p);
+      if (used.has(k)) continue;
+      const gap = Math.abs((p.score ?? 0) - runnerUpScore);
+      if (gap < bestGap) {
+        bestGap = gap;
+        boundary = p;
+      }
+    }
+    if (boundary) add(boundary);
+
+    let diverse: any | null = null;
+    let lowestMaxSim = Number.POSITIVE_INFINITY;
+    const selVecs = selected.map(vecOf).filter(Boolean) as number[][];
+    for (let i = 2; i < Math.min(rescored.length, 20); i++) {
+      const p = rescored[i];
+      const k = keyOf(p);
+      if (used.has(k)) continue;
+      const v = vecOf(p);
+      if (!v || selVecs.length === 0) continue;
+      let maxSim = -1;
+      for (const sv of selVecs) maxSim = Math.max(maxSim, cosineSim(v, sv));
+      if (maxSim < lowestMaxSim) {
+        lowestMaxSim = maxSim;
+        diverse = p;
+      }
+    }
+    if (diverse) add(diverse);
+
+    for (let i = 0; selected.length < 4 && i < rescored.length; i++) {
+      add(rescored[i]);
+    }
+
+    const top = selected.slice(0, 4).map((p, idx) => ({ ...p, rank: idx + 1 }));
+    return { all: rescored, top };
   }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion]);
 
   const suggestedPairs = suggestedPairsRaw.top;
