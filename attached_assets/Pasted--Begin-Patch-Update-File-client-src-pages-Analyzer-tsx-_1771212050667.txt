@@ -1,0 +1,82 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+ function cullIRs(
+@@
+ ) {
++  const getSpeakerPrefix = (filename: string): string => {
++    const lower = filename.toLowerCase();
++    const mics = ['sm57','r121','m160','md421','md421kompakt','md441','pr30','e906','m201','sm7b','c414','r92','r10','m88','roswell'];
++    let firstIdx = Number.POSITIVE_INFINITY;
++    for (const mic of mics) {
++      const idx = lower.indexOf(mic);
++      if (idx !== -1 && idx < firstIdx) firstIdx = idx;
++    }
++    if (!Number.isFinite(firstIdx) || firstIdx === Number.POSITIVE_INFINITY) return (lower.split("_")[0] ?? lower).trim();
++    return lower.slice(0, firstIdx).trim();
++  };
++
++  const detectBlendMics = (filename: string): { mics: string[]; isTechnique: boolean } => {
++    const lower = filename.toLowerCase();
++    const BLEND_TECHNIQUES: Record<string, string[]> = { 'fredman': ['sm57', 'sm57'] };
++    for (const [technique, mics] of Object.entries(BLEND_TECHNIQUES)) {
++      if (lower.includes(technique)) return { mics, isTechnique: true };
++    }
++    const detected: string[] = [];
++    const mics = ['sm57','r121','m160','md421','md421kompakt','md441','pr30','e906','m201','sm7b','c414','r92','r10','m88','roswell'];
++    for (const mic of mics) if (lower.includes(mic)) detected.push(mic);
++    return { mics: detected, isTechnique: false };
++  };
+@@
+   const getMicType = (filename: string): string => {
+-    ... // existing "first mic wins" logic
++    const det = detectBlendMics(filename);
++    if (det.mics.length >= 2 && !det.isTechnique) return `combo_${[...det.mics].sort().join("_")}`;
++    if (det.mics.length === 1) return det.mics[0];
++    return "unknown";
+   };
+@@
+   const n = irs.length;
+   const similarityMatrix: number[][] = Array(n).fill(null).map(() => Array(n).fill(0));
+   for (let i = 0; i < n; i++) {
+     for (let j = i + 1; j < n; j++) {
++      if (getSpeakerPrefix(irs[i].filename) !== getSpeakerPrefix(irs[j].filename)) {
++        similarityMatrix[i][j] = 0;
++        similarityMatrix[j][i] = 0;
++        continue;
++      }
+       const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+       similarityMatrix[i][j] = similarity;
+       similarityMatrix[j][i] = similarity;
+     }
+   }
+@@
+-  const countSoloShots = (micName: string): number => {
++  const countSoloShots = (micName: string, speakerPrefix: string): number => {
+     let count = 0;
+     for (let j = 0; j < n; j++) {
++      if (getSpeakerPrefix(irs[j].filename) !== speakerPrefix) continue;
+       const det = detectBlendMics(irs[j].filename);
+       if (det.mics.length === 1 && det.mics[0] === micName) count++;
+     }
+     return count;
+   };
+@@
+   // Where you compute allComponentsWellCovered
+-  const allComponentsWellCovered = uniqueMics.every(m => countSoloShots(m) >= 3);
++  const spk = getSpeakerPrefix(irs[i].filename);
++  const allComponentsWellCovered = uniqueMics.every(m => countSoloShots(m, spk) >= 3);
+@@
+-  // Group IRs by mic type
+-  const micGroups = new Map<string, number[]>();
++  // Group IRs by speaker + mic type (this is what makes culling actually behave differently)
++  const micGroups = new Map<string, number[]>();
+   irs.forEach((ir, idx) => {
+-    const mic = getMicType(ir.filename);
+-    if (!micGroups.has(mic)) micGroups.set(mic, []);
+-    micGroups.get(mic)!.push(idx);
++    const key = `${getSpeakerPrefix(ir.filename)}__${getMicType(ir.filename)}`;
++    if (!micGroups.has(key)) micGroups.set(key, []);
++    micGroups.get(key)!.push(idx);
+   });
+*** End Patch

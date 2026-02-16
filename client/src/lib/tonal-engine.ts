@@ -231,6 +231,10 @@ export function blendFeatures(
   const blendedPercent = bandsToPercent(blendedRaw);
   const blendedShapeDb = bandsToShapeDb(blendedRaw);
 
+  const tiltDbPerOct =
+    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
+    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
+
   const aSmooth = normalizeSmoothScore(a.smoothScore);
   const bSmooth = normalizeSmoothScore(b.smoothScore);
   const blendedSmooth =
@@ -243,7 +247,7 @@ export function blendFeatures(
     bandsPercent: blendedPercent,
     bandsShapeDb: blendedShapeDb,
 
-    tiltDbPerOct: a.tiltDbPerOct * aGain + b.tiltDbPerOct * bGain,
+    tiltDbPerOct,
 
     smoothScore: blendedSmooth,
 

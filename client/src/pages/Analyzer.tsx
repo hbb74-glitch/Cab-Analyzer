@@ -11,6 +11,7 @@ import { useCreateAnalysis, analyzeAudioFile, computeDeltaMetrics, type AudioMet
 import { FrequencyGraph } from "@/components/FrequencyGraph";
 import { ResultCard } from "@/components/ResultCard";
 import { TonalDashboard, TonalDashboardCompact } from "@/components/TonalDashboard";
+import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useResults } from "@/context/ResultsContext";
@@ -817,12 +818,12 @@ function cullIRs(
     });
   }
 
-  // Group IRs by mic type
+  // Group IRs by speaker + mic type (this is what makes culling actually behave differently)
   const micGroups = new Map<string, number[]>();
   irs.forEach((ir, idx) => {
-    const mic = getMicType(ir.filename);
-    if (!micGroups.has(mic)) micGroups.set(mic, []);
-    micGroups.get(mic)!.push(idx);
+    const key = `${getSpeakerPrefix(ir.filename)}__${getMicType(ir.filename)}`;
+    if (!micGroups.has(key)) micGroups.set(key, []);
+    micGroups.get(key)!.push(idx);
   });
 
   // Calculate how many slots each mic type gets (proportional allocation)
@@ -1493,6 +1494,7 @@ function CompareMode() {
           {refMetrics && (
             <TonalDashboard
               spectralTilt={refMetrics.spectralTilt}
+              tiltCanonical={computeTonalFeatures(refMetrics).tiltDbPerOct}
               rolloffFreq={refMetrics.rolloffFreq}
               smoothScore={refMetrics.smoothScore}
               maxNotchDepth={refMetrics.maxNotchDepth}
@@ -1547,6 +1549,7 @@ function CompareMode() {
           {candMetrics && (
             <TonalDashboard
               spectralTilt={candMetrics.spectralTilt}
+              tiltCanonical={computeTonalFeatures(candMetrics).tiltDbPerOct}
               rolloffFreq={candMetrics.rolloffFreq}
               smoothScore={candMetrics.smoothScore}
               maxNotchDepth={candMetrics.maxNotchDepth}
@@ -4097,6 +4100,7 @@ export default function Analyzer() {
                             {ir.metrics && (
                               <TonalDashboardCompact
                                 spectralTilt={ir.metrics.spectralTilt}
+                                tiltCanonical={computeTonalFeatures(ir.metrics).tiltDbPerOct}
                                 rolloffFreq={ir.metrics.rolloffFreq}
                                 smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
                                 lowMidPercent={(ir.metrics as any).lowMidPercent}
@@ -4886,6 +4890,7 @@ export default function Analyzer() {
                         <div className="mt-2">
                           <TonalDashboard
                             spectralTilt={(r as any).spectralTilt}
+                            tiltCanonical={computeTonalFeatures(r as any).tiltDbPerOct}
                             rolloffFreq={(r as any).rolloffFreq}
                             smoothScore={(r as any).smoothScore ?? r.frequencySmoothness}
                             maxNotchDepth={(r as any).maxNotchDepth}
