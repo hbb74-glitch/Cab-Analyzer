@@ -135,3 +135,27 @@ export function resetTaste(ctx?: TasteContext) {
   delete state.models[key];
   saveState(state);
 }
+
+export function getTasteStatus(ctx: TasteContext): { nVotes: number; confidence: number } {
+  const state = loadState();
+  const key = makeTasteKey(ctx);
+  const model = state.models[key];
+  const nVotes = model?.nVotes ?? 0;
+  const confidence = clamp(nVotes / 30, 0, 1);
+  return { nVotes, confidence };
+}
+
+export function simulateVotes(ctx: TasteContext, vectors: number[][], count = 20) {
+  if (!vectors.length) return;
+
+  const tiltIndex = vectors[0].length - 2;
+
+  const sorted = [...vectors].sort((a, b) => (b[tiltIndex] ?? 0) - (a[tiltIndex] ?? 0));
+  const winner = sorted[0];
+  const losers = sorted.slice(1);
+
+  for (let i = 0; i < count; i++) {
+    const loser = losers[i % losers.length] ?? sorted[sorted.length - 1];
+    recordPreference(ctx, winner, loser, { lr: 0.12 });
+  }
+}

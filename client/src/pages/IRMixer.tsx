@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, getTasteBias, recordPreference, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -677,6 +677,8 @@ export default function IRMixer() {
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
   const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
+  const [tasteBiasEnabled, setTasteBiasEnabled] = useState(true);
+  const [tasteStatusTick, setTasteStatusTick] = useState(0);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -961,6 +963,8 @@ export default function IRMixer() {
       exposureCounts.size > 0 ? exposureCounts : undefined
     );
 
+    if (!tasteBiasEnabled) return baseList;
+
     const rescored = baseList.map((p) => {
       const bF = featuresByFilename.get(p.baseFilename);
       const fF = featuresByFilename.get(p.featureFilename);
@@ -977,7 +981,7 @@ export default function IRMixer() {
     rescored.sort((a, b) => b.score - a.score);
     return rescored.map((p, idx) => ({ ...p, rank: idx + 1 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts, featuresByFilename, tasteContext]);
+  }, [pairingPool, activeProfiles, learnedProfile, pairingRound, exposureCounts, featuresByFilename, tasteContext, tasteBiasEnabled, tasteStatusTick]);
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -2457,6 +2461,63 @@ export default function IRMixer() {
             </motion.div>
           )}
         </div>
+
+        {hasPairingPool && (
+          <div className="mb-4 p-3 rounded-xl bg-white/[0.03] border border-white/5 flex items-center gap-3 flex-wrap" data-testid="taste-control-bar">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Taste Model</span>
+            {(() => {
+              const status = getTasteStatus(tasteContext);
+              return (
+                <Badge variant="secondary" className="text-[10px] font-mono" data-testid="badge-taste-status">
+                  {status.nVotes} votes &middot; {Math.round(status.confidence * 100)}% conf
+                </Badge>
+              );
+            })()}
+            <Button
+              size="sm"
+              variant={tasteBiasEnabled ? "default" : "outline"}
+              onClick={() => setTasteBiasEnabled(!tasteBiasEnabled)}
+              data-testid="button-taste-toggle"
+            >
+              {tasteBiasEnabled ? "Bias ON" : "Bias OFF"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const vectors: number[][] = [];
+                for (const p of suggestedPairs) {
+                  const bF = featuresByFilename.get(p.baseFilename);
+                  const fF = featuresByFilename.get(p.featureFilename);
+                  if (bF && fF) vectors.push(featurizeBlend(bF, fF, p.suggestedRatio?.base ?? 0.5));
+                }
+                if (vectors.length === 0) {
+                  for (const ir of pairingPool) {
+                    if (ir.features) vectors.push(featurizeBlend(ir.features, ir.features, 0.5));
+                  }
+                }
+                simulateVotes(tasteContext, vectors, 20);
+                setTasteStatusTick((t) => t + 1);
+                toast({ title: "Simulated 20 votes", description: "Taste model updated. Toggle bias to see effect." });
+              }}
+              data-testid="button-taste-simulate"
+            >
+              Simulate 20
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                resetTaste(tasteContext);
+                setTasteStatusTick((t) => t + 1);
+                toast({ title: "Taste reset", description: "All learned preferences cleared for this context." });
+              }}
+              data-testid="button-taste-reset"
+            >
+              Reset
+            </Button>
+          </div>
+        )}
 
         {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase || tasteCheckPhase || tasteCheckMode === "ratio") && !doneRefining && (
           <motion.div ref={pairingSectionRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
