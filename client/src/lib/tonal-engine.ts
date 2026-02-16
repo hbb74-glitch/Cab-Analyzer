@@ -286,8 +286,8 @@ export function blendFeatures(
   const blendedShapeDb = bandsToShapeDb(blendedRaw);
 
   const tiltDbPerOct =
-    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
-    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
+    a.tiltDbPerOct * aGain +
+    b.tiltDbPerOct * bGain;
 
   const aSmooth = normalizeSmoothScore(a.smoothScore);
   const bSmooth = normalizeSmoothScore(b.smoothScore);
