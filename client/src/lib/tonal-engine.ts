@@ -52,9 +52,9 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
   const bandsPercent = bandsToPercent(bandsRaw);
   const bandsShapeDb = bandsToShapeDb(bandsRaw);
 
-  const tiltDbPerOct =
-    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
-    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+  const tiltDbPerOct = Number.isFinite(metrics?.spectralTilt)
+    ? metrics.spectralTilt
+    : 0;
 
   const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
   const smoothScore =
