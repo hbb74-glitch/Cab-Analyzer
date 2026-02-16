@@ -1,0 +1,96 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-    // Work on a larger pool to find genuinely different options
+-    const POOL_N = 60;
+-    const pool = rescored.slice(0, Math.min(POOL_N, rescored.length));
++    // Work on two pools:
++    // - rankPool: high-quality candidates (used to seed/anchor)
++    // - divPool: wider pool for diversity (prevents “clustered top-60” issue)
++    const RANK_N = 60;
++    const DIV_N = 220;
++    const rankPool = rescored.slice(0, Math.min(RANK_N, rescored.length));
++    const divPool = rescored.slice(0, Math.min(DIV_N, rescored.length));
+@@
+-    // Always seed with the top scorer
+-    if (pool[0]) add(pool[0]);
++    // Always seed with the top scorer from rankPool
++    if (rankPool[0]) add(rankPool[0]);
+@@
+-    const pickMMR = (lambda: number): any | null => {
++    // Max similarity helper
++    const maxSimToSelected = (cand: any): number => {
++      const v = vecOf(cand);
++      if (!v) return 1; // treat missing vectors as "very similar" so they won't be chosen for diversity
++      let maxSim = -1;
++      for (const s of selected) {
++        const sv = vecOf(s);
++        if (!sv) continue;
++        maxSim = Math.max(maxSim, cosineSim(v, sv));
++      }
++      return maxSim;
++    };
++
++    // MMR picker: maximize λ*score - (1-λ)*simPenalty, searching over a provided pool
++    const pickMMR = (lambda: number, poolArr: any[], minScore: number): any | null => {
+       let best: any | null = null;
+       let bestVal = -Number.POSITIVE_INFINITY;
+-      for (const cand of pool) {
++      for (const cand of poolArr) {
+         if (used.has(keyOf(cand))) continue;
+-        const sim = selected.length ? maxSimToSelected(cand) : 0;
+         const score = Number.isFinite(cand.score) ? cand.score : 0;
++        if (score < minScore) continue;
++        const sim = selected.length ? maxSimToSelected(cand) : 0;
+         const val = lambda * score - (1 - lambda) * sim * 100; // similarity penalty scaled
+         if (val > bestVal) {
+           bestVal = val;
+           best = cand;
+         }
+       }
+       return best;
+     };
+ 
+-    // Pick #2: strong diversity
+-    const p2 = pickMMR(0.55);
++    // Minimum acceptable score for diversity pool (prevents garbage)
++    // Anchor to top score so threshold adapts to different sessions.
++    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (rankPool[0]?.score ?? 0);
++    const minDivScore = topScore - 18; // allow diversity to reach down but not too far
++
++    // Pick #2: strong diversity from WIDE pool
++    const p2 = pickMMR(0.55, divPool, minDivScore);
+     if (p2) add(p2);
+ 
+-    // Pick #3: boundary vs current best (closest score to #1 but not too similar)
+-    const topScore = Number.isFinite(selected[0]?.score) ? selected[0].score : (pool[0]?.score ?? 0);
++    // Pick #3: boundary vs current best (closest score to #1 but not too similar)
+     let boundary: any | null = null;
+     let bestGap = Number.POSITIVE_INFINITY;
+-    for (const cand of pool) {
++    for (const cand of rankPool) {
+       if (used.has(keyOf(cand))) continue;
+       const gap = Math.abs((cand.score ?? 0) - topScore);
+       const sim = selected.length ? maxSimToSelected(cand) : 0;
+       // require at least some diversity for boundary too
+       if (sim > 0.92) continue;
+       if (gap < bestGap) {
+         bestGap = gap;
+         boundary = cand;
+       }
+     }
+     if (boundary) add(boundary);
+ 
+-    // Pick #4: diversity again (MMR)
+-    const p4 = pickMMR(0.55);
++    // Pick #4: diversity again from WIDE pool
++    const p4 = pickMMR(0.55, divPool, minDivScore);
+     if (p4) add(p4);
+ 
+     // Final fallback: fill by score if needed
+-    for (const cand of pool) {
++    for (const cand of rankPool) {
+       if (selected.length >= 4) break;
+       add(cand);
+     }
+*** End Patch
