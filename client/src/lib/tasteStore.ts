@@ -171,14 +171,16 @@ export function getTasteStatus(ctx: TasteContext): { nVotes: number; confidence:
 export function simulateVotes(ctx: TasteContext, vectors: number[][], count = 20) {
   if (!vectors.length) return;
 
-  const tiltIndex = vectors[0].length - 2;
-
-  const sorted = [...vectors].sort((a, b) => (b[tiltIndex] ?? 0) - (a[tiltIndex] ?? 0));
-  const winner = sorted[0];
-  const losers = sorted.slice(1);
-
+  const n = vectors.length;
   for (let i = 0; i < count; i++) {
-    const loser = losers[i % losers.length] ?? sorted[sorted.length - 1];
-    recordPreference(ctx, winner, loser, { lr: 0.12 });
+    const a = vectors[Math.floor(Math.random() * n)];
+    const b = vectors[Math.floor(Math.random() * n)];
+    if (!a || !b || a === b) continue;
+
+    const tiltIndex = a.length - 2;
+    const winner = (a[tiltIndex] ?? 0) > (b[tiltIndex] ?? 0) ? a : b;
+    const loser  = winner === a ? b : a;
+
+    recordPreference(ctx, winner, loser, { lr: 0.06 });
   }
 }
