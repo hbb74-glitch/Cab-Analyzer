@@ -22,11 +22,17 @@ interface TonalDashboardProps {
 }
 
 function getTiltLabel(tilt: number): { label: string; color: string } {
-  if (tilt <= -6) return { label: "Very Dark", color: "text-blue-500" };
-  if (tilt <= -2) return { label: "Dark", color: "text-blue-400" };
-  if (tilt < 2) return { label: "Neutral", color: "text-foreground" };
-  if (tilt < 6) return { label: "Bright", color: "text-amber-400" };
-  return { label: "Very Bright", color: "text-amber-500" };
+  if (!Number.isFinite(tilt)) return { label: "Neutral", color: "text-foreground" };
+
+  if (tilt <= -12) return { label: "Very Dark", color: "text-blue-500" };
+  if (tilt <= -6)  return { label: "Dark", color: "text-blue-400" };
+  if (tilt <  -2)  return { label: "Dark-ish", color: "text-sky-400" };
+
+  if (tilt <= 2)   return { label: "Neutral", color: "text-foreground" };
+
+  if (tilt <  6)   return { label: "Bright-ish", color: "text-amber-300" };
+  if (tilt <  12)  return { label: "Bright", color: "text-amber-400" };
+  return            { label: "Very Bright", color: "text-amber-500" };
 }
 
 function getTiltWhy(tilt: number, rolloff: number | null): string {
