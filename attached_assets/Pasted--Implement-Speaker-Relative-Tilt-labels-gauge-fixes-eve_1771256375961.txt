@@ -1,0 +1,73 @@
+# Implement Speaker-Relative Tilt labels + gauge (fixes “everything neutral” + gauge pinned left)
+# Keep DETAILS showing absolute spectralTilt. Only the Tilt card label + gauge uses relative tilt.
+
+FILE 1: client/src/pages/Analyzer.tsx
+1) Add helper to compute speakerPrefix from filename (if not already present):
+
+function getSpeakerPrefix(filename: string): string {
+  const lower = filename.toLowerCase();
+  const mics = ['sm57','r121','m160','md421','md421kompakt','md441','pr30','e906','m201','sm7b','c414','r92','r10','m88','roswell'];
+  let firstIdx = Number.POSITIVE_INFINITY;
+  for (const mic of mics) {
+    const idx = lower.indexOf(mic);
+    if (idx !== -1 && idx < firstIdx) firstIdx = idx;
+  }
+  if (!Number.isFinite(firstIdx) || firstIdx === Number.POSITIVE_INFINITY) return (lower.split("_")[0] ?? lower).trim();
+  return lower.slice(0, firstIdx).trim();
+}
+
+2) Before rendering the IR cards, compute median spectralTilt PER speakerPrefix for the current list:
+
+const tiltMedianBySpeaker = React.useMemo(() => {
+  const map = new Map<string, number[]>();
+  for (const ir of analyzedIRs /* or whatever array you render */) {
+    const t = ir?.metrics?.spectralTilt;
+    if (!Number.isFinite(t)) continue;
+    const spk = getSpeakerPrefix(ir.filename);
+    if (!map.has(spk)) map.set(spk, []);
+    map.get(spk)!.push(t);
+  }
+  const out = new Map<string, number>();
+  for (const [spk, arr] of map.entries()) {
+    arr.sort((a,b)=>a-b);
+    const mid = arr.length ? arr[Math.floor(arr.length/2)] : 0;
+    out.set(spk, mid);
+  }
+  return out;
+}, [analyzedIRs /* same dependency used to render list */]);
+
+3) When you render TonalDashboard/TonalDashboardCompact for each IR, pass BOTH:
+- absolute spectralTilt (for details)
+- relative tilt for the Tilt card/gauge
+
+Compute:
+const absTilt = ir.metrics.spectralTilt;
+const spk = getSpeakerPrefix(ir.filename);
+const med = tiltMedianBySpeaker.get(spk) ?? 0;
+const tiltRel = absTilt - med;
+
+Pass tiltRel as a new prop, e.g. tiltRelative.
+
+FILE 2: client/src/components/TonalDashboard.tsx
+4) Add a new prop:
+tiltRelative?: number | null;
+
+5) Use tiltRelative for the Tilt card label + gauge, but keep showing absolute tilt in DETAILS.
+Specifically:
+- Tilt card uses: const tiltForLabel = props.tiltRelative ?? props.spectralTilt ?? 0;
+- DETAILS line “Spectral Tilt” continues to display props.spectralTilt (absolute)
+
+6) Update tilt labels to use symmetric thresholds on tiltRelative:
+if (tiltForLabel <= -3) -> Dark
+else if (tiltForLabel <= -1.5) -> Dark-ish
+else if (tiltForLabel < 1.5) -> Neutral
+else if (tiltForLabel < 3) -> Bright-ish
+else -> Bright
+
+7) Fix the gauge mapping to use tiltRelative with a symmetric range, e.g. clamp to [-6, +6]:
+pos = clamp((tiltForLabel + 6) / 12, 0, 1)
+
+Result:
+- Distribution returns (some darkish, some neutral, some brightish) within each speaker.
+- Gauge position matches the label and won’t pin left.
+- Absolute spectralTilt remains available in DETAILS for truth/traceability.

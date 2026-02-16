@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 interface TonalDashboardProps {
   tiltCanonical?: number | null;
+  tiltRelative?: number | null;
   rolloffFreq?: number | null;
   smoothScore?: number | null;
   maxNotchDepth?: number | null;
@@ -24,15 +25,11 @@ interface TonalDashboardProps {
 function getTiltLabel(tilt: number): { label: string; color: string } {
   if (!Number.isFinite(tilt)) return { label: "Neutral", color: "text-foreground" };
 
-  if (tilt <= -18) return { label: "Very Dark", color: "text-blue-500" };
-  if (tilt <= -12) return { label: "Dark", color: "text-blue-400" };
-  if (tilt <= -8)  return { label: "Dark-ish", color: "text-sky-400" };
-
-  if (tilt <= -3)  return { label: "Neutral", color: "text-foreground" };
-
-  if (tilt <= 2)   return { label: "Bright-ish", color: "text-amber-300" };
-  if (tilt <= 8)   return { label: "Bright", color: "text-amber-400" };
-  return            { label: "Very Bright", color: "text-amber-500" };
+  if (tilt <= -3)  return { label: "Dark", color: "text-blue-400" };
+  if (tilt <= -1.5) return { label: "Dark-ish", color: "text-sky-400" };
+  if (tilt < 1.5)  return { label: "Neutral", color: "text-foreground" };
+  if (tilt < 3)    return { label: "Bright-ish", color: "text-amber-300" };
+  return            { label: "Bright", color: "text-amber-400" };
 }
 
 function getTiltWhy(tilt: number, rolloff: number | null): string {
@@ -47,8 +44,8 @@ function getTiltWhy(tilt: number, rolloff: number | null): string {
 }
 
 function getTiltBarPosition(tilt: number): number {
-  const clamped = Math.max(-4, Math.min(2, tilt));
-  return ((clamped + 4) / 6) * 100;
+  const clamped = Math.max(-6, Math.min(6, tilt));
+  return ((clamped + 6) / 12) * 100;
 }
 
 function getBodyLabel(lowMid: number, bass: number): { label: string; color: string } {
@@ -198,7 +195,8 @@ export function TonalDashboard(props: TonalDashboardProps) {
 
   if (!hasTilt && !hasRolloff && !hasSmooth && !hasBands) return null;
 
-  const tilt = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
+  const tiltAbsolute = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
+  const tiltForLabel = Number.isFinite(props.tiltRelative) ? props.tiltRelative! : tiltAbsolute;
   const rolloff = props.rolloffFreq ?? 3000;
   const smooth = props.smoothScore ?? 0;
   const lowMid = props.lowMidPercent ?? 0;
@@ -207,7 +205,7 @@ export function TonalDashboard(props: TonalDashboardProps) {
   const presence = props.presencePercent ?? 0;
   const air = props.ultraHighPercent ?? 0;
 
-  const tiltInfo = getTiltLabel(tilt);
+  const tiltInfo = getTiltLabel(tiltForLabel);
   const bodyInfo = getBodyLabel(lowMid, bass);
   const biteInfo = getBiteLabel(highMid, presence);
   const fizzInfo = getFizzLabel(presence, air);
@@ -229,8 +227,8 @@ export function TonalDashboard(props: TonalDashboardProps) {
     <div className="space-y-3" data-testid="tonal-dashboard">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {hasTilt && (
-          <MetricCard label="Tilt" value={tiltInfo.label} valueColor={tiltInfo.color} why={getTiltWhy(tilt, props.rolloffFreq ?? null)}>
-            <TiltBar tilt={tilt} />
+          <MetricCard label="Tilt" value={tiltInfo.label} valueColor={tiltInfo.color} why={getTiltWhy(tiltForLabel, props.rolloffFreq ?? null)}>
+            <TiltBar tilt={tiltForLabel} />
           </MetricCard>
         )}
 
@@ -281,7 +279,7 @@ export function TonalDashboard(props: TonalDashboardProps) {
           {hasTilt && (
             <div className="space-y-0.5">
               <span className="text-[10px] text-muted-foreground">Spectral Tilt</span>
-              <p className="text-sm font-mono text-foreground">{tilt.toFixed(2)} dB/oct</p>
+              <p className="text-sm font-mono text-foreground">{tiltAbsolute.toFixed(2)} dB/oct</p>
             </div>
           )}
           {hasRolloff && (
@@ -342,7 +340,8 @@ export function TonalDashboardCompact(props: TonalDashboardProps) {
 
   if (!hasTilt && !hasSmooth && !hasBands) return null;
 
-  const tilt = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
+  const tiltAbsolute = Number.isFinite(props.tiltCanonical) ? props.tiltCanonical! : 0;
+  const tiltForLabel = Number.isFinite(props.tiltRelative) ? props.tiltRelative! : tiltAbsolute;
   const smooth = props.smoothScore ?? 0;
   const lowMid = props.lowMidPercent ?? 0;
   const bass = props.bassPercent ?? 0;
@@ -350,7 +349,7 @@ export function TonalDashboardCompact(props: TonalDashboardProps) {
   const presence = props.presencePercent ?? 0;
   const air = props.ultraHighPercent ?? 0;
 
-  const tiltInfo = getTiltLabel(tilt);
+  const tiltInfo = getTiltLabel(tiltForLabel);
   const bodyInfo = getBodyLabel(lowMid, bass);
   const biteInfo = getBiteLabel(highMid, presence);
   const fizzInfo = getFizzLabel(presence, air);

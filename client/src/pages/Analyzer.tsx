@@ -2545,7 +2545,34 @@ export default function Analyzer() {
       return distA - distB;
     });
   }, [batchIRs]);
-  
+
+  const tiltMedianBySpeaker = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const ir of batchIRs) {
+      const t = (ir.metrics as any)?.spectralTilt;
+      if (!Number.isFinite(t)) continue;
+      const spk = detectSpeakerPrefix(ir.file.name);
+      if (!map.has(spk)) map.set(spk, []);
+      map.get(spk)!.push(t);
+    }
+    if (batchResult) {
+      for (const r of batchResult.results) {
+        const t = (r as any).spectralTilt;
+        if (!Number.isFinite(t)) continue;
+        const spk = detectSpeakerPrefix(r.filename);
+        if (!map.has(spk)) map.set(spk, []);
+        map.get(spk)!.push(t);
+      }
+    }
+    const out = new Map<string, number>();
+    for (const entries of Array.from(map.entries())) {
+      const [spk, arr] = entries;
+      arr.sort((a: number, b: number) => a - b);
+      out.set(spk, arr[Math.floor(arr.length / 2)]);
+    }
+    return out;
+  }, [batchIRs, batchResult]);
+
   // Sync cull count input with numeric state
   const handleCullCountChange = (value: string) => {
     setCullCountInput(value);
@@ -4097,10 +4124,13 @@ export default function Analyzer() {
                             </div>
                             {ir.metrics && (() => {
                               const features = computeTonalFeatures(ir.metrics);
-                              console.log("ANALYZER FEATURES", features);
+                              const absTilt = features.tiltDbPerOct;
+                              const spk = detectSpeakerPrefix(ir.file.name);
+                              const med = tiltMedianBySpeaker.get(spk) ?? 0;
                               return (
                                 <TonalDashboardCompact
-                                  tiltCanonical={features.tiltDbPerOct}
+                                  tiltCanonical={absTilt}
+                                  tiltRelative={absTilt - med}
                                   rolloffFreq={ir.metrics.rolloffFreq}
                                   smoothScore={features.smoothScore}
                                 />
@@ -4885,24 +4915,32 @@ export default function Analyzer() {
 
                         {/* Tonal Dashboard */}
                         <div className="mt-2">
-                          <TonalDashboard
-                            tiltCanonical={computeTonalFeatures(r as any).tiltDbPerOct || (r as any).spectralTilt || 0}
-                            rolloffFreq={(r as any).rolloffFreq}
-                            smoothScore={computeTonalFeatures(r as any).smoothScore ?? (r as any).smoothScore ?? r.frequencySmoothness}
-                            maxNotchDepth={(r as any).maxNotchDepth}
-                            notchCount={(r as any).notchCount}
-                            spectralCentroid={(r as any).spectralCentroid}
-                            tailLevelDb={(r as any).tailLevelDb}
-                            tailStatus={(r as any).tailStatus}
-                            logBandEnergies={(r as any).logBandEnergies}
-                            subBassPercent={r.subBassPercent}
-                            bassPercent={r.bassPercent}
-                            lowMidPercent={r.lowMidPercent}
-                            midPercent={r.midPercent}
-                            highMidPercent={r.highMidPercent}
-                            presencePercent={r.presencePercent}
-                            ultraHighPercent={(r as any).ultraHighPercent}
-                          />
+                          {(() => {
+                            const absTilt = computeTonalFeatures(r as any).tiltDbPerOct || (r as any).spectralTilt || 0;
+                            const spk = detectSpeakerPrefix(r.filename);
+                            const med = tiltMedianBySpeaker.get(spk) ?? 0;
+                            return (
+                              <TonalDashboard
+                                tiltCanonical={absTilt}
+                                tiltRelative={absTilt - med}
+                                rolloffFreq={(r as any).rolloffFreq}
+                                smoothScore={computeTonalFeatures(r as any).smoothScore ?? (r as any).smoothScore ?? r.frequencySmoothness}
+                                maxNotchDepth={(r as any).maxNotchDepth}
+                                notchCount={(r as any).notchCount}
+                                spectralCentroid={(r as any).spectralCentroid}
+                                tailLevelDb={(r as any).tailLevelDb}
+                                tailStatus={(r as any).tailStatus}
+                                logBandEnergies={(r as any).logBandEnergies}
+                                subBassPercent={r.subBassPercent}
+                                bassPercent={r.bassPercent}
+                                lowMidPercent={r.lowMidPercent}
+                                midPercent={r.midPercent}
+                                highMidPercent={r.highMidPercent}
+                                presencePercent={r.presencePercent}
+                                ultraHighPercent={(r as any).ultraHighPercent}
+                              />
+                            );
+                          })()}
                         </div>
 
                         {/* Preference Match (from old tonal balance) */}
