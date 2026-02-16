@@ -87,28 +87,40 @@ function normalizeSmoothScore(v: any): number | undefined {
 }
 
 function computeProxySmoothScoreFromShapeDb(shape: TonalBands): number {
-  const keys: BandKey[] = BAND_KEYS;
-  const v = keys.map((k) => safeNumber(shape[k]));
+  const v = BAND_KEYS.map((k) => safeNumber(shape[k]));
 
   const diffs: number[] = [];
   for (let i = 0; i < v.length - 1; i++) {
-    diffs.push(Math.abs(v[i + 1] - v[i]));
+    diffs.push(v[i + 1] - v[i]);
+  }
+
+  let signChanges = 0;
+  for (let i = 0; i < diffs.length - 1; i++) {
+    if (diffs[i] * diffs[i + 1] < 0) signChanges++;
   }
 
   const curvs: number[] = [];
   for (let i = 0; i < v.length - 2; i++) {
     curvs.push(Math.abs(v[i + 2] - 2 * v[i + 1] + v[i]));
   }
+  const maxCurv = curvs.length > 0 ? Math.max(...curvs) : 0;
 
-  const meanDiff =
-    diffs.reduce((a, b) => a + b, 0) / Math.max(1, diffs.length);
+  const air = safeNumber(shape.air);
+  const presence = safeNumber(shape.presence);
+  const highMid = safeNumber(shape.highMid);
 
-  const meanCurv =
-    curvs.reduce((a, b) => a + b, 0) / Math.max(1, curvs.length);
+  const fizzExcess = Math.max(0, air - Math.max(presence, highMid) - 1.0);
+  const presenceSpike = Math.max(0, presence - highMid - 2.0);
+  const zigZagPenalty = Math.max(0, signChanges - 2) * 1.5;
+  const curvPenalty = Math.max(0, maxCurv - 6) * 0.4;
 
-  const roughness = meanDiff + 0.7 * meanCurv;
+  const roughness =
+    fizzExcess * 1.5 +
+    presenceSpike * 1.2 +
+    zigZagPenalty +
+    curvPenalty;
 
-  const normalized = 100 * Math.exp(-roughness / 6);
+  const normalized = 100 * Math.exp(-roughness / 8);
 
   return Math.round(clamp(normalized, 5, 100));
 }
@@ -159,19 +171,25 @@ export function bandsToPercent(bandsRaw: TonalBands): TonalBands {
 }
 
 export function bandsToShapeDb(bandsRaw: TonalBands): TonalBands {
+  const EPS = 1e-12;
   const db: any = {};
 
   for (const k of BAND_KEYS) {
-    const e = bandsRaw[k];
-    db[k] = e > 0 ? 10 * Math.log10(e) : DB_FLOOR;
+    const e = Math.max(EPS, bandsRaw[k]);
+    db[k] = 10 * Math.log10(e);
   }
 
-  const ref =
-    (db.mid + db.highMid + db.presence) / 3;
+  const refCandidates = [db.mid, db.highMid, db.presence].filter(Number.isFinite);
+  const ref = refCandidates.length > 0
+    ? refCandidates.reduce((a: number, b: number) => a + b, 0) / refCandidates.length
+    : (() => {
+        const all = BAND_KEYS.map((k) => db[k]).filter(Number.isFinite);
+        return all.length > 0 ? all.reduce((a: number, b: number) => a + b, 0) / all.length : 0;
+      })();
 
   const shape: any = {};
   for (const k of BAND_KEYS) {
-    shape[k] = clampDb(db[k] - ref);
+    shape[k] = clampDb(Number.isFinite(db[k]) ? db[k] - ref : DB_FLOOR);
   }
 
   return shape;
@@ -209,7 +227,12 @@ export function blendFeatures(
   const blendedPercent = bandsToPercent(blendedRaw);
   const blendedShapeDb = bandsToShapeDb(blendedRaw);
 
-  const blendedSmooth = computeProxySmoothScoreFromShapeDb(blendedShapeDb);
+  const aSmooth = normalizeSmoothScore(a.smoothScore);
+  const bSmooth = normalizeSmoothScore(b.smoothScore);
+  const blendedSmooth =
+    Number.isFinite(aSmooth) && Number.isFinite(bSmooth)
+      ? Math.round(aSmooth! * aGain + bSmooth! * bGain)
+      : computeProxySmoothScoreFromShapeDb(blendedShapeDb);
 
   return {
     bandsRaw: blendedRaw,

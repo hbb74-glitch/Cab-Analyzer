@@ -1,0 +1,119 @@
+# Replit Instructions — Cab-Analyzer Smoothness + Blend Stability (4 Fixes)
+Goal: Apply four surgical fixes without replacing entire files. Make blend smoothness behave
+musically (e.g., R121 4" + R121 6" should stay high) and eliminate NaN/Infinity/log10(0) issues.
+
+Apply changes ONLY where specified.
+
+---
+
+## FIX 1 — Prevent log10(0) / NaN / Infinity in shape dB conversion
+**Why:** If any band energy is 0 (or extremely tiny), `log10(0)` -> `-Infinity`, which can poison
+shape normalization and downstream metrics.
+
+**Where:** `client/src/lib/tonal-engine.ts` in `bandsToShapeDb(...)` (or whichever function converts
+band energies into dB and then subtracts a reference).
+
+**Change:**
+1) Introduce an epsilon floor:
+- Define `const EPS = 1e-12;`
+- Before calling `Math.log10(energy)`, do: `energy = Math.max(EPS, energy)`
+
+2) Ensure the reference is finite:
+- If you compute `ref` from mid/highMid/presence dB, those must be finite.
+- If any are not finite, compute `ref` as the average of all finite band dB values.
+
+**Acceptance check:**
+- `bandsShapeDb` never contains `Infinity`, `-Infinity`, or `NaN` (log/console check).
+- Blends never collapse to smoothness 0 due to numeric explosions.
+
+---
+
+## FIX 2 — Normalize upstream smoothScore (0–1 vs 0–100) and fallback safely
+**Why:** Your analyzer may output smoothness in either 0–1 or 0–100. If the app assumes the wrong
+scale, it can look broken (always 0 or always 100).
+
+**Where:** `client/src/lib/tonal-engine.ts`
+
+**Change:**
+1) Add helper `normalizeSmoothScore(value)`:
+- If value is between `0` and `1.2`, treat it as 0–1 and scale to `0..100`
+- If value is between `0` and `100`, keep as-is
+- Otherwise return `undefined` (invalid)
+
+2) In `computeTonalFeatures(metrics)`:
+- Set `smoothScore` to:
+  - `normalizeSmoothScore(metrics.smoothScore)` if defined
+  - otherwise compute proxy smoothness from `bandsShapeDb` (see Fix 4)
+
+**Acceptance check:**
+- Individual IR smoothness values (from analyzer) remain stable and believable (e.g., 70–95 typical).
+- Smoothness is always in 0–100.
+
+---
+
+## FIX 3 — Blend smoothness should be weighted-average when real smoothness exists
+**Why:** The screenshot showed a failure case: blending **two R121 Cap IRs** (4" and 6") produced
+smoothness ~10. That’s wrong. When both source IRs have valid smoothness from the analyzer, the
+blend should be close to their weighted average.
+
+**Where:** `client/src/lib/tonal-engine.ts` in `blendFeatures(a, b, aGain, bGain)`.
+
+**Change:**
+1) Verify `aGain` and `bGain` are **0–1 weights** (not 70/30). They should sum to ~1.
+2) Compute blended bands as you do now (blend `bandsRaw`, derive `bandsPercent` and `bandsShapeDb`).
+3) For smoothness:
+- Let:
+  - `aSmooth = normalizeSmoothScore(a.smoothScore)`
+  - `bSmooth = normalizeSmoothScore(b.smoothScore)`
+- If both are finite:
+  - `blendSmooth = round(aSmooth*aGain + bSmooth*bGain)`
+- Else:
+  - `blendSmooth = proxySmooth(blendedShapeDb)` (Fix 4)
+
+**Acceptance check:**
+- R121(4") + R121(6") @ 50/50 yields blend smoothness ~ (88+90)/2 ≈ 89 (or close).
+- Ribbon+ribbon blends stay high.
+- Ribbon+bright 57 blends can go lower (but not collapse incorrectly).
+
+---
+
+## FIX 4 — Replace “adjacent band jaggedness” proxy with a macro-safe proxy
+**Why:** With only 6–7 bands, “adjacent jump” roughness mostly measures tonal balance shifts
+(tilt/distance), not micro raggedness/fizz. That caused false low smoothness even for R121 blends.
+
+**Where:** `client/src/lib/tonal-engine.ts` — the function used to compute proxy smoothness
+(e.g., `computeProxySmoothScoreFromShapeDb(...)`).
+
+**Change:**
+Replace any proxy that penalizes simple adjacent band jumps with a proxy that penalizes primarily:
+- **Fizz excess**: `air - max(presence, highMid)` above a threshold
+- **Presence spike**: `presence - highMid` above a threshold
+- **Extreme zig-zag**: too many sign changes in the first derivative
+- **Very large curvature** (heavily damped)
+
+Recommended behavior:
+- Normal distance/tilt changes should NOT tank smoothness.
+- Ribbons generally high.
+- Bright cap-edge dynamics may be lower if they show “air” excess / harsh spikes.
+
+**Acceptance check:**
+- R121 4"+6" blend stays high.
+- SM57 cap-edge bright + ribbon can produce lower smoothness (if curve implies fizz/harshness).
+- Smoothness distribution across a speaker is not pegged at 0 or 100.
+
+---
+
+## Quick Test Script (Manual)
+1) Blend R121 Cap 4" with R121 Cap 6" (50/50):
+- Expect Smoothness ~ high 80s/90
+2) Blend Roswell Cap 6" with SM57 CapEdge_Br 2" (50/50):
+- Expect Smoothness lower than either source, but not collapsing due to numeric issues
+3) Print/inspect `bandsShapeDb` for a few IRs:
+- Confirm no NaN/Infinity values
+
+---
+
+## Notes
+- Do NOT replace entire files. Patch only the functions described above.
+- Keep all existing exports and other logic intact.
+- If Replit finds multiple implementations of shape dB conversion, patch the one actually used by the Mixer and Analyzer.
