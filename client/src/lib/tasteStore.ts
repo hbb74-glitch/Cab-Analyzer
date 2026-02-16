@@ -80,8 +80,6 @@ export function featurizeBlend(base: TonalFeatures, feat: TonalFeatures, baseRat
   vec.push(safeNumber(blended.tiltDbPerOct));
   vec.push(safeNumber(blended.smoothScore));
 
-  const norm = Math.sqrt(vec.reduce((s, x) => s + x * x, 0));
-  if (norm > 1e-9) return vec.map((x) => x / norm);
   return vec;
 }
 
