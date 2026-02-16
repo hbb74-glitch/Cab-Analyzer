@@ -266,6 +266,60 @@ interface RedundantPair {
 
 const BLEND_MICS_LIST = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
 const BLEND_TECHNIQUE_NAMES = ['fredman'];
+
+const POS_TOKENS = [
+  "cap_offcenter",
+  "capedge_cone_tr",
+  "capedge_br",
+  "capedge_dk",
+  "capedge",
+  "cap",
+  "cone",
+];
+
+function detectMicToken(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  for (const mic of BLEND_MICS_LIST) {
+    if (lower.includes(mic)) return mic;
+  }
+  return null;
+}
+
+function detectPosToken(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  for (const p of POS_TOKENS) {
+    if (lower.includes(p)) return p;
+  }
+  return null;
+}
+
+function detectSpeakerPrefix(filename: string): string {
+  const lower = filename.toLowerCase();
+  const mic = detectMicToken(lower);
+  if (!mic) return (lower.split("_")[0] ?? lower).trim();
+  const idx = lower.indexOf(mic);
+  if (idx > 0) return lower.slice(0, idx).trim();
+  return (lower.split("_")[0] ?? lower).trim();
+}
+
+function redundancyComparable(f1: string, f2: string): boolean {
+  return (
+    detectSpeakerPrefix(f1) === detectSpeakerPrefix(f2) &&
+    detectMicToken(f1) === detectMicToken(f2) &&
+    detectPosToken(f1) === detectPosToken(f2)
+  );
+}
+
+function maxAbsDiff(a: number[], b: number[]): number {
+  let m = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(a[i] - b[i]);
+    if (d > m) m = d;
+  }
+  return m;
+}
+
 function detectBlendFromFilename(filename: string): { isBlend: boolean; isTechnique: boolean } {
   const lower = filename.toLowerCase();
   for (const tech of BLEND_TECHNIQUE_NAMES) {
@@ -390,19 +444,24 @@ class UnionFind {
 // Find redundancy groups using clustering instead of listing all pairs
 function findRedundancyGroups(
   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
-  threshold: number = 0.95
+  threshold: number = 0.985
 ): RedundancyGroup[] {
   const n = irs.length;
   if (n < 2) return [];
   
-  // Build similarity matrix and union similar IRs
   const uf = new UnionFind(n);
   const similarities: Map<string, number> = new Map();
   
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
+      if (!redundancyComparable(irs[i].filename, irs[j].filename)) continue;
+
       const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
-      if (similarity >= threshold) {
+      const vec1 = buildPerceptualFeatureVector(irs[i].metrics);
+      const vec2 = buildPerceptualFeatureVector(irs[j].metrics);
+      const mDiff = maxAbsDiff(vec1, vec2);
+
+      if (similarity >= threshold && mDiff <= 1.25) {
         uf.union(i, j);
         similarities.set(`${i}-${j}`, similarity);
       }
@@ -2028,7 +2087,7 @@ export default function Analyzer() {
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
   });
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.95);
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.985);
   const [showRedundancies, setShowRedundancies] = useState(() => {
     try {
       return sessionStorage.getItem('ir-show-redundancies') === 'true';
@@ -4996,7 +5055,7 @@ export default function Analyzer() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Threshold:</span>
                         <button
-                          onClick={() => setSimilarityThreshold(Math.max(0.80, similarityThreshold - 0.01))}
+                          onClick={() => setSimilarityThreshold(Math.max(0.90, similarityThreshold - 0.005))}
                           className="w-6 h-6 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold border border-amber-500/30"
                           data-testid="button-threshold-decrease"
                         >
@@ -5004,21 +5063,21 @@ export default function Analyzer() {
                         </button>
                         <input
                           type="range"
-                          min="80"
-                          max="99"
-                          value={similarityThreshold * 100}
-                          onChange={(e) => setSimilarityThreshold(parseInt(e.target.value) / 100)}
+                          min="0"
+                          max="100"
+                          value={Math.round((similarityThreshold - 0.90) / 0.10 * 100)}
+                          onChange={(e) => setSimilarityThreshold(0.90 + (parseInt(e.target.value) / 100) * 0.10)}
                           className="w-16 h-1 accent-amber-400"
                           data-testid="slider-similarity-threshold"
                         />
                         <button
-                          onClick={() => setSimilarityThreshold(Math.min(0.99, similarityThreshold + 0.01))}
+                          onClick={() => setSimilarityThreshold(Math.min(1.00, similarityThreshold + 0.005))}
                           className="w-6 h-6 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold border border-amber-500/30"
                           data-testid="button-threshold-increase"
                         >
                           +
                         </button>
-                        <span className="text-xs font-mono text-amber-400">{Math.round(similarityThreshold * 100)}%</span>
+                        <span className="text-xs font-mono text-amber-400">{(similarityThreshold * 100).toFixed(1)}%</span>
                       </div>
                       <button
                         onClick={handleFindRedundancies}

@@ -1,0 +1,100 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+-const BLEND_MICS_LIST = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
++const BLEND_MICS_LIST = ['sm57', 'r121', 'm160', 'md421', 'md421kompakt', 'md441', 'pr30', 'e906', 'm201', 'sm7b', 'c414', 'r92', 'r10', 'm88', 'roswell'];
+ const BLEND_TECHNIQUE_NAMES = ['fredman'];
++
++// ----------------------------
++// Redundancy scoping helpers
++// ----------------------------
++// Redundancy should mean "near-duplicate capture", not merely "similar tone".
++// So we only compare within: same speaker prefix + same mic + same position token.
++// This prevents “everything is redundant” explosions.
++
++const POS_TOKENS = [
++  "cap_offcenter",
++  "capedge_cone_tr",
++  "capedge_br",
++  "capedge_dk",
++  "capedge",
++  "cap",
++  "cone",
++];
++
++function detectMicToken(filename: string): string | null {
++  const lower = filename.toLowerCase();
++  for (const mic of BLEND_MICS_LIST) {
++    if (lower.includes(mic)) return mic;
++  }
++  return null;
++}
++
++function detectPosToken(filename: string): string | null {
++  const lower = filename.toLowerCase();
++  for (const p of POS_TOKENS) {
++    if (lower.includes(p)) return p;
++  }
++  return null;
++}
++
++function detectSpeakerPrefix(filename: string): string {
++  // Simple heuristic: everything before the first mic token.
++  // Fallback: first underscore token.
++  const lower = filename.toLowerCase();
++  const mic = detectMicToken(lower);
++  if (!mic) return (lower.split("_")[0] ?? lower).trim();
++  const idx = lower.indexOf(mic);
++  if (idx > 0) return lower.slice(0, idx).trim();
++  return (lower.split("_")[0] ?? lower).trim();
++}
++
++function redundancyComparable(f1: string, f2: string): boolean {
++  return (
++    detectSpeakerPrefix(f1) === detectSpeakerPrefix(f2) &&
++    detectMicToken(f1) === detectMicToken(f2) &&
++    detectPosToken(f1) === detectPosToken(f2)
++  );
++}
++
++function maxAbsDiff(a: number[], b: number[]): number {
++  let m = 0;
++  const n = Math.min(a.length, b.length);
++  for (let i = 0; i < n; i++) {
++    const d = Math.abs(a[i] - b[i]);
++    if (d > m) m = d;
++  }
++  return m;
++}
+@@
+ function findRedundancyGroups(
+   irs: { filename: string; metrics: AudioMetrics; score?: number }[],
+-  threshold: number = 0.95
++  // Near-duplicate only. 0.95 is far too permissive for standardized cosine vectors.
++  threshold: number = 0.985
+ ): RedundancyGroup[] {
+   const n = irs.length;
+   if (n < 2) return [];
+@@
+   for (let i = 0; i < n; i++) {
+     for (let j = i + 1; j < n; j++) {
++      // Only compare redundancy within same speaker+mic+position.
++      // (Prevents mass false positives across different capture types.)
++      if (!redundancyComparable(irs[i].filename, irs[j].filename)) continue;
++
+       const { similarity } = calculateSimilarity(irs[i].metrics, irs[j].metrics);
+-      if (similarity >= threshold) {
++      // Second gate: even if cosine similarity is high, reject redundancy if any
++      // feature dimension differs materially.
++      const vec1 = buildPerceptualFeatureVector(irs[i].metrics);
++      const vec2 = buildPerceptualFeatureVector(irs[j].metrics);
++      const maxDiff = maxAbsDiff(vec1, vec2);
++
++      // maxDiff threshold is intentionally strict. Tune 1.0–1.5 if needed.
++      if (similarity >= threshold && maxDiff <= 1.25) {
+         uf.union(i, j);
+         similarities.set(`${i}-${j}`, similarity);
+       }
+     }
+   }
+*** End Patch
