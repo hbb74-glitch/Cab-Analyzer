@@ -104,6 +104,28 @@ export function getTasteBias(ctx: TasteContext, x: number[]): { bias: number; co
   return { bias, confidence };
 }
 
+export function meanVector(vectors: number[][]): number[] {
+  if (!vectors.length) return [];
+  const dim = vectors[0].length;
+  const mean = new Array(dim).fill(0);
+  let count = 0;
+  for (const v of vectors) {
+    if (!v || v.length !== dim) continue;
+    for (let i = 0; i < dim; i++) mean[i] += v[i];
+    count++;
+  }
+  if (!count) return mean;
+  for (let i = 0; i < dim; i++) mean[i] /= count;
+  return mean;
+}
+
+export function centerVector(x: number[], mean: number[]): number[] {
+  const n = Math.min(x.length, mean.length);
+  const out = new Array(n);
+  for (let i = 0; i < n; i++) out[i] = x[i] - mean[i];
+  return out;
+}
+
 export function recordPreference(
   ctx: TasteContext,
   xWinner: number[],
@@ -112,7 +134,7 @@ export function recordPreference(
 ): void {
   if (opts?.tie) return;
 
-  const lr = opts?.lr ?? 0.15;
+  const lr = opts?.lr ?? 0.06;
   const state = loadState();
   const key = makeTasteKey(ctx);
   const dim = Math.min(xWinner.length, xLoser.length);
