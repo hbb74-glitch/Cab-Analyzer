@@ -1,0 +1,96 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ function extractBandsRaw(metrics: any): TonalBands {
+   // Robust band extraction:
+   // 1) metrics.bandsRaw.{subBass,bass,...}
+   // 2) direct keys (camel/snake/variants)
+   // 3) fallback: derive from metrics.logBandEnergies (24 bins) if available
+ 
+   const getKey = (obj: any, keys: string[]): number | undefined => {
+     for (const key of keys) {
+       const v = obj?.[key];
+       if (Number.isFinite(v)) return v;
+     }
+     return undefined;
+   };
+ 
++  const isLikelyDb = (arr: number[]): boolean => {
++    // Heuristic: dB arrays are usually mostly negative and within a sane audio range.
++    // Energy arrays should be >= 0 and often not bounded to [-200, 60].
++    if (!arr.length) return false;
++    const finite = arr.filter(Number.isFinite);
++    if (!finite.length) return false;
++    const negCount = finite.filter(v => v < 0).length;
++    const min = Math.min(...finite);
++    const max = Math.max(...finite);
++    return (negCount / finite.length) > 0.6 && min >= -250 && max <= 80;
++  };
++
++  const dbToEnergy = (db: number): number => {
++    // Convert dB (10*log10(P)) -> linear power
++    // Clamp very low values to avoid underflow
++    const d = clamp(db, -250, 80);
++    return Math.pow(10, d / 10);
++  };
++
+   const src = metrics?.bandsRaw ?? metrics ?? {};
+ 
+-  const out: any = {
+-    subBass: safeNumber(getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy"]), 0),
+-    bass:    safeNumber(getKey(src, ["bass", "bassEnergy"]), 0),
+-    lowMid:  safeNumber(getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy"]), 0),
+-    mid:     safeNumber(getKey(src, ["mid", "midEnergy"]), 0),
+-    highMid: safeNumber(getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy"]), 0),
+-    presence:safeNumber(getKey(src, ["presence", "pres", "presenceEnergy"]), 0),
+-    air:     safeNumber(getKey(src, ["air", "airEnergy"]), 0),
+-  } as TonalBands;
++  const out: any = {
++    subBass: safeNumber(getKey(src, ["subBass", "sub_bass", "subbass", "subBassEnergy"]), 0),
++    bass:    safeNumber(getKey(src, ["bass", "bassEnergy"]), 0),
++    lowMid:  safeNumber(getKey(src, ["lowMid", "low_mid", "lowmid", "lowMidEnergy"]), 0),
++    mid:     safeNumber(getKey(src, ["mid", "midEnergy"]), 0),
++    highMid: safeNumber(getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy"]), 0),
++    presence:safeNumber(getKey(src, ["presence", "pres", "presenceEnergy"]), 0),
++    air:     safeNumber(getKey(src, ["air", "airEnergy"]), 0),
++  } as TonalBands;
+ 
+   // If everything is zero and we have 24-bin logBandEnergies, derive bands.
+   // NOTE: This is a fallback; it prevents silent 0 tilt everywhere.
+   const sum = BAND_KEYS.reduce((s, k) => s + Math.abs(out[k]), 0);
+   const bins: number[] | undefined = Array.isArray(metrics?.logBandEnergies)
+     ? metrics.logBandEnergies
+     : Array.isArray(metrics?.bandEnergiesLog)
+       ? metrics.bandEnergiesLog
+       : undefined;
+ 
++  // If the direct band fields we found are likely dB (mostly negative), convert to energy now.
++  const directVals = BAND_KEYS.map(k => out[k]);
++  if (isLikelyDb(directVals)) {
++    for (const k of BAND_KEYS) out[k] = dbToEnergy(out[k]);
++  }
++
+   if (sum < 1e-9 && bins && bins.length >= 12) {
+-    // Coarse mapping of bins -> 7 bands (tweak if your bin layout differs)
+-    // We treat bins as energies already (not dB). If they are dB, exponentiate first.
+-    const b = bins.map((x) => (Number.isFinite(x) ? x : 0));
++    // Coarse mapping of bins -> 7 bands
++    // IMPORTANT: bins may be dB. If so, convert to linear energy first.
++    const finiteBins = bins.map((x) => (Number.isFinite(x) ? x : 0));
++    const b = isLikelyDb(finiteBins)
++      ? finiteBins.map(dbToEnergy)
++      : finiteBins.map(x => Math.max(0, x));
+     const bucket = (i0: number, i1: number) => b.slice(i0, i1 + 1).reduce((a, v) => a + v, 0);
+ 
+     out.subBass = bucket(0, 2);
+     out.bass    = bucket(3, 5);
+     out.lowMid  = bucket(6, 8);
+     out.mid     = bucket(9, 11);
+     out.highMid = bucket(12, 14);
+     out.presence= bucket(15, 18);
+     out.air     = bucket(19, Math.min(23, b.length - 1));
+   }
+ 
+   return out as TonalBands;
+ }
+*** End Patch

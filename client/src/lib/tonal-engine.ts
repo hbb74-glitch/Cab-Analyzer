@@ -149,6 +149,21 @@ function extractBandsRaw(metrics: any): TonalBands {
     return undefined;
   };
 
+  const isLikelyDb = (arr: number[]): boolean => {
+    if (!arr.length) return false;
+    const finite = arr.filter(Number.isFinite);
+    if (!finite.length) return false;
+    const negCount = finite.filter(v => v < 0).length;
+    const min = Math.min(...finite);
+    const max = Math.max(...finite);
+    return (negCount / finite.length) > 0.6 && min >= -250 && max <= 80;
+  };
+
+  const dbToEnergy = (db: number): number => {
+    const d = clamp(db, -250, 80);
+    return Math.pow(10, d / 10);
+  };
+
   const be = metrics?.bandEnergies ?? {};
   const src = metrics?.bandsRaw ?? metrics ?? {};
 
@@ -162,6 +177,11 @@ function extractBandsRaw(metrics: any): TonalBands {
     air:      safeNumber(getKey(be, ["air"]) ?? getKey(src, ["air", "ultraHighEnergy", "airEnergy"])),
   } as TonalBands;
 
+  const directVals = BAND_KEYS.map(k => out[k]);
+  if (isLikelyDb(directVals)) {
+    for (const k of BAND_KEYS) out[k] = dbToEnergy(out[k]);
+  }
+
   const sum = BAND_KEYS.reduce((s, k) => s + Math.abs(out[k]), 0);
   const bins: number[] | undefined = Array.isArray(metrics?.logBandEnergies)
     ? metrics.logBandEnergies
@@ -170,7 +190,10 @@ function extractBandsRaw(metrics: any): TonalBands {
       : undefined;
 
   if (sum < 1e-9 && bins && bins.length >= 12) {
-    const b = bins.map((x) => (Number.isFinite(x) ? x : 0));
+    const finiteBins = bins.map((x) => (Number.isFinite(x) ? x : 0));
+    const b = isLikelyDb(finiteBins)
+      ? finiteBins.map(dbToEnergy)
+      : finiteBins.map(x => Math.max(0, x));
     const bucket = (i0: number, i1: number) => b.slice(i0, i1 + 1).reduce((a, v) => a + v, 0);
 
     out.subBass  = bucket(0, 2);
