@@ -4095,17 +4095,17 @@ export default function Analyzer() {
                                 </span>
                               )}
                             </div>
-                            {ir.metrics && (
-                              <TonalDashboardCompact
-                                tiltCanonical={computeTonalFeatures(ir.metrics).tiltDbPerOct}
-                                rolloffFreq={ir.metrics.rolloffFreq}
-                                smoothScore={ir.metrics.smoothScore ?? ir.metrics.frequencySmoothness}
-                                lowMidPercent={(ir.metrics as any).lowMidPercent}
-                                bassPercent={(ir.metrics as any).bassPercent}
-                                highMidPercent={(ir.metrics as any).highMidPercent}
-                                presencePercent={(ir.metrics as any).presencePercent}
-                              />
-                            )}
+                            {ir.metrics && (() => {
+                              const features = computeTonalFeatures(ir.metrics);
+                              console.log("ANALYZER FEATURES", features);
+                              return (
+                                <TonalDashboardCompact
+                                  tiltCanonical={features.tiltDbPerOct}
+                                  rolloffFreq={ir.metrics.rolloffFreq}
+                                  smoothScore={features.smoothScore}
+                                />
+                              );
+                            })()}
                             {ir.error && (
                               <p className="text-xs text-destructive">{ir.error}</p>
                             )}
