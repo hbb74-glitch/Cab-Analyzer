@@ -956,8 +956,8 @@ export default function IRMixer() {
     return m;
   }, [pairingPool]);
 
-  const suggestedPairs = useMemo(() => {
-    if (pairingPool.length < 2) return [];
+  const suggestedPairsRaw = useMemo(() => {
+    if (pairingPool.length < 2) return { all: [] as any[], top: [] as any[] };
     const baseList = suggestPairings(
       pairingPool,
       activeProfiles,
@@ -984,8 +984,17 @@ export default function IRMixer() {
     rescored.sort((a, b) => b.score - a.score);
 
     const top = rescored.slice(0, 4);
-    return top.map((p, idx) => ({ ...p, rank: idx + 1 }));
+    return { all: rescored, top: top.map((p, idx) => ({ ...p, rank: idx + 1 })) };
   }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion]);
+
+  const suggestedPairs = suggestedPairsRaw.top;
+  const suggestedPairsDebug = suggestedPairsRaw.all.map((p: any) => ({
+    baseFilename: p.baseFilename,
+    featureFilename: p.featureFilename,
+    baseScore: p._baseScore ?? p.score,
+    tasteBoost: p._tasteBoost ?? 0,
+    totalScore: p._totalScore ?? p.score,
+  }));
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -1795,6 +1804,7 @@ export default function IRMixer() {
           Conf: {Math.round(tasteStatus.confidence * 100)}%
         </span>
       </div>
+
     </div>
   );
 
@@ -1803,6 +1813,25 @@ export default function IRMixer() {
       <div className="max-w-6xl mx-auto">
 
         {TasteControlBar}
+
+        {tasteEnabled && suggestedPairsDebug.length > 0 && (
+          <div className="mt-1 mb-4 text-xs border rounded p-2 opacity-90" data-testid="taste-debug-panel">
+            <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
+            <div className="space-y-1">
+              {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
+                <div key={i} className="flex gap-2">
+                  <span className="w-6 opacity-70">{i + 1}.</span>
+                  <span className="flex-1 truncate opacity-90">
+                    {p.baseFilename} + {p.featureFilename}
+                  </span>
+                  <span className="w-16 text-right opacity-70">base {p.baseScore.toFixed(1)}</span>
+                  <span className="w-16 text-right opacity-70">taste {p.tasteBoost.toFixed(1)}</span>
+                  <span className="w-16 text-right">tot {p.totalScore.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
