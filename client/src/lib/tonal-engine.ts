@@ -59,12 +59,16 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
       ? smoothFromMetrics!
       : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
 
+  const tiltDbPerOct =
+    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
+    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+
   return {
     bandsRaw,
     bandsPercent,
     bandsShapeDb,
 
-    tiltDbPerOct: safeNumber(metrics?.spectralTilt),
+    tiltDbPerOct,
 
     smoothScore,
     notchCount: metrics?.notchCount,

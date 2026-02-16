@@ -114,13 +114,13 @@ function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centr
   if (!features) return null;
   const tilt = features.tiltDbPerOct ?? 0;
   const smooth = features.smoothScore ?? 0;
-  const tiltLabel = tilt > 2 ? "Bright" : tilt > 0.5 ? "Bright lean" : tilt > -0.5 ? "Balanced" : tilt > -2 ? "Dark lean" : "Dark";
+  const tiltLabel = tilt >= 2.5 ? "Bright" : tilt > 0.5 ? "Bright lean" : tilt >= -0.5 ? "Neutral" : tilt > -2.5 ? "Dark lean" : "Dark";
   const smoothLabel = smooth >= 80 ? "Smooth" : smooth >= 60 ? "Moderate" : smooth >= 40 ? "Textured" : "Ragged";
   return (
     <div className="flex items-center gap-2 flex-wrap" data-testid="tonal-readouts">
       <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded border",
-        tilt > 0.5 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-        tilt < -0.5 ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+        tilt >= 2.5 ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+        tilt <= -2.5 ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
         "bg-white/5 text-muted-foreground border-white/10"
       )}>
         Tilt: {tilt > 0 ? "+" : ""}{tilt.toFixed(1)} dB ({tiltLabel})

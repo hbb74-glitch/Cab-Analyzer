@@ -1,0 +1,60 @@
+# PATCH: Fix “everything is dark” tilt bias by making ONE canonical tilt formula
+# Apply these edits exactly (2 files). No other changes needed.
+
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ export function computeTonalFeatures(metrics: any): TonalFeatures {
+   const bandsRaw = extractBandsRaw(metrics);
+   const bandsPercent = bandsToPercent(bandsRaw);
+   const bandsShapeDb = bandsToShapeDb(bandsRaw);
+@@
+-  return {
++  // Canonical tilt (symmetric, extremes-only) to avoid mid-anchor bias:
++  // tilt = avg(presence, air) - avg(bass, subBass)  in SHAPE dB space
++  const tiltDbPerOct =
++    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
++    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
++
++  return {
+     bandsRaw,
+     bandsPercent,
+     bandsShapeDb,
+-    tiltDbPerOct: safeNumber(metrics?.spectralTilt),
++    tiltDbPerOct,
+     smoothScore,
+     notchCount: metrics?.notchCount,
+     maxNotchDepth: metrics?.maxNotchDepth,
+     rolloffFreq: metrics?.rolloffFreq,
+     tailLevelDb: metrics?.tailLevelDb,
+     tailStatus: metrics?.tailStatus,
+   };
+ }
+*** End Patch
+
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
++// Canonical tilt helpers (must match tonal-engine.ts)
++function canonicalTiltFromShapeDb(shape: any): number {
++  const presence = Number.isFinite(shape?.presence) ? shape.presence : 0;
++  const air      = Number.isFinite(shape?.air) ? shape.air : 0;
++  const bass     = Number.isFinite(shape?.bass) ? shape.bass : 0;
++  const subBass  = Number.isFinite(shape?.subBass) ? shape.subBass : 0;
++  return ((presence + air) / 2) - ((bass + subBass) / 2);
++}
++
++function canonicalTiltLabel(tilt: number): string {
++  if (!Number.isFinite(tilt)) return "Neutral";
++  if (tilt >= 2.5) return "Bright";
++  if (tilt <= -2.5) return "Dark";
++  return "Neutral";
++}
+@@
+-// Wherever Analyzer currently renders tilt (often using metrics.spectralTilt or a custom formula),
+-// replace that tilt value with the canonical one based on bandsShapeDb.
++// Wherever Analyzer currently renders tilt, replace the tilt value with:
++// const tilt = canonicalTiltFromShapeDb(ir.features?.bandsShapeDb ?? ir.bandsShapeDb);
++// and label with:
++// const tiltText = `${tilt.toFixed(1)} dB (${canonicalTiltLabel(tilt)})`;
+*** End Patch

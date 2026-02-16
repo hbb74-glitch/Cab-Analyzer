@@ -332,6 +332,21 @@ function detectBlendFromFilename(filename: string): { isBlend: boolean; isTechni
   return { isBlend: micCount >= 2, isTechnique: false };
 }
 
+function canonicalTiltFromShapeDb(shape: any): number {
+  const presence = Number.isFinite(shape?.presence) ? shape.presence : 0;
+  const air      = Number.isFinite(shape?.air) ? shape.air : 0;
+  const bass     = Number.isFinite(shape?.bass) ? shape.bass : 0;
+  const subBass  = Number.isFinite(shape?.subBass) ? shape.subBass : 0;
+  return ((presence + air) / 2) - ((bass + subBass) / 2);
+}
+
+function canonicalTiltLabel(tilt: number): string {
+  if (!Number.isFinite(tilt)) return "Neutral";
+  if (tilt >= 2.5) return "Bright";
+  if (tilt <= -2.5) return "Dark";
+  return "Neutral";
+}
+
 // Clustered redundancy group - smarter than showing all pairs
 interface RedundancyGroupMember {
   filename: string;
@@ -1996,8 +2011,23 @@ export default function Analyzer() {
       versatility: number;
     }
 
+    const computeResultTilt = (r: any): number => {
+      const EPS = 1e-12;
+      const sE = Math.max(EPS, r.subBassEnergy ?? 0);
+      const bE = Math.max(EPS, r.bassEnergy ?? 0);
+      const lmE = Math.max(EPS, r.lowMidEnergy ?? 0);
+      const mE = Math.max(EPS, r.midEnergy6 ?? r.midEnergy ?? 0);
+      const hmE = Math.max(EPS, r.highMidEnergy ?? 0);
+      const pE = Math.max(EPS, r.presenceEnergy ?? 0);
+      const aE = Math.max(EPS, r.ultraHighEnergy ?? r.airEnergy ?? 0);
+      const db = (e: number) => 10 * Math.log10(e);
+      const ref = (db(mE) + db(hmE) + db(pE)) / 3;
+      const shape = { subBass: db(sE) - ref, bass: db(bE) - ref, presence: db(pE) - ref, air: db(aE) - ref };
+      return canonicalTiltFromShapeDb(shape);
+    };
+
     const descriptors: IRDescriptor[] = results.map((r, i) => {
-      const tilt = (r as any).spectralTilt ?? 0;
+      const tilt = computeResultTilt(r);
       const lowMid = r.lowMidPercent ?? 0;
       const bass = r.bassPercent ?? 0;
       const highMid = r.highMidPercent ?? 0;
@@ -2009,7 +2039,7 @@ export default function Analyzer() {
       const biteVal = highMid + presence * 0.6;
       const fizzVal = presence * 0.4 + air;
 
-      const avgTilt = results.reduce((s, x) => s + ((x as any).spectralTilt ?? 0), 0) / results.length;
+      const avgTilt = results.reduce((s, x) => s + computeResultTilt(x), 0) / results.length;
       const avgBody = results.reduce((s, x) => s + ((x.lowMidPercent ?? 0) + (x.bassPercent ?? 0) * 0.5), 0) / results.length;
       const avgBite = results.reduce((s, x) => s + ((x.highMidPercent ?? 0) + (x.presencePercent ?? 0) * 0.6), 0) / results.length;
 
