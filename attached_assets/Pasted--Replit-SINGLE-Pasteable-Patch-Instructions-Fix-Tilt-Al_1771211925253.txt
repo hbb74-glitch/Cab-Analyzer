@@ -1,0 +1,81 @@
+# Replit — SINGLE Pasteable Patch + Instructions (Fix Tilt “All Dark” + Make Culler Actually Smarter)
+Goal:
+1) Stop tilt from being “all dark” (currently stuck ~ -3 to -6).
+2) Make culler behave meaningfully differently by scoping similarity + coverage + grouping by speakerPrefix, and treating mic combos as combos.
+3) Keep existing close-call workflow intact (we are NOT removing close calls; we’re fixing the inputs that drive them).
+
+IMPORTANT:
+- Do NOT replace entire files.
+- Apply the diffs below exactly.
+- After applying, run and verify tilt distribution + culler outputs.
+
+----------------------------------------------------------------------
+FIX A — CANONICAL TILT IN tonal-engine.ts (Mixer + any feature consumers)
+Why: tilt is still being driven by metrics.spectralTilt which is biased.
+We compute tilt from bandsShapeDb using symmetric extremes-only formula.
+
+FILE: client/src/lib/tonal-engine.ts
+PATCH:
+```diff
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ export function computeTonalFeatures(metrics: any): TonalFeatures {
+   const bandsRaw = extractBandsRaw(metrics);
+-  const bandsPercent = bandsToPercent(bandsRaw);
+-  const bandsShapeDb = bandsToShapeDb(bandsRaw);
++  const bandsPercent = bandsToPercent(bandsRaw);
++  const bandsShapeDb = bandsToShapeDb(bandsRaw);
++
++  // Canonical tilt (symmetric, avoids mid-anchor bias):
++  // tilt = avg(presence, air) - avg(bass, subBass) in SHAPE dB space.
++  const tiltDbPerOct =
++    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
++    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw,
+     bandsPercent,
+     bandsShapeDb,
+-    tiltDbPerOct: safeNumber(metrics?.spectralTilt),
++    tiltDbPerOct,
+     smoothScore,
+     notchCount: metrics?.notchCount,
+     maxNotchDepth: metrics?.maxNotchDepth,
+     rolloffFreq: metrics?.rolloffFreq,
+     tailLevelDb: metrics?.tailLevelDb,
+     tailStatus: metrics?.tailStatus,
+   };
+ }
+@@
+ export function blendFeatures(
+   a: TonalFeatures,
+   b: TonalFeatures,
+   aGain: number,
+   bGain: number
+ ): TonalFeatures {
+@@
+-  const blendedPercent = bandsToPercent(blendedRaw);
+-  const blendedShapeDb = bandsToShapeDb(blendedRaw);
++  const blendedPercent = bandsToPercent(blendedRaw);
++  const blendedShapeDb = bandsToShapeDb(blendedRaw);
++
++  const tiltDbPerOct =
++    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
++    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
+@@
+   return {
+     bandsRaw: blendedRaw,
+     bandsPercent: blendedPercent,
+     bandsShapeDb: blendedShapeDb,
+-    tiltDbPerOct: a.tiltDbPerOct * aGain + b.tiltDbPerOct * bGain,
++    tiltDbPerOct,
+     smoothScore: blendedSmooth,
+     notchCount: blendScalar(a.notchCount, b.notchCount, aGain, bGain),
+     maxNotchDepth: blendScalar(a.maxNotchDepth, b.maxNotchDepth, aGain, bGain),
+     rolloffFreq: blendScalar(a.rolloffFreq, b.rolloffFreq, aGain, bGain),
+     tailLevelDb: blendScalar(a.tailLevelDb, b.tailLevelDb, aGain, bGain),
+     tailStatus: undefined,
+   };
+ }
+*** End Patch
