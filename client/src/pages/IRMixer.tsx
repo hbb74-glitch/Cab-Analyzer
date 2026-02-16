@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1273,7 +1273,7 @@ export default function IRMixer() {
           const lRatio = loser.suggestedRatio?.base ?? 0.5;
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
-          recordPreference(tasteContext, xW, xL);
+          recordOutcome(tasteContext, xW, xL, "a");
         }
       }
     } catch {
@@ -1342,6 +1342,47 @@ export default function IRMixer() {
       });
     }, 1500);
   }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, featuresByFilename, tasteContext]);
+
+  const handleTasteCheckTie = useCallback(() => {
+    if (!tasteCheckPhase) return;
+    try {
+      const a = tasteCheckPhase.candidates?.[0];
+      const b = tasteCheckPhase.candidates?.[1];
+      if (!a || !b) return;
+      const aB = featuresByFilename.get(a.baseFilename);
+      const aF = featuresByFilename.get(a.featureFilename);
+      const bB = featuresByFilename.get(b.baseFilename);
+      const bF = featuresByFilename.get(b.featureFilename);
+      const aR = a.suggestedRatio?.base ?? 0.5;
+      const bR = b.suggestedRatio?.base ?? 0.5;
+      if (!aB || !aF || !bB || !bF) return;
+      const xA = featurizeBlend(aB, aF, aR);
+      const xB = featurizeBlend(bB, bF, bR);
+      recordOutcome(tasteContext, xA, xB, "tie");
+      setTasteVersion(v => v + 1);
+    } catch {}
+  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+
+  const handleTasteCheckBothUseful = useCallback(() => {
+    if (!tasteCheckPhase) return;
+    try {
+      const a = tasteCheckPhase.candidates?.[0];
+      const b = tasteCheckPhase.candidates?.[1];
+      if (!a || !b) return;
+      const aB = featuresByFilename.get(a.baseFilename);
+      const aF = featuresByFilename.get(a.featureFilename);
+      const bB = featuresByFilename.get(b.baseFilename);
+      const bF = featuresByFilename.get(b.featureFilename);
+      const aR = a.suggestedRatio?.base ?? 0.5;
+      const bR = b.suggestedRatio?.base ?? 0.5;
+      if (!aB || !aF || !bB || !bF) return;
+      const xA = featurizeBlend(aB, aF, aR);
+      const xB = featurizeBlend(bB, bF, bR);
+      const pairKey = `${a.baseFilename}__${a.featureFilename}__${b.baseFilename}__${b.featureFilename}`;
+      recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+      setTasteVersion(v => v + 1);
+    } catch {}
+  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -1584,7 +1625,7 @@ export default function IRMixer() {
     }, 1500);
   }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound, tasteCheckMode]);
 
-  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
+  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie" | "both") => {
     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
     const { step, matchups, lowIdx, highIdx } = ratioRefinePhase;
     const current = matchups[step];
@@ -1597,8 +1638,14 @@ export default function IRMixer() {
       if (pair && bF && fF) {
         const xA = featurizeBlend(bF, fF, current.a);
         const xB = featurizeBlend(bF, fF, current.b);
-        if (pickedSide === "a") recordPreference(tasteContext, xA, xB);
-        else if (pickedSide === "b") recordPreference(tasteContext, xB, xA);
+        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a");
+        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b");
+        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie");
+        else if (pickedSide === "both") {
+          const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
+          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+        }
+        setTasteVersion(v => v + 1);
       }
     } catch {
     }
@@ -3007,13 +3054,22 @@ export default function IRMixer() {
                         );
                       })}
                     </div>
-                    <button
-                      onClick={() => handleTasteCheckPick(-1)}
-                      className="w-full text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
-                      data-testid="button-taste-tie"
-                    >
-                      No preference / Tie
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { handleTasteCheckTie(); handleTasteCheckPick(-1); }}
+                        className="flex-1 text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
+                        data-testid="button-taste-tie"
+                      >
+                        No preference / Tie
+                      </button>
+                      <button
+                        onClick={() => { handleTasteCheckBothUseful(); handleTasteCheckPick(-1); }}
+                        className="flex-1 text-center py-1.5 text-[11px] text-teal-400/80 hover-elevate rounded-md transition-colors"
+                        data-testid="button-taste-both-useful"
+                      >
+                        Both useful
+                      </button>
+                    </div>
                         </>
                       );
                     })()}
@@ -3132,6 +3188,15 @@ export default function IRMixer() {
                           data-testid="button-ratio-tie"
                         >
                           No difference
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRatioPick("both")}
+                          className="text-xs text-teal-400/80"
+                          data-testid="button-ratio-both"
+                        >
+                          Both useful
                         </Button>
                         {cand.rank === 2 && (
                           <Button
@@ -3658,6 +3723,9 @@ export default function IRMixer() {
                   <div className="flex items-center gap-2 justify-center flex-wrap">
                     <Button size="sm" variant="ghost" onClick={() => handleRatioPick("tie")} className="text-xs text-muted-foreground" data-testid="button-standalone-ratio-tie">
                       No difference
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleRatioPick("both")} className="text-xs text-teal-400/80" data-testid="button-standalone-ratio-both">
+                      Both useful
                     </Button>
                   </div>
                 </div>

@@ -1,0 +1,128 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-import { featurizeBlend, getTasteBias, recordPreference, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
++import { featurizeBlend, getTasteBias, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
+@@
+-  const handleTasteCheckPick = useCallback((pickedIndex: number) => {
++  const handleTasteCheckPick = useCallback((pickedIndex: number) => {
+     if (!tasteCheckPhase) return;
+@@
+-    // Phase 2 Step 1: record preference updates from taste-check picks
+-    // Binary round: winner vs loser
+-    // Quad round: winner vs each other candidate
++    // Phase 2 Step 3: record outcome updates from taste-check picks
++    // Pick => treat as winner vs each other candidate (pairwise)
+     try {
+       const winner = tasteCheckPhase.candidates[pickedIndex];
+       const wBase = featuresByFilename.get(winner.baseFilename);
+       const wFeat = featuresByFilename.get(winner.featureFilename);
+       const wRatio = winner.suggestedRatio?.base ?? 0.5;
+       if (wBase && wFeat) {
+         const xW = featurizeBlend(wBase, wFeat, wRatio);
+         for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
+           if (i === pickedIndex) continue;
+           const loser = tasteCheckPhase.candidates[i];
+           const lBase = featuresByFilename.get(loser.baseFilename);
+           const lFeat = featuresByFilename.get(loser.featureFilename);
+           const lRatio = loser.suggestedRatio?.base ?? 0.5;
+           if (!lBase || !lFeat) continue;
+           const xL = featurizeBlend(lBase, lFeat, lRatio);
+-          recordPreference(tasteContext, xW, xL);
++          recordOutcome(tasteContext, xW, xL, "a");
+         }
+       }
+     } catch {
+       // ignore vote failures
+     }
+@@
+   }, [tasteCheckPhase, learnedProfile, proceedToRatioRefine, pairingPool, activeProfiles, tasteCheckMode, featuresByFilename, tasteContext]);
++
++  // Taste Check: tie / both useful helpers (no winner)
++  const handleTasteCheckTie = useCallback(() => {
++    if (!tasteCheckPhase) return;
++    try {
++      // Use first two candidates as the tie reference (no weight update, small confidence gain)
++      const a = tasteCheckPhase.candidates?.[0];
++      const b = tasteCheckPhase.candidates?.[1];
++      if (!a || !b) return;
++      const aB = featuresByFilename.get(a.baseFilename);
++      const aF = featuresByFilename.get(a.featureFilename);
++      const bB = featuresByFilename.get(b.baseFilename);
++      const bF = featuresByFilename.get(b.featureFilename);
++      const aR = a.suggestedRatio?.base ?? 0.5;
++      const bR = b.suggestedRatio?.base ?? 0.5;
++      if (!aB || !aF || !bB || !bF) return;
++      const xA = featurizeBlend(aB, aF, aR);
++      const xB = featurizeBlend(bB, bF, bR);
++      recordOutcome(tasteContext, xA, xB, "tie");
++      setTasteVersion(v => v + 1);
++    } catch {}
++  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
++
++  const handleTasteCheckBothUseful = useCallback(() => {
++    if (!tasteCheckPhase) return;
++    try {
++      // Mark the current top two candidates as complementary in this context
++      const a = tasteCheckPhase.candidates?.[0];
++      const b = tasteCheckPhase.candidates?.[1];
++      if (!a || !b) return;
++      const aB = featuresByFilename.get(a.baseFilename);
++      const aF = featuresByFilename.get(a.featureFilename);
++      const bB = featuresByFilename.get(b.baseFilename);
++      const bF = featuresByFilename.get(b.featureFilename);
++      const aR = a.suggestedRatio?.base ?? 0.5;
++      const bR = b.suggestedRatio?.base ?? 0.5;
++      if (!aB || !aF || !bB || !bF) return;
++      const xA = featurizeBlend(aB, aF, aR);
++      const xB = featurizeBlend(bB, bF, bR);
++      const pairKey = `${a.baseFilename}__${a.featureFilename}__${b.baseFilename}__${b.featureFilename}`;
++      recordOutcome(tasteContext, xA, xB, "both", { pairKey });
++      setTasteVersion(v => v + 1);
++    } catch {}
++  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+@@
+-  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie") => {
++  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie" | "both") => {
+     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
+@@
+-    // Phase 2 Step 1: record ratio preference as a pairwise preference between two ratios
+-    // We treat this as a preference over two blend results.
++    // Phase 2 Step 3: record ratio outcome (a/b/tie/both)
+     try {
+       const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx ?? 0];
+       const pair = cand?.pair;
+       const bF = cand?.baseFeatures;
+       const fF = cand?.featFeatures;
+       if (pair && bF && fF) {
+         const xA = featurizeBlend(bF, fF, current.a);
+         const xB = featurizeBlend(bF, fF, current.b);
+-        if (pickedSide === "a") recordPreference(tasteContext, xA, xB);
+-        else if (pickedSide === "b") recordPreference(tasteContext, xB, xA);
+-        // tie => no update
++        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a");
++        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b");
++        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie");
++        else if (pickedSide === "both") {
++          const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
++          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
++        }
++        setTasteVersion(v => v + 1);
+       }
+     } catch {
+       // ignore
+     }
+@@
+   }, [ratioRefinePhase, matchups, step, tasteContext]);
+@@
+-  // (wherever you render the Ratio Refine buttons A/B/Tie)
++  // (wherever you render the Ratio Refine buttons A/B/Tie) — add BOTH
++  // Replace your existing three buttons with these four calls:
++  // handleRatioPick("a"), handleRatioPick("b"), handleRatioPick("tie"), handleRatioPick("both")
++
++  // (wherever you render Taste Check controls) — add Tie + Both Useful buttons
++  // Place these two buttons near the Taste Check UI controls:
++  //
++  // <button onClick={handleTasteCheckTie}>Tie</button>
++  // <button onClick={handleTasteCheckBothUseful}>Both useful</button>
+*** End Patch
