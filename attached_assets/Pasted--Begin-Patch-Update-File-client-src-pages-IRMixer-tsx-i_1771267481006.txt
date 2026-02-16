@@ -1,0 +1,96 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-import { featurizeBlend, getTasteBias, recordPreference, meanVector, centerVector, type TasteContext } from "@/lib/tasteStore";
+-import { loadState } from "@/lib/tasteStore";
++import { featurizeBlend, getTasteBias, recordPreference, meanVector, centerVector, type TasteContext } from "@/lib/tasteStore";
++import { BAND_KEYS } from "@/lib/tonal-engine";
+@@
+   const suggestedPairsDebug = useMemo(() => {
+@@
+   }, [
+@@
+   ]);
+ 
+   // ------------------------------
+   // Phase 2 Step 2 – Why This?
+   // ------------------------------
+-  const explainPair = (pair: any) => {
+-    if (!tasteEnabled) return [];
+-
+-    const state = loadState?.() ?? null;
+-    if (!state) return [];
+-
+-    const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
+-    const model = state.models?.[key];
+-    if (!model || !model.w) return [];
+-
+-    const bF = featuresByFilename.get(pair.baseFilename);
+-    const fF = featuresByFilename.get(pair.featureFilename);
+-    const ratio = pair.suggestedRatio?.base ?? 0.5;
+-    if (!bF || !fF) return [];
+-
+-    const x = featurizeBlend(bF, fF, ratio);
+-
+-    // Pair contribution per dimension = w_i * x_i
+-    const contributions = model.w.map((w: number, i: number) => w * (x[i] ?? 0));
+-
+-    // Sort by absolute contribution
+-    const sorted = contributions
+-      .map((v: number, i: number) => ({ idx: i, val: v }))
+-      .sort((a: any, b: any) => Math.abs(b.val) - Math.abs(a.val))
+-      .slice(0, 2);
+-
+-    const labels = [...BAND_KEYS, "Tilt", "Smooth"];
+-
+-    return sorted.map((c: any) => {
+-      const label = labels[c.idx] ?? `F${c.idx}`;
+-      const dir = c.val > 0 ? "↑" : "↓";
+-      return `${label} ${dir}`;
+-    });
+-  };
++  const explainPair = (pair: any): string[] => {
++    if (!tasteEnabled) return [];
++    try {
++      // Read the same localStorage model used by tasteStore (no internal imports)
++      const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
++      if (!raw) return [];
++      const state = JSON.parse(raw);
++      if (!state?.models) return [];
++
++      const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
++      const model = state.models[key];
++      const wArr: number[] | undefined = Array.isArray(model?.w) ? model.w : undefined;
++      if (!wArr || wArr.length === 0) return [];
++
++      const bF = featuresByFilename.get(pair.baseFilename);
++      const fF = featuresByFilename.get(pair.featureFilename);
++      const ratio = pair.suggestedRatio?.base ?? 0.5;
++      if (!bF || !fF) return [];
++
++      const x = featurizeBlend(bF, fF, ratio);
++      if (!Array.isArray(x) || x.length === 0) return [];
++
++      const dim = Math.min(wArr.length, x.length);
++      const contributions: { idx: number; val: number }[] = [];
++      for (let i = 0; i < dim; i++) {
++        const wi = Number.isFinite(wArr[i]) ? wArr[i] : 0;
++        const xi = Number.isFinite(x[i]) ? x[i] : 0;
++        contributions.push({ idx: i, val: wi * xi });
++      }
++
++      const top = contributions
++        .sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
++        .slice(0, 2);
++
++      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
++      return top.map((c) => {
++        const label = labels[c.idx] ?? `F${c.idx}`;
++        const dir = c.val > 0 ? "↑" : "↓";
++        return `${label} ${dir}`;
++      });
++    } catch {
++      return [];
++    }
++  };
+*** End Patch

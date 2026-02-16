@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, loadState, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, getTasteBias, recordPreference, resetTaste, getTasteStatus, simulateVotes, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1751,28 +1751,49 @@ export default function IRMixer() {
     setCrossCabDismissed(new Set());
   }, [crossCabResults, crossCabRankings, crossCabFeedback, crossCabFeedbackText, crossCabDismissed, submitSignalsMutation]);
 
-  function explainPair(p: any): string {
-    const st = loadState();
-    const ctx = tasteContext;
-    const key = `${ctx.speakerPrefix}__${ctx.mode}__${ctx.intent}`;
-    const entry = st.models[key];
-    if (!entry || entry.nVotes === 0) return "No taste data yet";
-    const w = entry.weights;
-    const bF = featuresByFilename.get(p.baseFilename);
-    const fF = featuresByFilename.get(p.featureFilename);
-    if (!bF || !fF) return "Missing tonal data";
-    const ratio = p.suggestedRatio?.base ?? 0.5;
-    const vec = featurizeBlend(bF, fF, ratio);
-    const labels = [...BAND_KEYS.map(k => k.replace("band_", "")), "tilt", "smooth"];
-    const parts: string[] = [];
-    for (let i = 0; i < labels.length; i++) {
-      const contrib = w[i] * vec[i];
-      if (Math.abs(contrib) > 0.01) {
-        parts.push(`${labels[i]} ${contrib > 0 ? "+" : ""}${contrib.toFixed(2)}`);
+  const explainPair = (pair: any): string[] => {
+    if (!tasteEnabled) return [];
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
+      if (!raw) return [];
+      const state = JSON.parse(raw);
+      if (!state?.models) return [];
+
+      const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
+      const model = state.models[key];
+      const wArr: number[] | undefined = Array.isArray(model?.w) ? model.w : undefined;
+      if (!wArr || wArr.length === 0) return [];
+
+      const bF = featuresByFilename.get(pair.baseFilename);
+      const fF = featuresByFilename.get(pair.featureFilename);
+      const ratio = pair.suggestedRatio?.base ?? 0.5;
+      if (!bF || !fF) return [];
+
+      const x = featurizeBlend(bF, fF, ratio);
+      if (!Array.isArray(x) || x.length === 0) return [];
+
+      const dim = Math.min(wArr.length, x.length);
+      const contributions: { idx: number; val: number }[] = [];
+      for (let i = 0; i < dim; i++) {
+        const wi = Number.isFinite(wArr[i]) ? wArr[i] : 0;
+        const xi = Number.isFinite(x[i]) ? x[i] : 0;
+        contributions.push({ idx: i, val: wi * xi });
       }
+
+      const top = contributions
+        .sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
+        .slice(0, 2);
+
+      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
+      return top.map((c) => {
+        const label = labels[c.idx] ?? `F${c.idx}`;
+        const dir = c.val > 0 ? "\u2191" : "\u2193";
+        return `${label} ${dir}`;
+      });
+    } catch {
+      return [];
     }
-    return parts.length > 0 ? parts.join(", ") : "Neutral taste";
-  }
+  };
 
   const TasteControlBar = (
     <div className="flex items-center gap-2 text-xs opacity-90 mb-2" data-testid="taste-control-bar">
@@ -2674,11 +2695,14 @@ export default function IRMixer() {
                         </p>
                         <ShotIntentBadge filename={pair.featureFilename} />
                       </div>
-                      {tasteEnabled && tasteStatus.nVotes > 0 && (
-                        <p className="text-[9px] text-yellow-400/80 italic truncate" data-testid={`text-pair-explain-${idx}`}>
-                          Why: {explainPair(pair)}
-                        </p>
-                      )}
+                      {tasteEnabled && tasteStatus.nVotes > 0 && (() => {
+                        const tags = explainPair(pair);
+                        return tags.length > 0 ? (
+                          <p className="text-[9px] text-yellow-400/80 italic truncate" data-testid={`text-pair-explain-${idx}`}>
+                            Why: {tags.join(", ")}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
 
                     {!isDismissed && (
