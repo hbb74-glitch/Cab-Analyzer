@@ -1,0 +1,70 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+ export function computeTonalFeatures(metrics: any): TonalFeatures {
+   const bandsRaw = extractBandsRaw(metrics);
++  const bandsShapeDb = bandsToShapeDb(bandsRaw);
++
++  // Canonical tilt (symmetric, avoids mid-anchor bias):
++  // tilt = avg(presence, air) - avg(bass, subBass) in SHAPE dB space
++  const tiltDbPerOct =
++    ((safeNumber(bandsShapeDb.presence) + safeNumber(bandsShapeDb.air)) / 2) -
++    ((safeNumber(bandsShapeDb.bass) + safeNumber(bandsShapeDb.subBass)) / 2);
+ 
+   return {
+     bandsRaw,
+     bandsPercent: bandsToPercent(bandsRaw),
+-    bandsShapeDb: bandsToShapeDb(bandsRaw),
+-
+-    tiltDbPerOct: safeNumber(metrics?.spectralTilt),
++    bandsShapeDb,
++    tiltDbPerOct,
+ 
+     smoothScore: metrics?.smoothScore,
+     notchCount: metrics?.notchCount,
+     maxNotchDepth: metrics?.maxNotchDepth,
+     rolloffFreq: metrics?.rolloffFreq,
+     tailLevelDb: metrics?.tailLevelDb,
+     tailStatus: metrics?.tailStatus,
+   };
+ }
+@@
+ export function blendFeatures(
+   a: TonalFeatures,
+   b: TonalFeatures,
+   aGain: number,
+   bGain: number
+ ): TonalFeatures {
+   const blendedRaw: any = {};
+ 
+   for (const k of BAND_KEYS) {
+     blendedRaw[k] =
+       a.bandsRaw[k] * aGain +
+       b.bandsRaw[k] * bGain;
+   }
+ 
++  const blendedShapeDb = bandsToShapeDb(blendedRaw);
++  const tiltDbPerOct =
++    ((safeNumber(blendedShapeDb.presence) + safeNumber(blendedShapeDb.air)) / 2) -
++    ((safeNumber(blendedShapeDb.bass) + safeNumber(blendedShapeDb.subBass)) / 2);
++
+   return {
+     bandsRaw: blendedRaw,
+     bandsPercent: bandsToPercent(blendedRaw),
+-    bandsShapeDb: bandsToShapeDb(blendedRaw),
+-
+-    tiltDbPerOct:
+-      a.tiltDbPerOct * aGain +
+-      b.tiltDbPerOct * bGain,
++    bandsShapeDb: blendedShapeDb,
++    tiltDbPerOct,
+ 
+     smoothScore: blendScalar(a.smoothScore, b.smoothScore, aGain, bGain),
+     notchCount: blendScalar(a.notchCount, b.notchCount, aGain, bGain),
+     maxNotchDepth: blendScalar(a.maxNotchDepth, b.maxNotchDepth, aGain, bGain),
+     rolloffFreq: blendScalar(a.rolloffFreq, b.rolloffFreq, aGain, bGain),
+     tailLevelDb: blendScalar(a.tailLevelDb, b.tailLevelDb, aGain, bGain),
+     tailStatus: undefined,
+   }
+ }
+*** End Patch
