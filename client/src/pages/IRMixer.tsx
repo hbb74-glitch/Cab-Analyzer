@@ -1921,7 +1921,7 @@ export default function IRMixer() {
     setCrossCabDismissed(new Set());
   }, [crossCabResults, crossCabRankings, crossCabFeedback, crossCabFeedbackText, crossCabDismissed, submitSignalsMutation]);
 
-  const explainPair = (pair: any): string[] => {
+  const explainPairVsAnchor = (pair: any, anchor: any, meanVec: number[] | null): string[] => {
     if (!tasteEnabled) return [];
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
@@ -1934,31 +1934,39 @@ export default function IRMixer() {
       const wArr: number[] | undefined = Array.isArray(model?.w) ? model.w : undefined;
       if (!wArr || wArr.length === 0) return [];
 
-      const bF = featuresByFilename.get(pair.baseFilename);
-      const fF = featuresByFilename.get(pair.featureFilename);
-      const ratio = pair.suggestedRatio?.base ?? 0.5;
-      if (!bF || !fF) return [];
+      const getX = (p: any): number[] | null => {
+        const bF = featuresByFilename.get(p.baseFilename);
+        const fF = featuresByFilename.get(p.featureFilename);
+        const ratio = p.suggestedRatio?.base ?? 0.5;
+        if (!bF || !fF) return null;
+        const xRaw = featurizeBlend(bF, fF, ratio);
+        if (!Array.isArray(xRaw) || xRaw.length === 0) return null;
+        if (!meanVec || meanVec.length !== xRaw.length) return xRaw;
+        return centerVector(xRaw, meanVec);
+      };
 
-      const x = featurizeBlend(bF, fF, ratio);
-      if (!Array.isArray(x) || x.length === 0) return [];
+      const xC = getX(pair);
+      const xA = getX(anchor);
+      if (!xC || !xA) return [];
 
-      const dim = Math.min(wArr.length, x.length);
-      const contributions: { idx: number; val: number }[] = [];
+      const dim = Math.min(wArr.length, xC.length, xA.length);
+      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
+
+      const deltas: { idx: number; val: number }[] = [];
       for (let i = 0; i < dim; i++) {
         const wi = Number.isFinite(wArr[i]) ? wArr[i] : 0;
-        const xi = Number.isFinite(x[i]) ? x[i] : 0;
-        contributions.push({ idx: i, val: wi * xi });
+        const dc = (Number.isFinite(xC[i]) ? (xC[i] as number) : 0) - (Number.isFinite(xA[i]) ? (xA[i] as number) : 0);
+        deltas.push({ idx: i, val: wi * dc });
       }
 
-      const top = contributions
+      const top = deltas
         .sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
         .slice(0, 2);
 
-      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
-      return top.map((c) => {
-        const label = labels[c.idx] ?? `F${c.idx}`;
-        const dir = c.val > 0 ? "\u2191" : "\u2193";
-        return `${label} ${dir}`;
+      return top.map((d) => {
+        const label = labels[d.idx] ?? `F${d.idx}`;
+        const dir = d.val > 0 ? "\u2191" : "\u2193";
+        return `${label} ${dir} vs #1`;
       });
     } catch {
       return [];
@@ -2891,7 +2899,22 @@ export default function IRMixer() {
                         <ShotIntentBadge filename={pair.featureFilename} />
                       </div>
                       {tasteEnabled && tasteStatus.nVotes > 0 && (() => {
-                        const tags = explainPair(pair);
+                        const anchor = suggestedPairs?.[0];
+                        const meanVec = (() => {
+                          try {
+                            const vecs: number[][] = [];
+                            for (const p of suggestedPairs) {
+                              const bF = featuresByFilename.get(p.baseFilename);
+                              const fF = featuresByFilename.get(p.featureFilename);
+                              const ratio = p.suggestedRatio?.base ?? 0.5;
+                              if (bF && fF) vecs.push(featurizeBlend(bF, fF, ratio));
+                            }
+                            return vecs.length ? meanVector(vecs) : null;
+                          } catch {
+                            return null;
+                          }
+                        })();
+                        const tags = anchor ? explainPairVsAnchor(pair, anchor, meanVec) : [];
                         return tags.length > 0 ? (
                           <p className="text-[9px] text-yellow-400/80 italic truncate" data-testid={`text-pair-explain-${idx}`}>
                             Why: {tags.join(", ")}

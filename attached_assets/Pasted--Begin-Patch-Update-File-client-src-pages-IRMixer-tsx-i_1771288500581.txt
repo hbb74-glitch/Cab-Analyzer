@@ -1,0 +1,155 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-import { BAND_KEYS } from "@/lib/tonal-engine";
++import { BAND_KEYS } from "@/lib/tonal-engine";
+@@
+-  const explainPair = (pair: any): string[] => {
+-    if (!tasteEnabled) return [];
+-    try {
+-      // Read the same localStorage model used by tasteStore (no internal imports)
+-      const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
+-      if (!raw) return [];
+-      const state = JSON.parse(raw);
+-      if (!state?.models) return [];
+-
+-      const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
+-      const model = state.models[key];
+-      const wArr: number[] | undefined = Array.isArray(model?.w) ? model.w : undefined;
+-      if (!wArr || wArr.length === 0) return [];
+-
+-      const bF = featuresByFilename.get(pair.baseFilename);
+-      const fF = featuresByFilename.get(pair.featureFilename);
+-      const ratio = pair.suggestedRatio?.base ?? 0.5;
+-      if (!bF || !fF) return [];
+-
+-      const x = featurizeBlend(bF, fF, ratio);
+-      if (!Array.isArray(x) || x.length === 0) return [];
+-
+-      const dim = Math.min(wArr.length, x.length);
+-      const contributions: { idx: number; val: number }[] = [];
+-      for (let i = 0; i < dim; i++) {
+-        const wi = Number.isFinite(wArr[i]) ? wArr[i] : 0;
+-        const xi = Number.isFinite(x[i]) ? x[i] : 0;
+-        contributions.push({ idx: i, val: wi * xi });
+-      }
+-
+-      const top = contributions
+-        .sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
+-        .slice(0, 2);
+-
+-      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
+-      return top.map((c) => {
+-        const label = labels[c.idx] ?? `F${c.idx}`;
+-        const dir = c.val > 0 ? "↑" : "↓";
+-        return `${label} ${dir}`;
+-      });
+-    } catch {
+-      return [];
+-    }
+-  };
++  // Comparative "Why": explain candidate vs Anchor (#1) so it isn't the same everywhere.
++  // Uses the same centered feature space as scoring (x - mean), and compares delta to anchor.
++  const explainPairVsAnchor = (pair: any, anchor: any, meanVec: number[] | null): string[] => {
++    if (!tasteEnabled) return [];
++    try {
++      const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
++      if (!raw) return [];
++      const state = JSON.parse(raw);
++      if (!state?.models) return [];
++
++      const key = `${tasteContext.speakerPrefix}__${tasteContext.mode}__${tasteContext.intent}`;
++      const model = state.models[key];
++      const wArr: number[] | undefined = Array.isArray(model?.w) ? model.w : undefined;
++      if (!wArr || wArr.length === 0) return [];
++
++      const getX = (p: any): number[] | null => {
++        const bF = featuresByFilename.get(p.baseFilename);
++        const fF = featuresByFilename.get(p.featureFilename);
++        const ratio = p.suggestedRatio?.base ?? 0.5;
++        if (!bF || !fF) return null;
++        const xRaw = featurizeBlend(bF, fF, ratio);
++        if (!Array.isArray(xRaw) || xRaw.length === 0) return null;
++        if (!meanVec || meanVec.length !== xRaw.length) return xRaw;
++        return centerVector(xRaw, meanVec);
++      };
++
++      const xC = getX(pair);
++      const xA = getX(anchor);
++      if (!xC || !xA) return [];
++
++      const dim = Math.min(wArr.length, xC.length, xA.length);
++      const labels = [...BAND_KEYS, "Tilt", "Smooth"];
++
++      // delta contribution = w_i * (xCandidate - xAnchor)
++      const deltas: { idx: number; val: number }[] = [];
++      for (let i = 0; i < dim; i++) {
++        const wi = Number.isFinite(wArr[i]) ? wArr[i] : 0;
++        const dc = (Number.isFinite(xC[i]) ? (xC[i] as number) : 0) - (Number.isFinite(xA[i]) ? (xA[i] as number) : 0);
++        deltas.push({ idx: i, val: wi * dc });
++      }
++
++      const top = deltas
++        .sort((a, b) => Math.abs(b.val) - Math.abs(a.val))
++        .slice(0, 2);
++
++      return top.map((d) => {
++        const label = labels[d.idx] ?? `F${d.idx}`;
++        const dir = d.val > 0 ? "↑" : "↓";
++        return `${label} ${dir} vs #1`;
++      });
++    } catch {
++      return [];
++    }
++  };
+@@
+-  return (
++  return (
+     <div className="space-y-4">
+       {TasteControlBar}
+ 
+       {/* Suggested Pairs */}
+-      {suggestedPairs.map((pair: any) => (
++      {suggestedPairs.map((pair: any, idx: number) => {
++        const anchor = suggestedPairs?.[0];
++        // Reuse the same mean from debug vectors if available; otherwise no centering.
++        // We can cheaply rebuild mean for the 4 shown.
++        const meanVec = (() => {
++          try {
++            const vecs: number[][] = [];
++            for (const p of suggestedPairs) {
++              const bF = featuresByFilename.get(p.baseFilename);
++              const fF = featuresByFilename.get(p.featureFilename);
++              const ratio = p.suggestedRatio?.base ?? 0.5;
++              if (bF && fF) vecs.push(featurizeBlend(bF, fF, ratio));
++            }
++            return vecs.length ? meanVector(vecs) : null;
++          } catch {
++            return null;
++          }
++        })();
++
++        return (
+         <div key={pair.rank} className="p-3 border rounded">
+           <div className="flex justify-between">
+             <div>{pair.baseFilename} + {pair.featureFilename}</div>
+             <div>{pair.score.toFixed(1)}</div>
+           </div>
+ 
+-          {/* Why This */}
+-          {tasteEnabled && (
+-            <div className="text-xs opacity-70 mt-1">
+-              Why: {explainPair(pair).join(", ")}
+-            </div>
+-          )}
++          {/* Comparative Why (vs Anchor #1) */}
++          {tasteEnabled && anchor && (
++            <div className="text-xs opacity-70 mt-1">
++              Why: {explainPairVsAnchor(pair, anchor, meanVec).join(", ")}
++            </div>
++          )}
+         </div>
+-      ))}
++        );
++      })}
+*** End Patch
