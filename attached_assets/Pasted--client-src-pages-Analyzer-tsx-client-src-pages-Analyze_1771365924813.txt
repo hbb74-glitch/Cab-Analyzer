@@ -1,0 +1,76 @@
+--- client/src/pages/Analyzer.tsx
++++ client/src/pages/Analyzer.tsx
+@@ -1781,6 +1781,8 @@
+     analyzerMode: mode,
+     setAnalyzerMode: setMode
+   } = useResults();
++  const batchMetricsByFilenameRef = useRef<Map<string, any>>(new Map());
++
+   
+   const { data: learnedProfile } = useQuery<LearnedProfileData>({
+     queryKey: ["/api/preferences/learned"],
+@@ -1794,8 +1796,33 @@
+   const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
+ 
+   const buildSummaryTSVForRow = (r: any) => {
++    const filename = safe(r.filename ?? r.name ?? "");
++    const metricsForFile = batchMetricsByFilenameRef.current.get(filename);
++
++    // Build a feature source that mirrors what the UI sees:
++    // - batch rows carry per-band percents as separate fields (0–100)
++    // - local file analysis carries centroid + other raw metrics
++    const bandsFromBatch = {
++      subBass: ((Number(r.subBassPercent) || 0) / 100),
++      bass: ((Number(r.bassPercent) || 0) / 100),
++      lowMid: ((Number(r.lowMidPercent) || 0) / 100),
++      mid: ((Number(r.midPercent) || 0) / 100),
++      highMid: ((Number(r.highMidPercent) || 0) / 100),
++      presence: ((Number(r.presencePercent) || 0) / 100),
++      air: ((Number(r.airPercent) || 0) / 100),
++    };
++
++    const featureSource: any = {
++      ...r,
++      // Prefer locally-computed centroid when batch payload omits it
++      spectralCentroidHz:
++        (metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0),
++      // Provide bands in the format tonal-engine expects (fractions 0–1)
++      bandsPercent: bandsFromBatch,
++    };
++
+     let tf: any = null;
+-    try { tf = computeTonalFeatures(r); } catch {}
++    try { tf = computeTonalFeatures(featureSource); } catch {}
+ 
+     const bp = tf?.bandsPercent ?? {};
+ 
+@@ -1808,12 +1835,11 @@
+     const air = fmt(((bp.air ?? 0) * 100), 1);
+ 
+     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
+-    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "", 0);
++    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? "", 0);
+ 
+     const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+     const roleSource = rawRole ? "stored" : "computed";
+ 
+-    const filename = safe(r.filename ?? r.name ?? "");
+     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
+ 
+     let role = rawRole;
+@@ -2323,6 +2349,15 @@
+   // Batch mode state
+   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
+   const [copied, setCopied] = useState(false);
++  
++  // Keep latest per-file metrics accessible for export/builders without reordering hooks
++  useEffect(() => {
++    const m = new Map<string, any>();
++    for (const ir of batchIRs) {
++      if (ir?.file?.name && ir.metrics) m.set(ir.file.name, ir.metrics);
++    }
++    batchMetricsByFilenameRef.current = m;
++  }, [batchIRs]);
+   
+   // Redundancy detection state - using groups instead of pairs for cleaner display
+   // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)

@@ -1781,7 +1781,8 @@ export default function Analyzer() {
     analyzerMode: mode,
     setAnalyzerMode: setMode
   } = useResults();
-  
+  const batchMetricsByFilenameRef = useRef<Map<string, any>>(new Map());
+
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
   });
@@ -1794,8 +1795,28 @@ export default function Analyzer() {
   const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
 
   const buildSummaryTSVForRow = (r: any) => {
+    const filename = safe(r.filename ?? r.name ?? "");
+    const metricsForFile = batchMetricsByFilenameRef.current.get(filename);
+
+    const bandsFromBatch = {
+      subBass: ((Number(r.subBassPercent) || 0) / 100),
+      bass: ((Number(r.bassPercent) || 0) / 100),
+      lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+      mid: ((Number(r.midPercent) || 0) / 100),
+      highMid: ((Number(r.highMidPercent) || 0) / 100),
+      presence: ((Number(r.presencePercent) || 0) / 100),
+      air: ((Number(r.airPercent) || 0) / 100),
+    };
+
+    const featureSource: any = {
+      ...r,
+      spectralCentroidHz:
+        (metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0),
+      bandsPercent: bandsFromBatch,
+    };
+
     let tf: any = null;
-    try { tf = computeTonalFeatures(r); } catch {}
+    try { tf = computeTonalFeatures(featureSource); } catch {}
 
     const bp = tf?.bandsPercent ?? {};
 
@@ -1808,12 +1829,11 @@ export default function Analyzer() {
     const air = fmt(((bp.air ?? 0) * 100), 1);
 
     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
-    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "", 0);
+    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? "", 0);
 
     const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
     const roleSource = rawRole ? "stored" : "computed";
 
-    const filename = safe(r.filename ?? r.name ?? "");
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
 
     let role = rawRole;
@@ -2323,7 +2343,15 @@ export default function Analyzer() {
   // Batch mode state
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
   const [copied, setCopied] = useState(false);
-  
+
+  useEffect(() => {
+    const m = new Map<string, any>();
+    for (const ir of batchIRs) {
+      if (ir?.file?.name && ir.metrics) m.set(ir.file.name, ir.metrics);
+    }
+    batchMetricsByFilenameRef.current = m;
+  }, [batchIRs]);
+
   // Redundancy detection state - using groups instead of pairs for cleaner display
   // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)
   const [redundancyGroups, setRedundancyGroups] = useState<RedundancyGroup[]>(() => {
