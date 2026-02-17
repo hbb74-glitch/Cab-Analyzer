@@ -54,10 +54,11 @@ function classifyMusicalRole(tf: TonalFeatures): string {
     return "Foundation";
   }
 
-  const presenceForward = presence >= 45 || hiMidMidRatio >= 1.6;
-  const midLean = mid <= 23;
+  const presenceForward = presence >= 50 || hiMidMidRatio >= 1.9;
+  const midLean = mid <= 24;
+  const veryCutty = (presence >= 48 && hiMidMidRatio >= 1.6);
 
-  if (presenceForward && midLean) {
+  if ((presenceForward && midLean) || (veryCutty && midLean)) {
     return "Cut Layer";
   }
 
@@ -76,11 +77,20 @@ function classifyMusicalRole(tf: TonalFeatures): string {
   }
 
   const extended = ext > 0 && ext >= 5100;
-  const smoothEnough = smooth >= 86;
-  const notTooPresencey = presence <= 44;
-  const notTooScooped = mid >= 18;
+  const verySmooth = smooth >= 88;
+  const presenceModerate = presence >= 24 && presence <= 48;
+  const ratioModerate = hiMidMidRatio >= 0.95 && hiMidMidRatio <= 1.75;
+  const notTooScooped = mid >= 19;
+  const notDarkTilt = tilt >= -5.2;
 
-  if (extended && smoothEnough && notTooPresencey && notTooScooped) {
+  if (
+    extended &&
+    verySmooth &&
+    presenceModerate &&
+    ratioModerate &&
+    notTooScooped &&
+    notDarkTilt
+  ) {
     return "Lead Polish";
   }
 
