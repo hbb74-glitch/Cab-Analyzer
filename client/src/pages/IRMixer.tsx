@@ -678,6 +678,7 @@ export default function IRMixer() {
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
   const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
   const [tasteEnabled, setTasteEnabled] = useState(true);
+  const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
   const [tasteVersion, setTasteVersion] = useState(0);
   const [debugVisible, setDebugVisible] = useState(false);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
@@ -942,8 +943,8 @@ export default function IRMixer() {
 
   const tasteContext: TasteContext = useMemo(() => {
     const speakerPrefix = (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
-    return { speakerPrefix, mode: "blend", intent: "rhythm" };
-  }, [baseIR?.filename, pairingPool]);
+    return { speakerPrefix, mode: "blend", intent: tasteIntent };
+  }, [baseIR?.filename, pairingPool, tasteIntent]);
 
   const tasteStatus = useMemo(() => {
     return getTasteStatus(tasteContext);
@@ -2037,6 +2038,17 @@ export default function IRMixer() {
       >
         Taste: {tasteEnabled ? "ON" : "OFF"}
       </button>
+
+      <select
+        className="px-2 py-1 rounded border border-zinc-600 bg-transparent text-zinc-200"
+        value={tasteIntent}
+        onChange={(e) => setTasteIntent(e.target.value as any)}
+        data-testid="select-taste-intent"
+      >
+        <option value="rhythm">Rhythm</option>
+        <option value="lead">Lead</option>
+        <option value="clean">Clean</option>
+      </select>
 
       <button
         className="px-2 py-1 rounded border border-zinc-600"
