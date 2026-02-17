@@ -1,0 +1,118 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+@@
+   const [tasteEnabled, setTasteEnabled] = useState(true);
+   const [tasteVersion, setTasteVersion] = useState(0); // forces re-render after updates
+   const [debugVisible, setDebugVisible] = useState(false);
+   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
+   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
+   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
++  const importTasteInputRef = useRef<HTMLInputElement | null>(null);
+@@
+   const TasteControlBar = (
+     <div className="flex items-center gap-3 flex-wrap">
+@@
+       <button
+         className="px-3 py-1 rounded border border-zinc-600"
+         onClick={() => {
+           resetTaste(tasteContext);
+           setTasteVersion(v => v + 1);
+           setPairingRankings({});
+           setDismissedPairings(new Set());
+           setPairingFeedback({});
+           setPairingFeedbackText({});
+         }}
+       >
+         Reset
+       </button>
+@@
+       <button
+         className="px-3 py-1 rounded border border-zinc-600"
+         onClick={() => setSingleIrLearnOpen(true)}
+         title="Rate 4 individual IRs (single-IR learning)"
+       >
+         Single IR Learning
+       </button>
++
++      {/* Export / Import Taste Model (durable backups) */}
++      <button
++        className="px-3 py-1 rounded border border-zinc-600"
++        onClick={() => {
++          try {
++            const raw = localStorage.getItem("irscope.taste.v1") ?? "";
++            const safe = raw && raw.trim().length ? raw : JSON.stringify({ version: 2, models: {}, complements: {} });
++            const blob = new Blob([safe], { type: "application/json" });
++            const url = URL.createObjectURL(blob);
++            const a = document.createElement("a");
++            const dt = new Date();
++            const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}_${String(dt.getHours()).padStart(2,"0")}${String(dt.getMinutes()).padStart(2,"0")}`;
++            a.href = url;
++            a.download = `irscope_taste_${stamp}.json`;
++            document.body.appendChild(a);
++            a.click();
++            a.remove();
++            URL.revokeObjectURL(url);
++          } catch {
++            // ignore
++          }
++        }}
++        title="Download a JSON backup of your taste models"
++      >
++        Export
++      </button>
++
++      <button
++        className="px-3 py-1 rounded border border-zinc-600"
++        onClick={() => importTasteInputRef.current?.click()}
++        title="Restore taste models from a JSON backup"
++      >
++        Import
++      </button>
++
++      <input
++        ref={importTasteInputRef}
++        type="file"
++        accept="application/json"
++        style={{ display: "none" }}
++        onChange={async (e) => {
++          try {
++            const file = e.target.files?.[0];
++            if (!file) return;
++            const text = await file.text();
++            const parsed = JSON.parse(text);
++
++            // Minimal validation + migration to expected shape
++            const version = parsed?.version;
++            let migrated: any = null;
++            if (version === 2) {
++              migrated = parsed;
++              if (!migrated.models) migrated.models = {};
++              if (!migrated.complements) migrated.complements = {};
++            } else if (version === 1) {
++              migrated = { version: 2, models: parsed.models ?? {}, complements: {} };
++            } else {
++              // accept bare object with models
++              if (parsed?.models) migrated = { version: 2, models: parsed.models ?? {}, complements: parsed.complements ?? {} };
++            }
++            if (!migrated || typeof migrated !== "object") return;
++
++            localStorage.setItem("irscope.taste.v1", JSON.stringify(migrated));
++            setTasteVersion(v => v + 1);
++          } catch {
++            // ignore
++          } finally {
++            // allow re-import of same file
++            if (importTasteInputRef.current) importTasteInputRef.current.value = "";
++          }
++        }}
++      />
+@@
+       <button
+         className="px-2 py-1 rounded border border-zinc-600"
+         onClick={() => setDebugVisible(v => !v)}
+       >
+         Debug
+       </button>
+*** End Patch
