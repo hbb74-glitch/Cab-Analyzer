@@ -974,6 +974,38 @@ export default function IRMixer() {
     return pairingPool.slice(start, end);
   }, [pairingPool, singleIrPage]);
 
+  const classifySingleIrRole = useCallback((features: TonalFeatures | undefined) => {
+    if (!features) return { base: "Unknown", bias: "" };
+
+    const { bandsShapeDb, tiltDbPerOct, smoothScore = 0 } = features;
+    const hiMidMid = bandsShapeDb.highMid / (bandsShapeDb.mid || 1);
+    const bassWeight = bandsShapeDb.bass + bandsShapeDb.subBass;
+    const lowMid = bandsShapeDb.lowMid;
+    const presence = bandsShapeDb.presence;
+
+    let baseRole = "Foundation";
+
+    if (hiMidMid > 1.6 && presence > 0.5) baseRole = "Cut Layer";
+    else if (lowMid > 0.8 && bassWeight > 0.8) baseRole = "Thickener";
+    else if (smoothScore > 0.7 && presence < 0.4) baseRole = "Fizz Tamer";
+    else if (presence > 0.7 && hiMidMid > 1.3) baseRole = "Lead Polish";
+    else if (tiltDbPerOct < -2) baseRole = "Dark Specialty";
+
+    let biasLabel = "";
+    try {
+      const ctx = singleIrTasteContext;
+      const status = getTasteStatus(ctx);
+      if (status.nVotes > 5) {
+        const vec = featurizeSingleIR(features);
+        const bias = getTasteBias(ctx, vec).bias;
+        if (bias > 2) biasLabel = "↑ favored by taste";
+        else if (bias < -2) biasLabel = "↓ disfavored by taste";
+      }
+    } catch {}
+
+    return { base: baseRole, bias: biasLabel };
+  }, [singleIrTasteContext]);
+
   const WHY_TAGS = useMemo(() => ([
     "perfect",
     "balanced",
@@ -2385,6 +2417,25 @@ export default function IRMixer() {
             {singleIrPageItems.map((ir: any, idx: number) => (
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
                 <div className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</div>
+
+                {ir?.features && (
+                  <div className="text-xs mt-1 opacity-80">
+                    {(() => {
+                      const role = classifySingleIrRole(ir.features);
+                      return (
+                        <>
+                          Role: <span className="font-semibold">{role.base}</span>
+                          {role.bias && (
+                            <span className="ml-2 text-emerald-400">
+                              ({role.bias})
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 <div className="flex gap-2 mt-2 flex-wrap">
                   {(["love","like","meh","nope"] as const).map((r) => (
                     <button
