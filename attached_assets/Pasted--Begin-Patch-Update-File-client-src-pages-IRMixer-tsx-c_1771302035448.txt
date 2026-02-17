@@ -1,0 +1,204 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
+-  const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
++  const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
++  const [singleIrPage, setSingleIrPage] = useState(0);
++  const [singleIrTags, setSingleIrTags] = useState<Record<string, string[]>>({});
++  const [singleIrNotes, setSingleIrNotes] = useState<Record<string, string>>({});
+@@
+   const singleIrTasteContext: TasteContext = useMemo(() => {
+     const speakerPrefix =
+       (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+     return { speakerPrefix, mode: "singleIR", intent: tasteIntent };
+   }, [baseIR?.filename, pairingPool, tasteIntent]);
+@@
++  const SINGLE_IR_PAGE_SIZE = 4;
++  const singleIrTotalPages = useMemo(() => {
++    const n = pairingPool.length;
++    return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
++  }, [pairingPool.length]);
++
++  const singleIrPageItems = useMemo(() => {
++    const start = singleIrPage * SINGLE_IR_PAGE_SIZE;
++    const end = start + SINGLE_IR_PAGE_SIZE;
++    return pairingPool.slice(start, end);
++  }, [pairingPool, singleIrPage]);
++
++  const SINGLE_IR_TAGS = useMemo(() => ([
++    "too_bright",
++    "too_dark",
++    "too_fizzy",
++    "too_thick",
++    "too_thin",
++    "too_scooped",
++    "too_honky",
++    "harsh_attack",
++    "lacks_cut",
++    "lacks_punch",
++    "smooth_but_dull",
++  ]), []);
++
++  const toggleSingleTag = useCallback((filename: string, tag: string) => {
++    setSingleIrTags(prev => {
++      const cur = prev[filename] ?? [];
++      const next = cur.includes(tag) ? cur.filter(t => t !== tag) : [...cur, tag];
++      return { ...prev, [filename]: next };
++    });
++  }, []);
+@@
+       <button
+         className="px-3 py-1 rounded border border-zinc-600"
+         onClick={() => {
+           // Reset only the Single-IR learning context
+           resetTaste(singleIrTasteContext);
+           setTasteVersion(v => v + 1);
+           setSingleIrRatings({});
++          setSingleIrTags({});
++          setSingleIrNotes({});
++          setSingleIrPage(0);
+         }}
+         title="Reset Single-IR learning (separate from blend learning)"
+       >
+         Reset Single
+       </button>
+@@
+       {singleIrLearnOpen && (
+         <div className="border rounded p-3 space-y-2">
+           <div className="flex items-center justify-between">
+             <div className="font-semibold">Single IR Learning (Rate 4)</div>
+             <button className="px-2 py-1 rounded border border-zinc-600" onClick={() => setSingleIrLearnOpen(false)}>
+               Close
+             </button>
+           </div>
+           <div className="text-xs opacity-80">
+             Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}
+           </div>
++
++          <div className="flex items-center gap-2 text-xs opacity-80">
++            <button
++              className="px-2 py-1 rounded border border-zinc-600"
++              onClick={() => setSingleIrPage(p => (p - 1 + singleIrTotalPages) % singleIrTotalPages)}
++            >
++              Prev
++            </button>
++            <button
++              className="px-2 py-1 rounded border border-zinc-600"
++              onClick={() => setSingleIrPage(p => (p + 1) % singleIrTotalPages)}
++            >
++              Next
++            </button>
++            <span className="ml-2">
++              Page {singleIrPage + 1} / {singleIrTotalPages} (showing {SINGLE_IR_PAGE_SIZE} at a time)
++            </span>
++          </div>
+ 
+-          {pairingPool.slice(0, 4).map((ir: any, idx: number) => (
++          {singleIrPageItems.map((ir: any, idx: number) => (
+             <div key={ir.filename} className="border rounded p-2">
+               <div className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</div>
+               <div className="flex gap-2 mt-2 flex-wrap">
+                 {(["love","like","meh","nope"] as const).map((r) => (
+                   <button
+                     key={r}
+                     className={cn(
+                       "px-2 py-1 rounded border text-xs",
+                       singleIrRatings[ir.filename] === r ? "border-green-500" : "border-zinc-600"
+                     )}
+                     onClick={() => setSingleIrRatings(prev => ({ ...prev, [ir.filename]: r }))}
+                   >
+                     {r.toUpperCase()}
+                   </button>
+                 ))}
+               </div>
++
++              {/* Tags (stored; training wiring comes next step) */}
++              <div className="mt-2 text-xs opacity-80">Tags:</div>
++              <div className="flex gap-2 flex-wrap mt-1">
++                {SINGLE_IR_TAGS.map(tag => (
++                  <button
++                    key={tag}
++                    className={cn(
++                      "px-2 py-1 rounded border text-xs",
++                      (singleIrTags[ir.filename] ?? []).includes(tag) ? "border-amber-400" : "border-zinc-600"
++                    )}
++                    onClick={() => toggleSingleTag(ir.filename, tag)}
++                    title="Tags are stored now; we will wire tag-based learning next."
++                  >
++                    {tag}
++                  </button>
++                ))}
++              </div>
++
++              {/* Notes (stored only; NOT used for training) */}
++              <div className="mt-2 text-xs opacity-80">Notes (stored only, not training):</div>
++              <textarea
++                className="w-full mt-1 p-2 rounded border border-zinc-700 bg-transparent text-xs"
++                rows={2}
++                value={singleIrNotes[ir.filename] ?? ""}
++                onChange={(e) => setSingleIrNotes(prev => ({ ...prev, [ir.filename]: e.target.value }))}
++                placeholder="Optional notes…"
++              />
+             </div>
+           ))}
+ 
+           <div className="flex gap-2">
+             <button
+               className="px-3 py-1 rounded border border-zinc-600"
+               onClick={() => {
+                 // Convert the 4 absolute ratings into pairwise updates (strength-weighted)
+                 try {
+                   const strengthOf = (a: string) => a === "love" ? 2 : a === "like" ? 1 : a === "meh" ? -1 : a === "nope" ? -2 : 0;
+-                  const rated = pairingPool.slice(0, 4).map((ir: any) => {
++                  const rated = singleIrPageItems.map((ir: any) => {
+                     const action = singleIrRatings[ir.filename];
+                     if (!action) return null;
+                     if (!ir?.features) return null;
+                     return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features) };
+                   }).filter(Boolean) as { action: string; strength: number; x: number[] }[];
+ 
+                   if (rated.length >= 2) {
+                     const mean = meanVector(rated.map(r => r.x));
+                     const centered = rated.map(r => ({ ...r, xc: centerVector(r.x, mean) }));
+                     for (let i = 0; i < centered.length; i++) {
+                       for (let j = i + 1; j < centered.length; j++) {
+                         const a = centered[i];
+                         const b = centered[j];
+                         const diff = a.strength - b.strength;
+                         if (diff === 0) {
+                           recordOutcome(singleIrTasteContext, a.xc, b.xc, "tie", { source: "learning" });
+                         } else {
+                           const lr = 0.06 * Math.min(2, Math.abs(diff));
+                           if (diff > 0) recordOutcome(singleIrTasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
+                           else recordOutcome(singleIrTasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+                         }
+                       }
+                     }
+                     setTasteVersion(v => v + 1);
+                   }
+                 } catch {}
+               }}
+             >
+               Submit Ratings
+             </button>
+ 
+             <button
+               className="px-3 py-1 rounded border border-zinc-600"
+-              onClick={() => setSingleIrRatings({})}
++              onClick={() => {
++                setSingleIrRatings({});
++                setSingleIrTags({});
++                setSingleIrNotes({});
++              }}
+             >
+               Clear
+             </button>
+           </div>
+           <div className="text-xs opacity-70">
+-            Notes: Single-IR ratings train only the singleIR model. They do not affect blend learning.
++            Notes: Single-IR ratings train only the singleIR model. Tags/notes are stored; notes do NOT train.
+           </div>
+         </div>
+       )}
+*** End Patch

@@ -683,6 +683,9 @@ export default function IRMixer() {
   const [debugVisible, setDebugVisible] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
+  const [singleIrPage, setSingleIrPage] = useState(0);
+  const [singleIrTags, setSingleIrTags] = useState<Record<string, string[]>>({});
+  const [singleIrNotes, setSingleIrNotes] = useState<Record<string, string>>({});
   const importTasteInputRef = useRef<HTMLInputElement | null>(null);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
@@ -958,6 +961,40 @@ export default function IRMixer() {
   }, [baseIR?.filename, pairingPool, tasteIntent]);
 
   const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteEnabled, tasteVersion]);
+
+  const SINGLE_IR_PAGE_SIZE = 4;
+  const singleIrTotalPages = useMemo(() => {
+    const n = pairingPool.length;
+    return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
+  }, [pairingPool.length]);
+
+  const singleIrPageItems = useMemo(() => {
+    const start = singleIrPage * SINGLE_IR_PAGE_SIZE;
+    const end = start + SINGLE_IR_PAGE_SIZE;
+    return pairingPool.slice(start, end);
+  }, [pairingPool, singleIrPage]);
+
+  const SINGLE_IR_TAGS = useMemo(() => ([
+    "too_bright",
+    "too_dark",
+    "too_fizzy",
+    "too_thick",
+    "too_thin",
+    "too_scooped",
+    "too_honky",
+    "harsh_attack",
+    "lacks_cut",
+    "lacks_punch",
+    "smooth_but_dull",
+  ]), []);
+
+  const toggleSingleTag = useCallback((filename: string, tag: string) => {
+    setSingleIrTags(prev => {
+      const cur = prev[filename] ?? [];
+      const next = cur.includes(tag) ? cur.filter(t => t !== tag) : [...cur, tag];
+      return { ...prev, [filename]: next };
+    });
+  }, []);
 
   const featuresByFilename = useMemo(() => {
     const m = new Map<string, TonalFeatures>();
@@ -2094,6 +2131,9 @@ export default function IRMixer() {
           resetTaste(singleIrTasteContext);
           setTasteVersion(v => v + 1);
           setSingleIrRatings({});
+          setSingleIrTags({});
+          setSingleIrNotes({});
+          setSingleIrPage(0);
         }}
         title="Reset Single-IR learning (separate from blend learning)"
         data-testid="button-taste-reset-single"
@@ -2265,7 +2305,27 @@ export default function IRMixer() {
               Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}
             </div>
 
-            {pairingPool.slice(0, 4).map((ir: any, idx: number) => (
+            <div className="flex items-center gap-2 text-xs opacity-80">
+              <button
+                className="px-2 py-1 rounded border border-zinc-600"
+                onClick={() => setSingleIrPage(p => (p - 1 + singleIrTotalPages) % singleIrTotalPages)}
+                data-testid="button-single-ir-prev"
+              >
+                Prev
+              </button>
+              <button
+                className="px-2 py-1 rounded border border-zinc-600"
+                onClick={() => setSingleIrPage(p => (p + 1) % singleIrTotalPages)}
+                data-testid="button-single-ir-next"
+              >
+                Next
+              </button>
+              <span className="ml-2">
+                Page {singleIrPage + 1} / {singleIrTotalPages} (showing {SINGLE_IR_PAGE_SIZE} at a time)
+              </span>
+            </div>
+
+            {singleIrPageItems.map((ir: any, idx: number) => (
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
                 <div className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</div>
                 <div className="flex gap-2 mt-2 flex-wrap">
@@ -2283,6 +2343,33 @@ export default function IRMixer() {
                     </button>
                   ))}
                 </div>
+
+                <div className="mt-2 text-xs opacity-80">Tags:</div>
+                <div className="flex gap-2 flex-wrap mt-1">
+                  {SINGLE_IR_TAGS.map(tag => (
+                    <button
+                      key={tag}
+                      className={cn(
+                        "px-2 py-1 rounded border text-xs",
+                        (singleIrTags[ir.filename] ?? []).includes(tag) ? "border-amber-400" : "border-zinc-600"
+                      )}
+                      onClick={() => toggleSingleTag(ir.filename, tag)}
+                      data-testid={`button-single-ir-tag-${tag}-${idx}`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-2 text-xs opacity-80">Notes (stored only, not training):</div>
+                <textarea
+                  className="w-full mt-1 p-2 rounded border border-zinc-700 bg-transparent text-xs"
+                  rows={2}
+                  value={singleIrNotes[ir.filename] ?? ""}
+                  onChange={(e) => setSingleIrNotes(prev => ({ ...prev, [ir.filename]: e.target.value }))}
+                  placeholder="Optional notes..."
+                  data-testid={`textarea-single-ir-notes-${idx}`}
+                />
               </div>
             ))}
 
@@ -2293,7 +2380,7 @@ export default function IRMixer() {
                 onClick={() => {
                   try {
                     const strengthOf = (a: string) => a === "love" ? 2 : a === "like" ? 1 : a === "meh" ? -1 : a === "nope" ? -2 : 0;
-                    const rated = pairingPool.slice(0, 4).map((ir: any) => {
+                    const rated = singleIrPageItems.map((ir: any) => {
                       const action = singleIrRatings[ir.filename];
                       if (!action) return null;
                       if (!ir?.features) return null;
@@ -2327,14 +2414,18 @@ export default function IRMixer() {
 
               <button
                 className="px-3 py-1 rounded border border-zinc-600"
-                onClick={() => setSingleIrRatings({})}
+                onClick={() => {
+                  setSingleIrRatings({});
+                  setSingleIrTags({});
+                  setSingleIrNotes({});
+                }}
                 data-testid="button-clear-single-ir"
               >
                 Clear
               </button>
             </div>
             <div className="text-xs opacity-70">
-              Notes: Single-IR ratings train only the singleIR model. They do not affect blend learning.
+              Notes: Single-IR ratings train only the singleIR model. Tags/notes are stored; notes do NOT train.
             </div>
           </div>
         )}
