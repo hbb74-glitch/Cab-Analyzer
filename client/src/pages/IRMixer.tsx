@@ -974,7 +974,7 @@ export default function IRMixer() {
     return pairingPool.slice(start, end);
   }, [pairingPool, singleIrPage]);
 
-  const SINGLE_IR_TAGS = useMemo(() => ([
+  const LEARNING_TAGS = useMemo(() => ([
     "too_bright",
     "too_dark",
     "too_fizzy",
@@ -993,6 +993,14 @@ export default function IRMixer() {
       const cur = prev[filename] ?? [];
       const next = cur.includes(tag) ? cur.filter(t => t !== tag) : [...cur, tag];
       return { ...prev, [filename]: next };
+    });
+  }, []);
+
+  const toggleBlendTag = useCallback((pairKey: string, tag: string) => {
+    setPairingFeedback(prev => {
+      const cur = prev[pairKey] ?? [];
+      const next = cur.includes(tag) ? cur.filter(t => t !== tag) : [...cur, tag];
+      return { ...prev, [pairKey]: next };
     });
   }, []);
 
@@ -2156,17 +2164,31 @@ export default function IRMixer() {
           try {
             const raw = localStorage.getItem("irscope.taste.v1") ?? "";
             const safe = raw && raw.trim().length ? raw : JSON.stringify({ version: 2, models: {}, complements: {} });
-            const blob = new Blob([safe], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
             const dt = new Date();
             const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}_${String(dt.getHours()).padStart(2,"0")}${String(dt.getMinutes()).padStart(2,"0")}`;
+            const filename = `irscope_taste_${stamp}.json`;
+
+            const blob = new Blob([safe], { type: "application/json" });
+
+            const navAny: any = navigator as any;
+            if (navAny?.canShare && navAny.canShare({ files: [new File([blob], filename, { type: "application/json" })] }) && navAny?.share) {
+              navAny.share({ files: [new File([blob], filename, { type: "application/json" })], title: filename });
+              return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
             a.href = url;
-            a.download = `irscope_taste_${stamp}.json`;
+            a.download = filename;
+            a.rel = "noopener";
             document.body.appendChild(a);
             a.click();
             a.remove();
-            URL.revokeObjectURL(url);
+
+            setTimeout(() => {
+              try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
+              setTimeout(() => URL.revokeObjectURL(url), 15_000);
+            }, 250);
           } catch {}
         }}
         title="Download a JSON backup of your taste models"
@@ -2346,7 +2368,7 @@ export default function IRMixer() {
 
                 <div className="mt-2 text-xs opacity-80">Tags:</div>
                 <div className="flex gap-2 flex-wrap mt-1">
-                  {SINGLE_IR_TAGS.map(tag => (
+                  {LEARNING_TAGS.map(tag => (
                     <button
                       key={tag}
                       className={cn(
@@ -3283,6 +3305,37 @@ export default function IRMixer() {
                         ) : null;
                       })()}
                     </div>
+
+                    <div className="mt-2 text-xs opacity-80">Tags (Learning Mode):</div>
+                    <div className="flex gap-2 flex-wrap mt-1">
+                      {(() => {
+                        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+                        const selected = pairingFeedback[pk] ?? [];
+                        return LEARNING_TAGS.map((tag) => (
+                          <button
+                            key={tag}
+                            className={cn(
+                              "px-2 py-1 rounded border text-xs",
+                              selected.includes(tag) ? "border-amber-400" : "border-zinc-600"
+                            )}
+                            onClick={() => toggleBlendTag(pk, tag)}
+                            data-testid={`button-blend-tag-${tag}-${idx}`}
+                          >
+                            {tag}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+
+                    <div className="mt-2 text-xs opacity-80">Notes (stored only, not training):</div>
+                    <textarea
+                      className="w-full mt-1 p-2 rounded border border-zinc-700 bg-transparent text-xs"
+                      rows={2}
+                      value={pairingFeedbackText[`${pair.baseFilename}||${pair.featureFilename}`] ?? ""}
+                      onChange={(e) => setPairingFeedbackText(prev => ({ ...prev, [`${pair.baseFilename}||${pair.featureFilename}`]: e.target.value }))}
+                      placeholder="Optional notes..."
+                      data-testid={`textarea-blend-notes-${idx}`}
+                    />
 
                     {!isDismissed && (
                       <>
