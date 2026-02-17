@@ -1,0 +1,47 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+   const classifySingleIrRole = useCallback((features: TonalFeatures | undefined) => {
+     if (!features) return { base: "Unknown", bias: "" };
+ 
+     const bp: any = (features.bandsPercent ?? {});
+     const smooth = Number(features.smoothScore ?? 0);
+     const tilt = Number(features.tiltDbPerOct ?? 0);
+     const ext = Number(features.rolloffFreq ?? 0);
+ 
+     const mid = Number((bp.mid ?? 0) * 100);
+     const highMid = Number((bp.highMid ?? 0) * 100);
+     const presence = Number((bp.presence ?? 0) * 100);
+     const lowMid = Number((bp.lowMid ?? 0) * 100);
+     const bass = Number((bp.bass ?? 0) * 100);
+     const subBass = Number((bp.subBass ?? 0) * 100);
+     const air = Number((bp.air ?? 0) * 100);
+ 
+     const rawFizz = Number((features as any).fizzEnergy ?? 0);
+     const fizz = (Number.isFinite(rawFizz) ? (rawFizz > 1.2 ? rawFizz : rawFizz * 100) : 0);
+ 
+     const hiMidMid = mid > 0 ? (highMid / mid) : 10;
+     const bassLowMid = subBass + bass + lowMid;
++    const core = Math.max(1e-6, (mid + lowMid));
++    const cutCoreRatio = (highMid + presence) / core;
+ 
+     let baseRole: string = "Foundation";
+ 
+     // Cut Layer: more cut than average (presence/upper mids), and not mid-heavy.
+-    if ((presence >= 48 || hiMidMid >= 1.8) && mid <= 26) baseRole = "Cut Layer";
++    if ((presence >= 50 || cutCoreRatio >= 3.0) && (mid + lowMid) <= 24) baseRole = "Cut Layer";
+     // Mid Thickener: body-forward but not spiky.
+     else if ((mid >= 34 || lowMid >= 12 || bassLowMid >= 26) && presence <= 34) baseRole = "Mid Thickener";
+     // Dark Specialty: unusually dark/rolled-off.
+     else if ((ext > 0 && ext < 3600) || tilt <= -6.2) baseRole = "Dark Specialty";
+     // Fizz Tamer: low air + low fizz, smooth and somewhat rolled-off/dark-tilt.
+     else if ((ext > 0 && ext <= 4500 || tilt <= -5.2) && smooth >= 82 && air <= 2.0 && fizz <= 1.2) baseRole = "Fizz Tamer";
+     // Lead Polish: smooth, extended, usable 6–9k sheen without 9–14k hash.
+-    else if (smooth >= 88 && ext > 0 && ext >= 4800 && presence >= 24 && presence <= 48 && air >= 2.0 && fizz <= 1.2) baseRole = "Lead Polish";
++    else if (smooth >= 88 && ext > 0 && ext >= 4600 && presence >= 22 && presence <= 55 && air >= 4.0 && fizz <= 1.2 && cutCoreRatio <= 3.4) baseRole = "Lead Polish";
+ 
+     let biasLabel = "";
+     try {
+       const ctx = singleIrTasteContext;
+       const status = getTasteStatus(ctx);
+*** End Patch
