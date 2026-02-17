@@ -15,7 +15,7 @@ import AmpDesigner from "@/pages/AmpDesigner";
 import AmpDialIn from "@/pages/AmpDialIn";
 import Pairing from "@/pages/Pairing";
 import AmpAndDriveDialer from "@/pages/AmpAndDriveDialer";
-import ReferenceManual from "@/pages/ReferenceManual";
+import Recommendations from "@/pages/Recommendations";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -26,15 +26,18 @@ function Router() {
       {/* New top-nav routes */}
       <Route path="/learner" component={IRMixer} />
       <Route path="/blend-builder" component={Pairing} />
-      <Route path="/mic-shots-suggester" component={MikingGuide} />
+      {/* Mic Shots Suggester = AI-driven shot suggester */}
+      <Route path="/mic-shots-suggester" component={Recommendations} />
       <Route path="/sic-tool" component={FractalSettings} />
       <Route path="/amp-drive-dialer" component={AmpAndDriveDialer} />
-      <Route path="/reference-manual" component={ReferenceManual} />
+      {/* Reference Manual = your mic/speaker reference content */}
+      <Route path="/reference-manual" component={MikingGuide} />
 
       {/* Back-compat routes */}
       <Route path="/mixer" component={IRMixer} />
       <Route path="/pairing" component={Pairing} />
       <Route path="/miking-guide" component={MikingGuide} />
+      <Route path="/recommendations" component={Recommendations} />
       <Route path="/fractal" component={FractalSettings} />
       <Route path="/amp-designer" component={AmpDesigner} />
       <Route path="/amp-dial-in" component={AmpDialIn} />
