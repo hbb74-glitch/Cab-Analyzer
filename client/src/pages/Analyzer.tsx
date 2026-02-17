@@ -115,7 +115,7 @@ function inferSpeakerIdFromFilename(filename: string): string {
   return first.toUpperCase();
 }
 
-function z(v: number, mean: number, std: number): number {
+function zScore(v: number, mean: number, std: number): number {
   if (!Number.isFinite(v) || !Number.isFinite(mean) || !Number.isFinite(std) || std <= 1e-9) return 0;
   return (v - mean) / std;
 }
@@ -131,7 +131,7 @@ function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFeatures }
   const stats = new Map<string, SpeakerStats>();
   const keys = ["centroid", "tilt", "ext", "presence", "hiMidMid", "smooth"];
 
-  for (const [spk, list] of bySpk.entries()) {
+  for (const [spk, list] of Array.from(bySpk.entries())) {
     const vals: Record<string, number[]> = Object.fromEntries(keys.map(k => [k, []]));
 
     for (const r of list) {
@@ -188,10 +188,10 @@ function applyContextBias(
   const presencePct = Number((bp.presence ?? 0) * 100);
   const hiMidMid = midPct > 0 ? (highMidPct / midPct) : 10;
 
-  const zCentroid = speakerStats ? z(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
-  const zExt = speakerStats ? z(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
-  const zPresence = speakerStats ? z(presencePct, speakerStats.mean.presence, speakerStats.std.presence) : 0;
-  const zHiMidMid = speakerStats ? z(hiMidMid, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
+  const zCentroid = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
+  const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
+  const zPresence = speakerStats ? zScore(presencePct, speakerStats.mean.presence, speakerStats.std.presence) : 0;
+  const zHiMidMid = speakerStats ? zScore(hiMidMid, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
 
   const objectivelyCutty =
     (zCentroid >= 1.0 && zExt >= 0.8) ||
