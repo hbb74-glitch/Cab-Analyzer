@@ -1699,9 +1699,9 @@ export default function IRMixer() {
           if (!baseData?.features || !featData?.features) return null;
           const ratio = pair.suggestedRatio?.base ?? 0.5;
           const x = featurizeBlend(baseData.features, featData.features, ratio);
-          return { action, strength: strengthOf(action), x };
+          return { action, strength: strengthOf(action), x, pairKey: pk };
         })
-        .filter(Boolean) as { action: string; strength: number; x: number[] }[];
+        .filter(Boolean) as { action: string; strength: number; x: number[]; pairKey: string }[];
 
       if (rated.length >= 2) {
         const mean = meanVector(rated.map((r) => r.x));
