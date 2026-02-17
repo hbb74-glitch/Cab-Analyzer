@@ -1,8 +1,46 @@
+import { BookOpen } from "lucide-react";
+
 export default function ReferenceManual() {
   return (
-    <div className="pt-20 px-4 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Reference Manual</h1>
-      <p className="text-muted-foreground">Coming soon.</p>
+    <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/40">
+          <BookOpen className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">Reference Manual</h1>
+          <p className="text-sm text-muted-foreground">
+            Quick reference for your microphones, speakers, and capture techniques.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 rounded-xl border border-white/10">
+          <div className="font-semibold mb-2">Microphones</div>
+          <div className="text-sm text-muted-foreground">
+            Add your mic notes here (character, best positions, distances, do/don't, pairings).
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-white/10">
+          <div className="font-semibold mb-2">Speakers / Cabs</div>
+          <div className="text-sm text-muted-foreground">
+            Add speaker/cab profiles here (V30, G12M, K100, GA-SC64, etc.).
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-white/10">
+          <div className="font-semibold mb-2">Techniques</div>
+          <div className="text-sm text-muted-foreground">
+            Fredman 57, dual-mic blends, and your capture workflow references.
+          </div>
+        </div>
+        <div className="p-4 rounded-xl border border-white/10">
+          <div className="font-semibold mb-2">AM4 Notes</div>
+          <div className="text-sm text-muted-foreground">
+            Notes on AM4 setup, SIC curves, gain staging, and repeatable shootout workflows.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
