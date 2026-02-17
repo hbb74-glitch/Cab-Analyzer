@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mic2, Activity, BarChart3, Radio, Lightbulb, Zap, BookOpen, Cherry, Blend, Wrench } from "lucide-react";
+import { Activity, Radio, BookOpen, Zap, Wrench, Blend, Mic2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function KnobNavIcon({ className }: { className?: string }) {
@@ -17,14 +17,12 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", label: "Analyzer", icon: Activity },
-    { href: "/cherry-picker", label: "Picker", icon: Cherry },
-    { href: "/recommendations", label: "Suggestions", icon: Lightbulb },
-    { href: "/mixer", label: "Mixer", icon: Blend },
-    { href: "/miking-guide", label: "Miking", icon: BookOpen },
-    { href: "/fractal", label: "AM4", icon: Zap },
-    { href: "/amp-designer", label: "Mod Lab", icon: Wrench },
-    { href: "/amp-dial-in", label: "Dial-In", icon: KnobNavIcon },
-    { href: "/history", label: "History", icon: BarChart3 },
+    { href: "/learner", label: "Learner", icon: Blend },
+    { href: "/blend-builder", label: "Blend Builder", icon: Blend },
+    { href: "/mic-shots-suggester", label: "Mic Shots Suggester", icon: Mic2 },
+    { href: "/sic-tool", label: "SIC Tool", icon: Zap },
+    { href: "/amp-drive-dialer", label: "Amp And Drive Dialer", icon: Wrench },
+    { href: "/reference-manual", label: "Reference Manual", icon: BookOpen },
   ];
 
   return (
