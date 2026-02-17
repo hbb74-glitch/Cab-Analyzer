@@ -1,0 +1,94 @@
+*** Begin Patch
+*** Update File: Cab-Analyzer-main/client/src/pages/IRMixer.tsx
+@@
+-import { featurizeBlend, getTasteBias, recordPreference, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
++import { featurizeBlend, getTasteBias, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
+@@
+   const handleTasteCheckPick = useCallback((pickedIndex: number) => {
+     if (!tasteCheckPhase) return;
+ 
+     setTasteCheckPhase({ ...tasteCheckPhase, userPick: pickedIndex, showingResult: true });
+@@
+-    try {
+-      const winner = tasteCheckPhase.candidates[pickedIndex];
+-      const wBase = featuresByFilename.get(winner.baseFilename);
+-      const wFeat = featuresByFilename.get(winner.featureFilename);
+-      const wRatio = winner.suggestedRatio?.base ?? 0.5;
+-      if (wBase && wFeat) {
+-        const xW = featurizeBlend(wBase, wFeat, wRatio);
+-        for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
+-          if (i === pickedIndex) continue;
+-          const loser = tasteCheckPhase.candidates[i];
+-          const lBase = featuresByFilename.get(loser.baseFilename);
+-          const lFeat = featuresByFilename.get(loser.featureFilename);
+-          const lRatio = loser.suggestedRatio?.base ?? 0.5;
+-          if (!lBase || !lFeat) continue;
+-          const xL = featurizeBlend(lBase, lFeat, lRatio);
+-          recordPreference(tasteContext, xW, xL);
+-        }
+-      }
+-    } catch {
+-    }
++    // Phase 2: learning update for Tester/Acquisition (A/B or Pick-4).
++    // Important: use recordOutcome with source so votes/confidence actually move in these modes.
++    try {
++      const source = (tasteCheckPhase.roundType === "binary") ? "ab" : "pick4";
++      const winner = tasteCheckPhase.candidates[pickedIndex];
++      const wBase = featuresByFilename.get(winner.baseFilename);
++      const wFeat = featuresByFilename.get(winner.featureFilename);
++      const wRatio = winner.suggestedRatio?.base ?? 0.5;
++      if (wBase && wFeat) {
++        const xW = featurizeBlend(wBase, wFeat, wRatio);
++        for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
++          if (i === pickedIndex) continue;
++          const loser = tasteCheckPhase.candidates[i];
++          const lBase = featuresByFilename.get(loser.baseFilename);
++          const lFeat = featuresByFilename.get(loser.featureFilename);
++          const lRatio = loser.suggestedRatio?.base ?? 0.5;
++          if (!lBase || !lFeat) continue;
++          const xL = featurizeBlend(lBase, lFeat, lRatio);
++          recordOutcome(tasteContext, xW, xL, "a", { source });
++        }
++        setTasteVersion(v => v + 1);
++      }
++    } catch {}
+@@
+   }, [tasteCheckPhase, learnedProfile, proceedToRatioRefine, pairingPool, activeProfiles, tasteCheckMode, featuresByFilename, tasteContext]);
+@@
+-  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie" | "both") => {
++  const handleRatioPick = useCallback((pickedSide: "a" | "b" | "tie" | "both") => {
+     if (!ratioRefinePhase || ratioRefinePhase.stage !== "refine") return;
+@@
+-    try {
++    try {
+       const cand = ratioRefinePhase.candidates[ratioRefinePhase.selectedIdx ?? 0];
+       const pair = cand?.pair;
+       const bF = cand?.baseFeatures;
+       const fF = cand?.featFeatures;
+       if (pair && bF && fF) {
+         const xA = featurizeBlend(bF, fF, current.a);
+         const xB = featurizeBlend(bF, fF, current.b);
+-        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a", { source: "ratio" });
+-        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b", { source: "ratio" });
+-        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
+-        else if (pickedSide === "both") {
+-          const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
+-          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ratio" });
+-        }
+-        setTasteVersion(v => v + 1);
++        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a", { source: "ratio" });
++        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b", { source: "ratio" });
++        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
++        else if (pickedSide === "both") {
++          const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
++          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ratio" });
++        }
++        setTasteVersion(v => v + 1);
+       }
+-    } catch {
+-      // ignore
+-    }
++    } catch {}
+@@
+   }, [ratioRefinePhase, matchups, step, tasteContext]);
+*** End Patch

@@ -1381,6 +1381,7 @@ export default function IRMixer() {
     ];
 
     try {
+      const source = (tasteCheckPhase.roundType === "binary") ? "ab" as const : "pick4" as const;
       const winner = tasteCheckPhase.candidates[pickedIndex];
       const wBase = featuresByFilename.get(winner.baseFilename);
       const wFeat = featuresByFilename.get(winner.featureFilename);
@@ -1395,11 +1396,11 @@ export default function IRMixer() {
           const lRatio = loser.suggestedRatio?.base ?? 0.5;
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
-          recordOutcome(tasteContext, xW, xL, "a", { source: "ab" });
+          recordOutcome(tasteContext, xW, xL, "a", { source });
         }
+        setTasteVersion(v => v + 1);
       }
-    } catch {
-    }
+    } catch {}
 
     const nextRound = tasteCheckPhase.round + 1;
 
@@ -1826,8 +1827,7 @@ export default function IRMixer() {
         }
         setTasteVersion(v => v + 1);
       }
-    } catch {
-    }
+    } catch {}
 
     if (pickedSide === "tie") {
       const MAX_RATIO_ROUNDS = 3;
