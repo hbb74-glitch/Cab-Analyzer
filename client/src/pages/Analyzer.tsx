@@ -22,6 +22,40 @@ import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, appl
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 
+function classifyMusicalRole(tf: TonalFeatures): string {
+  const b = tf.bandsShapeDb;
+  const smooth = Number.isFinite(tf.smoothScore) ? tf.smoothScore : 0;
+  const tilt = Number.isFinite(tf.tiltDbPerOct) ? tf.tiltDbPerOct : 0;
+
+  const bassWeight = (b.subBass ?? 0) + (b.bass ?? 0);
+  const lowMid = b.lowMid ?? 0;
+  const mid = b.mid ?? 0;
+  const highMid = b.highMid ?? 0;
+  const presence = b.presence ?? 0;
+  const air = b.air ?? 0;
+
+  const hiMidMid = mid !== 0 ? (highMid / mid) : highMid;
+
+  if (hiMidMid > 1.6 && presence > 0.5) return "Cut Layer";
+  if (lowMid > 0.8 && bassWeight > 0.8) return "Thickener";
+  if ((smooth ?? 0) >= 80 && air < 0.2 && presence < 0.3) return "Fizz Tamer";
+  if (presence > 0.7 && hiMidMid > 1.3) return "Lead Polish";
+  if (tilt < -2.5) return "Dark Specialty";
+  return "Foundation";
+}
+
+function roleBadgeClass(role: string): string {
+  switch (role) {
+    case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";
+    case "Thickener": return "bg-amber-500/15 text-amber-400";
+    case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
+    case "Lead Polish": return "bg-violet-500/15 text-violet-400";
+    case "Dark Specialty": return "bg-blue-500/15 text-blue-400";
+    case "Foundation": return "bg-emerald-500/15 text-emerald-400";
+    default: return "bg-white/10 text-muted-foreground";
+  }
+}
+
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.string().min(1, "Microphone is required"),
@@ -4856,6 +4890,23 @@ export default function Analyzer() {
                                     {batchPreferenceRoles[index].role}
                                   </span>
                                 )}
+
+                                {(() => {
+                                  try {
+                                    const tf = computeTonalFeatures(r as any);
+                                    const role = classifyMusicalRole(tf);
+                                    return (
+                                      <span
+                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+                                        data-testid={`badge-batch-musical-role-${index}`}
+                                      >
+                                        {role}
+                                      </span>
+                                    );
+                                  } catch {
+                                    return null;
+                                  }
+                                })()}
                               </div>
                             )}
                             {!r.parsedInfo && batchPreferenceRoles?.[index]?.role && (
@@ -4870,6 +4921,25 @@ export default function Analyzer() {
                                 </span>
                               </div>
                             )}
+
+                            {!r.parsedInfo && (() => {
+                              try {
+                                const tf = computeTonalFeatures(r as any);
+                                const role = classifyMusicalRole(tf);
+                                return (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <span
+                                      className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+                                      data-testid={`badge-batch-musical-role-${index}`}
+                                    >
+                                      {role}
+                                    </span>
+                                  </div>
+                                );
+                              } catch {
+                                return null;
+                              }
+                            })()}
                           </div>
                           <div className={cn(
                             "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg flex-shrink-0",
@@ -6722,6 +6792,22 @@ export default function Analyzer() {
                       Clear Result
                     </button>
                   </div>
+
+                  <div className="flex justify-end">
+                    {(() => {
+                      const tf = computeTonalFeatures(metrics);
+                      const role = classifyMusicalRole(tf);
+                      return (
+                        <span
+                          className={cn("px-2 py-1 text-xs font-mono rounded", roleBadgeClass(role))}
+                          data-testid="badge-single-musical-role"
+                        >
+                          {role}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
                   <ResultCard
                     score={result.qualityScore}
                     isPerfect={result.isPerfect ?? false}
