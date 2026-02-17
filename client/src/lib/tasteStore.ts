@@ -1,4 +1,4 @@
-import type { TonalFeatures } from "@/lib/tonal-engine";
+import type { TonalFeatures, BandKey } from "@/lib/tonal-engine";
 import { BAND_KEYS, blendFeatures } from "@/lib/tonal-engine";
 
 export type TasteMode = "singleIR" | "blend";
@@ -173,6 +173,57 @@ export function recordPreference(
 
 export type VoteOutcome = "a" | "b" | "tie" | "both";
 
+type FeatureDelta = Partial<Record<BandKey | "Tilt" | "Smooth", number>>;
+
+const TAG_FEATURE_MAP: Record<string, FeatureDelta> = {
+  more_bottom:   { subBass: +0.6, bass: +0.6, lowMid: +0.2 },
+  more_mids:     { mid: +0.7, lowMid: +0.2, highMid: +0.1 },
+  more_air:      { air: +0.6, presence: +0.2 },
+  more_bite:     { presence: +0.6, highMid: +0.3 },
+  tighter:       { lowMid: -0.5, bass: -0.2, mid: +0.2 },
+  less_harsh:    { presence: -0.5, highMid: -0.2 },
+  less_fizz:     { air: -0.7, presence: -0.2 },
+  less_mud:      { lowMid: -0.7, bass: -0.3 },
+
+  too_bright:    { presence: -0.6, air: -0.6, Tilt: -0.3 },
+  too_dark:      { presence: +0.5, air: +0.5, Tilt: +0.3 },
+  too_fizzy:     { air: -0.8, Smooth: +0.2 },
+  too_thick:     { lowMid: -0.7, bass: -0.2 },
+  too_thin:      { lowMid: +0.5, bass: +0.5 },
+  too_scooped:   { mid: +0.8 },
+  too_honky:     { highMid: -0.6, mid: -0.2 },
+  harsh_attack:  { presence: -0.5 },
+  lacks_cut:     { presence: +0.7, highMid: +0.2 },
+  lacks_punch:   { bass: +0.4, lowMid: +0.3, mid: +0.2 },
+  smooth_but_dull:{ air: +0.5, presence: +0.3, Smooth: -0.2 },
+
+  balanced:      { mid: +0.2, lowMid: +0.2, highMid: +0.2 },
+  punchy:        { mid: +0.3, presence: +0.2, bass: +0.2 },
+  warm:          { lowMid: +0.4, bass: +0.2, air: -0.1 },
+  aggressive:    { presence: +0.3, highMid: +0.3 },
+  tight:         { lowMid: -0.2, mid: +0.2 },
+  articulate:    { highMid: +0.2, presence: +0.2, Smooth: -0.1 },
+  cut:           { presence: +0.4, highMid: +0.2 },
+  thick:         { lowMid: +0.4, bass: +0.2 },
+  fast_attack:   { presence: +0.2, Smooth: -0.1 },
+  perfect:       { },
+};
+
+function applyDeltaToVector(x: number[], delta: FeatureDelta, scale: number): number[] {
+  const out = x.slice();
+  const idxOf = (k: BandKey | "Tilt" | "Smooth"): number => {
+    const bandIndex = BAND_KEYS.indexOf(k as BandKey);
+    if (bandIndex >= 0) return bandIndex;
+    if (k === "Tilt") return BAND_KEYS.length;
+    return BAND_KEYS.length + 1;
+  };
+  for (const [k, v] of Object.entries(delta)) {
+    const i = idxOf(k as BandKey | "Tilt" | "Smooth");
+    if (i >= 0 && i < out.length) out[i] += (v as number) * scale;
+  }
+  return out;
+}
+
 function sourceWeight(source?: VoteSource): number {
   if (source === "learning") return 1.0;
   if (source === "pick4") return 0.6;
@@ -186,7 +237,7 @@ export function recordOutcome(
   xA: number[],
   xB: number[],
   outcome: VoteOutcome,
-  opts?: { lr?: number; pairKey?: string; source?: VoteSource }
+  opts?: { lr?: number; pairKey?: string; source?: VoteSource; tagsA?: string[]; tagsB?: string[] }
 ) {
   const state = loadState();
   const key = makeTasteKey(ctx);
@@ -217,6 +268,31 @@ export function recordOutcome(
   const lr = baseLr * wSrc;
   if (outcome === "a") recordPreference(ctx, xA, xB, { lr });
   else if (outcome === "b") recordPreference(ctx, xB, xA, { lr });
+
+  if (opts?.source === "learning") {
+    const tagScale = 0.08 * wSrc;
+    const tagsA = opts?.tagsA ?? [];
+    const tagsB = opts?.tagsB ?? [];
+
+    const deltaA: FeatureDelta = {};
+    for (const t of tagsA) {
+      const d = TAG_FEATURE_MAP[t];
+      if (!d) continue;
+      for (const [k, v] of Object.entries(d)) (deltaA as any)[k] = ((deltaA as any)[k] ?? 0) + (v as number);
+    }
+    const deltaB: FeatureDelta = {};
+    for (const t of tagsB) {
+      const d = TAG_FEATURE_MAP[t];
+      if (!d) continue;
+      for (const [k, v] of Object.entries(d)) (deltaB as any)[k] = ((deltaB as any)[k] ?? 0) + (v as number);
+    }
+
+    const xA2 = applyDeltaToVector(xA, deltaA, tagScale);
+    const xB2 = applyDeltaToVector(xB, deltaB, tagScale);
+
+    if (outcome === "a") recordPreference(ctx, xA2, xB2, { lr: lr * 0.5 });
+    else if (outcome === "b") recordPreference(ctx, xB2, xA2, { lr: lr * 0.5 });
+  }
 }
 
 export function getComplementBoost(ctx: TasteContext, pairKey: string): number {

@@ -1,0 +1,132 @@
+*** Begin Patch
+*** Update File: client/src/lib/tasteStore.ts
+@@
+ export type TasteIntent = "rhythm" | "lead" | "clean";
+ export type VoteSource = "learning" | "pick4" | "ab" | "ratio";
+@@
+ export type VoteOutcome = "a" | "b" | "tie" | "both";
+ 
++// ------------------------------------------------------------
++// Tag -> feature nudges (Learning Mode refinement)
++// These are *small* hints applied as extra preference updates.
++// They do NOT override the core pairwise vote; they gently steer learning.
++//
++// Vector layout must match featurizeBlend/featurizeSingleIR:
++//   [ BAND_KEYS (scaled) ... , Tilt (scaled), Smooth (scaled) ]
++// ------------------------------------------------------------
++type FeatureDelta = Partial<Record<BandKey | "Tilt" | "Smooth", number>>;
++
++const TAG_FEATURE_MAP: Record<string, FeatureDelta> = {
++  // Improve tags
++  more_bottom:   { subBass: +0.6, bass: +0.6, lowMid: +0.2 },
++  more_mids:     { mid: +0.7, lowMid: +0.2, highMid: +0.1 },
++  more_air:      { air: +0.6, presence: +0.2 },
++  more_bite:     { presence: +0.6, highMid: +0.3 },
++  tighter:       { lowMid: -0.5, bass: -0.2, mid: +0.2 },
++  less_harsh:    { presence: -0.5, highMid: -0.2 },
++  less_fizz:     { air: -0.7, presence: -0.2 },
++  less_mud:      { lowMid: -0.7, bass: -0.3 },
++
++  // Issue tags (negative versions; used when you select them on Meh/Nope)
++  too_bright:    { presence: -0.6, air: -0.6, Tilt: -0.3 },
++  too_dark:      { presence: +0.5, air: +0.5, Tilt: +0.3 },
++  too_fizzy:     { air: -0.8, Smooth: +0.2 },
++  too_thick:     { lowMid: -0.7, bass: -0.2 },
++  too_thin:      { lowMid: +0.5, bass: +0.5 },
++  too_scooped:   { mid: +0.8 },
++  too_honky:     { highMid: -0.6, mid: -0.2 },
++  harsh_attack:  { presence: -0.5 },
++  lacks_cut:     { presence: +0.7, highMid: +0.2 },
++  lacks_punch:   { bass: +0.4, lowMid: +0.3, mid: +0.2 },
++  smooth_but_dull:{ air: +0.5, presence: +0.3, Smooth: -0.2 },
++
++  // Why tags (positive descriptors; small reinforcement)
++  balanced:      { mid: +0.2, lowMid: +0.2, highMid: +0.2 },
++  punchy:        { mid: +0.3, presence: +0.2, bass: +0.2 },
++  warm:          { lowMid: +0.4, bass: +0.2, air: -0.1 },
++  aggressive:    { presence: +0.3, highMid: +0.3 },
++  tight:         { lowMid: -0.2, mid: +0.2 },
++  articulate:    { highMid: +0.2, presence: +0.2, Smooth: -0.1 },
++  cut:           { presence: +0.4, highMid: +0.2 },
++  thick:         { lowMid: +0.4, bass: +0.2 },
++  fast_attack:   { presence: +0.2, Smooth: -0.1 },
++  perfect:       { }, // no-op (handled by the main vote strength)
++};
++
++function applyDeltaToVector(x: number[], delta: FeatureDelta, scale: number): number[] {
++  // x is already scaled (bands/10, tilt/10, smooth/100).
++  // We apply delta in the same scaled space.
++  const out = x.slice();
++  const idxOf = (k: BandKey | "Tilt" | "Smooth"): number => {
++    const bandIndex = BAND_KEYS.indexOf(k as BandKey);
++    if (bandIndex >= 0) return bandIndex;
++    if (k === "Tilt") return BAND_KEYS.length;
++    return BAND_KEYS.length + 1; // Smooth
++  };
++  for (const [k, v] of Object.entries(delta)) {
++    const key = k as any;
++    const i = idxOf(key);
++    if (i >= 0 && i < out.length) out[i] += (v as number) * scale;
++  }
++  return out;
++}
++
++function parseTags(tagString?: string | null): string[] {
++  if (!tagString) return [];
++  return tagString
++    .split(",")
++    .map((t) => t.trim())
++    .filter(Boolean);
++}
++
+ function sourceWeight(source?: VoteSource): number {
+@@
+ export function recordOutcome(
+   ctx: TasteContext,
+   xA: number[],
+   xB: number[],
+   outcome: VoteOutcome,
+-  opts?: { lr?: number; pairKey?: string; source?: VoteSource }
++  opts?: { lr?: number; pairKey?: string; source?: VoteSource; tagsA?: string[]; tagsB?: string[] }
+ ) {
+   const state = loadState();
+   const key = makeTasteKey(ctx);
+   const wSrc = sourceWeight(opts?.source);
+@@
+   // a/b => normal preference update
+   const baseLr = opts?.lr ?? 0.06;
+   const lr = baseLr * wSrc;
+-  if (outcome === "a") recordPreference(ctx, xA, xB, { lr });
+-  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr });
++  if (outcome === "a") recordPreference(ctx, xA, xB, { lr });
++  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr });
++
++  // Tag refinement (Learning Mode only): apply a tiny additional update using tag deltas
++  // We treat tags as "gradient hints" to steer refinement without overpowering preferences.
++  if (opts?.source === "learning") {
++    const tagScale = 0.08 * wSrc; // small, stable
++    const tagsA = opts?.tagsA ?? [];
++    const tagsB = opts?.tagsB ?? [];
++
++    const deltaA: FeatureDelta = {};
++    for (const t of tagsA) {
++      const d = TAG_FEATURE_MAP[t];
++      if (!d) continue;
++      for (const [k, v] of Object.entries(d)) (deltaA as any)[k] = ((deltaA as any)[k] ?? 0) + (v as number);
++    }
++    const deltaB: FeatureDelta = {};
++    for (const t of tagsB) {
++      const d = TAG_FEATURE_MAP[t];
++      if (!d) continue;
++      for (const [k, v] of Object.entries(d)) (deltaB as any)[k] = ((deltaB as any)[k] ?? 0) + (v as number);
++    }
++
++    const xA2 = applyDeltaToVector(xA, deltaA, tagScale);
++    const xB2 = applyDeltaToVector(xB, deltaB, tagScale);
++
++    // Apply a gentle follow-up update consistent with the winner direction
++    if (outcome === "a") recordPreference(ctx, xA2, xB2, { lr: lr * 0.5 });
++    else if (outcome === "b") recordPreference(ctx, xB2, xA2, { lr: lr * 0.5 });
++  }
+ }
+*** End Patch
