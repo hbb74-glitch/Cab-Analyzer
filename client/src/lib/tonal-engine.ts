@@ -17,6 +17,7 @@ export interface TonalFeatures {
   tiltDbPerOct: number;
 
   smoothScore?: number;
+  spectralCentroidHz?: number;
   notchCount?: number;
   maxNotchDepth?: number;
   rolloffFreq?: number;
@@ -47,20 +48,129 @@ export function scoreToLabel(score: number): "strong" | "close" | "partial" | "m
   return "miss";
 }
 
-export function computeTonalFeatures(metrics: any): TonalFeatures {
-  const bandsRaw = extractBandsRaw(metrics);
-  const bandsPercent = bandsToPercent(bandsRaw);
+export function computeTonalFeatures(r: any): TonalFeatures {
+  const toNum = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
+  const normalizeBands = (bands: any): TonalBands => {
+    const bp = {
+      subBass: toNum(bands?.subBass ?? bands?.subbass ?? bands?.sub_bass),
+      bass: toNum(bands?.bass),
+      lowMid: toNum(bands?.lowMid ?? bands?.lowmid ?? bands?.low_mid),
+      mid: toNum(bands?.mid),
+      highMid: toNum(bands?.highMid ?? bands?.highmid ?? bands?.high_mid),
+      presence: toNum(bands?.presence),
+      air: toNum(bands?.air),
+    };
+
+    const sum = bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + bp.air;
+
+    if (sum <= 0) return bp;
+
+    if (sum > 0.85 && sum < 1.25) {
+      return bp;
+    }
+
+    if (sum > 85 && sum < 125) {
+      return {
+        subBass: bp.subBass / 100,
+        bass: bp.bass / 100,
+        lowMid: bp.lowMid / 100,
+        mid: bp.mid / 100,
+        highMid: bp.highMid / 100,
+        presence: bp.presence / 100,
+        air: bp.air / 100,
+      };
+    }
+
+    return {
+      subBass: bp.subBass / sum,
+      bass: bp.bass / sum,
+      lowMid: bp.lowMid / sum,
+      mid: bp.mid / sum,
+      highMid: bp.highMid / sum,
+      presence: bp.presence / sum,
+      air: bp.air / sum,
+    };
+  };
+
+  const computeCentroidFromShape = (shape: any): number => {
+    if (!shape) return 0;
+
+    let hzArr: number[] = [];
+    let dbArr: number[] = [];
+
+    if (Array.isArray(shape)) {
+      if (shape.length && typeof shape[0] === "object" && "hz" in shape[0]) {
+        hzArr = shape.map((p: any) => toNum(p.hz));
+        dbArr = shape.map((p: any) => toNum(p.db ?? p.value ?? p.y));
+      } else if (shape.length && Array.isArray(shape[0]) && shape[0].length >= 2) {
+        hzArr = shape.map((p: any) => toNum(p[0]));
+        dbArr = shape.map((p: any) => toNum(p[1]));
+      }
+    } else if (typeof shape === "object") {
+      if (Array.isArray(shape.hz) && (Array.isArray(shape.db) || Array.isArray(shape.values))) {
+        hzArr = shape.hz.map((x: any) => toNum(x));
+        const d = Array.isArray(shape.db) ? shape.db : shape.values;
+        dbArr = d.map((x: any) => toNum(x));
+      }
+    }
+
+    if (!hzArr.length || hzArr.length !== dbArr.length) return 0;
+
+    let wSum = 0;
+    let hwSum = 0;
+
+    for (let i = 0; i < hzArr.length; i++) {
+      const hz = hzArr[i];
+      const db = dbArr[i];
+      if (hz <= 0) continue;
+      const clampedDb = Math.max(-120, Math.min(20, db));
+      const w = Math.pow(10, clampedDb / 20);
+      wSum += w;
+      hwSum += hz * w;
+    }
+
+    if (wSum <= 0) return 0;
+    return hwSum / wSum;
+  };
+
+  const tiltDbPerOct =
+    toNum(r?.spectralTiltDbPerOct ?? r?.tiltDbPerOct ?? r?.spectralTilt ?? r?.tilt);
+
+  const rolloffFreq =
+    toNum(r?.rolloffFreq ?? r?.rolloffFrequency ?? r?.highExtensionHz ?? r?.rolloff_or_high_extension_hz);
+
+  const smoothRaw =
+    toNum(r?.smoothScore ?? r?.frequencySmoothness ?? r?.smooth);
+
+  const bandsRawSource =
+    r?.bandsPercent ?? r?.bandPercents ?? r?.bandEnergies ?? r?.bands ?? r?.tf?.bandsPercent;
+
+  const bandsPercent = normalizeBands(bandsRawSource);
+
+  const bandsRaw = extractBandsRaw(r);
   const bandsShapeDb = bandsToShapeDb(bandsRaw);
 
-  const tiltDbPerOct = Number.isFinite(metrics?.spectralTilt)
-    ? metrics.spectralTilt
-    : 0;
-
-  const smoothFromMetrics = normalizeSmoothScore(metrics?.smoothScore);
+  const smoothFromMetrics = normalizeSmoothScore(smoothRaw || r?.smoothScore);
   const smoothScore =
     Number.isFinite(smoothFromMetrics)
       ? smoothFromMetrics!
-      : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
+      : smoothRaw > 0
+        ? smoothRaw
+        : computeProxySmoothScoreFromShapeDb(bandsShapeDb);
+
+  const centroidStored =
+    toNum(
+      r?.spectralCentroidHz ??
+      r?.centroidHz ??
+      r?.spectralCentroid ??
+      r?.metrics?.spectralCentroidHz ??
+      r?.analysis?.spectralCentroidHz ??
+      r?.tf?.spectralCentroidHz
+    );
+
+  const shape = r?.shapeDb ?? r?.shape ?? r?.spectrumDb ?? r?.spectrum ?? r?.analysis?.shapeDb;
+  const spectralCentroidHz = centroidStored > 0 ? centroidStored : computeCentroidFromShape(shape);
 
   return {
     bandsRaw,
@@ -68,11 +178,12 @@ export function computeTonalFeatures(metrics: any): TonalFeatures {
     bandsShapeDb,
     tiltDbPerOct,
     smoothScore,
-    notchCount: metrics?.notchCount,
-    maxNotchDepth: metrics?.maxNotchDepth,
-    rolloffFreq: metrics?.rolloffFreq,
-    tailLevelDb: metrics?.tailLevelDb,
-    tailStatus: metrics?.tailStatus,
+    spectralCentroidHz,
+    notchCount: r?.notchCount,
+    maxNotchDepth: r?.maxNotchDepth,
+    rolloffFreq,
+    tailLevelDb: r?.tailLevelDb,
+    tailStatus: r?.tailStatus,
   };
 }
 
