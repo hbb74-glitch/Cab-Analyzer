@@ -41,34 +41,42 @@ function classifyMusicalRole(tf: TonalFeatures): string {
 
   const isVeryDark = tilt <= -5.0;
 
-  const isFizzTamer =
-    smooth >= 88 &&
-    presLift <= 0.2 &&
-    airLift <= 0.1 &&
-    tilt <= -1.0;
+  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 
-  const isCutLayer =
-    hiMidLift >= 1.2 &&
-    presLift >= 1.0 &&
-    smooth <= 90;
+  const cutScore =
+    clamp01((presLift - 0.9) / 1.2) * 0.55 +
+    clamp01((hiMidLift - 0.9) / 1.2) * 0.45 -
+    clamp01((smooth - 92) / 10) * 0.3;
 
-  const isThickener =
-    lowMidLift >= 0.55 &&
-    bassWeight >= 0.15 &&
-    presLift <= 1.6;
+  const leadScore =
+    clamp01((presLift - 0.55) / 1.1) * 0.55 +
+    clamp01((hiMidLift - 0.35) / 1.0) * 0.25 +
+    clamp01((smooth - 55) / 35) * 0.20 -
+    clamp01((airLift - 0.9) / 0.8) * 0.35;
 
-  const isLeadPolish =
-    presLift >= 0.55 &&
-    hiMidLift >= 0.25 &&
-    airLift <= 0.9 &&
-    smooth >= 55 &&
-    tilt > -6.0;
+  const thickScore =
+    clamp01((lowMidLift - 0.45) / 1.1) * 0.60 +
+    clamp01((bassWeight - 0.10) / 1.0) * 0.40 -
+    clamp01((presLift - 1.7) / 0.8) * 0.35;
 
-  if (isVeryDark) return "Dark Specialty";
-  if (isFizzTamer) return "Fizz Tamer";
-  if (isLeadPolish) return "Lead Polish";
-  if (isThickener) return "Thickener";
-  if (isCutLayer) return "Cut Layer";
+  const fizzScore =
+    clamp01((smooth - 88) / 10) * 0.55 +
+    clamp01((0.25 - presLift) / 1.0) * 0.25 +
+    clamp01((0.15 - airLift) / 0.8) * 0.20;
+
+  const darkScore = isVeryDark ? 1 : clamp01((-tilt - 5.0) / 4.0) * 0.6;
+
+  const candidates = [
+    { role: "Dark Specialty", score: darkScore },
+    { role: "Fizz Tamer", score: fizzScore },
+    { role: "Cut Layer", score: cutScore },
+    { role: "Thickener", score: thickScore },
+    { role: "Lead Polish", score: leadScore },
+  ].sort((a, b) => b.score - a.score);
+
+  const best = candidates[0];
+  if (best.score >= 0.55) return best.role;
+  if (best.score >= 0.40 && best.role !== "Dark Specialty") return best.role;
   return "Foundation";
 }
 

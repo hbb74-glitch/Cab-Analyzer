@@ -1,0 +1,93 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+ function classifyMusicalRole(tf: TonalFeatures): string {
+   const b = tf.bandsShapeDb;
+   const smooth = Number.isFinite(tf.smoothScore) ? tf.smoothScore : 0; // 0..100
+   const tilt = Number.isFinite(tf.tiltDbPerOct) ? tf.tiltDbPerOct : 0;
+@@
+   const hiMidLift = highMid - mid;         // "upper-mid lift" relative to mid
+   const presLift = presence - mid;         // presence lift relative to mid
+   const airLift  = air - presence;         // air relative to presence
+   const lowMidLift = lowMid - mid;         // low-mid weight relative to mid
+ 
+   // Tighten "catch-all" roles so they don't swallow everything
+   // Dark Specialty should be truly dark in absolute tilt
+   const isVeryDark = tilt <= -5.0;
+@@
+-  // Cut layer: strong upper-mid + presence lift (classic "cut" overlay)
+-  const isCutLayer =
+-    hiMidLift >= 1.2 &&
+-    presLift >= 1.0 &&
+-    smooth <= 90; // avoid calling ultra-smooth ribbons "cut" just because mid is low
+-
+-  // Thickener: low-mid weight + bass support (loosened so it actually appears)
+-  // Many guitar IRs won't hit lowMidLift>=1.0 in shape space; bring threshold down.
+-  const isThickener =
+-    lowMidLift >= 0.55 &&
+-    bassWeight >= 0.15 &&
+-    presLift <= 1.6; // allow some presence; thickener can still have bite
+-
+-  // Lead polish: presence lift, controlled air, not ultra-dark; loosened thresholds
+-  // Goal: show up for articulate lead-friendly blends, not only extreme cases.
+-  const isLeadPolish =
+-    presLift >= 0.55 &&
+-    hiMidLift >= 0.25 &&
+-    airLift <= 0.9 &&
+-    smooth >= 55 &&
+-    tilt > -6.0;
+-
+-  if (isVeryDark) return "Dark Specialty";
+-  if (isFizzTamer) return "Fizz Tamer";
+-  // Put Lead Polish and Thickener before Cut Layer so they can claim borderline cases
+-  if (isLeadPolish) return "Lead Polish";
+-  if (isThickener) return "Thickener";
+-  if (isCutLayer) return "Cut Layer";
+-  return "Foundation";
++  // Score-based role selection (prevents one loose rule swallowing everything)
++  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
++
++  // Cut Layer: must be genuinely forward (high presence/upper-mid), not just "okay"
++  // Score grows with presence+highmid lift, penalize if very smooth/dull.
++  const cutScore =
++    clamp01((presLift - 0.9) / 1.2) * 0.55 +
++    clamp01((hiMidLift - 0.9) / 1.2) * 0.45 -
++    clamp01((smooth - 92) / 10) * 0.3;
++
++  // Lead Polish: presence lift but controlled air; shouldn’t outcompete true cut.
++  const leadScore =
++    clamp01((presLift - 0.55) / 1.1) * 0.55 +
++    clamp01((hiMidLift - 0.35) / 1.0) * 0.25 +
++    clamp01((smooth - 55) / 35) * 0.20 -
++    clamp01((airLift - 0.9) / 0.8) * 0.35;
++
++  // Thickener: low-mid + bass support, penalize if presence is very high (then it's more cut/lead).
++  const thickScore =
++    clamp01((lowMidLift - 0.45) / 1.1) * 0.60 +
++    clamp01((bassWeight - 0.10) / 1.0) * 0.40 -
++    clamp01((presLift - 1.7) / 0.8) * 0.35;
++
++  // Fizz Tamer: very smooth + restrained top; make it harder to trigger.
++  const fizzScore =
++    clamp01((smooth - 88) / 10) * 0.55 +
++    clamp01((0.25 - presLift) / 1.0) * 0.25 +
++    clamp01((0.15 - airLift) / 0.8) * 0.20;
++
++  // Dark Specialty: very dark tilt dominates.
++  const darkScore = isVeryDark ? 1 : clamp01((-tilt - 5.0) / 4.0) * 0.6;
++
++  // Pick best role, but require a minimum score so most stay Foundation.
++  const candidates = [
++    { role: "Dark Specialty", score: darkScore },
++    { role: "Fizz Tamer", score: fizzScore },
++    { role: "Cut Layer", score: cutScore },
++    { role: "Thickener", score: thickScore },
++    { role: "Lead Polish", score: leadScore },
++  ].sort((a, b) => b.score - a.score);
++
++  const best = candidates[0];
++  if (best.score >= 0.55) return best.role;   // strong evidence
++  if (best.score >= 0.40 && best.role !== "Dark Specialty") return best.role; // moderate evidence (avoid dark overuse)
++  return "Foundation";
+ }
+*** End Patch
