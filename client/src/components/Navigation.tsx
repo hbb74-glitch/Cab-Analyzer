@@ -36,7 +36,7 @@ export function Navigation() {
               <Radio className="w-5 h-5 text-primary" />
             </div>
             <span className="text-xl font-bold tracking-tight font-mono">
-              IR<span className="text-primary">.Scope</span>
+              Tone<span className="text-primary"> Architect</span>
             </span>
           </div>
           
