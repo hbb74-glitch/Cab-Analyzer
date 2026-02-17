@@ -1,0 +1,129 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+   const TasteControlBar = (
+     <div className="flex items-center gap-3 flex-wrap">
+@@
+       <button
+         className="px-3 py-1 rounded border border-zinc-600"
+         onClick={() => {
+           resetTaste(tasteContext);
+           setTasteVersion(v => v + 1);
++          // Also clear any stale per-round UI state that can inflate learning updates
++          setPairingRankings({});
++          setDismissedPairings(new Set());
++          setPairingFeedback({});
++          setPairingFeedbackText({});
+         }}
+       >
+         Reset
+       </button>
+@@
+   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
+@@
+-    // ------------------------------------------------------------
+-    // Phase 2: Rate-4 -> Pairwise Preference Updates (NO text training)
+-    // Love/Like/Meh/Nope are treated as strength, then converted into pairwise updates.
+-    //
+-    // Strength mapping:
+-    //   Love = +2, Like = +1, Meh = -1, Nope = -2
+-    // Pairwise comparisons are generated among the rated set.
+-    // Text box is stored/sent to server for notes ONLY (server ignores it for training).
+-    // ------------------------------------------------------------
++    // ------------------------------------------------------------
++    // Phase 2: Learning Mode -> Pairwise Preference Updates (NO text training)
++    // IMPORTANT: Only train on the CURRENT 4 suggestions + their CURRENT round ratings.
++    // This prevents stale dismissals/ratings from previous rounds inflating vote counts.
++    // ------------------------------------------------------------
+     try {
+       const strengthOf = (action: string): number => {
+         if (action === "love") return 2;
+         if (action === "like") return 1;
+         if (action === "meh") return -1;
+         if (action === "nope") return -2;
+         return 0;
+       };
+ 
+-      // Build feature vectors for all rated candidates (usually 4)
+-      const rated = signals
+-        .map((s) => {
+-          const pair = suggestedPairs.find(
+-            (p) => p.baseFilename === s.baseFilename && p.featureFilename === s.featureFilename
+-          );
+-          if (!pair) return null;
+-          const baseData = pool.find((ir) => ir.filename === s.baseFilename);
+-          const featData = pool.find((ir) => ir.filename === s.featureFilename);
+-          if (!baseData?.features || !featData?.features) return null;
+-          const ratio = pair.suggestedRatio?.base ?? 0.5;
+-          const x = featurizeBlend(baseData.features, featData.features, ratio);
+-          return {
+-            action: s.action as string,
+-            strength: strengthOf(s.action as string),
+-            x,
+-            pairKey: `${s.baseFilename}__${s.featureFilename}__${ratio}`,
+-          };
+-        })
+-        .filter(Boolean) as { action: string; strength: number; x: number[]; pairKey: string }[];
++      // Build feature vectors ONLY from current 4 suggestedPairs
++      const rated = suggestedPairs
++        .slice(0, 4)
++        .map((pair) => {
++          const pk = `${pair.baseFilename}||${pair.featureFilename}`;
++          const isDismissed = dismissedPairings.has(pk);
++          const rank = pairingRankings[pk];
++
++          // If user did not act on this item in this round, skip it
++          if (!isDismissed && !rank) return null;
++
++          const action = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
++          const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
++          const featData = pool.find((ir) => ir.filename === pair.featureFilename);
++          if (!baseData?.features || !featData?.features) return null;
++          const ratio = pair.suggestedRatio?.base ?? 0.5;
++          const x = featurizeBlend(baseData.features, featData.features, ratio);
++          return { action, strength: strengthOf(action), x };
++        })
++        .filter(Boolean) as { action: string; strength: number; x: number[] }[];
+ 
+       if (rated.length >= 2) {
+         const mean = meanVector(rated.map((r) => r.x));
+         const centered = rated.map((r) => ({ ...r, xc: centerVector(r.x, mean) }));
+ 
+         for (let i = 0; i < centered.length; i++) {
+           for (let j = i + 1; j < centered.length; j++) {
+             const a = centered[i];
+             const b = centered[j];
+             const diff = a.strength - b.strength;
+             if (diff === 0) {
+               // same rating => tie (small confidence only)
+-              recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
++              recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
+               continue;
+             }
+             // update strength scales learning rate
+             const lr = 0.06 * Math.min(2, Math.abs(diff));
+-            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
+-            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
++            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
++            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+           }
+         }
+         setTasteVersion((v) => v + 1);
+       }
+     } catch {
+       // ignore local taste update failures
+     }
+@@
+     if (signals.length > 0) {
+       submitSignalsMutation.mutate(signals);
+     }
+@@
+     setEvaluatedPairs(newEvaluated);
+     setExposureCounts(newExposure);
+@@
++    // Clear per-round UI state after submit so it can't leak into the next round
++    setPairingRankings({});
++    setDismissedPairings(new Set());
++    setPairingFeedback({});
++    setPairingFeedbackText({});
+*** End Patch
