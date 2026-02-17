@@ -1585,6 +1585,11 @@ export default function IRMixer() {
       }
     }
 
+    // ------------------------------------------------------------
+    // Learning Mode -> Pairwise Preference Updates (NO text training)
+    // IMPORTANT: Only train on the CURRENT 4 suggestions + their CURRENT round ratings.
+    // This prevents stale dismissals/ratings from previous rounds inflating vote counts.
+    // ------------------------------------------------------------
     try {
       const strengthOf = (action: string): number => {
         if (action === "love") return 2;
@@ -1594,25 +1599,24 @@ export default function IRMixer() {
         return 0;
       };
 
-      const rated = signals
-        .map((s) => {
-          const pair = suggestedPairs.find(
-            (p) => p.baseFilename === s.baseFilename && p.featureFilename === s.featureFilename
-          );
-          if (!pair) return null;
-          const baseData = pool.find((ir) => ir.filename === s.baseFilename);
-          const featData = pool.find((ir) => ir.filename === s.featureFilename);
+      const rated = suggestedPairs
+        .slice(0, 4)
+        .map((pair) => {
+          const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+          const isDismissed = dismissedPairings.has(pk);
+          const rank = pairingRankings[pk];
+
+          if (!isDismissed && !rank) return null;
+
+          const action = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
+          const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+          const featData = pool.find((ir) => ir.filename === pair.featureFilename);
           if (!baseData?.features || !featData?.features) return null;
           const ratio = pair.suggestedRatio?.base ?? 0.5;
           const x = featurizeBlend(baseData.features, featData.features, ratio);
-          return {
-            action: s.action as string,
-            strength: strengthOf(s.action as string),
-            x,
-            pairKey: `${s.baseFilename}__${s.featureFilename}__${ratio}`,
-          };
+          return { action, strength: strengthOf(action), x };
         })
-        .filter(Boolean) as { action: string; strength: number; x: number[]; pairKey: string }[];
+        .filter(Boolean) as { action: string; strength: number; x: number[] }[];
 
       if (rated.length >= 2) {
         const mean = meanVector(rated.map((r) => r.x));
@@ -1648,6 +1652,11 @@ export default function IRMixer() {
       noped: prev.noped + roundNoped,
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
+
+    setPairingRankings({});
+    setDismissedPairings(new Set());
+    setPairingFeedback({});
+    setPairingFeedbackText({});
 
     const disableAutoRatioRefine = true;
     if (disableAutoRatioRefine) {
@@ -2060,6 +2069,10 @@ export default function IRMixer() {
         onClick={() => {
           resetTaste(tasteContext);
           setTasteVersion(v => v + 1);
+          setPairingRankings({});
+          setDismissedPairings(new Set());
+          setPairingFeedback({});
+          setPairingFeedbackText({});
         }}
         data-testid="button-taste-reset"
       >

@@ -937,7 +937,7 @@ export function pickTasteCheckCandidates(
   learned?: LearnedProfileData,
   excludePairs?: Set<string>,
   history?: TasteCheckRoundResult[],
-  modeOverride?: "acquisition" | "tester" | "auto"
+  modeOverride?: "acquisition" | "tester" | "learning"
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
