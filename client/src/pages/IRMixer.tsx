@@ -1583,6 +1583,58 @@ export default function IRMixer() {
       }
     }
 
+    try {
+      const strengthOf = (action: string): number => {
+        if (action === "love") return 2;
+        if (action === "like") return 1;
+        if (action === "meh") return -1;
+        if (action === "nope") return -2;
+        return 0;
+      };
+
+      const rated = signals
+        .map((s) => {
+          const pair = suggestedPairs.find(
+            (p) => p.baseFilename === s.baseFilename && p.featureFilename === s.featureFilename
+          );
+          if (!pair) return null;
+          const baseData = pool.find((ir) => ir.filename === s.baseFilename);
+          const featData = pool.find((ir) => ir.filename === s.featureFilename);
+          if (!baseData?.features || !featData?.features) return null;
+          const ratio = pair.suggestedRatio?.base ?? 0.5;
+          const x = featurizeBlend(baseData.features, featData.features, ratio);
+          return {
+            action: s.action as string,
+            strength: strengthOf(s.action as string),
+            x,
+            pairKey: `${s.baseFilename}__${s.featureFilename}__${ratio}`,
+          };
+        })
+        .filter(Boolean) as { action: string; strength: number; x: number[]; pairKey: string }[];
+
+      if (rated.length >= 2) {
+        const mean = meanVector(rated.map((r) => r.x));
+        const centered = rated.map((r) => ({ ...r, xc: centerVector(r.x, mean) }));
+
+        for (let i = 0; i < centered.length; i++) {
+          for (let j = i + 1; j < centered.length; j++) {
+            const a = centered[i];
+            const b = centered[j];
+            const diff = a.strength - b.strength;
+            if (diff === 0) {
+              recordOutcome(tasteContext, a.xc, b.xc, "tie");
+              continue;
+            }
+            const lr = 0.06 * Math.min(2, Math.abs(diff));
+            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr });
+            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr });
+          }
+        }
+        setTasteVersion((v) => v + 1);
+      }
+    } catch {
+    }
+
     if (signals.length > 0) {
       submitSignalsMutation.mutate(signals);
     }
@@ -1635,7 +1687,7 @@ export default function IRMixer() {
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildInitialRatioState, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildInitialRatioState, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode, tasteContext, featuresByFilename]);
 
   const selectRefineCandidate = useCallback((idx: number) => {
     if (!ratioRefinePhase) return;
