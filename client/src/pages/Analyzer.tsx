@@ -1771,6 +1771,80 @@ export default function Analyzer() {
     queryKey: ["/api/preferences/learned"],
   });
 
+  const fmt = (v: any, digits = 1) => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n.toFixed(digits) : "";
+  };
+
+  const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
+
+  const buildSummaryTSVForRow = (r: any) => {
+    let tf: any = null;
+    try { tf = computeTonalFeatures(r); } catch {}
+
+    const filename = safe(r.filename ?? r.name ?? "");
+    const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
+    const role = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+
+    const centroid = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "");
+    const tilt = fmt(r.spectralTilt ?? r.tiltDbPerOct ?? tf?.tiltDbPerOct ?? "");
+    const rolloff = fmt(r.rolloffFreq ?? r.rolloffFrequency ?? r.highExtensionHz ?? "");
+    const smooth = fmt(r.smoothScore ?? r.frequencySmoothness ?? tf?.smoothScore ?? "", 0);
+
+    const hiMid = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
+    const mid = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
+    const hiMidMid = (Number.isFinite(hiMid) && Number.isFinite(mid) && mid !== 0)
+      ? (hiMid / mid)
+      : (r.hiMidMid ?? "");
+
+    const fizz = safe(r.fizzLabel ?? r.fizz ?? "");
+    const notes = safe(r.notes ?? r.feedbackText ?? "");
+
+    return [
+      filename, score, role, centroid, tilt, rolloff, smooth,
+      fmt(hiMidMid, 2), fizz, notes,
+    ].join("\t");
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try { window.prompt("Copy this TSV:", text); } catch {}
+      return false;
+    }
+  };
+
+  const tsvHeader = [
+    "filename", "score", "musical_role", "spectral_centroid_hz",
+    "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
+    "smooth_score", "hiMidMid_ratio", "fizz_label", "notes",
+  ].join("\t");
+
+  const buildAndCopyBatchTSV = async () => {
+    if (!batchResult?.results?.length) return;
+    const rows = batchResult.results.map((r: any) => buildSummaryTSVForRow(r));
+    await copyToClipboard([tsvHeader, ...rows].join("\n"));
+  };
+
+  const buildAndCopySingleTSV = async () => {
+    if (!result || !metrics) return;
+    const rowObj: any = {
+      filename: result.filename ?? (result as any).name ?? "single_result",
+      score: result.qualityScore ?? (result as any).score ?? "",
+      role: (result as any).musicalRole ?? (result as any).role ?? "",
+      spectralCentroidHz: (metrics as any)?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
+      spectralTilt: (metrics as any)?.spectralTilt ?? "",
+      rolloffFreq: (metrics as any)?.rolloffFreq ?? "",
+      smoothScore: metrics?.smoothScore ?? (metrics as any)?.frequencySmoothness ?? "",
+      fizzLabel: (result as any)?.fizzLabel ?? "",
+      notes: "",
+    };
+    const row = buildSummaryTSVForRow(rowObj);
+    await copyToClipboard([tsvHeader, row].join("\n"));
+  };
+
   const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
     queryKey: ["/api/tonal-profiles"],
   });
@@ -4491,6 +4565,17 @@ export default function Analyzer() {
                     </div>
                   </div>
 
+                  <div className="flex justify-end">
+                    <button
+                      className="px-3 py-1 rounded border border-zinc-600 text-xs"
+                      onClick={buildAndCopyBatchTSV}
+                      title="Copy a TSV summary of all batch results"
+                      data-testid="button-copy-batch-summary"
+                    >
+                      Copy Summary
+                    </button>
+                  </div>
+
                   <p className="text-muted-foreground">{batchResult.summary}</p>
 
                   {batchMusicalSummary && (
@@ -6806,7 +6891,15 @@ export default function Analyzer() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-2"
                 >
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      className="px-3 py-1 rounded border border-zinc-600 text-xs"
+                      onClick={buildAndCopySingleTSV}
+                      title="Copy a TSV summary of the current single analysis result"
+                      data-testid="button-copy-single-summary"
+                    >
+                      Copy Summary
+                    </button>
                     <button
                       onClick={() => { setResult(null); setMetrics(null); }}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"

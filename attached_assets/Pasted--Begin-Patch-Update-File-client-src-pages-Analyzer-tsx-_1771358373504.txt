@@ -1,0 +1,157 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+ import React, { useMemo } from "react";
+ import { Brain, Sparkles } from "lucide-react";
+ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
++import { computeTonalFeatures } from "@/lib/tonal-engine";
+@@
+ export default function Analyzer() {
+@@
++  // ----------------------------
++  // COPY SUMMARY (TSV) HELPERS
++  // ----------------------------
++  const fmt = (v: any, digits = 1) => {
++    const n = typeof v === "number" ? v : Number(v);
++    return Number.isFinite(n) ? n.toFixed(digits) : "";
++  };
++
++  const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
++
++  const buildSummaryTSVForRow = (r: any) => {
++    // Try to compute tonal features if we have enough info.
++    let tf: any = null;
++    try { tf = computeTonalFeatures(r); } catch {}
++
++    const filename = safe(r.filename ?? r.name ?? "");
++    const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
++    const role = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
++
++    // Common metrics (best-effort; blanks if not present)
++    const centroid = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "");
++    const tilt = fmt(r.spectralTilt ?? r.tiltDbPerOct ?? tf?.tiltDbPerOct ?? "");
++    const rolloff = fmt(r.rolloffFreq ?? r.rolloffFrequency ?? r.highExtensionHz ?? "");
++    const smooth = fmt(r.smoothScore ?? r.frequencySmoothness ?? tf?.smoothScore ?? "", 0);
++
++    // Derived quick indicators
++    const hiMid = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
++    const mid = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
++    const hiMidMid = (Number.isFinite(hiMid) && Number.isFinite(mid) && mid !== 0)
++      ? (hiMid / mid)
++      : (r.hiMidMid ?? "");
++
++    const fizz = safe(r.fizzLabel ?? r.fizz ?? "");
++    const notes = safe(r.notes ?? r.feedbackText ?? "");
++
++    return [
++      filename,
++      score,
++      role,
++      centroid,
++      tilt,
++      rolloff,
++      smooth,
++      fmt(hiMidMid, 2),
++      fizz,
++      notes,
++    ].join("\t");
++  };
++
++  const copyToClipboard = async (text: string) => {
++    try {
++      await navigator.clipboard.writeText(text);
++      return true;
++    } catch {
++      // fallback: prompt
++      try {
++        window.prompt("Copy this TSV:", text);
++      } catch {}
++      return false;
++    }
++  };
++
++  const buildAndCopyBatchTSV = async () => {
++    if (!batchResult?.results?.length) return;
++    const header = [
++      "filename",
++      "score",
++      "musical_role",
++      "spectral_centroid_hz",
++      "spectral_tilt_db_per_oct",
++      "rolloff_or_high_extension_hz",
++      "smooth_score",
++      "hiMidMid_ratio",
++      "fizz_label",
++      "notes",
++    ].join("\t");
++
++    const rows = batchResult.results.map((r: any) => buildSummaryTSVForRow(r));
++    await copyToClipboard([header, ...rows].join("\n"));
++  };
++
++  const buildAndCopySingleTSV = async () => {
++    if (!result || !metrics) return;
++    const header = [
++      "filename",
++      "score",
++      "musical_role",
++      "spectral_centroid_hz",
++      "spectral_tilt_db_per_oct",
++      "rolloff_or_high_extension_hz",
++      "smooth_score",
++      "hiMidMid_ratio",
++      "fizz_label",
++      "notes",
++    ].join("\t");
++
++    const rowObj: any = {
++      filename: result.filename ?? result.name ?? "single_result",
++      score: result.qualityScore ?? result.score ?? "",
++      role: result.musicalRole ?? result.role ?? "",
++      spectralCentroidHz: metrics?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
++      spectralTilt: metrics?.spectralTilt ?? "",
++      rolloffFreq: metrics?.rolloffFreq ?? metrics?.rolloffFrequency ?? metrics?.highExtensionHz ?? "",
++      smoothScore: metrics?.smoothScore ?? metrics?.frequencySmoothness ?? "",
++      fizzLabel: result?.fizzLabel ?? result?.fizz ?? "",
++      notes: "",
++    };
++    const row = buildSummaryTSVForRow(rowObj);
++    await copyToClipboard([header, row].join("\n"));
++  };
+@@
+   return (
+@@
+-            <div className="flex justify-end">
++            <div className="flex justify-end gap-2">
++              <button
++                className="px-3 py-1 rounded border border-zinc-600 text-xs"
++                onClick={buildAndCopySingleTSV}
++                title="Copy a TSV summary of the current single analysis result"
++              >
++                Copy Summary
++              </button>
+               <button
+                 className="px-3 py-1 rounded border border-zinc-600 text-xs"
+                 onClick={() => setShowDetails((v) => !v)}
+               >
+                 {showDetails ? "Hide Details" : "Show Details"}
+               </button>
+             </div>
+@@
+         {batchResult && (
+           <div className="space-y-3">
++            <div className="flex justify-end">
++              <button
++                className="px-3 py-1 rounded border border-zinc-600 text-xs"
++                onClick={buildAndCopyBatchTSV}
++                title="Copy a TSV summary of all batch results"
++              >
++                Copy Summary
++              </button>
++            </div>
+             {batchResult.results.map((r, index) => (
+               <motion.div
+                 key={r.filename + index}
+                 className="rounded-xl border border-white/10 bg-black/30 p-4"
+               >
+*** End Patch
