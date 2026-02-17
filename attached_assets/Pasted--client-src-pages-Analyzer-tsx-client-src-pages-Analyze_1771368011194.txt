@@ -1,0 +1,229 @@
+--- client/src/pages/Analyzer.tsx
++++ client/src/pages/Analyzer.tsx
+@@ -1,6 +1,7 @@
+ import React, { useEffect, useMemo, useRef, useState } from "react";
+ 
++// NOTE: This patch adds speaker-normalized + context-biased role classification (spectral-first).
+ 
+ function classifyMusicalRole(tf: TonalFeatures): string {
+   // (your existing spectral-first classifier stays as-is)
+@@ -130,6 +131,159 @@
+   return "Foundation";
+ }
+ 
++// -----------------------------
++// Speaker-aware normalization + context bias (soft nudges)
++// -----------------------------
++type SpeakerStats = {
++  mean: Record<string, number>;
++  std: Record<string, number>;
++};
++
++function inferSpeakerIdFromFilename(filename: string): string {
++  // e.g. "V30_SM57_CapEdge_2in.wav" -> "V30"
++  const base = (filename || "").split("/").pop() || filename || "";
++  const first = base.split("_")[0] || "UNKNOWN";
++  return first.toUpperCase();
++}
++
++function z(v: number, mean: number, std: number): number {
++  if (!Number.isFinite(v) || !Number.isFinite(mean) || !Number.isFinite(std) || std <= 1e-9) return 0;
++  return (v - mean) / std;
++}
++
++function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFeatures }>): Map<string, SpeakerStats> {
++  const bySpk = new Map<string, Array<{ filename: string; tf: TonalFeatures }>>();
++  for (const r of rows) {
++    const spk = inferSpeakerIdFromFilename(r.filename);
++    if (!bySpk.has(spk)) bySpk.set(spk, []);
++    bySpk.get(spk)!.push(r);
++  }
++
++  const stats = new Map<string, SpeakerStats>();
++  const keys = ["centroid", "tilt", "ext", "presence", "hiMidMid", "smooth"];
++
++  for (const [spk, list] of bySpk.entries()) {
++    const vals: Record<string, number[]> = Object.fromEntries(keys.map(k => [k, []]));
++
++    for (const r of list) {
++      const bp: any = (r.tf.bandsPercent ?? {});
++      const centroid = Number(r.tf.spectralCentroidHz ?? 0);
++      const tilt = Number(r.tf.tiltDbPerOct ?? 0);
++      const ext = Number(r.tf.rolloffFreq ?? 0);
++      const smooth = Number(r.tf.smoothScore ?? 0);
++      const midPct = Number((bp.mid ?? 0) * 100);
++      const highMidPct = Number((bp.highMid ?? 0) * 100);
++      const presencePct = Number((bp.presence ?? 0) * 100);
++      const hiMidMid = midPct > 0 ? (highMidPct / midPct) : 10;
++
++      vals.centroid.push(centroid);
++      vals.tilt.push(tilt);
++      vals.ext.push(ext);
++      vals.smooth.push(smooth);
++      vals.presence.push(presencePct);
++      vals.hiMidMid.push(hiMidMid);
++    }
++
++    const mean: Record<string, number> = {};
++    const std: Record<string, number> = {};
++
++    for (const k of keys) {
++      const arr = vals[k].filter(Number.isFinite);
++      const m = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
++      const v = arr.length ? arr.reduce((a, b) => a + Math.pow(b - m, 2), 0) / arr.length : 0;
++      mean[k] = m;
++      std[k] = Math.sqrt(v) || 1;
++    }
++
++    stats.set(spk, { mean, std });
++  }
++
++  return stats;
++}
++
++function applyContextBias(
++  baseRole: string,
++  tf: TonalFeatures,
++  filename: string,
++  speakerStats?: SpeakerStats
++): string {
++  const name = (filename || "").toLowerCase();
++  const bp: any = (tf.bandsPercent ?? {});
++
++  // --- speaker-normalized “objective cut” guardrail ---
++  // If it’s *bright/cutting for this speaker*, never allow Foundation.
++  const centroid = Number(tf.spectralCentroidHz ?? 0);
++  const ext = Number(tf.rolloffFreq ?? 0);
++  const smooth = Number(tf.smoothScore ?? 0);
++  const tilt = Number(tf.tiltDbPerOct ?? 0);
++  const midPct = Number((bp.mid ?? 0) * 100);
++  const highMidPct = Number((bp.highMid ?? 0) * 100);
++  const presencePct = Number((bp.presence ?? 0) * 100);
++  const hiMidMid = midPct > 0 ? (highMidPct / midPct) : 10;
++
++  const zCentroid = speakerStats ? z(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
++  const zExt = speakerStats ? z(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
++  const zPresence = speakerStats ? z(presencePct, speakerStats.mean.presence, speakerStats.std.presence) : 0;
++  const zHiMidMid = speakerStats ? z(hiMidMid, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
++
++  const objectivelyCutty =
++    (zCentroid >= 1.0 && zExt >= 0.8) ||
++    (zPresence >= 1.1) ||
++    (zHiMidMid >= 1.2);
++
++  if (objectivelyCutty && baseRole === "Foundation") {
++    return "Cut Layer";
++  }
++
++  // --- soft scoring: base role gets 0, nudges move it ---
++  const score: Record<string, number> = {
++    "Foundation": 0,
++    "Cut Layer": 0,
++    "Mid Thickener": 0,
++    "Fizz Tamer": 0,
++    "Lead Polish": 0,
++    "Dark Specialty": 0,
++  };
++
++  // Start by favoring the spectral base decision strongly
++  score[baseRole] += 3.0;
++
++  // Context nudges (small)
++  if (name.includes("presence")) score["Cut Layer"] += 0.8;
++  if (name.includes("capedge_br")) score["Cut Layer"] += 0.4;
++  if (name.includes("capedge")) score["Foundation"] += 0.2; // you often treat capedge on some mics as usable
++  if (name.includes("cone_tr") || name.includes("cap_cone_tr")) score["Fizz Tamer"] += 0.4;
++  if (name.includes("cone_")) score["Mid Thickener"] += 0.3;
++  if (name.includes("fredman")) score["Foundation"] += 0.4;
++  if (name.includes("_thick_")) score["Mid Thickener"] += 0.5;
++  if (name.includes("_balanced_")) score["Foundation"] += 0.4;
++  if (name.includes("_tight_")) score["Lead Polish"] += 0.4;
++
++  // Mic nudges (small)
++  if (name.includes("_r121_") || name.includes("r121")) score["Mid Thickener"] += 0.4;
++  if (name.includes("_roswell_") || name.includes("roswell")) score["Dark Specialty"] += 0.7;
++  if (name.includes("_md441_") || name.includes("md441")) score["Cut Layer"] += 0.4;
++  if (name.includes("_pr30_") || name.includes("pr30")) score["Foundation"] += 0.35;
++  if (name.includes("_md421_") || name.includes("md421")) score["Foundation"] += 0.25;
++  if (name.includes("_m201_") || name.includes("m201")) score["Foundation"] += 0.25;
++  if (name.includes("_e906_") || name.includes("e906")) score["Cut Layer"] += 0.25;
++  if (name.includes("_sm57_") || name.includes("sm57")) score["Foundation"] += 0.15;
++
++  // Spectral nudges (still small, but real)
++  // Expensive sheen: very smooth + extended, but not knife presence
++  const sheenCandidate = smooth >= 88 && ext >= 5100 && presencePct <= 48 && hiMidMid <= 1.75 && tilt >= -5.2;
++  if (sheenCandidate) score["Lead Polish"] += 0.9;
++
++  // Very dark/rolled-off: steer to Dark Specialty
++  if (ext > 0 && ext < 3800) score["Dark Specialty"] += 1.0;
++
++  // Choose best
++  let best = baseRole;
++  let bestV = score[baseRole];
++  for (const [k, v] of Object.entries(score)) {
++    if (v > bestV) { bestV = v; best = k; }
++  }
++  return best;
++}
++
+@@ -1770,6 +1929,9 @@
+   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
+   const batchMetricsByFilenameRef = useRef<Map<string, AudioMetrics>>(new Map());
++  const speakerStatsRef = useRef<Map<string, SpeakerStats>>(new Map());
++
++  // (existing useEffect that fills batchMetricsByFilenameRef stays)
+ 
+   useEffect(() => {
+     const m = new Map<string, AudioMetrics>();
+@@ -1780,6 +1942,33 @@
+     batchMetricsByFilenameRef.current = m;
+   }, [batchIRs]);
+ 
++  // Build speaker stats from current batch so classification is normalized within speaker.
++  useEffect(() => {
++    try {
++      const rows: Array<{ filename: string; tf: TonalFeatures }> = [];
++      for (const ir of batchIRs) {
++        const filename = ir?.file?.name ?? "";
++        // Create a minimal feature source using the same band mapping used for export
++        const rAny: any = ir?.batchRow ?? null;
++        const bandsFromBatch = rAny ? {
++          subBass: ((Number(rAny.subBassPercent) || 0) / 100),
++          bass: ((Number(rAny.bassPercent) || 0) / 100),
++          lowMid: ((Number(rAny.lowMidPercent) || 0) / 100),
++          mid: ((Number(rAny.midPercent) || 0) / 100),
++          highMid: ((Number(rAny.highMidPercent) || 0) / 100),
++          presence: ((Number(rAny.presencePercent) || 0) / 100),
++          air: ((Number((rAny as any).airPercent) || 0) / 100),
++        } : null;
++
++        const centroid =
++          (ir as any)?.metrics?.spectralCentroidHz ??
++          (ir as any)?.metrics?.spectralCentroid ??
++          0;
++
++        if (bandsFromBatch) {
++          rows.push({
++            filename,
++            tf: { bandsPercent: bandsFromBatch, spectralCentroidHz: centroid, tiltDbPerOct: (rAny?.spectralTiltDbPerOct ?? rAny?.spectralTilt ?? 0), rolloffFreq: (rAny?.rolloffFreq ?? rAny?.highExtensionHz ?? 0), smoothScore: (rAny?.smoothScore ?? 0) } as any
++          });
++        }
++      }
++      speakerStatsRef.current = computeSpeakerStats(rows);
++    } catch {}
++  }, [batchIRs]);
++
+@@ -1830,12 +2019,18 @@
+     let role = rawRole;
+     if (!role) {
+       try {
+-        role = classifyMusicalRole(tf ?? computeTonalFeatures(featureSource));
++        const tfFinal = tf ?? computeTonalFeatures(featureSource);
++        const base = classifyMusicalRole(tfFinal);
++        const spk = inferSpeakerIdFromFilename(filename);
++        const st = speakerStatsRef.current.get(spk);
++        role = applyContextBias(base, tfFinal, filename, st);
+       } catch {
+         role = "";
+       }
+     }
