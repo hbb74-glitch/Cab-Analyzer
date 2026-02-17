@@ -1,0 +1,58 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+-import { featurizeBlend, getTasteBias, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
++import { featurizeBlend, getTasteBias, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
+@@
+-      <button
++      <button
+         className={cn(
+           "px-2 py-1 rounded border",
+           tasteEnabled ? "border-green-500" : "border-zinc-600"
+         )}
+         onClick={() => setTasteEnabled(v => !v)}
+       >
+-        Taste: {tasteEnabled ? "ON" : "OFF"}
++        Learning: {tasteEnabled ? "ON" : "OFF"}
+       </button>
+@@
+-          recordOutcome(tasteContext, xA, xB, "tie");
++          recordOutcome(tasteContext, xA, xB, "tie", { source: "pick4" });
+@@
+-          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
++          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "pick4" });
+@@
+-        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a");
+-        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b");
+-        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie");
++        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a", { source: "ratio" });
++        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b", { source: "ratio" });
++        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
+         else if (pickedSide === "both") {
+           const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
+-          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
++          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ratio" });
+         }
+         setTasteVersion(v => v + 1);
+       }
+     } catch {
+       // ignore
+     }
+@@
+-            recordOutcome(tasteContext, a.xc, b.xc, "tie");
++            recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
+             continue;
+           }
+           // update strength scales learning rate
+           const lr = 0.06 * Math.min(2, Math.abs(diff));
+-          if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr });
+-          else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr });
++          if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
++          else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+         }
+       }
+       setTasteVersion((v) => v + 1);
+     } catch {
+       // ignore local taste update failures
+     }
+*** End Patch

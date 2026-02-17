@@ -1395,7 +1395,7 @@ export default function IRMixer() {
           const lRatio = loser.suggestedRatio?.base ?? 0.5;
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
-          recordOutcome(tasteContext, xW, xL, "a");
+          recordOutcome(tasteContext, xW, xL, "a", { source: "ab" });
         }
       }
     } catch {
@@ -1480,7 +1480,7 @@ export default function IRMixer() {
       if (!aB || !aF || !bB || !bF) return;
       const xA = featurizeBlend(aB, aF, aR);
       const xB = featurizeBlend(bB, bF, bR);
-      recordOutcome(tasteContext, xA, xB, "tie");
+      recordOutcome(tasteContext, xA, xB, "tie", { source: "ab" });
       setTasteVersion(v => v + 1);
     } catch {}
   }, [tasteCheckPhase, featuresByFilename, tasteContext]);
@@ -1501,7 +1501,7 @@ export default function IRMixer() {
       const xA = featurizeBlend(aB, aF, aR);
       const xB = featurizeBlend(bB, bF, bR);
       const pairKey = `${a.baseFilename}__${a.featureFilename}__${b.baseFilename}__${b.featureFilename}`;
-      recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+      recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ab" });
       setTasteVersion(v => v + 1);
     } catch {}
   }, [tasteCheckPhase, featuresByFilename, tasteContext]);
@@ -1623,12 +1623,12 @@ export default function IRMixer() {
             const b = centered[j];
             const diff = a.strength - b.strength;
             if (diff === 0) {
-              recordOutcome(tasteContext, a.xc, b.xc, "tie");
+              recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
               continue;
             }
             const lr = 0.06 * Math.min(2, Math.abs(diff));
-            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr });
-            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr });
+            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
+            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
           }
         }
         setTasteVersion((v) => v + 1);
@@ -1817,12 +1817,12 @@ export default function IRMixer() {
       if (pair && bF && fF) {
         const xA = featurizeBlend(bF, fF, current.a);
         const xB = featurizeBlend(bF, fF, current.b);
-        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a");
-        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b");
-        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie");
+        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a", { source: "ratio" });
+        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b", { source: "ratio" });
+        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
         else if (pickedSide === "both") {
           const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
-          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ratio" });
         }
         setTasteVersion(v => v + 1);
       }
@@ -2041,7 +2041,7 @@ export default function IRMixer() {
         onClick={() => setTasteEnabled(v => !v)}
         data-testid="button-taste-toggle"
       >
-        Taste: {tasteEnabled ? "ON" : "OFF"}
+        Learning: {tasteEnabled ? "ON" : "OFF"}
       </button>
 
       <select
@@ -2096,7 +2096,7 @@ export default function IRMixer() {
           const xA = featurizeBlend(bF, fF, ratio);
           const xB = xA;
           const pairKey = `${top.baseFilename}__${top.featureFilename}`;
-          recordOutcome(tasteContext, xA, xB, "both", { pairKey });
+          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "pick4" });
           setTasteVersion(v => v + 1);
         }}
         title="Mark the top suggestion as 'both useful' (complement) to boost it modestly"

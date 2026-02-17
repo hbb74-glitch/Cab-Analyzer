@@ -3,6 +3,7 @@ import { BAND_KEYS, blendFeatures } from "@/lib/tonal-engine";
 
 export type TasteMode = "singleIR" | "blend";
 export type TasteIntent = "rhythm" | "lead" | "clean";
+export type VoteSource = "learning" | "pick4" | "ab" | "ratio";
 
 export type TasteContext = {
   speakerPrefix: string;
@@ -164,20 +165,29 @@ export function recordPreference(
 
 export type VoteOutcome = "a" | "b" | "tie" | "both";
 
+function sourceWeight(source?: VoteSource): number {
+  if (source === "learning") return 1.0;
+  if (source === "pick4") return 0.6;
+  if (source === "ab") return 0.6;
+  if (source === "ratio") return 0.25;
+  return 0.6;
+}
+
 export function recordOutcome(
   ctx: TasteContext,
   xA: number[],
   xB: number[],
   outcome: VoteOutcome,
-  opts?: { lr?: number; pairKey?: string }
+  opts?: { lr?: number; pairKey?: string; source?: VoteSource }
 ) {
   const state = loadState();
   const key = makeTasteKey(ctx);
+  const wSrc = sourceWeight(opts?.source);
 
   if (outcome === "tie") {
     const dim = Math.min(xA.length, xB.length);
     const model = getOrCreateModel(state, key, dim);
-    model.nVotes += 0.25;
+    model.nVotes += 0.25 * wSrc;
     saveState(state);
     return;
   }
@@ -190,13 +200,15 @@ export function recordOutcome(
     }
     const dim = Math.min(xA.length, xB.length);
     const model = getOrCreateModel(state, key, dim);
-    model.nVotes += 0.15;
+    model.nVotes += 0.15 * wSrc;
     saveState(state);
     return;
   }
 
-  if (outcome === "a") recordPreference(ctx, xA, xB, { lr: opts?.lr ?? 0.06 });
-  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr: opts?.lr ?? 0.06 });
+  const baseLr = opts?.lr ?? 0.06;
+  const lr = baseLr * wSrc;
+  if (outcome === "a") recordPreference(ctx, xA, xB, { lr });
+  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr });
 }
 
 export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
