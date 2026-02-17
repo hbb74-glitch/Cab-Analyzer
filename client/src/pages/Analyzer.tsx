@@ -1864,10 +1864,10 @@ export default function Analyzer() {
   const tsvHeader = [
     "filename", "score",
     "musical_role", "raw_role", "role_source",
-    "centroid_exported", "centroid_computed",
+    "centroid_exported_hz", "centroid_computed_hz",
     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
     "smooth_score", "hiMidMid_ratio",
-    "subBass_%", "bass_%", "lowMid_%", "mid_%", "highMid_%", "presence_%", "air_%",
+    "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
     "fizz_label", "notes",
   ].join("\t");
 
