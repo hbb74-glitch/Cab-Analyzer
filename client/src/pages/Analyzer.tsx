@@ -4926,16 +4926,6 @@ export default function Analyzer() {
                                     OffAx
                                   </span>
                                 )}
-                                {batchPreferenceRoles?.[index]?.role && (
-                                  <span className={cn(
-                                    "px-1.5 py-0.5 text-xs rounded font-mono",
-                                    batchPreferenceRoles[index].role === "Feature element"
-                                      ? "bg-cyan-500/15 text-cyan-400"
-                                      : "bg-amber-500/15 text-amber-400"
-                                  )} data-testid={`badge-batch-role-${index}`}>
-                                    {batchPreferenceRoles[index].role}
-                                  </span>
-                                )}
 
                                 {(() => {
                                   try {
@@ -4953,18 +4943,6 @@ export default function Analyzer() {
                                     return null;
                                   }
                                 })()}
-                              </div>
-                            )}
-                            {!r.parsedInfo && batchPreferenceRoles?.[index]?.role && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                <span className={cn(
-                                  "px-1.5 py-0.5 text-xs rounded font-mono",
-                                  batchPreferenceRoles[index].role === "Feature element"
-                                    ? "bg-cyan-500/15 text-cyan-400"
-                                    : "bg-amber-500/15 text-amber-400"
-                                )} data-testid={`badge-batch-role-${index}`}>
-                                  {batchPreferenceRoles[index].role}
-                                </span>
                               </div>
                             )}
 
