@@ -1,0 +1,126 @@
+// ===== COPY SUMMARY (robust) =====
+// Paste this into the same component/file where your "Copy summary" button is rendered.
+// Then set your button: onClick={handleCopySummary}
+
+function safeStringifySummary(summaryRows) {
+  // summaryRows can be strings or objects. We output newline-delimited text.
+  if (!summaryRows) return "";
+  if (typeof summaryRows === "string") return summaryRows;
+
+  if (Array.isArray(summaryRows)) {
+    // If array of strings, join; if array of objects, format key:value lines per IR
+    if (summaryRows.every(r => typeof r === "string")) return summaryRows.join("\n");
+
+    return summaryRows.map((row) => {
+      if (!row || typeof row !== "object") return String(row ?? "");
+      const lines = [];
+      // Prefer a stable order if these keys exist
+      const preferred = [
+        "name", "irName", "IR_Name",
+        "label", "roleLabel", "Role_Label",
+        "spectralCentroidHz", "centroidHz", "Spectral_Centroid_Hz",
+        "tiltDbPerOct", "tilt", "Tilt_dB_per_oct",
+        "lowMidWeightDb", "LowMid_Weight_150_400Hz_dB",
+        "presenceDb", "Presence_3_6k_dB",
+        "fizzDb", "Fizz_7_10k_dB",
+        "smoothness", "Smoothness_Index",
+        "brightness", "Brightness_Index",
+        "darkness", "Darkness_Index",
+      ];
+
+      const used = new Set();
+      for (const k of preferred) {
+        if (k in row) {
+          lines.push(`${k}: ${row[k]}`);
+          used.add(k);
+        }
+      }
+      // Add remaining keys (so you still get data even if names changed)
+      for (const k of Object.keys(row)) {
+        if (!used.has(k)) lines.push(`${k}: ${row[k]}`);
+      }
+      return lines.join("\n");
+    }).join("\n\n---\n\n");
+  }
+
+  if (typeof summaryRows === "object") {
+    return Object.entries(summaryRows).map(([k, v]) => `${k}: ${v}`).join("\n");
+  }
+
+  return String(summaryRows);
+}
+
+async function copyTextToClipboard(text) {
+  // 1) Try modern Clipboard API
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return { ok: true, method: "navigator.clipboard" };
+    }
+  } catch (err) {
+    // fall through to textarea
+    console.warn("clipboard.writeText failed, falling back:", err);
+  }
+
+  // 2) Fallback: hidden textarea + execCommand('copy')
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+
+    if (ok) return { ok: true, method: "execCommand" };
+    return { ok: false, method: "execCommand", error: new Error("execCommand returned false") };
+  } catch (err) {
+    return { ok: false, method: "execCommand", error: err };
+  }
+}
+
+// IMPORTANT: Replace getYourSummaryRows() with your real data builder.
+// If you already have a string summary, just return that string.
+function getYourSummaryRows() {
+  // EXAMPLES (choose one):
+  // return summaryText; // if you already compute a big string
+  // return rows;        // if you have an array of objects
+  // return blendRows;   // etc.
+
+  // Placeholder so nothing explodes if you paste before wiring:
+  return "No summary data wired yet (getYourSummaryRows()).";
+}
+
+async function handleCopySummary(e) {
+  // If this is inside a <form>, prevent page refresh
+  if (e?.preventDefault) e.preventDefault();
+
+  console.log("[CopySummary] clicked");
+  const rowsOrText = getYourSummaryRows();
+  const text = safeStringifySummary(rowsOrText);
+
+  if (!text || !text.trim()) {
+    alert("Copy summary: nothing to copy (summary text is empty).");
+    return;
+  }
+
+  const result = await copyTextToClipboard(text);
+
+  if (result.ok) {
+    console.log(`[CopySummary] success via ${result.method}`);
+    // Replace this with your toast system if you have one:
+    alert(`Copied summary to clipboard (${result.method}).`);
+  } else {
+    console.error("[CopySummary] FAILED", result.error);
+    alert(
+      "Copy summary failed. Open DevTools console for error.\n\n" +
+      "Common causes: non-HTTPS, iOS clipboard restrictions, or handler not wired."
+    );
+  }
+}
+// ===== END COPY SUMMARY (robust) =====
