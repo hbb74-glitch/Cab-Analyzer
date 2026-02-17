@@ -55,9 +55,9 @@ function classifyMusicalRole(tf: TonalFeatures): string {
     clamp01((airLift - 0.9) / 0.8) * 0.35;
 
   const thickScore =
-    clamp01((lowMidLift - 0.45) / 1.1) * 0.60 +
-    clamp01((bassWeight - 0.10) / 1.0) * 0.40 -
-    clamp01((presLift - 1.7) / 0.8) * 0.35;
+    clamp01((lowMidLift - 0.20) / 1.0) * 0.75 +
+    clamp01((bassWeight - (-0.10)) / 0.8) * 0.20 -
+    clamp01((presLift - 2.0) / 0.9) * 0.15;
 
   const fizzScore =
     clamp01((smooth - 88) / 10) * 0.55 +
