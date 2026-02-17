@@ -1,0 +1,136 @@
+*** Begin Patch
+*** Update File: Cab-Analyzer-main/client/src/pages/IRMixer.tsx
+@@
+   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
+     const signals: any[] = [];
+     let roundLiked = 0;
+     let roundNoped = 0;
+     const newEvaluated = new Set(evaluatedPairs);
+     const newExposure = new Map(exposureCounts);
+     const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+ 
+     const refineCandidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[] = [];
+ 
+     for (const pair of suggestedPairs) {
+       const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+       const sortedKey = [pair.baseFilename, pair.featureFilename].sort().join("||");
+       const isDismissed = dismissedPairings.has(pk);
+       const rank = pairingRankings[pk];
+ 
+       newEvaluated.add(sortedKey);
+       newExposure.set(pair.baseFilename, (newExposure.get(pair.baseFilename) ?? 0) + 1);
+       newExposure.set(pair.featureFilename, (newExposure.get(pair.featureFilename) ?? 0) + 1);
+ 
+       if (!isDismissed && !rank) continue;
+ 
+       const r = pair.blendBands.mid > 0 ? pair.blendBands.highMid / pair.blendBands.mid : 0;
+       const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
+       const fbTags = pairingFeedback[pk];
+       const fb = fbTags && fbTags.length > 0 ? fbTags.join(",") : null;
+       const fbText = pairingFeedbackText[pk]?.trim() || null;
+       signals.push({
+         action: actionLabel,
+         feedback: fb,
+         feedbackText: fbText,
+         baseFilename: pair.baseFilename,
+         featureFilename: pair.featureFilename,
+         subBass: pair.blendBands.subBass,
+         bass: pair.blendBands.bass,
+         lowMid: pair.blendBands.lowMid,
+         mid: pair.blendBands.mid,
+         highMid: pair.blendBands.highMid,
+         presence: pair.blendBands.presence,
+         ratio: Math.round(r * 100) / 100,
+         score: Math.round(pair.score),
+         profileMatch: pair.profileMatch,
+         blendRatio: pair.suggestedRatio ? pair.suggestedRatio.base : null,
+       });
+ 
+       if (actionLabel === "nope" || actionLabel === "meh") roundNoped++;
+       else roundLiked++;
+ 
+       const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+       const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+       if (baseData && featData && baseData.features && featData.features) {
+         refineCandidates.push({ pair, rank: rank ?? 2, baseFeatures: baseData.features, featFeatures: featData.features });
+       }
+     }
+ 
++    // ------------------------------------------------------------
++    // Phase 2: Rate-4 -> Pairwise Preference Updates (NO text training)
++    // Love/Like/Meh/Nope are treated as strength, then converted into pairwise updates.
++    //
++    // Strength mapping:
++    //   Love = +2, Like = +1, Meh = -1, Nope = -2
++    // Pairwise comparisons are generated among the rated set.
++    // Text box is stored/sent to server for notes ONLY (server ignores it for training).
++    // ------------------------------------------------------------
++    try {
++      const strengthOf = (action: string): number => {
++        if (action === "love") return 2;
++        if (action === "like") return 1;
++        if (action === "meh") return -1;
++        if (action === "nope") return -2;
++        return 0;
++      };
++
++      // Build feature vectors for all rated candidates (usually 4)
++      const rated = signals
++        .map((s) => {
++          const pair = suggestedPairs.find(
++            (p) => p.baseFilename === s.baseFilename && p.featureFilename === s.featureFilename
++          );
++          if (!pair) return null;
++          const baseData = pool.find((ir) => ir.filename === s.baseFilename);
++          const featData = pool.find((ir) => ir.filename === s.featureFilename);
++          if (!baseData?.features || !featData?.features) return null;
++          const ratio = pair.suggestedRatio?.base ?? 0.5;
++          const x = featurizeBlend(baseData.features, featData.features, ratio);
++          return {
++            action: s.action as string,
++            strength: strengthOf(s.action as string),
++            x,
++            pairKey: `${s.baseFilename}__${s.featureFilename}__${ratio}`,
++          };
++        })
++        .filter(Boolean) as { action: string; strength: number; x: number[]; pairKey: string }[];
++
++      if (rated.length >= 2) {
++        const mean = meanVector(rated.map((r) => r.x));
++        const centered = rated.map((r) => ({ ...r, xc: centerVector(r.x, mean) }));
++
++        for (let i = 0; i < centered.length; i++) {
++          for (let j = i + 1; j < centered.length; j++) {
++            const a = centered[i];
++            const b = centered[j];
++            const diff = a.strength - b.strength;
++            if (diff === 0) {
++              // same rating => tie (small confidence only)
++              recordOutcome(tasteContext, a.xc, b.xc, "tie");
++              continue;
++            }
++            // update strength scales learning rate
++            const lr = 0.06 * Math.min(2, Math.abs(diff));
++            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr });
++            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr });
++          }
++        }
++        setTasteVersion((v) => v + 1);
++      }
++    } catch {
++      // ignore local taste update failures
++    }
++
+     if (signals.length > 0) {
+       submitSignalsMutation.mutate(signals);
+     }
+ 
+     setEvaluatedPairs(newEvaluated);
+     setExposureCounts(newExposure);
+     setCumulativeSignals((prev) => ({
+       liked: prev.liked + roundLiked,
+       noped: prev.noped + roundNoped,
+     }));
+@@
+   }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, submitSignalsMutation, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, tasteCheckPassed, finishRound, proceedToRatioRefine, pickTasteCheckCandidates, getTasteCheckRounds, setTasteCheckPhase]);
+*** End Patch
