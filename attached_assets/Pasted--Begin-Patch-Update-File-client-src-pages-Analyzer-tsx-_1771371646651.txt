@@ -1,0 +1,162 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+-function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
++function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
+   const bp = (tf.bandsPercent ?? {}) as any;
+ 
+   const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
+   const tilt = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
+   const ext = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 0;
+   const centroid = Number.isFinite(tf.spectralCentroidHz) ? (tf.spectralCentroidHz as number) : 0;
+ 
+   // Air = 6–9k usable sheen (we repurpose bp.air to mean this for guitar cabs).
+   const air = (bp.air ?? 0) * 100;
+ 
+   // Fizz = 9–14k hash/noise (optional). Pipeline stores as ratio (0–1). If it comes in as percent, normalize.
+   const rawFizz = Number.isFinite((tf as any).fizzEnergy) ? Number((tf as any).fizzEnergy) : 0;
+   const fizzRatio = rawFizz > 1.2 ? rawFizz / 100 : rawFizz;
+   const fizz = fizzRatio * 100;
+ 
+   const mid = (bp.mid ?? 0) * 100;
+   const highMid = (bp.highMid ?? 0) * 100;
+   const presence = (bp.presence ?? 0) * 100;
+   const lowMid = (bp.lowMid ?? 0) * 100;
+   const bass = (bp.bass ?? 0) * 100;
+   const subBass = (bp.subBass ?? 0) * 100;
+ 
+   const bassLowMid = subBass + bass + lowMid;
+-  const hiMidMidRatio = mid > 0 ? (highMid / mid) : 10;
++  // IMPORTANT: With the guitar-meaningful bands, "mid" is narrower (500–1200),
++  // so highMid/mid inflates massively and becomes a poor primary classifier.
++  // This ratio better reflects "cut vs core" energy for guitar cabs:
++  // highMid(1.2–4k) + presence(4–6k) vs mid(500–1.2k) + lowMid(200–500).
++  const core = Math.max(1e-6, (mid + lowMid));
++  const cutCoreRatio = (highMid + presence) / core;
+ 
+   // Speaker-relative normalization (keeps labels meaningful per speaker family).
+   const zCentroid = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
+   const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
+   const zPresence = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
+-  const zHiMidMid = speakerStats ? zScore(hiMidMidRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
++  const zCutCore = speakerStats ? zScore(cutCoreRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
+   const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
+   const zAir = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
+   const zFizz = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
+ 
+   // FOUNDATION: balanced “mix-ready core” without excess sheen/hash.
+   const balancedBands =
+     mid >= 22 && mid <= 35 &&
+     presence >= 18 && presence <= 42 &&
+     highMid >= 18 && highMid <= 45 &&
+-    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35 &&
++    cutCoreRatio >= 1.10 && cutCoreRatio <= 2.40 &&
+     air <= 6.0 &&
+     fizz <= 1.5;
+ 
+   const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
+   const notTooDark = ext === 0 ? true : ext >= 4200;
+   const notBodyLean = bassLowMid >= 18;
+ 
+   if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
+     return "Foundation";
+   }
+ 
+-  // CUT LAYER: speaker-relative “more cut than typical” (presence/upper-mids).
+-  const presenceForward =
+-    presence >= 50 ||
+-    hiMidMidRatio >= 1.9 ||
+-    zPresence >= 1.0 ||
+-    zHiMidMid >= 1.1 ||
+-    zCentroid >= 1.0;
+-
+-  const midLean = mid <= 24;
+-  if (presenceForward && midLean) return "Cut Layer";
++  // DARK SPECIALTY: unusually dark for the speaker (relative).
++  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExt <= -1.2 || zTilt <= -1.3) {
++    return "Dark Specialty";
++  }
++
++  // LEAD POLISH (wins when it's clearly "sheen without hash"):
++  // - smooth/extended
++  // - air is up (6–9k)
++  // - fizz is NOT up (9–14k)
++  // - not ultra mid-lean and not extreme cut spike
++  const extended = ext > 0 && ext >= 4700;
++  const verySmooth = smooth >= 88;
++  const hasAir = air >= 3.0 || zAir >= 0.85;
++  const notFizzy = fizz <= 1.0 || zFizz <= 0.15;
++  const presenceModerate = presence >= 22 && presence <= 48;
++  const notScoopedToDeath = (mid + lowMid) >= 24;
++  const notExtremeCut = presence <= 55 && zPresence <= 1.6 && zCutCore <= 1.8;
++
++  if (extended && verySmooth && hasAir && notFizzy && presenceModerate && notScoopedToDeath && notExtremeCut) {
++    return "Lead Polish";
++  }
++
++  // CUT LAYER: needs BOTH (a) above-typical cut AND (b) not a mid/body-forward IR.
++  const cutForward =
++    presence >= 46 ||
++    cutCoreRatio >= 2.6 ||
++    zPresence >= 1.05 ||
++    zCutCore >= 1.05 ||
++    zCentroid >= 1.10;
++
++  const midLean = (mid + lowMid) <= 24;
++  if (cutForward && midLean) return "Cut Layer";
+ 
+   // MID THICKENER: body-forward, not presence-spiky.
+-  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85) || lowMid >= 12;
+-  const notPresenceSpiky = presence <= 32 && zPresence <= 0.2;
++  const midHeavy = mid >= 34 || lowMid >= 10 || bassLowMid >= 24;
++  const notPresenceSpiky = presence <= 36 && zPresence <= 0.35;
+   if (midHeavy && notPresenceSpiky) return "Mid Thickener";
+ 
+-  // DARK SPECIALTY: unusually dark for the speaker (relative).
+-  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExt <= -1.2 || zTilt <= -1.3) {
+-    return "Dark Specialty";
+-  }
+-
+   // FIZZ TAMER: low 6–9k sheen + low 9–14k hash, usually rolled-off or dark-tilt but smooth.
+   const rolledOff = ext > 0 && ext <= 4500;
+   const veryDarkTilt = tilt <= -5.2 || zTilt <= -0.8;
+   const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
+   const lowAir = air <= 1.8 || zAir <= -0.3;
+ 
+   if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir) {
+     return "Fizz Tamer";
+   }
+ 
+-  // LEAD POLISH: smooth + extended, with usable 6–9k sheen but not 9–14k hash.
+-  const extended = ext > 0 && ext >= 4800;
+-  const verySmooth = smooth >= 88;
+-  const presenceModerate = presence >= 24 && presence <= 48;
+-  const ratioModerate = hiMidMidRatio >= 0.95 && hiMidMidRatio <= 1.75;
+-  const notTooScooped = mid >= 19;
+-  const notDarkTilt = tilt >= -5.2 && zTilt >= -0.7;
+-  const hasAir = air >= 2.0 || zAir >= 0.7;
+-  const notFizzy = fizz <= 0.9 || zFizz <= 0.2;
+-
+-  if (
+-    extended &&
+-    verySmooth &&
+-    presenceModerate &&
+-    ratioModerate &&
+-    notTooScooped &&
+-    notDarkTilt &&
+-    hasAir &&
+-    notFizzy
+-  ) {
+-    return "Lead Polish";
+-  }
+-
+   // Final fallback
+-  if (presence >= 44 || hiMidMidRatio >= 1.45 || zPresence >= 0.9) return "Cut Layer";
+-  if (mid >= 32 || lowMid >= 10) return "Mid Thickener";
+-  if ((tilt <= -4.8 || (ext > 0 && ext <= 4700) || zTilt <= -0.7) && (fizz <= 1.0 || zFizz <= -0.2)) return "Fizz Tamer";
++  if (cutForward && (mid + lowMid) <= 28) return "Cut Layer";
++  if (midHeavy) return "Mid Thickener";
++  if ((tilt <= -4.8 || (ext > 0 && ext <= 4700) || zTilt <= -0.7) && (fizz <= 1.0 || zFizz <= -0.2)) return "Fizz Tamer";
+   return "Foundation";
+ }
+*** End Patch

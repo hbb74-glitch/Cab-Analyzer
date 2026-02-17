@@ -45,21 +45,22 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const subBass = (bp.subBass ?? 0) * 100;
 
   const bassLowMid = subBass + bass + lowMid;
-  const hiMidMidRatio = mid > 0 ? (highMid / mid) : 10;
+  const core = Math.max(1e-6, (mid + lowMid));
+  const cutCoreRatio = (highMid + presence) / core;
 
-  const zCentroidVal = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
-  const zExtVal = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
-  const zPresenceVal = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
-  const zHiMidMidVal = speakerStats ? zScore(hiMidMidRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
-  const zTiltVal = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
-  const zAirVal = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
-  const zFizzVal = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
+  const zCentroid = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
+  const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
+  const zPresence = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
+  const zCutCore = speakerStats ? zScore(cutCoreRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
+  const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
+  const zAir = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
+  const zFizz = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
 
   const balancedBands =
     mid >= 22 && mid <= 35 &&
     presence >= 18 && presence <= 42 &&
-    highMid >= 18 && highMid <= 38 &&
-    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35 &&
+    highMid >= 18 && highMid <= 45 &&
+    cutCoreRatio >= 1.10 && cutCoreRatio <= 2.40 &&
     air <= 6.0 &&
     fizz <= 1.5;
 
@@ -71,58 +72,48 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
     return "Foundation";
   }
 
-  const presenceForward =
-    presence >= 50 ||
-    hiMidMidRatio >= 1.9 ||
-    zPresenceVal >= 1.0 ||
-    zHiMidMidVal >= 1.1 ||
-    zCentroidVal >= 1.0;
-
-  const midLean = mid <= 24;
-  if (presenceForward && midLean) return "Cut Layer";
-
-  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85) || lowMid >= 12;
-  const notPresenceSpiky = presence <= 32 && zPresenceVal <= 0.2;
-  if (midHeavy && notPresenceSpiky) return "Mid Thickener";
-
-  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExtVal <= -1.2 || zTiltVal <= -1.3) {
+  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExt <= -1.2 || zTilt <= -1.3) {
     return "Dark Specialty";
   }
 
+  const extended = ext > 0 && ext >= 4700;
+  const verySmooth = smooth >= 88;
+  const hasAir = air >= 3.0 || zAir >= 0.85;
+  const notFizzy = fizz <= 1.0 || zFizz <= 0.15;
+  const presenceModerate = presence >= 22 && presence <= 48;
+  const notScoopedToDeath = (mid + lowMid) >= 24;
+  const notExtremeCut = presence <= 55 && zPresence <= 1.6 && zCutCore <= 1.8;
+
+  if (extended && verySmooth && hasAir && notFizzy && presenceModerate && notScoopedToDeath && notExtremeCut) {
+    return "Lead Polish";
+  }
+
+  const cutForward =
+    presence >= 46 ||
+    cutCoreRatio >= 2.6 ||
+    zPresence >= 1.05 ||
+    zCutCore >= 1.05 ||
+    zCentroid >= 1.10;
+
+  const midLean = (mid + lowMid) <= 24;
+  if (cutForward && midLean) return "Cut Layer";
+
+  const midHeavy = mid >= 34 || lowMid >= 10 || bassLowMid >= 24;
+  const notPresenceSpiky = presence <= 36 && zPresence <= 0.35;
+  if (midHeavy && notPresenceSpiky) return "Mid Thickener";
+
   const rolledOff = ext > 0 && ext <= 4500;
-  const veryDarkTilt = tilt <= -5.2 || zTiltVal <= -0.8;
-  const lowFizz = fizz <= 0.6 || zFizzVal <= -0.4;
-  const lowAir = air <= 1.8 || zAirVal <= -0.3;
+  const veryDarkTilt = tilt <= -5.2 || zTilt <= -0.8;
+  const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
+  const lowAir = air <= 1.8 || zAir <= -0.3;
 
   if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir) {
     return "Fizz Tamer";
   }
 
-  const extended = ext > 0 && ext >= 4800;
-  const verySmooth = smooth >= 88;
-  const presenceModerate = presence >= 24 && presence <= 48;
-  const ratioModerate = hiMidMidRatio >= 0.95 && hiMidMidRatio <= 1.75;
-  const notTooScooped = mid >= 19;
-  const notDarkTilt = tilt >= -5.2 && zTiltVal >= -0.7;
-  const hasAir = air >= 2.0 || zAirVal >= 0.7;
-  const notFizzy = fizz <= 0.9 || zFizzVal <= 0.2;
-
-  if (
-    extended &&
-    verySmooth &&
-    presenceModerate &&
-    ratioModerate &&
-    notTooScooped &&
-    notDarkTilt &&
-    hasAir &&
-    notFizzy
-  ) {
-    return "Lead Polish";
-  }
-
-  if (presence >= 44 || hiMidMidRatio >= 1.45 || zPresenceVal >= 0.9) return "Cut Layer";
-  if (mid >= 32 || lowMid >= 10) return "Mid Thickener";
-  if ((tilt <= -4.8 || (ext > 0 && ext <= 4700) || zTiltVal <= -0.7) && (fizz <= 1.0 || zFizzVal <= -0.2)) return "Fizz Tamer";
+  if (cutForward && (mid + lowMid) <= 28) return "Cut Layer";
+  if (midHeavy) return "Mid Thickener";
+  if ((tilt <= -4.8 || (ext > 0 && ext <= 4700) || zTilt <= -0.7) && (fizz <= 1.0 || zFizz <= -0.2)) return "Fizz Tamer";
   return "Foundation";
 }
 
