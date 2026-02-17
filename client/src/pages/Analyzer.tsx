@@ -51,7 +51,6 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const zCentroid = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
   const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
   const zPresence = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
-  const zCutCore = speakerStats ? zScore(cutCoreRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
   const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
   const zAir = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
   const zFizz = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
@@ -76,24 +75,23 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
     return "Dark Specialty";
   }
 
-  const extended = ext > 0 && ext >= 4700;
+  const extended = ext > 0 && ext >= 4600;
   const verySmooth = smooth >= 88;
-  const hasAir = air >= 3.0 || zAir >= 0.85;
-  const notFizzy = fizz <= 1.0 || zFizz <= 0.15;
-  const presenceModerate = presence >= 22 && presence <= 48;
-  const notScoopedToDeath = (mid + lowMid) >= 24;
-  const notExtremeCut = presence <= 55 && zPresence <= 1.6 && zCutCore <= 1.8;
+  const hasAir = air >= 4.0 || zAir >= 0.70;
+  const notFizzy = fizz <= 1.2 || zFizz <= 0.35;
+  const presenceModerate = presence >= 22 && presence <= 55;
+  const notScoopedToDeath = (mid + lowMid) >= 22;
+  const notExtremeCut = presence <= 58 && zPresence <= 1.9 && cutCoreRatio <= 3.4;
 
   if (extended && verySmooth && hasAir && notFizzy && presenceModerate && notScoopedToDeath && notExtremeCut) {
     return "Lead Polish";
   }
 
   const cutForward =
-    presence >= 46 ||
-    cutCoreRatio >= 2.6 ||
-    zPresence >= 1.05 ||
-    zCutCore >= 1.05 ||
-    zCentroid >= 1.10;
+    presence >= 50 ||
+    cutCoreRatio >= 3.0 ||
+    zPresence >= 1.15 ||
+    zCentroid >= 1.15;
 
   const midLean = (mid + lowMid) <= 24;
   if (cutForward && midLean) return "Cut Layer";
