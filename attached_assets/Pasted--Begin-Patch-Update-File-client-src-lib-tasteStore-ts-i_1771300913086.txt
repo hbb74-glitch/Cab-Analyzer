@@ -1,0 +1,81 @@
+*** Begin Patch
+*** Update File: client/src/lib/tasteStore.ts
+@@
+ import type { TonalFeatures } from "@/lib/tonal-engine";
+ import { BAND_KEYS, blendFeatures } from "@/lib/tonal-engine";
+ 
+ export type TasteMode = "singleIR" | "blend";
+ export type TasteIntent = "rhythm" | "lead" | "clean";
++export type VoteSource = "learning" | "pick4" | "ab" | "ratio";
+@@
+ export type TasteContext = {
+   speakerPrefix: string;
+   mode: TasteMode;
+   intent: TasteIntent;
+ };
+@@
+ type StoreState = {
+   version: 2;
+   models: Record<string, ModelState>;
+   // Complement learning: “both useful” counts per context, keyed by pairKey
+   complements: Record<string, Record<string, number>>;
+ };
+@@
+ export function makeTasteKey(ctx: TasteContext): string {
+   return `${ctx.speakerPrefix}__${ctx.mode}__${ctx.intent}`;
+ }
+@@
+ export function featurizeBlend(base: TonalFeatures, feat: TonalFeatures, baseRatio: number): number[] {
+   const a = clamp(baseRatio, 0.3, 0.7);
+   const b = 1 - a;
+ 
+   const blended = blendFeatures(base, feat, a, b);
+ 
+   // Use shape bands + tilt + smoothness as the initial learnable space.
+   // (We’ll add bite/weight/fizz later.)
+   const vec: number[] = [];
+ 
+   // Scale features to prevent weight explosion
+   for (const k of BAND_KEYS) {
+     vec.push(safeNumber(blended.bandsShapeDb[k]) / 10); // shape bands ~±20 → scale to ±2
+   }
+ 
+   vec.push(safeNumber(blended.tiltDbPerOct) / 10);       // tilt ~±15 → scale to ±1.5
+   vec.push(safeNumber(blended.smoothScore) / 100);       // smooth 0–100 → scale to 0–1
+ 
+   return vec;
+ }
++
++// Single-IR feature vector (same dimension ordering as blend)
++export function featurizeSingleIR(ir: TonalFeatures): number[] {
++  const vec: number[] = [];
++  for (const k of BAND_KEYS) vec.push(safeNumber(ir.bandsShapeDb[k]) / 10);
++  vec.push(safeNumber(ir.tiltDbPerOct) / 10);
++  vec.push(safeNumber(ir.smoothScore) / 100);
++  return vec;
++}
+@@
+ export function getTasteStatus(ctx: TasteContext): { nVotes: number; confidence: number } {
+   const state = loadState();
+   const key = makeTasteKey(ctx);
+   const model = state.models[key];
+   const nVotes = model?.nVotes ?? 0;
+   const confidence = clamp(nVotes / 30, 0, 1);
+   return { nVotes, confidence };
+ }
+@@
+-export type VoteOutcome = "a" | "b" | "tie" | "both";
++export type VoteOutcome = "a" | "b" | "tie" | "both";
+@@
+-function sourceWeight(source?: VoteSource): number {
++function sourceWeight(source?: VoteSource): number {
+   // Learning Mode is the richest, most nuanced signal → strongest updates
+   // Pick4 / A vs B are reinforcement + fast verification → medium
+   // Ratio refine is fine-tuning → light
+   if (source === "learning") return 1.0;
+   if (source === "pick4") return 0.6;
+   if (source === "ab") return 0.6;
+   if (source === "ratio") return 0.25;
+   return 0.6;
+ }
+*** End Patch

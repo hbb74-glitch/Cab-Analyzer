@@ -101,6 +101,14 @@ export function featurizeBlend(base: TonalFeatures, feat: TonalFeatures, baseRat
   return vec;
 }
 
+export function featurizeSingleIR(ir: TonalFeatures): number[] {
+  const vec: number[] = [];
+  for (const k of BAND_KEYS) vec.push(safeNumber(ir.bandsShapeDb[k]) / 10);
+  vec.push(safeNumber(ir.tiltDbPerOct) / 10);
+  vec.push(safeNumber(ir.smoothScore) / 100);
+  return vec;
+}
+
 function dot(w: number[], x: number[]): number {
   let s = 0;
   const n = Math.min(w.length, x.length);
