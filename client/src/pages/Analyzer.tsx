@@ -1958,7 +1958,7 @@ export default function Analyzer() {
       mid: ((Number(r.midPercent) || 0) / 100),
       highMid: ((Number(r.highMidPercent) || 0) / 100),
       presence: ((Number(r.presencePercent) || 0) / 100),
-      air: ((Number(r.airPercent) || 0) / 100),
+      air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
     };
 
     const featureSource: any = {
@@ -1983,7 +1983,7 @@ export default function Analyzer() {
     const mid = fmt(((bp.mid ?? 0) * 100), 1);
     const highMid = fmt(((bp.highMid ?? 0) * 100), 1);
     const presence = fmt(((bp.presence ?? 0) * 100), 1);
-    const air = fmt(((bp.air ?? 0) * 100), 1);
+    const air = fmt(((bp.air ?? 0) * 100), 2);
 
     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
     const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? (metricsForFile as any)?.spectralCentroidHz ?? (metricsForFile as any)?.spectralCentroid ?? "", 0);
@@ -2067,7 +2067,7 @@ export default function Analyzer() {
         mid: r.midPercent || 0,
         highMid: r.highMidPercent || 0,
         presence: r.presencePercent || 0,
-        air: 0,
+        air: (r as any).airPercent ?? (r as any).ultraHighPercent ?? 0,
       }),
     }));
     return computeSpeakerRelativeProfiles(batchFeatures);
@@ -2527,7 +2527,7 @@ export default function Analyzer() {
           mid: ((Number(rAny.midPercent) || 0) / 100),
           highMid: ((Number(rAny.highMidPercent) || 0) / 100),
           presence: ((Number(rAny.presencePercent) || 0) / 100),
-          air: ((Number((rAny as any).airPercent) || 0) / 100),
+          air: ((Number(((rAny as any).airPercent ?? (rAny as any).ultraHighPercent)) || 0) / 100),
         } : null;
 
         const centroid =

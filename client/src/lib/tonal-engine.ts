@@ -59,7 +59,16 @@ export function computeTonalFeatures(r: any): TonalFeatures {
       mid: toNum(bands?.mid),
       highMid: toNum(bands?.highMid ?? bands?.highmid ?? bands?.high_mid),
       presence: toNum(bands?.presence),
-      air: toNum(bands?.air),
+      air: toNum(
+        bands?.air ??
+        bands?.airPercent ??
+        bands?.ultraHigh ??
+        bands?.ultraHighPercent ??
+        bands?.ultraHighEnergy ??
+        bands?.ultra_high ??
+        bands?.ultra_high_percent ??
+        bands?.ultra_high_energy
+      ),
     };
 
     const sum = bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + bp.air;

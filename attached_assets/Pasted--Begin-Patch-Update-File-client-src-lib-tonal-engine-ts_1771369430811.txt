@@ -1,0 +1,72 @@
+*** Begin Patch
+*** Update File: client/src/lib/tonal-engine.ts
+@@
+   const normalizeBands = (bands: any): TonalBands => {
+     const bp = {
+       subBass: toNum(bands?.subBass ?? bands?.subbass ?? bands?.sub_bass),
+       bass: toNum(bands?.bass),
+       lowMid: toNum(bands?.lowMid ?? bands?.lowmid ?? bands?.low_mid),
+       mid: toNum(bands?.mid),
+       highMid: toNum(bands?.highMid ?? bands?.highmid ?? bands?.high_mid),
+       presence: toNum(bands?.presence),
+-      air: toNum(bands?.air),
++      // "Air" may arrive under multiple names depending on which pipeline produced the metrics.
++      // Server/batch commonly uses ultraHighPercent (or ultraHighEnergy) for the 8k–20k band.
++      air: toNum(
++        bands?.air ??
++        bands?.airPercent ??
++        bands?.ultraHigh ??
++        bands?.ultraHighPercent ??
++        bands?.ultraHighEnergy ??
++        bands?.ultra_high ??
++        bands?.ultra_high_percent ??
++        bands?.ultra_high_energy
++      ),
+     };
+*** End Patch
+
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+     const bandsFromBatch = {
+       subBass: ((Number(r.subBassPercent) || 0) / 100),
+       bass: ((Number(r.bassPercent) || 0) / 100),
+       lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+       mid: ((Number(r.midPercent) || 0) / 100),
+       highMid: ((Number(r.highMidPercent) || 0) / 100),
+       presence: ((Number(r.presencePercent) || 0) / 100),
+-      air: ((Number(r.airPercent) || 0) / 100),
++      // Server/batch uses ultraHighPercent for the 8k–20k band; keep airPercent as a backward-compatible alias.
++      air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
+     };
+@@
+-    const air = fmt(((bp.air ?? 0) * 100), 1);
++    // Air is often a very small % on guitar cabs; show 2 decimals so it doesn't round to 0.0 everywhere.
++    const air = fmt(((bp.air ?? 0) * 100), 2);
+@@
+     const batchFeatures = batchResult.results.map((r) => ({
+       features: featuresFromBands({
+         subBass: r.subBassPercent || 0,
+         bass: r.bassPercent || 0,
+         lowMid: r.lowMidPercent || 0,
+         mid: r.midPercent || 0,
+         highMid: r.highMidPercent || 0,
+         presence: r.presencePercent || 0,
+-        air: 0,
++        // Server returns ultraHighPercent for the 8k–20k band.
++        air: (r as any).airPercent ?? (r as any).ultraHighPercent ?? 0,
+       }),
+     }));
+@@
+         const bandsFromBatch = rAny ? {
+           subBass: ((Number(rAny.subBassPercent) || 0) / 100),
+           bass: ((Number(rAny.bassPercent) || 0) / 100),
+           lowMid: ((Number(rAny.lowMidPercent) || 0) / 100),
+           mid: ((Number(rAny.midPercent) || 0) / 100),
+           highMid: ((Number(rAny.highMidPercent) || 0) / 100),
+           presence: ((Number(rAny.presencePercent) || 0) / 100),
+-          air: ((Number((rAny as any).airPercent) || 0) / 100),
++          // Server/batch uses ultraHighPercent for the 8k–20k band; keep airPercent as a backward-compatible alias.
++          air: ((Number(((rAny as any).airPercent ?? (rAny as any).ultraHighPercent)) || 0) / 100),
+         } : null;
+*** End Patch
