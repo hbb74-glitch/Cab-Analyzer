@@ -977,19 +977,32 @@ export default function IRMixer() {
   const classifySingleIrRole = useCallback((features: TonalFeatures | undefined) => {
     if (!features) return { base: "Unknown", bias: "" };
 
-    const { bandsShapeDb, tiltDbPerOct, smoothScore = 0 } = features;
-    const hiMidMid = bandsShapeDb.highMid / (bandsShapeDb.mid || 1);
-    const bassWeight = bandsShapeDb.bass + bandsShapeDb.subBass;
-    const lowMid = bandsShapeDb.lowMid;
-    const presence = bandsShapeDb.presence;
+    const bp: any = (features.bandsPercent ?? {});
+    const smooth = Number(features.smoothScore ?? 0);
+    const tilt = Number(features.tiltDbPerOct ?? 0);
+    const ext = Number(features.rolloffFreq ?? 0);
 
-    let baseRole = "Foundation";
+    const mid = Number((bp.mid ?? 0) * 100);
+    const highMid = Number((bp.highMid ?? 0) * 100);
+    const presence = Number((bp.presence ?? 0) * 100);
+    const lowMid = Number((bp.lowMid ?? 0) * 100);
+    const bass = Number((bp.bass ?? 0) * 100);
+    const subBass = Number((bp.subBass ?? 0) * 100);
+    const air = Number((bp.air ?? 0) * 100);
 
-    if (hiMidMid > 1.6 && presence > 0.5) baseRole = "Cut Layer";
-    else if (lowMid > 0.8 && bassWeight > 0.8) baseRole = "Thickener";
-    else if (smoothScore > 0.7 && presence < 0.4) baseRole = "Fizz Tamer";
-    else if (presence > 0.7 && hiMidMid > 1.3) baseRole = "Lead Polish";
-    else if (tiltDbPerOct < -2) baseRole = "Dark Specialty";
+    const rawFizz = Number((features as any).fizzEnergy ?? 0);
+    const fizz = (Number.isFinite(rawFizz) ? (rawFizz > 1.2 ? rawFizz : rawFizz * 100) : 0);
+
+    const hiMidMid = mid > 0 ? (highMid / mid) : 10;
+    const bassLowMid = subBass + bass + lowMid;
+
+    let baseRole: string = "Foundation";
+
+    if ((presence >= 48 || hiMidMid >= 1.8) && mid <= 26) baseRole = "Cut Layer";
+    else if ((mid >= 34 || lowMid >= 12 || bassLowMid >= 26) && presence <= 34) baseRole = "Mid Thickener";
+    else if ((ext > 0 && ext < 3600) || tilt <= -6.2) baseRole = "Dark Specialty";
+    else if ((ext > 0 && ext <= 4500 || tilt <= -5.2) && smooth >= 82 && air <= 2.0 && fizz <= 0.9) baseRole = "Fizz Tamer";
+    else if (smooth >= 88 && ext > 0 && ext >= 4800 && presence >= 24 && presence <= 48 && air >= 2.0 && fizz <= 1.2) baseRole = "Lead Polish";
 
     let biasLabel = "";
     try {

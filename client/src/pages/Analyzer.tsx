@@ -23,11 +23,19 @@ import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 
-function classifyMusicalRole(tf: TonalFeatures): string {
+function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
   const bp = (tf.bandsPercent ?? {}) as any;
+
   const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
   const tilt = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
   const ext = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 0;
+  const centroid = Number.isFinite(tf.spectralCentroidHz) ? (tf.spectralCentroidHz as number) : 0;
+
+  const air = (bp.air ?? 0) * 100;
+
+  const rawFizz = Number.isFinite((tf as any).fizzEnergy) ? Number((tf as any).fizzEnergy) : 0;
+  const fizzRatio = rawFizz > 1.2 ? rawFizz / 100 : rawFizz;
+  const fizz = fizzRatio * 100;
 
   const mid = (bp.mid ?? 0) * 100;
   const highMid = (bp.highMid ?? 0) * 100;
@@ -37,51 +45,67 @@ function classifyMusicalRole(tf: TonalFeatures): string {
   const subBass = (bp.subBass ?? 0) * 100;
 
   const bassLowMid = subBass + bass + lowMid;
-
   const hiMidMidRatio = mid > 0 ? (highMid / mid) : 10;
+
+  const zCentroidVal = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
+  const zExtVal = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
+  const zPresenceVal = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
+  const zHiMidMidVal = speakerStats ? zScore(hiMidMidRatio, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
+  const zTiltVal = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
+  const zAirVal = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
+  const zFizzVal = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
 
   const balancedBands =
     mid >= 22 && mid <= 35 &&
     presence >= 18 && presence <= 42 &&
     highMid >= 18 && highMid <= 38 &&
-    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35;
+    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35 &&
+    air <= 6.0 &&
+    fizz <= 1.5;
 
   const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
-  const notTooDark = ext === 0 ? true : ext >= 4400;
+  const notTooDark = ext === 0 ? true : ext >= 4200;
   const notBodyLean = bassLowMid >= 18;
 
   if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
     return "Foundation";
   }
 
-  const presenceForward = presence >= 50 || hiMidMidRatio >= 1.9;
+  const presenceForward =
+    presence >= 50 ||
+    hiMidMidRatio >= 1.9 ||
+    zPresenceVal >= 1.0 ||
+    zHiMidMidVal >= 1.1 ||
+    zCentroidVal >= 1.0;
+
   const midLean = mid <= 24;
-  const veryCutty = (presence >= 48 && hiMidMidRatio >= 1.6);
+  if (presenceForward && midLean) return "Cut Layer";
 
-  if ((presenceForward && midLean) || (veryCutty && midLean)) {
-    return "Cut Layer";
-  }
+  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85) || lowMid >= 12;
+  const notPresenceSpiky = presence <= 32 && zPresenceVal <= 0.2;
+  if (midHeavy && notPresenceSpiky) return "Mid Thickener";
 
-  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85);
-  const notPresenceSpiky = presence <= 32;
-
-  if (midHeavy && notPresenceSpiky) {
-    return "Mid Thickener";
+  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExtVal <= -1.2 || zTiltVal <= -1.3) {
+    return "Dark Specialty";
   }
 
   const rolledOff = ext > 0 && ext <= 4500;
-  const veryDarkTilt = tilt <= -5.2;
+  const veryDarkTilt = tilt <= -5.2 || zTiltVal <= -0.8;
+  const lowFizz = fizz <= 0.6 || zFizzVal <= -0.4;
+  const lowAir = air <= 1.8 || zAirVal <= -0.3;
 
-  if ((rolledOff || veryDarkTilt) && smooth >= 82) {
+  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir) {
     return "Fizz Tamer";
   }
 
-  const extended = ext > 0 && ext >= 5100;
+  const extended = ext > 0 && ext >= 4800;
   const verySmooth = smooth >= 88;
   const presenceModerate = presence >= 24 && presence <= 48;
   const ratioModerate = hiMidMidRatio >= 0.95 && hiMidMidRatio <= 1.75;
   const notTooScooped = mid >= 19;
-  const notDarkTilt = tilt >= -5.2;
+  const notDarkTilt = tilt >= -5.2 && zTiltVal >= -0.7;
+  const hasAir = air >= 2.0 || zAirVal >= 0.7;
+  const notFizzy = fizz <= 0.9 || zFizzVal <= 0.2;
 
   if (
     extended &&
@@ -89,18 +113,16 @@ function classifyMusicalRole(tf: TonalFeatures): string {
     presenceModerate &&
     ratioModerate &&
     notTooScooped &&
-    notDarkTilt
+    notDarkTilt &&
+    hasAir &&
+    notFizzy
   ) {
     return "Lead Polish";
   }
 
-  if ((ext > 0 && ext < 3800) || tilt <= -6.5) {
-    return "Dark Specialty";
-  }
-
-  if (presence >= 44 || hiMidMidRatio >= 1.45) return "Cut Layer";
-  if (mid >= 32) return "Mid Thickener";
-  if (tilt <= -4.8 || (ext > 0 && ext <= 4700)) return "Fizz Tamer";
+  if (presence >= 44 || hiMidMidRatio >= 1.45 || zPresenceVal >= 0.9) return "Cut Layer";
+  if (mid >= 32 || lowMid >= 10) return "Mid Thickener";
+  if ((tilt <= -4.8 || (ext > 0 && ext <= 4700) || zTiltVal <= -0.7) && (fizz <= 1.0 || zFizzVal <= -0.2)) return "Fizz Tamer";
   return "Foundation";
 }
 
@@ -129,7 +151,7 @@ function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFeatures }
   }
 
   const stats = new Map<string, SpeakerStats>();
-  const keys = ["centroid", "tilt", "ext", "presence", "hiMidMid", "smooth"];
+  const keys = ["centroid", "tilt", "ext", "presence", "hiMidMid", "smooth", "air", "fizz"];
 
   for (const [spk, list] of Array.from(bySpk.entries())) {
     const vals: Record<string, number[]> = Object.fromEntries(keys.map(k => [k, []]));
@@ -143,6 +165,9 @@ function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFeatures }
       const midPct = Number((bp.mid ?? 0) * 100);
       const highMidPct = Number((bp.highMid ?? 0) * 100);
       const presencePct = Number((bp.presence ?? 0) * 100);
+      const airPct = Number((bp.air ?? 0) * 100);
+      const rawFizz = Number(r.tf.fizzEnergy ?? 0);
+      const fizzPct = (Number.isFinite(rawFizz) ? (rawFizz > 1.2 ? rawFizz : rawFizz * 100) : 0);
       const hiMidMid = midPct > 0 ? (highMidPct / midPct) : 10;
 
       vals.centroid.push(centroid);
@@ -150,6 +175,8 @@ function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFeatures }
       vals.ext.push(ext);
       vals.smooth.push(smooth);
       vals.presence.push(presencePct);
+      vals.air.push(airPct);
+      vals.fizz.push(fizzPct);
       vals.hiMidMid.push(hiMidMid);
     }
 
@@ -188,10 +215,17 @@ function applyContextBias(
   const presencePct = Number((bp.presence ?? 0) * 100);
   const hiMidMid = midPct > 0 ? (highMidPct / midPct) : 10;
 
+  const airPct = Number((bp.air ?? 0) * 100);
+  const rawFizz = Number((tf as any).fizzEnergy ?? 0);
+  const fizzPct = (Number.isFinite(rawFizz) ? (rawFizz > 1.2 ? rawFizz : rawFizz * 100) : 0);
+
   const zCentroid = speakerStats ? zScore(centroid, speakerStats.mean.centroid, speakerStats.std.centroid) : 0;
   const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
   const zPresence = speakerStats ? zScore(presencePct, speakerStats.mean.presence, speakerStats.std.presence) : 0;
   const zHiMidMid = speakerStats ? zScore(hiMidMid, speakerStats.mean.hiMidMid, speakerStats.std.hiMidMid) : 0;
+  const zAir = speakerStats ? zScore(airPct, speakerStats.mean.air, speakerStats.std.air) : 0;
+  const zFizz = speakerStats ? zScore(fizzPct, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
+  const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
 
   const objectivelyCutty =
     (zCentroid >= 1.0 && zExt >= 0.8) ||
@@ -232,10 +266,10 @@ function applyContextBias(
   if (name.includes("_e906_") || name.includes("e906")) score["Cut Layer"] += 0.25;
   if (name.includes("_sm57_") || name.includes("sm57")) score["Foundation"] += 0.15;
 
-  const sheenCandidate = smooth >= 88 && ext >= 5100 && presencePct <= 48 && hiMidMid <= 1.75 && tilt >= -5.2;
+  const sheenCandidate = smooth >= 88 && ext >= 4800 && presencePct <= 48 && hiMidMid <= 1.75 && tilt >= -5.2 && (airPct >= 2.0 || zAir >= 0.7) && (fizzPct <= 0.9 || zFizz <= 0.2);
   if (sheenCandidate) score["Lead Polish"] += 0.9;
 
-  if (ext > 0 && ext < 3800) score["Dark Specialty"] += 1.0;
+  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zTilt <= -1.3) score["Dark Specialty"] += 1.0;
 
   let best = baseRole;
   let bestV = score[baseRole];
@@ -1997,9 +2031,9 @@ export default function Analyzer() {
     if (!role) {
       try {
         const tfFinal = tf ?? computeTonalFeatures(featureSource);
-        const base = classifyMusicalRole(tfFinal);
         const spk = inferSpeakerIdFromFilename(filename);
         const st = speakerStatsRef.current.get(spk);
+        const base = classifyMusicalRole(tfFinal, st);
         role = applyContextBias(base, tfFinal, filename, st);
       } catch {
         role = "";
@@ -2068,6 +2102,7 @@ export default function Analyzer() {
         highMid: r.highMidPercent || 0,
         presence: r.presencePercent || 0,
         air: (r as any).airPercent ?? (r as any).ultraHighPercent ?? 0,
+        fizz: (r as any).fizzPercent ?? 0,
       }),
     }));
     return computeSpeakerRelativeProfiles(batchFeatures);
@@ -2108,6 +2143,7 @@ export default function Analyzer() {
       highMid: r.highMidPercent || 0,
       presence: r.presencePercent || 0,
       air: 0,
+      fizz: 0,
     }));
 
     const firstPass = allBands.map((bands, idx) => {
@@ -3593,6 +3629,7 @@ export default function Analyzer() {
           highMid: toPercent(ir.metrics.highMidEnergy || 0),
           presence: toPercent(ir.metrics.presenceEnergy || 0),
           air: 0,
+          fizz: 0,
         };
         const { best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
         if (best.score < 35) continue;
@@ -4054,6 +4091,7 @@ export default function Analyzer() {
           highMid: toPercent(ir.metrics.highMidEnergy || 0),
           presence: toPercent(ir.metrics.presenceEnergy || 0),
           air: 0,
+          fizz: 0,
         };
         const { results: matchResults, best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
         const featured = matchResults.find((r) => r.profile === "Featured");
@@ -5264,7 +5302,9 @@ export default function Analyzer() {
                                 {(() => {
                                   try {
                                     const tf = computeTonalFeatures(r as any);
-                                    const role = classifyMusicalRole(tf);
+                                    const fn = String((r as any).filename ?? (r as any).name ?? "");
+                                    const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+                                    const role = classifyMusicalRole(tf, st);
                                     return (
                                       <span
                                         className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
@@ -5283,7 +5323,9 @@ export default function Analyzer() {
                             {!r.parsedInfo && (() => {
                               try {
                                 const tf = computeTonalFeatures(r as any);
-                                const role = classifyMusicalRole(tf);
+                                const fn = String((r as any).filename ?? (r as any).name ?? "");
+                                const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+                                const role = classifyMusicalRole(tf, st);
                                 return (
                                   <div className="flex flex-wrap gap-1 mt-1">
                                     <span
@@ -5450,6 +5492,7 @@ export default function Analyzer() {
                                 highMid: r.highMidPercent || 0,
                                 presence: r.presencePercent || 0,
                                 air: 0,
+                                fizz: 0,
                               };
                               const { results: matchResults, best } = learnedProfile
                                 ? scoreWithAvoidPenalty(featuresFromBands(bands), activeProfiles, learnedProfile)
@@ -5499,6 +5542,7 @@ export default function Analyzer() {
                             highMid: r.highMidPercent || 0,
                             presence: r.presencePercent || 0,
                             air: 0,
+                            fizz: 0,
                           };
                           const ctx = getGearContext(r.filename, learnedProfile.gearInsights, bands);
                           if (ctx.items.length === 0 && !ctx.parsed) return null;
@@ -7172,7 +7216,9 @@ export default function Analyzer() {
                   <div className="flex justify-end">
                     {(() => {
                       const tf = computeTonalFeatures(metrics);
-                      const role = classifyMusicalRole(tf);
+                      const fn = String((metrics as any)?.filename ?? (metrics as any)?.name ?? "");
+                      const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+                      const role = classifyMusicalRole(tf, st);
                       return (
                         <span
                           className={cn("px-2 py-1 text-xs font-mono rounded", roleBadgeClass(role))}

@@ -5,7 +5,8 @@ export type BandKey =
   | "mid"
   | "highMid"
   | "presence"
-  | "air";
+  | "air"
+  | "fizz";
 
 export type TonalBands = Record<BandKey, number>;
 
@@ -21,6 +22,7 @@ export interface TonalFeatures {
   notchCount?: number;
   maxNotchDepth?: number;
   rolloffFreq?: number;
+  fizzEnergy?: number;
   tailLevelDb?: number;
   tailStatus?: string;
 }
@@ -33,6 +35,7 @@ export const BAND_KEYS: BandKey[] = [
   "highMid",
   "presence",
   "air",
+  "fizz",
 ];
 
 const DB_FLOOR = -120;
@@ -69,9 +72,16 @@ export function computeTonalFeatures(r: any): TonalFeatures {
         bands?.ultra_high_percent ??
         bands?.ultra_high_energy
       ),
+      fizz: toNum(
+        bands?.fizz ??
+        bands?.fizzPercent ??
+        bands?.fizzEnergy ??
+        bands?.fizz_percent ??
+        bands?.fizz_energy
+      ),
     };
 
-    const sum = bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + bp.air;
+    const sum = bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + bp.air + bp.fizz;
 
     if (sum <= 0) return bp;
 
@@ -88,6 +98,7 @@ export function computeTonalFeatures(r: any): TonalFeatures {
         highMid: bp.highMid / 100,
         presence: bp.presence / 100,
         air: bp.air / 100,
+        fizz: bp.fizz / 100,
       };
     }
 
@@ -99,6 +110,7 @@ export function computeTonalFeatures(r: any): TonalFeatures {
       highMid: bp.highMid / sum,
       presence: bp.presence / sum,
       air: bp.air / sum,
+      fizz: bp.fizz / sum,
     };
   };
 
@@ -149,6 +161,17 @@ export function computeTonalFeatures(r: any): TonalFeatures {
   const rolloffFreq =
     toNum(r?.rolloffFreq ?? r?.rolloffFrequency ?? r?.highExtensionHz ?? r?.rolloff_or_high_extension_hz);
 
+  const fizzEnergy =
+    toNum(
+      r?.fizzEnergy ??
+      r?.fizzPercent ??
+      r?.fizz ??
+      r?.fizzPct ??
+      r?.metrics?.fizzEnergy ??
+      r?.analysis?.fizzEnergy ??
+      r?.tf?.fizzEnergy
+    );
+
   const smoothRaw =
     toNum(r?.smoothScore ?? r?.frequencySmoothness ?? r?.smooth);
 
@@ -191,6 +214,7 @@ export function computeTonalFeatures(r: any): TonalFeatures {
     notchCount: r?.notchCount,
     maxNotchDepth: r?.maxNotchDepth,
     rolloffFreq,
+    fizzEnergy,
     tailLevelDb: r?.tailLevelDb,
     tailStatus: r?.tailStatus,
   };
@@ -292,6 +316,7 @@ function extractBandsRaw(metrics: any): TonalBands {
     highMid:  safeNumber(getKey(be, ["highmid"]) ?? getKey(src, ["highMid", "high_mid", "highmid", "highMidEnergy", "highMidPercent"])),
     presence: safeNumber(getKey(be, ["pres"]) ?? getKey(src, ["presence", "pres", "presenceEnergy", "presencePercent"])),
     air:      safeNumber(getKey(be, ["air"]) ?? getKey(src, ["air", "ultraHighEnergy", "airEnergy", "ultraHighPercent"])),
+    fizz:     safeNumber(getKey(be, ["fizz"]) ?? getKey(src, ["fizz", "fizzEnergy", "fizzPercent"])),
   } as TonalBands;
 
   const directVals = BAND_KEYS.map(k => out[k]);
@@ -320,6 +345,7 @@ function extractBandsRaw(metrics: any): TonalBands {
     out.highMid  = bucket(12, 14);
     out.presence = bucket(15, 18);
     out.air      = bucket(19, Math.min(23, b.length - 1));
+    out.fizz     = b.length > 24 ? bucket(24, Math.min(28, b.length - 1)) : 0;
   }
 
   return out as TonalBands;

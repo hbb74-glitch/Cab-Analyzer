@@ -43,6 +43,7 @@ export interface SingleAnalysisMetrics {
   highMidEnergy: number;
   presenceEnergy: number;
   ultraHighEnergy: number;
+  fizzEnergy?: number;
   hasClipping: boolean;
   clippedSamples: number;
   crestFactorDb: number;

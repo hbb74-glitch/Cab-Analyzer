@@ -71,6 +71,7 @@ export interface AudioMetrics {
   highMidEnergy: number;
   presenceEnergy: number;
   ultraHighEnergy: number;
+  fizzEnergy: number;
   hasClipping: boolean;
   clippedSamples: number;
   crestFactorDb: number;
@@ -216,13 +217,14 @@ function normalizeVector(v: number[]): number[] {
 
 function computeDisplayBands(power: Float64Array, binSize: number, binCount: number) {
   const bands = [
-    { name: "subBass", low: 20, high: 120 },
-    { name: "bass", low: 120, high: 250 },
-    { name: "lowMid", low: 250, high: 500 },
-    { name: "mid", low: 500, high: 2000 },
-    { name: "highMid", low: 2000, high: 4000 },
-    { name: "presence", low: 4000, high: 8000 },
-    { name: "air", low: 8000, high: 20000 },
+    { name: "subBass", low: 20, high: 80 },
+    { name: "bass", low: 80, high: 200 },
+    { name: "lowMid", low: 200, high: 500 },
+    { name: "mid", low: 500, high: 1200 },
+    { name: "highMid", low: 1200, high: 4000 },
+    { name: "presence", low: 4000, high: 6000 },
+    { name: "air", low: 6000, high: 9000 },
+    { name: "fizz", low: 9000, high: 14000 },
   ];
 
   let totalEnergy = 0;
@@ -241,18 +243,18 @@ function computeDisplayBands(power: Float64Array, binSize: number, binCount: num
 
   let lowSum = 0;
   const binLow20 = Math.max(1, Math.floor(20 / binSize));
-  const binHigh250 = Math.min(binCount - 1, Math.ceil(250 / binSize));
-  for (let k = binLow20; k <= binHigh250; k++) lowSum += power[k];
+  const binHigh200 = Math.min(binCount - 1, Math.ceil(200 / binSize));
+  for (let k = binLow20; k <= binHigh200; k++) lowSum += power[k];
 
   let midSum = 0;
-  const binLow250 = Math.max(1, Math.floor(250 / binSize));
+  const binLow200 = Math.max(1, Math.floor(200 / binSize));
   const binHigh4000 = Math.min(binCount - 1, Math.ceil(4000 / binSize));
-  for (let k = binLow250; k <= binHigh4000; k++) midSum += power[k];
+  for (let k = binLow200; k <= binHigh4000; k++) midSum += power[k];
 
   let highSum = 0;
   const binLow4000 = Math.max(1, Math.floor(4000 / binSize));
-  const binHigh20000 = Math.min(binCount - 1, Math.ceil(20000 / binSize));
-  for (let k = binLow4000; k <= binHigh20000; k++) highSum += power[k];
+  const binHigh14000 = Math.min(binCount - 1, Math.ceil(14000 / binSize));
+  for (let k = binLow4000; k <= binHigh14000; k++) highSum += power[k];
 
   const totalLMH = lowSum + midSum + highSum;
 
@@ -264,6 +266,7 @@ function computeDisplayBands(power: Float64Array, binSize: number, binCount: num
     highMidEnergy: totalEnergy > 0 ? rawEnergies[4] / totalEnergy : 0,
     presenceEnergy: totalEnergy > 0 ? rawEnergies[5] / totalEnergy : 0,
     ultraHighEnergy: totalEnergy > 0 ? rawEnergies[6] / totalEnergy : 0,
+    fizzEnergy: totalEnergy > 0 ? rawEnergies[7] / totalEnergy : 0,
     lowEnergy: totalLMH > 0 ? lowSum / totalLMH : 0,
     midEnergy: totalLMH > 0 ? midSum / totalLMH : 0,
     highEnergy: totalLMH > 0 ? highSum / totalLMH : 0,
@@ -583,6 +586,7 @@ export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
     highMidEnergy: parseFloat(displayBands.highMidEnergy.toFixed(4)),
     presenceEnergy: parseFloat(displayBands.presenceEnergy.toFixed(4)),
     ultraHighEnergy: parseFloat(displayBands.ultraHighEnergy.toFixed(4)),
+    fizzEnergy: parseFloat(displayBands.fizzEnergy.toFixed(4)),
     hasClipping,
     clippedSamples,
     crestFactorDb: parseFloat(crestFactorDb.toFixed(2)),
@@ -608,7 +612,7 @@ export function computeDeltaMetrics(a: AudioMetrics | null, b: AudioMetrics | nu
   const deltaCentroid = (b.spectralCentroid ?? 0) - (a.spectralCentroid ?? 0);
   const deltaRolloff = (b.rolloffFreq ?? 0) - (a.rolloffFreq ?? 0);
 
-  const bandKeys = ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air"] as const;
+  const bandKeys = ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air", "fizz"] as const;
   type BandKey = typeof bandKeys[number];
 
   const getBand = (m: AudioMetrics, key: BandKey): number => {
@@ -620,6 +624,7 @@ export function computeDeltaMetrics(a: AudioMetrics | null, b: AudioMetrics | nu
       case "highMid": return m.highMidEnergy ?? 0;
       case "presence": return m.presenceEnergy ?? 0;
       case "air": return m.ultraHighEnergy ?? 0;
+      case "fizz": return m.fizzEnergy ?? 0;
     }
   };
 
