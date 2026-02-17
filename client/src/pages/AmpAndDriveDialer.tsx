@@ -1,11 +1,50 @@
-import AmpDesigner from "@/pages/AmpDesigner";
-import AmpDialIn from "@/pages/AmpDialIn";
+import { Link } from "wouter";
+import { Wrench, SlidersHorizontal } from "lucide-react";
 
 export default function AmpAndDriveDialer() {
   return (
-    <div className="pt-20 px-4 max-w-7xl mx-auto space-y-8">
-      <AmpDialIn />
-      <AmpDesigner />
+    <div className="pt-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/40">
+          <Wrench className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">Amp And Drive Dialer</h1>
+          <p className="text-sm text-muted-foreground">
+            AM4-focused amp/drive workflows (mods + dial-in). Choose a tool below.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Link href="/amp-designer">
+          <a className="block p-4 rounded-xl border border-white/10 hover:border-primary/30 hover:bg-white/5 transition">
+            <div className="flex items-center gap-3">
+              <Wrench className="w-5 h-5 text-primary" />
+              <div>
+                <div className="font-semibold">Mod Lab</div>
+                <div className="text-sm text-muted-foreground">
+                  Build/adjust AM4-oriented amp/drive mods.
+                </div>
+              </div>
+            </div>
+          </a>
+        </Link>
+
+        <Link href="/amp-dial-in">
+          <a className="block p-4 rounded-xl border border-white/10 hover:border-primary/30 hover:bg-white/5 transition">
+            <div className="flex items-center gap-3">
+              <SlidersHorizontal className="w-5 h-5 text-primary" />
+              <div>
+                <div className="font-semibold">Dial-In</div>
+                <div className="text-sm text-muted-foreground">
+                  Suggested amp/drive settings for AM4 and modelers.
+                </div>
+              </div>
+            </div>
+          </a>
+        </Link>
+      </div>
     </div>
   );
 }
