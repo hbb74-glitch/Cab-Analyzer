@@ -1,0 +1,85 @@
+function classifyMusicalRole(tf: TonalFeatures): string {
+  const bp = tf.bandsPercent ?? {};
+  const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
+  const tiltDb = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
+  const highExtensionHz = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 6000;
+
+  const midPercent = ((bp.mid ?? 0) * 100);
+  const presencePercent = ((bp.presence ?? 0) * 100);
+  const airPercent = ((bp.air ?? 0) * 100);
+  const bassLowMidPercent = (((bp.subBass ?? 0) + (bp.bass ?? 0) + (bp.lowMid ?? 0)) * 100);
+
+  const hiMidMidRatio =
+    midPercent > 0 ? (((bp.highMid ?? 0) * 100) / midPercent) : 1;
+
+  const fizzElevated = airPercent > 18;
+  const bodyLean = bassLowMidPercent < 25;
+
+  // Primary rules (keep your intent)
+  if (
+    hiMidMidRatio >= 0.9 &&
+    hiMidMidRatio <= 1.25 &&
+    midPercent >= 22 &&
+    midPercent <= 32 &&
+    tiltDb > -3 &&
+    tiltDb < 3
+  ) {
+    return "Foundation";
+  }
+
+  if (
+    hiMidMidRatio > 1.35 &&
+    presencePercent > 30 &&
+    midPercent < 25 &&
+    tiltDb >= 0
+  ) {
+    return "Cut Layer";
+  }
+
+  if (
+    hiMidMidRatio < 0.95 &&
+    midPercent > 30 &&
+    !fizzElevated &&
+    tiltDb <= 0
+  ) {
+    return "Mid Thickener";
+  }
+
+  if (
+    tiltDb < -2 &&
+    highExtensionHz < 4800 &&
+    smooth >= 75
+  ) {
+    return "Fizz Tamer";
+  }
+
+  if (
+    highExtensionHz >= 5000 &&
+    smooth >= 80 &&
+    hiMidMidRatio >= 1.0 &&
+    hiMidMidRatio <= 1.4 &&
+    midPercent >= 20 &&
+    midPercent <= 30 &&
+    !fizzElevated &&
+    !bodyLean
+  ) {
+    return "Lead Polish";
+  }
+
+  // ✅ Add Dark Specialty (very dark/rolled-off or extreme tilt)
+  if (
+    (highExtensionHz > 0 && highExtensionHz < 3800) ||
+    tiltDb <= -6
+  ) {
+    return "Dark Specialty";
+  }
+
+  // ✅ No more "Feature Element" fallback.
+  // Choose the closest musical role using light-weight heuristics.
+  if (!fizzElevated && smooth >= 82 && highExtensionHz >= 5000) return "Lead Polish";
+  if (presencePercent >= 26 || hiMidMidRatio >= 1.15 || tiltDb >= -2) return "Cut Layer";
+  if (midPercent >= 28 && !bodyLean) return "Mid Thickener";
+  if (tiltDb <= -3.5 || highExtensionHz < 4800) return "Fizz Tamer";
+
+  return "Foundation";
+}
