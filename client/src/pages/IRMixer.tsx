@@ -1712,13 +1712,17 @@ export default function IRMixer() {
             const a = centered[i];
             const b = centered[j];
             const diff = a.strength - b.strength;
+            const lr = 0.06 * Math.min(2, Math.abs(diff));
+
+            const tagsA = (pairingFeedback[a.pairKey] ?? []) as string[];
+            const tagsB = (pairingFeedback[b.pairKey] ?? []) as string[];
+
             if (diff === 0) {
               recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
               continue;
             }
-            const lr = 0.06 * Math.min(2, Math.abs(diff));
-            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
-            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning", tagsA, tagsB });
+            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning", tagsA: tagsB, tagsB: tagsA });
           }
         }
         setTasteVersion((v) => v + 1);
