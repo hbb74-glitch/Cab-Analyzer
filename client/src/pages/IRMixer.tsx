@@ -676,7 +676,7 @@ export default function IRMixer() {
     pendingLoadTopPick: boolean;
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
-  const [tasteCheckMode, setTasteCheckMode] = useState<"auto" | "acquisition" | "tester" | "ratio">("auto");
+  const [tasteCheckMode, setTasteCheckMode] = useState<"learning" | "acquisition" | "tester" | "ratio">("learning");
   const [tasteEnabled, setTasteEnabled] = useState(true);
   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
   const [tasteVersion, setTasteVersion] = useState(0);
@@ -1318,7 +1318,7 @@ export default function IRMixer() {
 
   useEffect(() => {
     if (
-      tasteCheckMode !== "auto" &&
+      tasteCheckMode !== "learning" &&
       tasteCheckMode !== "ratio" &&
       pairingPool.length >= 2 &&
       !tasteCheckPhase &&
@@ -1327,7 +1327,7 @@ export default function IRMixer() {
       const tastePick = pickTasteCheckCandidates(
         pairingPool, activeProfiles, learnedProfile || undefined,
         evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
-        undefined, tasteCheckMode as "acquisition" | "tester" | "auto"
+        undefined, tasteCheckMode as "acquisition" | "tester" | "learning"
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1349,7 +1349,7 @@ export default function IRMixer() {
       }
     }
 
-    if ((tasteCheckMode === "auto" || tasteCheckMode === "ratio") && tasteCheckPhase) {
+    if ((tasteCheckMode === "learning" || tasteCheckMode === "ratio") && tasteCheckPhase) {
       modeTriggeredTasteCheck.current = false;
       if (tasteCheckTimeoutRef.current) {
         clearTimeout(tasteCheckTimeoutRef.current);
@@ -1358,7 +1358,7 @@ export default function IRMixer() {
       const pending = tasteCheckPhase.pendingRefineCandidates;
       const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
       setTasteCheckPhase(null);
-      if (tasteCheckMode === "auto") setTasteCheckPassed(true);
+      if (tasteCheckMode === "learning") setTasteCheckPassed(true);
       if (tasteCheckMode === "ratio" && pending.length > 0) {
         proceedToRatioRefine(pending, pendingLoad);
       }
@@ -1436,7 +1436,7 @@ export default function IRMixer() {
         learnedProfile || undefined,
         undefined,
         newHistory,
-        tasteCheckMode === "ratio" ? "auto" : tasteCheckMode
+        tasteCheckMode === "ratio" ? "learning" : tasteCheckMode
       );
 
       if (!nextPick) {
@@ -1523,7 +1523,7 @@ export default function IRMixer() {
 
   const liveConfidence = getTasteConfidence(learnedProfile || undefined);
   const tasteCheckBinary = tasteCheckPhase
-    ? (tasteCheckMode === "tester" || (tasteCheckMode === "auto" && (liveConfidence === "high" || tasteCheckPhase.confidence === "high")) || tasteCheckPhase.candidates.length <= 2)
+    ? (tasteCheckMode === "tester" || (tasteCheckMode === "learning" && (liveConfidence === "high" || tasteCheckPhase.confidence === "high")) || tasteCheckPhase.candidates.length <= 2)
     : false;
   const tasteCheckDisplayCandidates = tasteCheckPhase
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
@@ -1663,10 +1663,10 @@ export default function IRMixer() {
         const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
           (ir) => (newExposure.get(ir.filename) ?? 0) === 0
         );
-        const shouldTasteCheck = (tasteCheckMode !== "auto") || !tasteCheckPassed || hasUnseenIRs;
+        const shouldTasteCheck = (tasteCheckMode !== "learning") || !tasteCheckPassed || hasUnseenIRs;
 
         if (shouldTasteCheck) {
-          const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode as "acquisition" | "tester" | "auto");
+          const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode as "acquisition" | "tester" | "learning");
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
             setTasteCheckPhase({
@@ -1713,7 +1713,7 @@ export default function IRMixer() {
   const skipRatioRefine = useCallback(() => {
     if (!ratioRefinePhase) return;
     setRatioRefinePhase(null);
-    if (tasteCheckMode === "ratio") setTasteCheckMode("auto");
+    if (tasteCheckMode === "ratio") setTasteCheckMode("learning");
     finishRound(ratioRefinePhase.pendingLoadTopPick, null);
   }, [ratioRefinePhase, finishRound, tasteCheckMode]);
 
@@ -1800,7 +1800,7 @@ export default function IRMixer() {
     setRatioRefinePhase({ ...ratioRefinePhase, stage: "done", winner: ratio, downgraded });
     setTimeout(() => {
       setRatioRefinePhase(null);
-      if (tasteCheckMode === "ratio") setTasteCheckMode("auto");
+      if (tasteCheckMode === "ratio") setTasteCheckMode("learning");
       finishRound(ratioRefinePhase.pendingLoadTopPick, downgraded ? pk : null);
     }, 1500);
   }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound, tasteCheckMode]);
@@ -2173,7 +2173,7 @@ export default function IRMixer() {
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
                 <button
                   onClick={() => {
-                    setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition");
+                    setTasteCheckMode(tasteCheckMode === "acquisition" ? "learning" : "acquisition");
                     if (ratioRefinePhase) setRatioRefinePhase(null);
                   }}
                   className={cn(
@@ -2188,22 +2188,22 @@ export default function IRMixer() {
                 </button>
                 <button
                   onClick={() => {
-                    setTasteCheckMode("auto");
+                    setTasteCheckMode("learning");
                     if (ratioRefinePhase) setRatioRefinePhase(null);
                   }}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium transition-colors rounded-md",
-                    tasteCheckMode === "auto"
+                    tasteCheckMode === "learning"
                       ? "bg-teal-500/25 text-teal-300"
                       : "text-muted-foreground hover-elevate"
                   )}
-                  data-testid="button-taste-auto"
+                  data-testid="button-taste-learning"
                 >
-                  Auto
+                  Learning
                 </button>
                 <button
                   onClick={() => {
-                    setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester");
+                    setTasteCheckMode(tasteCheckMode === "tester" ? "learning" : "tester");
                     if (ratioRefinePhase) setRatioRefinePhase(null);
                   }}
                   className={cn(
@@ -3151,10 +3151,10 @@ export default function IRMixer() {
                       <>
                         <div className="flex items-center rounded-md border border-teal-500/20 overflow-visible" data-testid="taste-mode-selector">
                           <button
-                            onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "auto" : "acquisition")}
+                            onClick={() => setTasteCheckMode(tasteCheckMode === "acquisition" ? "learning" : "acquisition")}
                             className={cn(
                               "px-2 py-1 text-[10px] font-medium transition-colors rounded-l-md",
-                              tasteCheckMode === "acquisition" || (tasteCheckMode === "auto" && !tasteCheckBinary)
+                              tasteCheckMode === "acquisition" || (tasteCheckMode === "learning" && !tasteCheckBinary)
                                 ? "bg-teal-500/20 text-teal-300"
                                 : "text-muted-foreground"
                             )}
@@ -3163,10 +3163,10 @@ export default function IRMixer() {
                             4-Pick
                           </button>
                           <button
-                            onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "auto" : "tester")}
+                            onClick={() => setTasteCheckMode(tasteCheckMode === "tester" ? "learning" : "tester")}
                             className={cn(
                               "px-2 py-1 text-[10px] font-medium transition-colors rounded-r-md",
-                              tasteCheckMode === "tester" || (tasteCheckMode === "auto" && tasteCheckBinary)
+                              tasteCheckMode === "tester" || (tasteCheckMode === "learning" && tasteCheckBinary)
                                 ? "bg-teal-500/20 text-teal-300"
                                 : "text-muted-foreground"
                             )}
