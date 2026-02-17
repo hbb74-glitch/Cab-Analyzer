@@ -1630,42 +1630,6 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
         }
       }
     }
-    if (s.feedbackText) {
-      const lower = s.feedbackText.toLowerCase();
-      for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
-        if (lower.includes(keyword)) {
-          feedbackCount++;
-          allResolvedTags.push(`text:${keyword}`);
-          for (const [band, val] of Object.entries(nudge)) {
-            (feedbackNudges as any)[band] += val * dir * 0.7;
-          }
-        }
-      }
-    }
-  }
-
-  const textsForAI = signals
-    .filter((s) => s.feedbackText && s.feedbackText.trim().length > 0)
-    .map((s) => ({
-      text: s.feedbackText!,
-      action: s.action,
-      blendBands: { subBass: s.subBass, bass: s.bass, lowMid: s.lowMid, mid: s.mid, highMid: s.highMid, presence: s.presence, ratio: s.ratio },
-    }));
-
-  const aiNudges = await parseTextFeedbackWithAI(textsForAI);
-  if (aiNudges) {
-    const aiWeight = aiNudges.strength * confidence;
-    feedbackNudges.subBass += aiNudges.subBass * aiWeight;
-    feedbackNudges.bass += aiNudges.bass * aiWeight;
-    feedbackNudges.lowMid += aiNudges.lowMid * aiWeight;
-    feedbackNudges.mid += aiNudges.mid * aiWeight;
-    feedbackNudges.highMid += aiNudges.highMid * aiWeight;
-    feedbackNudges.presence += aiNudges.presence * aiWeight;
-    feedbackNudges.ratio += aiNudges.ratio * aiWeight;
-    feedbackCount += textsForAI.length;
-    if (aiNudges.summary) {
-      courseCorrections.push(`AI text interpretation: ${aiNudges.summary}`);
-    }
   }
 
   const feedbackScale = feedbackCount > 0 ? Math.min(feedbackCount / 5, 1) * confidence : 0;
@@ -1712,17 +1676,6 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
           pFeedbackCount++;
           for (const [band, val] of Object.entries(nudge)) {
             (pFeedback as any)[band] += val * dir;
-          }
-        }
-      }
-      if (s.feedbackText) {
-        const lower = s.feedbackText.toLowerCase();
-        for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
-          if (lower.includes(keyword)) {
-            pFeedbackCount++;
-            for (const [band, val] of Object.entries(nudge)) {
-              (pFeedback as any)[band] += val * dir * 0.7;
-            }
           }
         }
       }

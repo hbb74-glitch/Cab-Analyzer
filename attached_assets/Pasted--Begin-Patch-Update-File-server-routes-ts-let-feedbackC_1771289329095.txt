@@ -1,0 +1,95 @@
+*** Begin Patch
+*** Update File: server/routes.ts
+@@
+   let feedbackCount = 0;
+   const allResolvedTags: string[] = [];
+   for (const s of signals) {
+     const isNegative = s.action === "nope" || s.action === "meh";
+     const dir = isNegative ? -1 : 1;
+     if (s.feedback) {
+       const tags = s.feedback.split(",").map((t) => t.trim()).filter(Boolean);
+       for (const tag of tags) {
+         allResolvedTags.push(tag);
+         const nudge = feedbackMap[tag];
+         if (!nudge || Object.keys(nudge).length === 0) continue;
+         feedbackCount++;
+         for (const [band, val] of Object.entries(nudge)) {
+           (feedbackNudges as any)[band] += val * dir;
+         }
+       }
+     }
+-    if (s.feedbackText) {
+-      const lower = s.feedbackText.toLowerCase();
+-      for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
+-        if (lower.includes(keyword)) {
+-          feedbackCount++;
+-          allResolvedTags.push(`text:${keyword}`);
+-          for (const [band, val] of Object.entries(nudge)) {
+-            (feedbackNudges as any)[band] += val * dir * 0.7;
+-          }
+-        }
+-      }
+-    }
+   }
+ 
+-  const textsForAI = signals
+-    .filter((s) => s.feedbackText && s.feedbackText.trim().length > 0)
+-    .map((s) => ({
+-      text: s.feedbackText!,
+-      action: s.action,
+-      blendBands: { subBass: s.subBass, bass: s.bass, lowMid: s.lowMid, mid: s.mid, highMid: s.highMid, presence: s.presence, ratio: s.ratio },
+-    }));
+-
+-  const aiNudges = await parseTextFeedbackWithAI(textsForAI);
+-  if (aiNudges) {
+-    const aiWeight = aiNudges.strength * confidence;
+-    feedbackNudges.subBass += aiNudges.subBass * aiWeight;
+-    feedbackNudges.bass += aiNudges.bass * aiWeight;
+-    feedbackNudges.lowMid += aiNudges.lowMid * aiWeight;
+-    feedbackNudges.mid += aiNudges.mid * aiWeight;
+-    feedbackNudges.highMid += aiNudges.highMid * aiWeight;
+-    feedbackNudges.presence += aiNudges.presence * aiWeight;
+-    feedbackNudges.ratio += aiNudges.ratio * aiWeight;
+-    feedbackCount += textsForAI.length;
+-    if (aiNudges.summary) {
+-      courseCorrections.push(`AI text interpretation: ${aiNudges.summary}`);
+-    }
+-  }
++  // NOTE: Text feedback is intentionally NOT used to train/nudge the learned profile.
++  // We keep tag-based nudges only. Text remains stored for user vocabulary/notes.
+ 
+   const feedbackScale = feedbackCount > 0 ? Math.min(feedbackCount / 5, 1) * confidence : 0;
+   if (allResolvedTags.length > 0) {
+     const uniqueTags = Array.from(new Set(allResolvedTags));
+     courseCorrections.push(`tonal feedback applied: ${uniqueTags.join(", ")}`);
+   }
+@@
+     const pFeedback = { mid: 0, highMid: 0, presence: 0, ratio: 0, bass: 0, lowMid: 0 };
+     let pFeedbackCount = 0;
+     for (const s of profileSignals) {
+       const isNeg = s.action === "nope" || s.action === "meh";
+       const dir = isNeg ? -1 : 1;
+       if (s.feedback) {
+         const tags = s.feedback.split(",").map((t) => t.trim()).filter(Boolean);
+         for (const tag of tags) {
+           const nudge = feedbackMap[tag];
+           if (!nudge || Object.keys(nudge).length === 0) continue;
+           pFeedbackCount++;
+           for (const [band, val] of Object.entries(nudge)) {
+             (pFeedback as any)[band] += val * dir;
+           }
+         }
+       }
+-      if (s.feedbackText) {
+-        const lower = s.feedbackText.toLowerCase();
+-        for (const [keyword, nudge] of Object.entries(textKeywordMap)) {
+-          if (lower.includes(keyword)) {
+-            pFeedbackCount++;
+-            for (const [band, val] of Object.entries(nudge)) {
+-              (pFeedback as any)[band] += val * dir * 0.7;
+-            }
+-          }
+-        }
+-      }
+     }
+*** End Patch
