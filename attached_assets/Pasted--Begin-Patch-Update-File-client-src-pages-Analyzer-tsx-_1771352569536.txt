@@ -1,0 +1,72 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+-function classifyMusicalRole(tf: TonalFeatures): string {
++function classifyMusicalRole(tf: TonalFeatures): string {
+   const b = tf.bandsShapeDb;
+   const smooth = Number.isFinite(tf.smoothScore) ? tf.smoothScore : 0; // 0..100
+   const tilt = Number.isFinite(tf.tiltDbPerOct) ? tf.tiltDbPerOct : 0;
+ 
+   // Derived cues
+   const bassWeight = (b.subBass ?? 0) + (b.bass ?? 0);
+   const lowMid = b.lowMid ?? 0;
+   const mid = b.mid ?? 0;
+   const highMid = b.highMid ?? 0;
+   const presence = b.presence ?? 0;
+   const air = b.air ?? 0;
+ 
+-  // hiMid/mid ratio in shape space (not perfect, but stable and already used elsewhere)
+-  const hiMidMid = mid !== 0 ? (highMid / mid) : highMid;
+-
+-  // Heuristics (conservative; meant to be useful, not "always right")
+-  if (hiMidMid > 1.6 && presence > 0.5) return "Cut Layer";
+-  if (lowMid > 0.8 && bassWeight > 0.8) return "Thickener";
+-  if (smooth >= 80 && air < 0.2 && presence < 0.3) return "Fizz Tamer";
+-  if (presence > 0.7 && hiMidMid > 1.3) return "Lead Polish";
+-  if (tilt < -2.5) return "Dark Specialty";
+-  return "Foundation";
++  // Use differences (more stable than ratios in shape space)
++  const hiMidLift = highMid - mid;         // "upper-mid lift" relative to mid
++  const presLift = presence - mid;         // presence lift relative to mid
++  const airLift  = air - presence;         // air relative to presence
++  const lowMidLift = lowMid - mid;         // low-mid weight relative to mid
++
++  // Tighten "catch-all" roles so they don't swallow everything
++  // Dark Specialty should be truly dark in absolute tilt
++  const isVeryDark = tilt <= -5.0;
++
++  // Fizz tamer should be: very smooth AND top-end restrained (not just "not bright")
++  const isFizzTamer =
++    smooth >= 88 &&
++    presLift <= 0.2 &&
++    airLift <= 0.1 &&
++    tilt <= -1.0;
++
++  // Cut layer: strong upper-mid + presence lift (classic "cut" overlay)
++  const isCutLayer =
++    hiMidLift >= 1.2 &&
++    presLift >= 1.0 &&
++    smooth <= 90; // avoid calling ultra-smooth ribbons "cut" just because mid is low
++
++  // Thickener: low-mid weight + some bass support (but not boomy)
++  const isThickener =
++    lowMidLift >= 1.0 &&
++    bassWeight >= 0.4 &&
++    presLift <= 1.2; // if presence is huge, it's more of a cut layer than thickener
++
++  // Lead polish: presence lift without excessive air/fizz; moderately smooth
++  const isLeadPolish =
++    presLift >= 1.0 &&
++    hiMidLift >= 0.6 &&
++    airLift <= 0.6 &&
++    smooth >= 65 &&
++    tilt > -4.5;
++
++  if (isVeryDark) return "Dark Specialty";
++  if (isFizzTamer) return "Fizz Tamer";
++  if (isCutLayer) return "Cut Layer";
++  if (isThickener) return "Thickener";
++  if (isLeadPolish) return "Lead Polish";
++  return "Foundation";
+ }
+*** End Patch

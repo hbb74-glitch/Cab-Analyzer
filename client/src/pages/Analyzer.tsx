@@ -34,13 +34,41 @@ function classifyMusicalRole(tf: TonalFeatures): string {
   const presence = b.presence ?? 0;
   const air = b.air ?? 0;
 
-  const hiMidMid = mid !== 0 ? (highMid / mid) : highMid;
+  const hiMidLift = highMid - mid;
+  const presLift = presence - mid;
+  const airLift  = air - presence;
+  const lowMidLift = lowMid - mid;
 
-  if (hiMidMid > 1.6 && presence > 0.5) return "Cut Layer";
-  if (lowMid > 0.8 && bassWeight > 0.8) return "Thickener";
-  if ((smooth ?? 0) >= 80 && air < 0.2 && presence < 0.3) return "Fizz Tamer";
-  if (presence > 0.7 && hiMidMid > 1.3) return "Lead Polish";
-  if (tilt < -2.5) return "Dark Specialty";
+  const isVeryDark = tilt <= -5.0;
+
+  const isFizzTamer =
+    smooth >= 88 &&
+    presLift <= 0.2 &&
+    airLift <= 0.1 &&
+    tilt <= -1.0;
+
+  const isCutLayer =
+    hiMidLift >= 1.2 &&
+    presLift >= 1.0 &&
+    smooth <= 90;
+
+  const isThickener =
+    lowMidLift >= 1.0 &&
+    bassWeight >= 0.4 &&
+    presLift <= 1.2;
+
+  const isLeadPolish =
+    presLift >= 1.0 &&
+    hiMidLift >= 0.6 &&
+    airLift <= 0.6 &&
+    smooth >= 65 &&
+    tilt > -4.5;
+
+  if (isVeryDark) return "Dark Specialty";
+  if (isFizzTamer) return "Fizz Tamer";
+  if (isCutLayer) return "Cut Layer";
+  if (isThickener) return "Thickener";
+  if (isLeadPolish) return "Lead Polish";
   return "Foundation";
 }
 
