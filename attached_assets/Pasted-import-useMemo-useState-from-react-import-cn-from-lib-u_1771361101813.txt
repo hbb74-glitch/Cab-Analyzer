@@ -9,6 +9,7 @@ function tryClipboardWrite(text: string): Promise<boolean> {
         return true;
       }
     } catch {
+      // fall through
     }
     try {
       const ta = document.createElement("textarea");
@@ -34,6 +35,10 @@ interface SummaryCopyButtonProps {
   buildSummaryText: () => string;
   buttonLabel?: string;
   className?: string;
+  /**
+   * If true, opens the manual-copy modal when there's nothing to copy
+   * so it never feels like "nothing happened".
+   */
   openModalWhenEmpty?: boolean;
 }
 
@@ -62,6 +67,7 @@ export function SummaryCopyButton({
   async function onCopyClick(e: React.MouseEvent) {
     e?.preventDefault?.();
 
+    // Previously this returned silently (looked broken).
     if (!hasText) {
       if (openModalWhenEmpty) {
         setLastText(
@@ -82,6 +88,7 @@ export function SummaryCopyButton({
       return;
     }
 
+    // Clipboard blocked (common on iOS/webviews) → show manual copy modal.
     setOpen(true);
   }
 
