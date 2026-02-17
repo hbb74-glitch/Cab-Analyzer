@@ -996,6 +996,7 @@ export default function IRMixer() {
     "more_air",
     "less_fizz",
     "less_mud",
+    "too_scooped",
   ]), []);
 
   const ISSUE_TAGS = useMemo(() => ([
