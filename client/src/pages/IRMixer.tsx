@@ -1648,6 +1648,11 @@ export default function IRMixer() {
     }));
     setTotalRoundsCompleted((prev) => prev + 1);
 
+    const disableAutoRatioRefine = true;
+    if (disableAutoRatioRefine) {
+      return;
+    }
+
     if (refineCandidates.length > 0) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
 
@@ -2838,12 +2843,12 @@ export default function IRMixer() {
                                         </Button>
                                       ))}
                                     </div>
-                                    <input
-                                      type="text"
+                                    <textarea
+                                      rows={2}
                                       placeholder={crossCabRankings[blendKey] === 1 ? "What makes it great..." : crossCabRankings[blendKey] === 2 ? "What would make it better..." : "Describe the issue..."}
                                       value={crossCabFeedbackText[blendKey] || ""}
                                       onChange={(e) => setCrossCabFeedbackText((prev) => ({ ...prev, [blendKey]: e.target.value }))}
-                                      className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                                      className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring leading-snug resize-y whitespace-pre-wrap break-words"
                                       data-testid={`input-ccfb-text-${idx}`}
                                     />
                                   </div>
@@ -3075,12 +3080,12 @@ export default function IRMixer() {
                                 </Button>
                               ))}
                             </div>
-                            <input
-                              type="text"
+                            <textarea
+                              rows={2}
                               placeholder={assignedRank === 1 ? "What makes it great..." : assignedRank === 2 ? "What would make it better..." : "Describe the issue..."}
                               value={pairingFeedbackText[pk] || ""}
                               onChange={(e) => setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))}
-                              className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                              className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring leading-snug resize-y whitespace-pre-wrap break-words"
                               data-testid={`input-feedback-text-${idx}`}
                             />
                           </div>

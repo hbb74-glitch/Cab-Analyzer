@@ -1,0 +1,101 @@
+*** Begin Patch
+*** Update File: client/src/pages/IRMixer.tsx
+@@
+   const handleSubmitRankings = useCallback((loadTopPick: boolean) => {
+@@
+-    if (signals.length > 0) {
+-      submitSignalsMutation.mutate(signals);
+-    }
++    if (signals.length > 0) {
++      submitSignalsMutation.mutate(signals);
++    }
+@@
+-    setCumulativeSignals((prev) => ({
++    setCumulativeSignals((prev) => ({
+       liked: prev.liked + roundLiked,
+       noped: prev.noped + roundNoped,
+     }));
+ 
++    // ------------------------------------------------------------
++    // IMPORTANT: Disable legacy "auto-switch to ratio refinement"
++    // Your new workflow is 4-pick/Auto iterative learning.
++    // Ratio refinement should only happen when user explicitly selects Ratio mode.
++    // ------------------------------------------------------------
++    const disableAutoRatioRefine = true;
++    if (disableAutoRatioRefine) {
++      // Keep user in current mode; do not call proceedToRatioRefine/finishRound logic.
++      // NOTE: We still keep taste-check progression state intact for later if desired.
++      return;
++    }
++
+     // Existing legacy flow (kept but unreachable when disableAutoRatioRefine = true)
+     if (!tasteCheckPassed) {
+       const rounds = getTasteCheckRounds();
+       const candidates = pickTasteCheckCandidates(refineCandidates, rounds);
+       setTasteCheckPhase(candidates);
+       return;
+     }
+ 
+     if (loadTopPick) {
+       proceedToRatioRefine(refineCandidates);
+     } else {
+       finishRound();
+     }
+@@
+-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, submitSignalsMutation, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, tasteCheckPassed, finishRound, proceedToRatioRefine, pickTasteCheckCandidates, getTasteCheckRounds, setTasteCheckPhase]);
++  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, submitSignalsMutation, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, tasteCheckPassed, finishRound, proceedToRatioRefine, pickTasteCheckCandidates, getTasteCheckRounds, setTasteCheckPhase]);
+@@
+-                <input
+-                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs"
+-                  placeholder="What makes it great..."
+-                  value={pairingFeedbackText[pk] ?? ""}
+-                  onChange={(e) =>
+-                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
+-                  }
+-                />
++                <textarea
++                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs leading-snug resize-y whitespace-pre-wrap break-words"
++                  rows={2}
++                  placeholder="What makes it great..."
++                  value={pairingFeedbackText[pk] ?? ""}
++                  onChange={(e) =>
++                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
++                  }
++                />
+@@
+-                <input
+-                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs"
+-                  placeholder="What would make it better..."
+-                  value={pairingFeedbackText[pk] ?? ""}
+-                  onChange={(e) =>
+-                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
+-                  }
+-                />
++                <textarea
++                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs leading-snug resize-y whitespace-pre-wrap break-words"
++                  rows={2}
++                  placeholder="What would make it better..."
++                  value={pairingFeedbackText[pk] ?? ""}
++                  onChange={(e) =>
++                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
++                  }
++                />
+@@
+-                <input
+-                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs"
+-                  placeholder="Describe the issue..."
+-                  value={pairingFeedbackText[pk] ?? ""}
+-                  onChange={(e) =>
+-                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
+-                  }
+-                />
++                <textarea
++                  className="w-full bg-transparent border border-zinc-700 rounded px-2 py-1 text-xs leading-snug resize-y whitespace-pre-wrap break-words"
++                  rows={2}
++                  placeholder="Describe the issue..."
++                  value={pairingFeedbackText[pk] ?? ""}
++                  onChange={(e) =>
++                    setPairingFeedbackText((prev) => ({ ...prev, [pk]: e.target.value }))
++                  }
++                />
+*** End Patch
