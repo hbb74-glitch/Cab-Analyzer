@@ -24,84 +24,73 @@ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 
 function classifyMusicalRole(tf: TonalFeatures): string {
-  const bp = tf.bandsPercent ?? {} as any;
+  const bp = (tf.bandsPercent ?? {}) as any;
   const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
-  const tiltDb = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
-  const highExtensionHz = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 6000;
+  const tilt = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
+  const ext = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 0;
 
-  const midPercent = ((bp.mid ?? 0) * 100);
-  const presencePercent = ((bp.presence ?? 0) * 100);
-  const airPercent = ((bp.air ?? 0) * 100);
-  const bassLowMidPercent = (((bp.subBass ?? 0) + (bp.bass ?? 0) + (bp.lowMid ?? 0)) * 100);
+  const mid = (bp.mid ?? 0) * 100;
+  const highMid = (bp.highMid ?? 0) * 100;
+  const presence = (bp.presence ?? 0) * 100;
+  const lowMid = (bp.lowMid ?? 0) * 100;
+  const bass = (bp.bass ?? 0) * 100;
+  const subBass = (bp.subBass ?? 0) * 100;
 
-  const hiMidMidRatio =
-    midPercent > 0 ? (((bp.highMid ?? 0) * 100) / midPercent) : 1;
+  const bassLowMid = subBass + bass + lowMid;
 
-  const fizzElevated = airPercent > 18;
-  const bodyLean = bassLowMidPercent < 25;
+  const hiMidMidRatio = mid > 0 ? (highMid / mid) : 10;
 
-  if (
-    hiMidMidRatio >= 0.9 &&
-    hiMidMidRatio <= 1.25 &&
-    midPercent >= 22 &&
-    midPercent <= 32 &&
-    tiltDb > -3 &&
-    tiltDb < 3
-  ) {
+  const balancedBands =
+    mid >= 22 && mid <= 35 &&
+    presence >= 18 && presence <= 42 &&
+    highMid >= 18 && highMid <= 38 &&
+    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35;
+
+  const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
+  const notTooDark = ext === 0 ? true : ext >= 4400;
+  const notBodyLean = bassLowMid >= 18;
+
+  if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
     return "Foundation";
   }
 
-  if (
-    hiMidMidRatio > 1.35 &&
-    presencePercent > 30 &&
-    midPercent < 25 &&
-    tiltDb >= 0
-  ) {
+  const presenceForward = presence >= 45 || hiMidMidRatio >= 1.6;
+  const midLean = mid <= 23;
+
+  if (presenceForward && midLean) {
     return "Cut Layer";
   }
 
-  if (
-    hiMidMidRatio < 0.95 &&
-    midPercent > 30 &&
-    !fizzElevated &&
-    tiltDb <= 0
-  ) {
+  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85);
+  const notPresenceSpiky = presence <= 32;
+
+  if (midHeavy && notPresenceSpiky) {
     return "Mid Thickener";
   }
 
-  if (
-    tiltDb < -2 &&
-    highExtensionHz < 4800 &&
-    smooth >= 75
-  ) {
+  const rolledOff = ext > 0 && ext <= 4500;
+  const veryDarkTilt = tilt <= -5.2;
+
+  if ((rolledOff || veryDarkTilt) && smooth >= 82) {
     return "Fizz Tamer";
   }
 
-  if (
-    highExtensionHz >= 5000 &&
-    smooth >= 80 &&
-    hiMidMidRatio >= 1.0 &&
-    hiMidMidRatio <= 1.4 &&
-    midPercent >= 20 &&
-    midPercent <= 30 &&
-    !fizzElevated &&
-    !bodyLean
-  ) {
+  const extended = ext > 0 && ext >= 5100;
+  const smoothEnough = smooth >= 86;
+  const notTooPresencey = presence <= 44;
+  const notTooScooped = mid >= 18;
+
+  if (extended && smoothEnough && notTooPresencey && notTooScooped) {
     return "Lead Polish";
   }
 
-  if (
-    (highExtensionHz > 0 && highExtensionHz < 3800) ||
-    tiltDb <= -6
-  ) {
+  if ((ext > 0 && ext < 3800) || tilt <= -6.5) {
     return "Dark Specialty";
   }
 
-  if (!fizzElevated && smooth >= 82 && highExtensionHz >= 5000) return "Lead Polish";
-  if (presencePercent >= 26 || hiMidMidRatio >= 1.15 || tiltDb >= -2) return "Cut Layer";
-  if (midPercent >= 28 && !bodyLean) return "Mid Thickener";
-  if (tiltDb <= -3.5 || highExtensionHz < 4800) return "Fizz Tamer";
-
+  if (presence >= 44 || hiMidMidRatio >= 1.45) return "Cut Layer";
+  if (mid >= 32) return "Mid Thickener";
+  if (tilt <= -4.8 || (ext > 0 && ext <= 4700)) return "Fizz Tamer";
   return "Foundation";
 }
 
@@ -1781,7 +1770,7 @@ export default function Analyzer() {
     analyzerMode: mode,
     setAnalyzerMode: setMode
   } = useResults();
-  const batchMetricsByFilenameRef = useRef<Map<string, any>>(new Map());
+  const batchMetricsByFilenameRef = useRef<Map<string, AudioMetrics>>(new Map());
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -1793,6 +1782,19 @@ export default function Analyzer() {
   };
 
   const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
+
+  const inferFizzLabel = (tfAny: any): string => {
+    const smooth = Number(tfAny?.smoothScore ?? 0);
+    const tilt = Number(tfAny?.tiltDbPerOct ?? 0);
+    const ext = Number(tfAny?.rolloffFreq ?? 0);
+    const centroid = Number(tfAny?.spectralCentroidHz ?? 0);
+
+    if (smooth >= 88 && tilt <= -4.8 && ext > 0 && ext <= 4500) return "Low fizz (tamed)";
+    if (smooth <= 80 && ext > 0 && ext >= 5200 && centroid >= 3100) return "Higher fizz risk";
+    if (ext > 0 && ext >= 5200 && smooth >= 86) return "Polished top (not fizzy)";
+    if (tilt <= -5.8 || (ext > 0 && ext <= 3900)) return "Dark / rolled-off";
+    return "Neutral";
+  };
 
   const buildSummaryTSVForRow = (r: any) => {
     const filename = safe(r.filename ?? r.name ?? "");
@@ -1811,7 +1813,11 @@ export default function Analyzer() {
     const featureSource: any = {
       ...r,
       spectralCentroidHz:
-        (metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0),
+        ((metricsForFile as any)?.spectralCentroidHz ??
+        (metricsForFile as any)?.spectralCentroid ??
+        r?.spectralCentroidHz ??
+        r?.spectralCentroid ??
+        0),
       bandsPercent: bandsFromBatch,
     };
 
@@ -1829,7 +1835,7 @@ export default function Analyzer() {
     const air = fmt(((bp.air ?? 0) * 100), 1);
 
     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
-    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? metricsForFile?.spectralCentroidHz ?? metricsForFile?.spectralCentroid ?? "", 0);
+    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? (metricsForFile as any)?.spectralCentroidHz ?? (metricsForFile as any)?.spectralCentroid ?? "", 0);
 
     const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
     const roleSource = rawRole ? "stored" : "computed";
@@ -1839,7 +1845,7 @@ export default function Analyzer() {
     let role = rawRole;
     if (!role) {
       try {
-        role = classifyMusicalRole(tf ?? computeTonalFeatures(r));
+        role = classifyMusicalRole(tf ?? computeTonalFeatures(featureSource));
       } catch {
         role = "";
       }
@@ -1850,13 +1856,13 @@ export default function Analyzer() {
     const rolloff = fmt(r.rolloffFreq ?? r.rolloffFrequency ?? r.highExtensionHz ?? "");
     const smooth = fmt(r.smoothScore ?? r.frequencySmoothness ?? tf?.smoothScore ?? "", 0);
 
-    const hiMidVal = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
-    const midVal = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
+    const hiMidVal = tf?.bandsPercent?.highMid ?? bandsFromBatch.highMid ?? "";
+    const midVal = tf?.bandsPercent?.mid ?? bandsFromBatch.mid ?? "";
     const hiMidMid = (Number.isFinite(hiMidVal) && Number.isFinite(midVal) && midVal !== 0)
       ? (hiMidVal / midVal)
       : (r.hiMidMid ?? "");
 
-    const fizz = safe(r.fizzLabel ?? r.fizz ?? "");
+    const fizz = safe(r.fizzLabel ?? r.fizz ?? inferFizzLabel(tf));
     const notes = safe(r.notes ?? r.feedbackText ?? "");
 
     return [
@@ -2345,7 +2351,7 @@ export default function Analyzer() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const m = new Map<string, any>();
+    const m = new Map<string, AudioMetrics>();
     for (const ir of batchIRs) {
       if (ir?.file?.name && ir.metrics) m.set(ir.file.name, ir.metrics);
     }

@@ -1,0 +1,255 @@
+--- client/src/pages/Analyzer.tsx
++++ client/src/pages/Analyzer.tsx
+@@ -24,84 +24,81 @@
+ import { SummaryCopyButton } from "@/components/SummaryCopyButton";
+ 
+ function classifyMusicalRole(tf: TonalFeatures): string {
+-  const bp = tf.bandsPercent ?? {} as any;
++  const bp = (tf.bandsPercent ?? {}) as any;
+   const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
+-  const tiltDb = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
+-  const highExtensionHz = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 6000;
+-
+-  const midPercent = ((bp.mid ?? 0) * 100);
+-  const presencePercent = ((bp.presence ?? 0) * 100);
+-  const airPercent = ((bp.air ?? 0) * 100);
+-  const bassLowMidPercent = (((bp.subBass ?? 0) + (bp.bass ?? 0) + (bp.lowMid ?? 0)) * 100);
+-
+-  const hiMidMidRatio =
+-    midPercent > 0 ? (((bp.highMid ?? 0) * 100) / midPercent) : 1;
+-
+-  const fizzElevated = airPercent > 18;
+-  const bodyLean = bassLowMidPercent < 25;
+-
+-  if (
+-    hiMidMidRatio >= 0.9 &&
+-    hiMidMidRatio <= 1.25 &&
+-    midPercent >= 22 &&
+-    midPercent <= 32 &&
+-    tiltDb > -3 &&
+-    tiltDb < 3
+-  ) {
++  const tilt = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
++  const ext = Number.isFinite(tf.rolloffFreq) ? (tf.rolloffFreq as number) : 0;
++
++  // bp.* are FRACTIONS (0–1). Convert to % for readable thresholds.
++  const mid = (bp.mid ?? 0) * 100;
++  const highMid = (bp.highMid ?? 0) * 100;
++  const presence = (bp.presence ?? 0) * 100;
++  const lowMid = (bp.lowMid ?? 0) * 100;
++  const bass = (bp.bass ?? 0) * 100;
++  const subBass = (bp.subBass ?? 0) * 100;
++
++  const bassLowMid = subBass + bass + lowMid;
++
++  const hiMidMidRatio = mid > 0 ? (highMid / mid) : 10; // if mid ~0, treat as extremely cut
++
++  // 1) FOUNDATION (priority): balanced “main mic” candidates
++  const balancedBands =
++    mid >= 22 && mid <= 35 &&
++    presence >= 18 && presence <= 42 &&
++    highMid >= 18 && highMid <= 38 &&
++    hiMidMidRatio >= 0.85 && hiMidMidRatio <= 1.35;
++
++  const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
++  const notTooDark = ext === 0 ? true : ext >= 4400; // if ext missing, don’t block
++  const notBodyLean = bassLowMid >= 18;
++
++  if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
+     return "Foundation";
+   }
+ 
+-  if (
+-    hiMidMidRatio > 1.35 &&
+-    presencePercent > 30 &&
+-    midPercent < 25 &&
+-    tiltDb >= 0
+-  ) {
++  // 2) CUT LAYER: presence-forward, relatively lean mids
++  const presenceForward = presence >= 45 || hiMidMidRatio >= 1.6;
++  const midLean = mid <= 23;
++
++  if (presenceForward && midLean) {
+     return "Cut Layer";
+   }
+ 
+-  if (
+-    hiMidMidRatio < 0.95 &&
+-    midPercent > 30 &&
+-    !fizzElevated &&
+-    tiltDb <= 0
+-  ) {
++  // 3) MID THICKENER: very mid/low-mid forward, not much cut
++  const midHeavy = mid >= 36 || (mid >= 32 && hiMidMidRatio <= 0.85);
++  const notPresenceSpiky = presence <= 32;
++
++  if (midHeavy && notPresenceSpiky) {
+     return "Mid Thickener";
+   }
+ 
+-  if (
+-    tiltDb < -2 &&
+-    highExtensionHz < 4800 &&
+-    smooth >= 75
+-  ) {
++  // 4) FIZZ TAMER: darker/rolled-off or very negative tilt, typically smooth
++  const rolledOff = ext > 0 && ext <= 4500;
++  const veryDarkTilt = tilt <= -5.2;
++
++  if ((rolledOff || veryDarkTilt) && smooth >= 82) {
+     return "Fizz Tamer";
+   }
+ 
+-  if (
+-    highExtensionHz >= 5000 &&
+-    smooth >= 80 &&
+-    hiMidMidRatio >= 1.0 &&
+-    hiMidMidRatio <= 1.4 &&
+-    midPercent >= 20 &&
+-    midPercent <= 30 &&
+-    !fizzElevated &&
+-    !bodyLean
+-  ) {
++  // 5) LEAD POLISH (tightened): smooth + extended, but not a knife
++  const extended = ext > 0 && ext >= 5100;
++  const smoothEnough = smooth >= 86;
++  const notTooPresencey = presence <= 44; // key: stops cut shots being called polish
++  const notTooScooped = mid >= 18;
++
++  if (extended && smoothEnough && notTooPresencey && notTooScooped) {
+     return "Lead Polish";
+   }
+ 
+-  if (
+-    (highExtensionHz > 0 && highExtensionHz < 3800) ||
+-    tiltDb <= -6
+-  ) {
++  // 6) DARK SPECIALTY: very dark / extreme tilt
++  if ((ext > 0 && ext < 3800) || tilt <= -6.5) {
+     return "Dark Specialty";
+   }
+ 
+-  if (!fizzElevated && smooth >= 82 && highExtensionHz >= 5000) return "Lead Polish";
+-  if (presencePercent >= 26 || hiMidMidRatio >= 1.15 || tiltDb >= -2) return "Cut Layer";
+-  if (midPercent >= 28 && !bodyLean) return "Mid Thickener";
+-  if (tiltDb <= -3.5 || highExtensionHz < 4800) return "Fizz Tamer";
+-
+-  return "Foundation";
++  // Fallback: nearest useful role (never “Feature Element”)
++  if (presence >= 44 || hiMidMidRatio >= 1.45) return "Cut Layer";
++  if (mid >= 32) return "Mid Thickener";
++  if (tilt <= -4.8 || (ext > 0 && ext <= 4700)) return "Fizz Tamer";
++  return "Foundation";
+ }
+@@ -1780,6 +1777,8 @@
+     analyzerMode: mode,
+     setAnalyzerMode: setMode
+   } = useResults();
++  const batchMetricsByFilenameRef = useRef<Map<string, AudioMetrics>>(new Map());
+   
+   const { data: learnedProfile } = useQuery<LearnedProfileData>({
+     queryKey: ["/api/preferences/learned"],
+   });
+@@ -1793,8 +1792,23 @@
+   };
+ 
+   const safe = (v: any) => (v === null || v === undefined ? "" : String(v));
+ 
++  const inferFizzLabel = (tfAny: any): string => {
++    const smooth = Number(tfAny?.smoothScore ?? 0);
++    const tilt = Number(tfAny?.tiltDbPerOct ?? 0);
++    const ext = Number(tfAny?.rolloffFreq ?? 0);
++    const centroid = Number(tfAny?.spectralCentroidHz ?? 0);
++
++    if (smooth >= 88 && tilt <= -4.8 && ext > 0 && ext <= 4500) return "Low fizz (tamed)";
++    if (smooth <= 80 && ext > 0 && ext >= 5200 && centroid >= 3100) return "Higher fizz risk";
++    if (ext > 0 && ext >= 5200 && smooth >= 86) return "Polished top (not fizzy)";
++    if (tilt <= -5.8 || (ext > 0 && ext <= 3900)) return "Dark / rolled-off";
++    return "Neutral";
++  };
++
+   const buildSummaryTSVForRow = (r: any) => {
+-    let tf: any = null;
+-    try { tf = computeTonalFeatures(r); } catch {}
++    const filename = safe(r.filename ?? r.name ?? "");
++    const metricsForFile = batchMetricsByFilenameRef.current.get(filename);
++
++    const bandsFromBatch = {
++      subBass: ((Number(r.subBassPercent) || 0) / 100),
++      bass: ((Number(r.bassPercent) || 0) / 100),
++      lowMid: ((Number(r.lowMidPercent) || 0) / 100),
++      mid: ((Number(r.midPercent) || 0) / 100),
++      highMid: ((Number(r.highMidPercent) || 0) / 100),
++      presence: ((Number(r.presencePercent) || 0) / 100),
++      air: ((Number((r as any).airPercent) || 0) / 100),
++    };
++
++    const featureSource: any = {
++      ...r,
++      bandsPercent: bandsFromBatch,
++      spectralCentroidHz:
++        (metricsForFile as any)?.spectralCentroidHz ??
++        (metricsForFile as any)?.spectralCentroid ??
++        r?.spectralCentroidHz ??
++        r?.spectralCentroid ??
++        0,
++    };
++
++    let tf: any = null;
++    try { tf = computeTonalFeatures(featureSource); } catch {}
+ 
+     const bp = tf?.bandsPercent ?? {};
+ 
+@@ -1819,7 +1833,7 @@
+     const air = fmt(((bp.air ?? 0) * 100), 1);
+ 
+     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
+-    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "", 0);
++    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? (metricsForFile as any)?.spectralCentroidHz ?? (metricsForFile as any)?.spectralCentroid ?? "", 0);
+ 
+     const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+     const roleSource = rawRole ? "stored" : "computed";
+ 
+-    const filename = safe(r.filename ?? r.name ?? "");
+     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
+ 
+     let role = rawRole;
+     if (!role) {
+       try {
+-        role = classifyMusicalRole(tf ?? computeTonalFeatures(r));
++        role = classifyMusicalRole(tf ?? computeTonalFeatures(featureSource));
+       } catch {
+         role = "";
+       }
+     }
+@@ -1830,8 +1844,8 @@
+     const rolloff = fmt(r.rolloffFreq ?? r.rolloffFrequency ?? r.highExtensionHz ?? "");
+     const smooth = fmt(r.smoothScore ?? r.frequencySmoothness ?? tf?.smoothScore ?? "", 0);
+ 
+-    const hiMidVal = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
+-    const midVal = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
++    const hiMidVal = tf?.bandsPercent?.highMid ?? bandsFromBatch.highMid ?? "";
++    const midVal = tf?.bandsPercent?.mid ?? bandsFromBatch.mid ?? "";
+     const hiMidMid = (Number.isFinite(hiMidVal) && Number.isFinite(midVal) && midVal !== 0)
+       ? (hiMidVal / midVal)
+       : (r.hiMidMid ?? "");
+ 
+-    const fizz = safe(r.fizzLabel ?? r.fizz ?? "");
++    const fizz = safe(r.fizzLabel ?? r.fizz ?? inferFizzLabel(tf));
+     const notes = safe(r.notes ?? r.feedbackText ?? "");
+ 
+     return [
+@@ -2324,6 +2338,16 @@
+   // Batch mode state
+   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
++
++  // Keep per-file metrics accessible for batch export (centroid, etc.)
++  useEffect(() => {
++    const m = new Map<string, AudioMetrics>();
++    for (const ir of batchIRs) {
++      if (ir?.file?.name && ir.metrics) m.set(ir.file.name, ir.metrics);
++    }
++    batchMetricsByFilenameRef.current = m;
++  }, [batchIRs]);
++
+   const [copied, setCopied] = useState(false);
