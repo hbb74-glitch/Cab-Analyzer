@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, featuresFromBands, type TonalBands, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 
 function classifyMusicalRole(tf: TonalFeatures): string {
   const bp = tf.bandsPercent;
@@ -1806,61 +1807,12 @@ export default function Analyzer() {
     ].join("\t");
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch (err) {
-      console.warn("clipboard.writeText failed, falling back:", err);
-    }
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      ta.style.top = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      ta.setSelectionRange(0, ta.value.length);
-      const ok = document.execCommand("copy");
-      document.body.removeChild(ta);
-      return ok;
-    } catch {
-      return false;
-    }
-  };
-
   const tsvHeader = [
     "filename", "score", "musical_role", "spectral_centroid_hz",
     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
     "smooth_score", "hiMidMid_ratio", "fizz_label", "notes",
   ].join("\t");
 
-  const buildAndCopyBatchTSV = async () => {
-    if (!batchResult?.results?.length) return;
-    const rows = batchResult.results.map((r: any) => buildSummaryTSVForRow(r));
-    await copyToClipboard([tsvHeader, ...rows].join("\n"));
-  };
-
-  const buildAndCopySingleTSV = async () => {
-    if (!result || !metrics) return;
-    const rowObj: any = {
-      filename: result.filename ?? (result as any).name ?? "single_result",
-      score: result.qualityScore ?? (result as any).score ?? "",
-      role: (result as any).musicalRole ?? (result as any).role ?? "",
-      spectralCentroidHz: (metrics as any)?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
-      spectralTilt: (metrics as any)?.spectralTilt ?? "",
-      rolloffFreq: (metrics as any)?.rolloffFreq ?? "",
-      smoothScore: metrics?.smoothScore ?? (metrics as any)?.frequencySmoothness ?? "",
-      fizzLabel: (result as any)?.fizzLabel ?? "",
-      notes: "",
-    };
-    const row = buildSummaryTSVForRow(rowObj);
-    await copyToClipboard([tsvHeader, row].join("\n"));
-  };
 
   const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
     queryKey: ["/api/tonal-profiles"],
@@ -4583,14 +4535,14 @@ export default function Analyzer() {
                   </div>
 
                   <div className="flex justify-end">
-                    <button
-                      className="px-3 py-1 rounded border border-zinc-600 text-xs"
-                      onClick={buildAndCopyBatchTSV}
-                      title="Copy a TSV summary of all batch results"
-                      data-testid="button-copy-batch-summary"
-                    >
-                      Copy Summary
-                    </button>
+                    <SummaryCopyButton
+                      buildSummaryText={() => {
+                        if (!batchResult?.results?.length) return "";
+                        const rows = batchResult.results.map((r: any) => buildSummaryTSVForRow(r));
+                        return [tsvHeader, ...rows].join("\n");
+                      }}
+                      buttonLabel="Copy Summary"
+                    />
                   </div>
 
                   <p className="text-muted-foreground">{batchResult.summary}</p>
@@ -6909,14 +6861,24 @@ export default function Analyzer() {
                   className="space-y-2"
                 >
                   <div className="flex justify-end gap-2">
-                    <button
-                      className="px-3 py-1 rounded border border-zinc-600 text-xs"
-                      onClick={buildAndCopySingleTSV}
-                      title="Copy a TSV summary of the current single analysis result"
-                      data-testid="button-copy-single-summary"
-                    >
-                      Copy Summary
-                    </button>
+                    <SummaryCopyButton
+                      buildSummaryText={() => {
+                        if (!result || !metrics) return "";
+                        const rowObj: any = {
+                          filename: result.filename ?? (result as any).name ?? "single_result",
+                          score: result.qualityScore ?? (result as any).score ?? "",
+                          role: (result as any).musicalRole ?? (result as any).role ?? "",
+                          spectralCentroidHz: (metrics as any)?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
+                          spectralTilt: (metrics as any)?.spectralTilt ?? "",
+                          rolloffFreq: (metrics as any)?.rolloffFreq ?? "",
+                          smoothScore: metrics?.smoothScore ?? (metrics as any)?.frequencySmoothness ?? "",
+                          fizzLabel: (result as any)?.fizzLabel ?? "",
+                          notes: "",
+                        };
+                        return [tsvHeader, buildSummaryTSVForRow(rowObj)].join("\n");
+                      }}
+                      buttonLabel="Copy Summary"
+                    />
                     <button
                       onClick={() => { setResult(null); setMetrics(null); }}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-destructive/20 border border-white/10 text-xs font-medium transition-all text-muted-foreground hover:text-destructive"

@@ -1,0 +1,150 @@
+import React, { useMemo, useState } from "react";
+
+/**
+ * Drop this into the component where your "Copy summary" button lives.
+ * Wire it: <SummaryCopyButton buildSummaryText={...} />
+ *
+ * buildSummaryText MUST return a plain string.
+ * If you currently have rows/objects, stringify them before returning.
+ */
+
+function tryClipboardWrite(text) {
+  // Returns a promise that resolves true/false (never throws)
+  return (async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) {
+      // ignored
+    }
+    // Fallback: execCommand
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) {
+      return false;
+    }
+  })();
+}
+
+export function SummaryCopyButton({ buildSummaryText, buttonLabel = "Copy summary" }) {
+  const [open, setOpen] = useState(false);
+  const [lastText, setLastText] = useState("");
+
+  const summaryText = useMemo(() => {
+    try {
+      const t = buildSummaryText?.();
+      return typeof t === "string" ? t : String(t ?? "");
+    } catch (e) {
+      return `ERROR: buildSummaryText() threw: ${e?.message || e}`;
+    }
+  }, [buildSummaryText]);
+
+  async function onCopyClick(e) {
+    e?.preventDefault?.();
+
+    const text = summaryText?.trim() || "";
+    if (!text) {
+      alert("Copy summary: nothing to copy (empty text).");
+      return;
+    }
+
+    setLastText(text);
+
+    const ok = await tryClipboardWrite(text);
+
+    if (ok) {
+      // Success: you can swap this for your toast system
+      alert("Copied to clipboard.");
+      return;
+    }
+
+    // Clipboard blocked → open manual-copy modal (works on iOS)
+    setOpen(true);
+  }
+
+  function onClose() {
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <button type="button" onClick={onCopyClick}>
+        {buttonLabel}
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 9999,
+          }}
+          onClick={onClose}
+        >
+          <div
+            style={{
+              width: "min(900px, 96vw)",
+              maxHeight: "85vh",
+              background: "white",
+              borderRadius: 16,
+              padding: 16,
+              overflow: "auto",
+            }}
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <strong style={{ flex: 1 }}>Manual copy</strong>
+              <button type="button" onClick={onClose}>Close</button>
+            </div>
+
+            <p style={{ marginTop: 0 }}>
+              Clipboard copy is blocked on this device/browser. Tap inside the box, then
+              <b> Select All → Copy</b>.
+            </p>
+
+            <textarea
+              value={lastText}
+              readOnly
+              style={{
+                width: "100%",
+                height: "55vh",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                fontSize: 12,
+                lineHeight: 1.4,
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid #ccc",
+              }}
+              onFocus={(ev) => {
+                // Helps iOS users: auto-select all when they tap in
+                try {
+                  ev.target.select();
+                  ev.target.setSelectionRange(0, ev.target.value.length);
+                } catch {}
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
