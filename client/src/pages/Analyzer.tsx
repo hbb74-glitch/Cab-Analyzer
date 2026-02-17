@@ -53,22 +53,22 @@ function classifyMusicalRole(tf: TonalFeatures): string {
     smooth <= 90;
 
   const isThickener =
-    lowMidLift >= 1.0 &&
-    bassWeight >= 0.4 &&
-    presLift <= 1.2;
+    lowMidLift >= 0.55 &&
+    bassWeight >= 0.15 &&
+    presLift <= 1.6;
 
   const isLeadPolish =
-    presLift >= 1.0 &&
-    hiMidLift >= 0.6 &&
-    airLift <= 0.6 &&
-    smooth >= 65 &&
-    tilt > -4.5;
+    presLift >= 0.55 &&
+    hiMidLift >= 0.25 &&
+    airLift <= 0.9 &&
+    smooth >= 55 &&
+    tilt > -6.0;
 
   if (isVeryDark) return "Dark Specialty";
   if (isFizzTamer) return "Fizz Tamer";
-  if (isCutLayer) return "Cut Layer";
-  if (isThickener) return "Thickener";
   if (isLeadPolish) return "Lead Polish";
+  if (isThickener) return "Thickener";
+  if (isCutLayer) return "Cut Layer";
   return "Foundation";
 }
 
