@@ -1797,10 +1797,26 @@ export default function Analyzer() {
     let tf: any = null;
     try { tf = computeTonalFeatures(r); } catch {}
 
+    const bp = tf?.bandsPercent ?? {};
+
+    const subBass = fmt(((bp.subBass ?? 0) * 100), 1);
+    const bass = fmt(((bp.bass ?? 0) * 100), 1);
+    const lowMid = fmt(((bp.lowMid ?? 0) * 100), 1);
+    const mid = fmt(((bp.mid ?? 0) * 100), 1);
+    const highMid = fmt(((bp.highMid ?? 0) * 100), 1);
+    const presence = fmt(((bp.presence ?? 0) * 100), 1);
+    const air = fmt(((bp.air ?? 0) * 100), 1);
+
+    const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
+    const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "", 0);
+
+    const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+    const roleSource = rawRole ? "stored" : "computed";
+
     const filename = safe(r.filename ?? r.name ?? "");
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
 
-    let role = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+    let role = rawRole;
     if (!role) {
       try {
         role = classifyMusicalRole(tf ?? computeTonalFeatures(r));
@@ -1809,30 +1825,34 @@ export default function Analyzer() {
       }
     }
 
-    const centroid = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "");
+    const centroid = centroidExported || centroidComputed;
     const tilt = fmt(r.spectralTilt ?? r.tiltDbPerOct ?? tf?.tiltDbPerOct ?? "");
     const rolloff = fmt(r.rolloffFreq ?? r.rolloffFrequency ?? r.highExtensionHz ?? "");
     const smooth = fmt(r.smoothScore ?? r.frequencySmoothness ?? tf?.smoothScore ?? "", 0);
 
-    const hiMid = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
-    const mid = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
-    const hiMidMid = (Number.isFinite(hiMid) && Number.isFinite(mid) && mid !== 0)
-      ? (hiMid / mid)
+    const hiMidVal = tf?.bandsPercent?.highMid ?? r.highMidPercent ?? r.highMid ?? "";
+    const midVal = tf?.bandsPercent?.mid ?? r.midPercent ?? r.mid ?? "";
+    const hiMidMid = (Number.isFinite(hiMidVal) && Number.isFinite(midVal) && midVal !== 0)
+      ? (hiMidVal / midVal)
       : (r.hiMidMid ?? "");
 
     const fizz = safe(r.fizzLabel ?? r.fizz ?? "");
     const notes = safe(r.notes ?? r.feedbackText ?? "");
 
     return [
-      filename, score, role, centroid, tilt, rolloff, smooth,
-      fmt(hiMidMid, 2), fizz, notes,
+      filename, score, role, roleSource, centroid,
+      tilt, rolloff, smooth, fmt(hiMidMid, 2),
+      subBass, bass, lowMid, mid, highMid, presence, air,
+      fizz, notes,
     ].join("\t");
   };
 
   const tsvHeader = [
-    "filename", "score", "musical_role", "spectral_centroid_hz",
+    "filename", "score", "musical_role", "role_source", "spectral_centroid_hz",
     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
-    "smooth_score", "hiMidMid_ratio", "fizz_label", "notes",
+    "smooth_score", "hiMidMid_ratio",
+    "subBass_%", "bass_%", "lowMid_%", "mid_%", "highMid_%", "presence_%", "air_%",
+    "fizz_label", "notes",
   ].join("\t");
 
 
