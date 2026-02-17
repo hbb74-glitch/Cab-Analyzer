@@ -974,7 +974,31 @@ export default function IRMixer() {
     return pairingPool.slice(start, end);
   }, [pairingPool, singleIrPage]);
 
-  const LEARNING_TAGS = useMemo(() => ([
+  const WHY_TAGS = useMemo(() => ([
+    "perfect",
+    "balanced",
+    "punchy",
+    "warm",
+    "aggressive",
+    "tight",
+    "articulate",
+  ]), []);
+
+  const IMPROVE_TAGS = useMemo(() => ([
+    "more_bottom",
+    "less_harsh",
+    "more_bite",
+    "tighter",
+    "more_air",
+  ]), []);
+
+  const ISSUE_TAGS = useMemo(() => ([
+    "thin",
+    "muddy",
+    "harsh",
+    "dull",
+    "boomy",
+    "fizzy",
     "too_bright",
     "too_dark",
     "too_fizzy",
@@ -2368,7 +2392,7 @@ export default function IRMixer() {
 
                 <div className="mt-2 text-xs opacity-80">Tags:</div>
                 <div className="flex gap-2 flex-wrap mt-1">
-                  {LEARNING_TAGS.map(tag => (
+                  {ISSUE_TAGS.map(tag => (
                     <button
                       key={tag}
                       className={cn(
@@ -3234,6 +3258,15 @@ export default function IRMixer() {
                 const hiMidMidRatio = pair.blendBands.mid > 0
                   ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                   : 0;
+                const selectedTags = pairingFeedback[pk] ?? [];
+                const rating = pairingRankings[pk];
+                const isNope = dismissedPairings.has(pk);
+                const ratingLabel = isNope ? "nope" : rating === 1 ? "love" : rating === 2 ? "like" : rating === 3 ? "meh" : null;
+                const activeTagBank =
+                  ratingLabel === "love" ? WHY_TAGS :
+                  ratingLabel === "like" ? IMPROVE_TAGS :
+                  (ratingLabel === "meh" || ratingLabel === "nope") ? ISSUE_TAGS :
+                  null;
                 return (
                   <div
                     key={`${pair.baseFilename}-${pair.featureFilename}`}
@@ -3306,33 +3339,35 @@ export default function IRMixer() {
                       })()}
                     </div>
 
-                    <div className="mt-2 text-xs opacity-80">Tags (Learning Mode):</div>
-                    <div className="flex gap-2 flex-wrap mt-1">
-                      {(() => {
-                        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
-                        const selected = pairingFeedback[pk] ?? [];
-                        return LEARNING_TAGS.map((tag) => (
-                          <button
-                            key={tag}
-                            className={cn(
-                              "px-2 py-1 rounded border text-xs",
-                              selected.includes(tag) ? "border-amber-400" : "border-zinc-600"
-                            )}
-                            onClick={() => toggleBlendTag(pk, tag)}
-                            data-testid={`button-blend-tag-${tag}-${idx}`}
-                          >
-                            {tag}
-                          </button>
-                        ));
-                      })()}
-                    </div>
+                    {activeTagBank && (
+                      <>
+                        <div className="mt-2 text-xs opacity-80">
+                          {ratingLabel === "love" ? "Why?" : ratingLabel === "like" ? "Improve?" : "Issue?"}
+                        </div>
+                        <div className="flex gap-2 flex-wrap mt-1">
+                          {activeTagBank.map((tag) => (
+                            <button
+                              key={tag}
+                              className={cn(
+                                "px-2 py-1 rounded border text-xs",
+                                selectedTags.includes(tag) ? "border-amber-400" : "border-zinc-600"
+                              )}
+                              onClick={() => toggleBlendTag(pk, tag)}
+                              data-testid={`button-blend-tag-${tag}-${idx}`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
 
                     <div className="mt-2 text-xs opacity-80">Notes (stored only, not training):</div>
                     <textarea
                       className="w-full mt-1 p-2 rounded border border-zinc-700 bg-transparent text-xs"
                       rows={2}
-                      value={pairingFeedbackText[`${pair.baseFilename}||${pair.featureFilename}`] ?? ""}
-                      onChange={(e) => setPairingFeedbackText(prev => ({ ...prev, [`${pair.baseFilename}||${pair.featureFilename}`]: e.target.value }))}
+                      value={pairingFeedbackText[pk] ?? ""}
+                      onChange={(e) => setPairingFeedbackText(prev => ({ ...prev, [pk]: e.target.value }))}
                       placeholder="Optional notes..."
                       data-testid={`textarea-blend-notes-${idx}`}
                     />
