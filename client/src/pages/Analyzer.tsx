@@ -1840,15 +1840,31 @@ export default function Analyzer() {
     const notes = safe(r.notes ?? r.feedbackText ?? "");
 
     return [
-      filename, score, role, roleSource, centroid,
-      tilt, rolloff, smooth, fmt(hiMidMid, 2),
+      filename,
+      score,
+      role,
+      rawRole,
+      roleSource,
+
+      centroidExported,
+      centroidComputed,
+
+      tilt,
+      rolloff,
+      smooth,
+      fmt(hiMidMid, 2),
+
       subBass, bass, lowMid, mid, highMid, presence, air,
-      fizz, notes,
+
+      fizz,
+      notes,
     ].join("\t");
   };
 
   const tsvHeader = [
-    "filename", "score", "musical_role", "role_source", "spectral_centroid_hz",
+    "filename", "score",
+    "musical_role", "raw_role", "role_source",
+    "centroid_exported", "centroid_computed",
     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
     "smooth_score", "hiMidMid_ratio",
     "subBass_%", "bass_%", "lowMid_%", "mid_%", "highMid_%", "presence_%", "air_%",
