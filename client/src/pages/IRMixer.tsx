@@ -982,14 +982,20 @@ export default function IRMixer() {
     "aggressive",
     "tight",
     "articulate",
+    "cut",
+    "thick",
+    "fast_attack",
   ]), []);
 
   const IMPROVE_TAGS = useMemo(() => ([
     "more_bottom",
+    "more_mids",
     "less_harsh",
     "more_bite",
     "tighter",
     "more_air",
+    "less_fizz",
+    "less_mud",
   ]), []);
 
   const ISSUE_TAGS = useMemo(() => ([
