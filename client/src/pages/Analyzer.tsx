@@ -111,7 +111,7 @@ function roleBadgeClass(role: string): string {
     case "Mid Thickener": return "bg-amber-500/15 text-amber-400";
     case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
     case "Lead Polish": return "bg-violet-500/15 text-violet-400";
-    case "Dark Specialty": return "bg-blue-500/15 text-blue-400";
+    case "Dark Specialty": return "bg-zinc-500/15 text-zinc-300";
     case "Foundation": return "bg-emerald-500/15 text-emerald-400";
     default: return "bg-white/10 text-muted-foreground";
   }
