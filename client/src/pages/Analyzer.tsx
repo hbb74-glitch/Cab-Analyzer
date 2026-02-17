@@ -23,71 +23,81 @@ import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 
 function classifyMusicalRole(tf: TonalFeatures): string {
-  const b = tf.bandsShapeDb;
-  const smooth = Number.isFinite(tf.smoothScore) ? tf.smoothScore : 0;
-  const tilt = Number.isFinite(tf.tiltDbPerOct) ? tf.tiltDbPerOct : 0;
+  const bp = tf.bandsPercent;
+  const smooth = Number.isFinite(tf.smoothScore) ? tf.smoothScore! : 0;
+  const tiltDb = Number.isFinite(tf.tiltDbPerOct) ? tf.tiltDbPerOct : 0;
+  const highExtensionHz = Number.isFinite(tf.rolloffFreq) ? tf.rolloffFreq! : 6000;
 
-  const bassWeight = (b.subBass ?? 0) + (b.bass ?? 0);
-  const lowMid = b.lowMid ?? 0;
-  const mid = b.mid ?? 0;
-  const highMid = b.highMid ?? 0;
-  const presence = b.presence ?? 0;
-  const air = b.air ?? 0;
+  const midPercent = (bp.mid ?? 0) * 100;
+  const presencePercent = (bp.presence ?? 0) * 100;
+  const hiMidMidRatio = midPercent > 0 ? ((bp.highMid ?? 0) * 100) / midPercent : 1;
+  const airPercent = (bp.air ?? 0) * 100;
+  const bassLowMidPercent = ((bp.subBass ?? 0) + (bp.bass ?? 0) + (bp.lowMid ?? 0)) * 100;
 
-  const hiMidLift = highMid - mid;
-  const presLift = presence - mid;
-  const airLift  = air - presence;
-  const lowMidLift = lowMid - mid;
+  const fizzLevel = airPercent > 18 ? "Elevated" : "Normal";
+  const bodyType = bassLowMidPercent < 25 ? "Lean" : "Normal";
 
-  const isVeryDark = tilt <= -5.0;
+  if (
+    hiMidMidRatio >= 0.9 &&
+    hiMidMidRatio <= 1.25 &&
+    midPercent >= 22 &&
+    midPercent <= 32 &&
+    tiltDb > -3 &&
+    tiltDb < 3
+  ) {
+    return "Foundation";
+  }
 
-  const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+  if (
+    hiMidMidRatio > 1.35 &&
+    presencePercent > 30 &&
+    midPercent < 25 &&
+    tiltDb >= 0
+  ) {
+    return "Cut Layer";
+  }
 
-  const cutScore =
-    clamp01((presLift - 0.9) / 1.2) * 0.55 +
-    clamp01((hiMidLift - 0.9) / 1.2) * 0.45 -
-    clamp01((smooth - 92) / 10) * 0.3;
+  if (
+    hiMidMidRatio < 0.95 &&
+    midPercent > 30 &&
+    fizzLevel !== "Elevated" &&
+    tiltDb <= 0
+  ) {
+    return "Mid Thickener";
+  }
 
-  const leadScore =
-    clamp01((presLift - 0.55) / 1.1) * 0.55 +
-    clamp01((hiMidLift - 0.35) / 1.0) * 0.25 +
-    clamp01((smooth - 55) / 35) * 0.20 -
-    clamp01((airLift - 0.9) / 0.8) * 0.35;
+  if (
+    tiltDb < -2 &&
+    highExtensionHz < 4800 &&
+    smooth >= 75
+  ) {
+    return "Fizz Tamer";
+  }
 
-  const thickScore =
-    clamp01((lowMidLift - 0.20) / 1.0) * 0.75 +
-    clamp01((bassWeight - (-0.10)) / 0.8) * 0.20 -
-    clamp01((presLift - 2.0) / 0.9) * 0.15;
+  if (
+    highExtensionHz >= 5000 &&
+    smooth >= 80 &&
+    hiMidMidRatio >= 1.0 &&
+    hiMidMidRatio <= 1.4 &&
+    midPercent >= 20 &&
+    midPercent <= 30 &&
+    fizzLevel !== "Elevated" &&
+    bodyType !== "Lean"
+  ) {
+    return "Lead Polish";
+  }
 
-  const fizzScore =
-    clamp01((smooth - 88) / 10) * 0.55 +
-    clamp01((0.25 - presLift) / 1.0) * 0.25 +
-    clamp01((0.15 - airLift) / 0.8) * 0.20;
-
-  const darkScore = isVeryDark ? 1 : clamp01((-tilt - 5.0) / 4.0) * 0.6;
-
-  const candidates = [
-    { role: "Dark Specialty", score: darkScore },
-    { role: "Fizz Tamer", score: fizzScore },
-    { role: "Cut Layer", score: cutScore },
-    { role: "Thickener", score: thickScore },
-    { role: "Lead Polish", score: leadScore },
-  ].sort((a, b) => b.score - a.score);
-
-  const best = candidates[0];
-  if (best.score >= 0.55) return best.role;
-  if (best.score >= 0.40 && best.role !== "Dark Specialty") return best.role;
-  return "Foundation";
+  return "Feature Element";
 }
 
 function roleBadgeClass(role: string): string {
   switch (role) {
     case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";
-    case "Thickener": return "bg-amber-500/15 text-amber-400";
+    case "Mid Thickener": return "bg-amber-500/15 text-amber-400";
     case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
     case "Lead Polish": return "bg-violet-500/15 text-violet-400";
-    case "Dark Specialty": return "bg-blue-500/15 text-blue-400";
     case "Foundation": return "bg-emerald-500/15 text-emerald-400";
+    case "Feature Element": return "bg-white/10 text-muted-foreground";
     default: return "bg-white/10 text-muted-foreground";
   }
 }
