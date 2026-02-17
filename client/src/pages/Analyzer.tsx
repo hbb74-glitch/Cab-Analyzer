@@ -1785,7 +1785,15 @@ export default function Analyzer() {
 
     const filename = safe(r.filename ?? r.name ?? "");
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
-    const role = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+
+    let role = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
+    if (!role) {
+      try {
+        role = classifyMusicalRole(tf ?? computeTonalFeatures(r));
+      } catch {
+        role = "";
+      }
+    }
 
     const centroid = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? "");
     const tilt = fmt(r.spectralTilt ?? r.tiltDbPerOct ?? tf?.tiltDbPerOct ?? "");
