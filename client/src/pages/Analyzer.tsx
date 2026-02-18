@@ -23,6 +23,8 @@ import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 
+// Foundation Candidate: one "start here" IR per speaker batch (does not change musical_role)
+
 function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
   const bp = (tf.bandsPercent ?? {}) as any;
   // NOTE: speakerStats already provides zCentroid/zExt/zTilt/zAir/zFizz/zPresence where available.
@@ -2346,6 +2348,56 @@ export default function Analyzer() {
       roleCounts,
     };
   }, [batchResult, getMusicalRoleForRow]);
+
+  // === Foundation Candidate (one per speaker) ===
+  // Choose a single "general-purpose / start-here" IR per speaker without forcing musical_role labels.
+  // Uses speaker-relative z-scores + smoothness + penalties for extremes.
+  const foundationCandidateBySpeaker = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!batchResult?.results?.length) return map;
+
+    type Cand = { fn: string; score: number };
+    const bestBySpeaker = new Map<string, Cand>();
+
+    for (const r of batchResult.results as any[]) {
+      const fn = String(r?.filename ?? r?.name ?? "");
+      if (!fn) continue;
+      const spk = inferSpeakerIdFromFilename(fn);
+      const st: any = speakerStatsRef.current.get(spk);
+      if (!st) continue;
+
+      const centroid = Number(r?.centroid_computed_hz ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0);
+      const tilt = Number(r?.spectral_tilt_db_per_oct ?? r?.tiltDbPerOct ?? r?.spectralTilt ?? 0);
+      const ext = Number(r?.rolloff_or_high_extension_hz ?? r?.rolloffFreq ?? r?.rolloffFrequency ?? r?.highExtensionHz ?? 0);
+
+      const lowMidPct = Number(r?.lowMid_pct ?? r?.lowMidPercent ?? 0);
+      const presencePct = Number(r?.presence_pct ?? r?.presencePercent ?? 0);
+      const airPct = Number(r?.air_pct ?? r?.airPercent ?? 0);
+      const smooth = Number(r?.smooth_score ?? r?.smoothScore ?? r?.frequencySmoothness ?? 0);
+
+      const zC = (st.stdCentroid ? (centroid - st.meanCentroid) / st.stdCentroid : 0);
+      const zT = (st.stdTilt ? (tilt - st.meanTilt) / st.stdTilt : 0);
+      const zE = (st.stdExt ? (ext - st.meanExt) / st.stdExt : 0);
+
+      let s = 0;
+      s += Math.abs(zC) + Math.abs(zT) + Math.abs(zE);
+      s += (smooth ? (90 - smooth) / 10 : 0);
+      s += Math.max(0, (presencePct - 22) / 30);
+      s += Math.max(0, (lowMidPct - 12) / 25);
+      s += Math.max(0, (airPct - 6) / 10);
+
+      const role = String(r?.musical_role ?? r?.musicalRole ?? "");
+      if (role === "Foundation") s -= 0.25;
+
+      const prev = bestBySpeaker.get(spk);
+      if (!prev || s < prev.score) bestBySpeaker.set(spk, { fn, score: s });
+    }
+
+    bestBySpeaker.forEach((cand, spk) => {
+      map.set(spk, cand.fn);
+    });
+    return map;
+  }, [batchResult]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;
@@ -5140,13 +5192,27 @@ export default function Analyzer() {
                                 {(() => {
                                   const role = getMusicalRoleForRow(r);
                                   if (!role) return null;
+                                  const fn = String((r as any).filename ?? (r as any).name ?? "");
+                                  const spk = inferSpeakerIdFromFilename(fn);
+                                  const isFoundationCandidate = fn && (foundationCandidateBySpeaker.get(spk) === fn);
                                   return (
-                                    <span
-                                      className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
-                                      data-testid={`badge-batch-musical-role-${index}`}
-                                    >
-                                      {role}
-                                    </span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span
+                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+                                        data-testid={`badge-batch-musical-role-${index}`}
+                                      >
+                                        {role}
+                                      </span>
+                                      {isFoundationCandidate && (
+                                        <span
+                                          className="px-1.5 py-0.5 text-[10px] rounded font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                                          title="Best general-purpose / start-here IR for this speaker batch"
+                                          data-testid={`badge-foundation-candidate-${index}`}
+                                        >
+                                          Foundation candidate
+                                        </span>
+                                      )}
+                                    </div>
                                   );
                                 })()}
                               </div>
