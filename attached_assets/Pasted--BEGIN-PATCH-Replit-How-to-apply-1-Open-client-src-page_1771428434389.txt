@@ -1,0 +1,112 @@
+*** BEGIN PATCH
+*** (Replit) How to apply:
+*** 1) Open: client/src/pages/Analyzer.tsx
+*** 2) Use Replit "Search" to find:  Preference Match (from old tonal balance)
+*** 3) Replace that whole block with the small comment included below.
+*** 4) Republish + hard refresh Preview.
+***
+*** This patch removes legacy Featured/Body Preference Match UI that is no longer used.
+*** It is the source of the "Featured NaN / Body NaN" artifacts on the IR cards.
+*** END PATCH
+
+--- a/client/src/pages/Analyzer.tsx
++++ b/client/src/pages/Analyzer.tsx
+@@ -5247,56 +5247,8 @@
+                         </div>
+ 
+-                        {/* Preference Match (from old tonal balance) */}
+-                        {r.midPercent != null && r.highMidPercent != null && r.presencePercent != null && (
+-                          <div className="mt-2 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+-                            {(() => {
+-                              const bands: TonalBands = {
+-                                subBass: r.subBassPercent || 0,
+-                                bass: r.bassPercent || 0,
+-                                lowMid: r.lowMidPercent || 0,
+-                                mid: r.midPercent || 0,
+-                                highMid: r.highMidPercent || 0,
+-                                presence: r.presencePercent || 0,
+-                                air: 0,
+-                                fizz: 0,
+-                              };
+-                              const { results: matchResults, best } = learnedProfile
+-                                ? scoreWithAvoidPenalty(featuresFromBands(bands), activeProfiles, learnedProfile)
+-                                : scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles);
+-                              const matchColorMap: Record<string, string> = {
+-                                strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+-                                close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+-                                partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+-                                miss: "bg-white/5 text-muted-foreground border-white/10",
+-                              };
+-                              return (
+-                                <div className="mt-2 pt-2 border-t border-white/5">
+-                                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+-                                    <Target className="w-3.5 h-3.5 text-indigo-400" />
+-                                    <span className="text-[10px] font-semibold text-indigo-400">Preference Match</span>
+-                                    {matchResults.map((mr) => (
+-                                      <span key={mr.profile} className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", matchColorMap[mr.label])} data-testid={`badge-batch-match-${index}-${mr.profile.toLowerCase()}`}>
+-                                        {mr.profile} {mr.score}
+-                                      </span>
+-                                    ))}
+-                                  </div>
+-                                  {best.deviations.length > 0 && (
+-                                    <div className="flex items-center gap-1.5 flex-wrap">
+-                                      {best.deviations.map((d, di) => (
+-                                        <span key={di} className={cn(
+-                                          "text-[9px] font-mono px-1 py-0.5 rounded",
+-                                          d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+-                                        )}>
+-                                          {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+-                                        </span>
+-                                      ))}
+-                                    </div>
+-                                  )}
+-                                </div>
+-                              );
+-                            })()}
+-                          </div>
+-                        )}
++                        {/* Legacy Preference Match (Featured/Body profiles) removed — musical roles only. */}
+ 
+                         {/* Gear Tonal Context */}
+                         {learnedProfile?.gearInsights && (() => {
+                           const bands: TonalBands = {
+                             subBass: r.subBassPercent || 0,
+                             bass: r.bassPercent || 0,
+                             lowMid: r.lowMidPercent || 0,
+                             mid: r.midPercent || 0,
+                             highMid: r.highMidPercent || 0,
+                             presence: r.presencePercent || 0,
+                             air: 0,
+                             fizz: 0,
+                           };
+                           const ctx = getGearContext(r.filename, learnedProfile.gearInsights, bands);
+                           if (ctx.items.length === 0 && !ctx.parsed) return null;
+                           if (ctx.items.length === 0) return null;
+                           return (
+                             <div className="mt-2 pt-2 border-t border-white/5" data-testid={`gear-context-${index}`}>
+                               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                 <Brain className="w-3 h-3 text-violet-400" />
+                                 <span className="text-[10px] font-semibold text-violet-400">Learned Gear Profile</span>
+                                 {ctx.items.map((item) => (
+                                   <span key={item.gearName} className={cn(
+                                     "text-[9px] font-mono px-1 py-0.5 rounded",
+                                     item.sentiment > 0 ? "bg-emerald-500/10 text-emerald-400" : item.sentiment < 0 ? "bg-red-500/10 text-red-400" : "bg-white/5 text-muted-foreground"
+                                   )}>
+                                     {item.gearName.replace('+', ' + ').replace('@', ' @ ')}
+                                     {item.descriptors.length > 0 && `: ${item.descriptors.map(d => d.label).join(', ')}`}
+                                   </span>
+                                 ))}
+                               </div>
+                               {ctx.commentary.length > 0 && (
+                                 <div className="space-y-0.5">
+                                   {ctx.commentary.map((c, ci) => (
+                                     <p key={ci} className="text-[9px] font-mono text-muted-foreground/70 italic ml-4">
+                                       {c}
+                                     </p>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+                           );
+                         })()}
+*** END PATCH
