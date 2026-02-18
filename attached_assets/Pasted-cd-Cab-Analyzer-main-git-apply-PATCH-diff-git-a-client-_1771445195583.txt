@@ -1,0 +1,90 @@
+cd Cab-Analyzer-main
+git apply - <<'PATCH'
+diff --git a/client/src/pages/Analyzer.tsx b/client/src/pages/Analyzer.tsx
+index 4c0b2f1..5b8b8a7 100644
+--- a/client/src/pages/Analyzer.tsx
++++ b/client/src/pages/Analyzer.tsx
+@@ -2416,6 +2416,22 @@ export default function Analyzer() {
+     const hasFoundationBySpk = new Map<string, boolean>();
+     bySpk.forEach((list, spk) => {
+       hasFoundationBySpk.set(spk, list.some(r => r.role === "Foundation"));
+     });
++
++    // Weighted blend policy (Option C):
++    // - Prefer Foundation if present (bias), but allow a non-Foundation to win if it is clearly more "start-here neutral".
++    // - Apply gentle penalties to utility/specialty roles to avoid confusing picks.
++    const roleBias = (role: string): number => {
++      switch (role) {
++        case "Foundation": return -0.40;      // strong preference
++        case "Lead Polish": return -0.10;     // usually safe
++        case "Mid Thickener": return +0.10;   // can be a bit heavy
++        case "Cut Layer": return +0.15;       // can be spiky as a default
++        case "Fizz Tamer": return +0.25;      // avoid unless necessary
++        case "Dark Specialty": return +0.45;  // avoid unless necessary
++        default: return 0;
++      }
++    };
+ 
+     const meanStd = (arr: number[]): [number, number] => {
+       if (!arr.length) return [0, 1];
+@@ -2444,26 +2460,45 @@ export default function Analyzer() {
+     // -- 3. Score each IR --
+     type Cand = { fn: string; score: number };
+-    const bestBySpeaker = new Map<string, Cand>();
++    const bestOverallBySpeaker = new Map<string, Cand>();
++    const bestFoundationBySpeaker = new Map<string, Cand>();
+ 
+     for (const rd of rows) {
+       const st = spkStats.get(rd.spk);
+       if (!st) continue;
+ 
+-      // Hard preference: if this speaker has Foundations, restrict the candidate pool.
+-      if (hasFoundationBySpk.get(rd.spk) && rd.role !== "Foundation") continue;
+-
+       const zC = (rd.centroid - st.mC) / st.sC;
+       const zT = (rd.tilt - st.mT) / st.sT;
+       const zE = (rd.ext - st.mE) / st.sE;
+ 
+       let s = 0;
+       s += Math.abs(zC) + Math.abs(zT) + Math.abs(zE);
+       s += (rd.smooth ? (90 - rd.smooth) / 10 : 0);
+       s += Math.max(0, (rd.presencePct - 22) / 30);
+       s += Math.max(0, (rd.lowMidPct - 12) / 25);
+       s += Math.max(0, (rd.airPct - 6) / 10);
+ 
+-      // Soft preference (only relevant when a speaker has 0 Foundations)
+-      if (rd.role === "Foundation") s -= 0.25;
++      // Role-aware bias (Option C)
++      s += roleBias(rd.role);
+ 
+-      const prev = bestBySpeaker.get(rd.spk);
+-      if (!prev || s < prev.score) bestBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
++      const prevAll = bestOverallBySpeaker.get(rd.spk);
++      if (!prevAll || s < prevAll.score) bestOverallBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
++
++      if (rd.role === "Foundation") {
++        const prevF = bestFoundationBySpeaker.get(rd.spk);
++        if (!prevF || s < prevF.score) bestFoundationBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
++      }
+     }
+ 
+-    bestBySpeaker.forEach((cand, spk) => {
+-      map.set(spk, cand.fn);
+-    });
++    // If Foundations exist, choose Foundation unless the best overall is clearly better.
++    // Margin prevents swapping away from Foundation for tiny score differences.
++    const MARGIN = 0.20;
++    bestOverallBySpeaker.forEach((bestAll, spk) => {
++      const hasF = hasFoundationBySpk.get(spk);
++      const bestF = bestFoundationBySpeaker.get(spk);
++      if (hasF && bestF) {
++        // Choose Foundation unless overall beats it by > margin
++        if (bestAll.score + MARGIN < bestF.score) map.set(spk, bestAll.fn);
++        else map.set(spk, bestF.fn);
++      } else {
++        map.set(spk, bestAll.fn);
++      }
++    });
+     return map;
+   }, [batchResult]);
+PATCH
