@@ -218,6 +218,12 @@ function applyContextBias(
   const zFizz = speakerStats ? zScore(fizzPct, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
   const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
 
+  const isPresenceTagged = name.includes("presence");
+  const isClearlyDark = (ext > 0 && ext <= 3900) || (tilt <= -5.8);
+  if (baseRole === "Fizz Tamer" && (isPresenceTagged || presencePct >= 28) && !isClearlyDark) {
+    baseRole = "Cut Layer";
+  }
+
   const objectivelyCutty =
     (zCentroid >= 1.0 && zExt >= 0.8) ||
     (zPresence >= 1.1) ||
@@ -2308,40 +2314,33 @@ export default function Analyzer() {
     const hasPolish = leadPolish >= 1;
     const hasTamer = fizzTamer >= 1;
 
-    let verdict: string;
-    let verdictColor: string;
+    let verdict = "Limited coverage";
+    let verdictColor = "text-red-400";
     const suggestions: string[] = [];
 
     if (hasBody && hasFeature && hasPolish) {
       verdict = "Good coverage";
       verdictColor = "text-emerald-400";
       suggestions.push(
-        `You have ${bodyLayers} body-layer IRs (Foundation + Mid Thickener) and ${featureLayers} feature-layer IRs (Cut Layer + Lead Polish), giving solid blending range.`
+        `Strong spread: ${bodyLayers} body layers (Foundation + Mid Thickener) and ${featureLayers} feature layers (Cut + Polish).`
       );
-      if (!hasTamer) {
-        suggestions.push("Consider adding 1–2 dedicated Fizz Tamers (low air, low fizz) for harsher amps/IR pairings.");
-      }
-    } else if (!hasBody && !hasFeature) {
-      verdict = "Limited coverage";
-      verdictColor = "text-red-400";
-      suggestions.push("Limited role variety in this batch. Add more contrasting shots to cover both body and feature layers.");
-      suggestions.push("For more Cut Layers: cap / CapEdge_Br with dynamic mics (SM57, MD421, MD441, PR30) at closer distances.");
-      suggestions.push("For more Body Layers: Cone or CapEdge_Dk / CapEdge_Cone_Tr with ribbon/darker dynamics (R121, M201) and/or slightly farther distances.");
-      suggestions.push("For Lead Polish: smooth captures with higher air_pct (6–9k) but controlled fizz — often CapEdge_Br or Cap/OffCenter at moderate distance.");
+      if (!hasTamer) suggestions.push("Add 1–2 dedicated Fizz Tamers (low air, low fizz) for harsher amps/IR combos.");
     } else if (!hasFeature) {
       verdict = "Needs more feature layers";
       verdictColor = "text-amber-400";
-      suggestions.push(`Only ${featureLayers} feature-layer IR${featureLayers !== 1 ? "s" : ""} (Cut Layer + Lead Polish). Add more cut/polish options.`);
-      suggestions.push("Try cap / CapEdge_Br with SM57/MD421/MD441/PR30. If you want polish not harshness, aim for higher air_pct with smooth score ≥ ~88 and controlled fizz.");
-    } else {
+      suggestions.push(`Only ${featureLayers} feature layers (Cut + Polish). Add more cap / CapEdge_Br cut shots and at least 1 extra Lead Polish.`);
+    } else if (!hasBody) {
       verdict = "Needs more body layers";
       verdictColor = "text-amber-400";
-      suggestions.push(`Only ${bodyLayers} body-layer IR${bodyLayers !== 1 ? "s" : ""} (Foundation + Mid Thickener). Add more core/body options.`);
-      suggestions.push("Try Cone or CapEdge_Dk / CapEdge_Cone_Tr with R121/M201 or MD421 at slightly farther distance for weight without fizz.");
+      suggestions.push(`Only ${bodyLayers} body layers (Foundation + Thickener). Add more Cone / CapEdge_Dk / CapEdge_Cone_Tr and/or ribbon body shots.`);
+    } else if (!hasPolish) {
+      verdict = "Needs at least one polish layer";
+      verdictColor = "text-amber-400";
+      suggestions.push("Add at least 1 Lead Polish (high air_pct with smooth score) to finish mixes without harshness.");
     }
 
     if (darkSpecialty >= Math.max(3, Math.ceil(total * 0.25))) {
-      suggestions.push("You have a lot of Dark Specialty shots in this batch. Consider adding brighter Cut/Polish shots to balance the set.");
+      suggestions.push("Many Dark Specialty shots detected — balance with more Cut/Polish shots for versatility.");
     }
 
     return {
