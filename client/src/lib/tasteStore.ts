@@ -44,6 +44,10 @@ export function makeTasteKey(ctx: TasteContext): string {
   return `${ctx.speakerPrefix}__${ctx.mode}__${ctx.intent}`;
 }
 
+function makeGlobalTasteKey(ctx: TasteContext): string {
+  return `${ctx.speakerPrefix}__${ctx.mode}__global`;
+}
+
 export function loadState(): StoreState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -118,12 +122,18 @@ function dot(w: number[], x: number[]): number {
 
 export function getTasteBias(ctx: TasteContext, x: number[]): { bias: number; confidence: number } {
   const state = loadState();
-  const key = makeTasteKey(ctx);
-  const model = state.models[key];
-  if (!model) return { bias: 0, confidence: 0 };
+  const keyIntent = makeTasteKey(ctx);
+  const keyGlobal = makeGlobalTasteKey(ctx);
+  const modelIntent = state.models[keyIntent];
+  const modelGlobal = state.models[keyGlobal];
 
-  const bias = dot(model.w, x);
-  const confidence = clamp(model.nVotes / 30, 0, 1);
+  if (!modelIntent && !modelGlobal) return { bias: 0, confidence: 0 };
+
+  let bias = 0;
+  if (modelGlobal) bias += 0.35 * dot(modelGlobal.w, x);
+  if (modelIntent) bias += dot(modelIntent.w, x);
+
+  const confidence = clamp((modelIntent?.nVotes ?? 0) / 30, 0, 1);
   return { bias, confidence };
 }
 
@@ -240,34 +250,57 @@ export function recordOutcome(
   opts?: { lr?: number; pairKey?: string; source?: VoteSource; tagsA?: string[]; tagsB?: string[] }
 ) {
   const state = loadState();
-  const key = makeTasteKey(ctx);
+  const keyIntent = makeTasteKey(ctx);
+  const keyGlobal = makeGlobalTasteKey(ctx);
   const wSrc = sourceWeight(opts?.source);
+  const dim = Math.min(xA.length, xB.length);
+
+  const ensureModels = () => {
+    getOrCreateModel(state, keyIntent, dim);
+    getOrCreateModel(state, keyGlobal, dim);
+  };
+
+  const bumpVotes = (incIntent: number, incGlobal: number) => {
+    ensureModels();
+    state.models[keyIntent].nVotes += incIntent;
+    state.models[keyGlobal].nVotes += incGlobal;
+    saveState(state);
+  };
 
   if (outcome === "tie") {
-    const dim = Math.min(xA.length, xB.length);
-    const model = getOrCreateModel(state, key, dim);
-    model.nVotes += 0.25 * wSrc;
-    saveState(state);
+    bumpVotes(0.25 * wSrc, 0.10 * wSrc);
     return;
   }
 
   if (outcome === "both") {
     const pk = opts?.pairKey;
     if (pk) {
-      if (!state.complements[key]) state.complements[key] = {};
-      state.complements[key][pk] = (state.complements[key][pk] ?? 0) + 1;
+      if (!state.complements[keyIntent]) state.complements[keyIntent] = {};
+      state.complements[keyIntent][pk] = (state.complements[keyIntent][pk] ?? 0) + 1;
     }
-    const dim = Math.min(xA.length, xB.length);
-    const model = getOrCreateModel(state, key, dim);
-    model.nVotes += 0.15 * wSrc;
-    saveState(state);
+    bumpVotes(0.15 * wSrc, 0.06 * wSrc);
     return;
   }
 
   const baseLr = opts?.lr ?? 0.06;
-  const lr = baseLr * wSrc;
-  if (outcome === "a") recordPreference(ctx, xA, xB, { lr });
-  else if (outcome === "b") recordPreference(ctx, xB, xA, { lr });
+  const lrIntent = baseLr * wSrc;
+  const lrGlobal = baseLr * wSrc * 0.35;
+
+  ensureModels();
+  const winner = outcome === "a" ? xA : xB;
+  const loser  = outcome === "a" ? xB : xA;
+
+  for (let i = 0; i < dim; i++) {
+    state.models[keyIntent].w[i] += lrIntent * (winner[i] - loser[i]);
+  }
+  state.models[keyIntent].nVotes += 1;
+
+  for (let i = 0; i < dim; i++) {
+    state.models[keyGlobal].w[i] += lrGlobal * (winner[i] - loser[i]);
+  }
+  state.models[keyGlobal].nVotes += 1;
+
+  saveState(state);
 
   if (opts?.source === "learning") {
     const tagScale = 0.08 * wSrc;
@@ -290,8 +323,15 @@ export function recordOutcome(
     const xA2 = applyDeltaToVector(xA, deltaA, tagScale);
     const xB2 = applyDeltaToVector(xB, deltaB, tagScale);
 
-    if (outcome === "a") recordPreference(ctx, xA2, xB2, { lr: lr * 0.5 });
-    else if (outcome === "b") recordPreference(ctx, xB2, xA2, { lr: lr * 0.5 });
+    ensureModels();
+    const w2 = outcome === "a" ? xA2 : xB2;
+    const l2 = outcome === "a" ? xB2 : xA2;
+
+    for (let i = 0; i < dim; i++) {
+      state.models[keyIntent].w[i] += (lrIntent * 0.5) * (w2[i] - l2[i]);
+      state.models[keyGlobal].w[i] += (lrGlobal * 0.25) * (w2[i] - l2[i]);
+    }
+    saveState(state);
   }
 }
 
@@ -308,9 +348,9 @@ export function resetTaste(ctx?: TasteContext) {
     saveState(DEFAULT_STATE);
     return;
   }
-  const key = makeTasteKey(ctx);
-  delete state.models[key];
-  delete state.complements[key];
+  const keyIntent = makeTasteKey(ctx);
+  delete state.models[keyIntent];
+  delete state.complements[keyIntent];
   saveState(state);
 }
 
