@@ -1003,7 +1003,13 @@ export default function IRMixer() {
     if ((presence >= 50 || cutCoreRatio >= 3.0) && (mid + lowMid) <= 24) baseRole = "Cut Layer";
     else if ((mid >= 34 || lowMid >= 12 || bassLowMid >= 26) && presence <= 34) baseRole = "Mid Thickener";
     else if ((ext > 0 && ext < 3600) || tilt <= -6.2) baseRole = "Dark Specialty";
-    else if ((ext > 0 && ext <= 4500 || tilt <= -5.2) && smooth >= 82 && air <= 2.0 && fizz <= 1.2) baseRole = "Fizz Tamer";
+    else if (
+      ((ext > 0 && ext <= 4500) || tilt <= -5.2) &&
+      smooth >= 82 &&
+      air <= 2.0 &&
+      fizz <= 1.2 &&
+      (presence <= 26 || cutCoreRatio <= 2.4)
+    ) baseRole = "Fizz Tamer";
     else if (smooth >= 88 && ext > 0 && ext >= 4600 && presence >= 22 && presence <= 55 && air >= 4.0 && fizz <= 1.2 && cutCoreRatio <= 3.4) baseRole = "Lead Polish";
 
     let biasLabel = "";
