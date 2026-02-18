@@ -79,12 +79,14 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   // For naturally dark speakers (GA12-SC64, G12T75, etc.), absolute tilt/ext thresholds are misleading.
   // If a shot sits near the center of THIS SPEAKER's distribution, treat it as Foundation.
   if (speakerStats) {
+    // Allow centroid to be central AND either tilt OR extension to be near.
+    // Prevents darker speakers from collapsing into Fizz Tamer.
     const nearCenter =
       Math.abs(zCentroid) <= 0.8 &&
-      // G12T75 / other modern darker speakers often have a wider "normal" tilt spread.
-      // Loosen tilt only (keep centroid/ext strict) so center-mass shots don't get forced into Fizz Tamer.
-      Math.abs(zTilt) <= 1.2 &&
-      Math.abs(zExt) <= 0.8;
+      (
+        Math.abs(zTilt) <= 1.2 ||
+        Math.abs(zExt) <= 0.8
+      );
     const notFizzy = (fizz <= 2.0 || zFizz <= 0.4);
     const smoothEnough = smooth >= 84;
     if (nearCenter && smoothEnough && notFizzy) {
