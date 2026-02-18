@@ -2082,37 +2082,13 @@ export default function Analyzer() {
     "fizz_label", "notes",
   ].join("\t");
 
-  const ROLE_LABELS = useMemo(() => new Set([
-    "Foundation",
-    "Cut Layer",
-    "Mid Thickener",
-    "Lead Polish",
-    "Fizz Tamer",
-    "Dark Specialty",
-  ]), []);
+  useEffect(() => {
+    if (!batchResult?.results?.length) return;
 
-  const roleByFilename = useMemo(() => {
-    const map = new Map<string, string>();
-    const rows: any[] = (batchResult?.results ?? []);
-    for (const r of rows) {
-      const fn = safe(r?.filename ?? r?.name ?? "");
-      if (!fn) continue;
+    const updated = batchResult.results.map((r: any) => {
+      const fn = String(r.filename ?? r.name ?? "");
 
-      const stored = String(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
-      if (stored && ROLE_LABELS.has(stored)) {
-        map.set(fn, stored);
-        continue;
-      }
-
-      try {
-        const tsvLine = buildSummaryTSVForRow(r);
-        const parts = String(tsvLine || "").split("\t");
-        const role = String(parts?.[2] ?? "").trim();
-        if (role && ROLE_LABELS.has(role)) {
-          map.set(fn, role);
-          continue;
-        }
-      } catch {}
+      if (r.musicalRole) return r;
 
       try {
         const bandsFromBatch = {
@@ -2124,16 +2100,25 @@ export default function Analyzer() {
           presence: ((Number(r.presencePercent) || 0) / 100),
           air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
         };
-        const featureSource: any = { ...r, bandsPercent: bandsFromBatch };
+
+        const featureSource: any = {
+          ...r,
+          bandsPercent: bandsFromBatch,
+        };
+
         const tf = computeTonalFeatures(featureSource);
         const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
         const base = classifyMusicalRole(tf, st);
         const role = applyContextBias(base, tf, fn, st);
-        if (role && ROLE_LABELS.has(role)) map.set(fn, role);
-      } catch {}
-    }
-    return map;
-  }, [batchResult, ROLE_LABELS]);
+
+        return { ...r, musicalRole: role };
+      } catch {
+        return r;
+      }
+    });
+
+    batchResult.results = updated;
+  }, [batchResult]);
 
   const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
     queryKey: ["/api/tonal-profiles"],
@@ -2322,10 +2307,12 @@ export default function Analyzer() {
   const collectionCoverage = useMemo(() => {
     if (!batchResult?.results?.length) return null;
 
-    const roles: string[] = Array.from(roleByFilename.values()).filter(Boolean);
+    const roles = batchResult.results
+      .map((r: any) => r.musicalRole)
+      .filter(Boolean);
 
     const total = roles.length;
-    const count = (x: string) => roles.filter((r) => r === x).length;
+    const count = (x: string) => roles.filter((r: string) => r === x).length;
 
     const foundation = count("Foundation");
     const cutLayer = count("Cut Layer");
@@ -2386,7 +2373,7 @@ export default function Analyzer() {
       fizzTamer,
       darkSpecialty,
     };
-  }, [batchResult, roleByFilename]);
+  }, [batchResult]);
 
   const gearGaps = useMemo(() => {
     if (!batchResult) return null;
@@ -5348,8 +5335,7 @@ export default function Analyzer() {
                                 )}
 
                                 {(() => {
-                                  const fn = String((r as any).filename ?? (r as any).name ?? "");
-                                  const role = roleByFilename.get(fn) ?? "";
+                                  const role = (r as any).musicalRole;
                                   if (!role) return null;
                                   return (
                                     <span
@@ -5364,8 +5350,7 @@ export default function Analyzer() {
                             )}
 
                             {!r.parsedInfo && (() => {
-                              const fn = String((r as any).filename ?? (r as any).name ?? "");
-                              const role = roleByFilename.get(fn) ?? "";
+                              const role = (r as any).musicalRole;
                               if (!role) return null;
                               return (
                                 <div className="flex flex-wrap gap-1 mt-1">

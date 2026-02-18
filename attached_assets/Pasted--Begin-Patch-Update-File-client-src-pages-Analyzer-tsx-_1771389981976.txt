@@ -1,0 +1,78 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
++  // === CENTRALIZED MUSICAL ROLE ASSIGNMENT ===
++  // We compute musicalRole ONCE per result row and reuse it everywhere.
++  useEffect(() => {
++    if (!batchResult?.results?.length) return;
++
++    const updated = batchResult.results.map((r: any) => {
++      const fn = String(r.filename ?? r.name ?? "");
++
++      // If already computed, keep it.
++      if (r.musicalRole) return r;
++
++      try {
++        const bandsFromBatch = {
++          subBass: ((Number(r.subBassPercent) || 0) / 100),
++          bass: ((Number(r.bassPercent) || 0) / 100),
++          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
++          mid: ((Number(r.midPercent) || 0) / 100),
++          highMid: ((Number(r.highMidPercent) || 0) / 100),
++          presence: ((Number(r.presencePercent) || 0) / 100),
++          air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
++        };
++
++        const featureSource: any = {
++          ...r,
++          bandsPercent: bandsFromBatch,
++        };
++
++        const tf = computeTonalFeatures(featureSource);
++        const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
++        const base = classifyMusicalRole(tf, st);
++        const role = applyContextBias(base, tf, fn, st);
++
++        return { ...r, musicalRole: role };
++      } catch {
++        return r;
++      }
++    });
++
++    batchResult.results = updated;
++  }, [batchResult]);
++
+@@
+-  const collectionCoverage = useMemo(() => {
+-    if (!batchPreferenceRoles || !learnedProfile) return null;
+-    ...
+-  }, [batchPreferenceRoles, learnedProfile]);
++  // === ROLE COVERAGE (NO feature/body logic) ===
++  const collectionCoverage = useMemo(() => {
++    if (!batchResult?.results?.length) return null;
++
++    const roles = batchResult.results
++      .map((r: any) => r.musicalRole)
++      .filter(Boolean);
++
++    const count = (x: string) => roles.filter((r) => r === x).length;
++
++    return {
++      cutLayer: count("Cut Layer"),
++      leadPolish: count("Lead Polish"),
++      foundation: count("Foundation"),
++      midThickener: count("Mid Thickener"),
++      fizzTamer: count("Fizz Tamer"),
++      darkSpecialty: count("Dark Specialty"),
++      total: roles.length,
++    };
++  }, [batchResult]);
+ 
+@@
+-  const role = classifyMusicalRole(tf, st);
++  const role = r.musicalRole;
+ 
+@@
+-  const role = classifyMusicalRole(tf, st);
++  const role = r.musicalRole;
+*** End Patch
