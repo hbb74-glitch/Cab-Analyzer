@@ -4777,6 +4777,40 @@ export default function Analyzer() {
                           </span>
                         </div>
                       </div>
+
+                      {foundationCandidateBySpeaker && foundationCandidateBySpeaker.size > 0 && (
+                        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-semibold text-emerald-300">Start here (Foundation candidate)</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Best general-purpose IR per speaker batch (does not change musical role)
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            {Array.from(foundationCandidateBySpeaker.entries()).slice(0, 8).map(([spk, fn]) => (
+                              <div key={spk} className="flex items-center justify-between gap-3 text-[11px]">
+                                <span className="text-muted-foreground font-mono truncate" style={{ maxWidth: "28%" }}>
+                                  {spk}
+                                </span>
+                                <span
+                                  className="font-mono text-emerald-200 truncate"
+                                  style={{ maxWidth: "70%" }}
+                                  title={fn}
+                                  data-testid={`foundation-candidate-${spk}`}
+                                >
+                                  {fn}
+                                </span>
+                              </div>
+                            ))}
+                            {foundationCandidateBySpeaker.size > 8 && (
+                              <div className="text-[10px] text-muted-foreground">
+                                Showing first 8 speakers…
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                         {[
                           { label: "Most versatile", item: batchMusicalSummary.mostVersatile, icon: "crown" },
