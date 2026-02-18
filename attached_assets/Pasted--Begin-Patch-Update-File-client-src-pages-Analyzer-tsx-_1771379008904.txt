@@ -1,0 +1,94 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+-  const collectionCoverage = useMemo(() => {
+-    if (!batchResult?.results?.length) return null;
++  const collectionCoverage = useMemo(() => {
++    // IMPORTANT: The overview must use the same row objects as the table/TSV.
++    // Those rows already contain musical_role / musicalRole. Raw batchResult objects may not.
++    const rows: any[] =
++      (Array.isArray(batchRows) && batchRows.length ? batchRows : null) ||
++      (Array.isArray(filteredRows) && filteredRows.length ? filteredRows : null) ||
++      (Array.isArray(displayRows) && displayRows.length ? displayRows : null) ||
++      (Array.isArray(results) && results.length ? results : null) ||
++      [];
++    if (!rows.length) return null;
+ 
+-    const roles: string[] = batchResult.results.map((r: any) => {
+-      try {
+-        const tsvLine = buildSummaryTSVForRow(r);
+-        const parts = String(tsvLine || "").split("\t");
+-        return String(parts?.[2] ?? "").trim();
+-      } catch {
+-        return "";
+-      }
+-    }).filter(Boolean);
++    const roles: string[] = rows
++      .map((r: any) => String(r.musicalRole ?? r.musical_role ?? r.musical_role_label ?? r.role ?? "").trim())
++      .filter(Boolean);
+ 
+     const total = roles.length;
+     const count = (x: string) => roles.filter((r) => r === x).length;
+ 
+     const foundation = count("Foundation");
+     const cutLayer = count("Cut Layer");
+     const midThickener = count("Mid Thickener");
+     const leadPolish = count("Lead Polish");
+     const fizzTamer = count("Fizz Tamer");
+     const darkSpecialty = count("Dark Specialty");
+ 
+     const featureLayers = cutLayer + leadPolish;
+     const bodyLayers = foundation + midThickener;
+ 
+     const minForCategory = Math.max(2, Math.ceil(total * 0.15));
+     const hasBody = bodyLayers >= minForCategory;
+     const hasFeature = featureLayers >= minForCategory;
+     const hasPolish = leadPolish >= 1;
+ 
+     let verdict = "Limited coverage";
+     let verdictColor = "text-red-400";
+     const suggestions: string[] = [];
+ 
+     if (hasBody && hasFeature && hasPolish) {
+       verdict = "Good coverage";
+       verdictColor = "text-emerald-400";
+       suggestions.push(`Strong spread: ${bodyLayers} body layers (Foundation + Mid Thickener) and ${featureLayers} feature layers (Cut Layer + Lead Polish).`);
+       if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
+     } else if (!hasBody && !hasFeature) {
+       verdict = "Limited coverage";
+       verdictColor = "text-red-400";
+       suggestions.push("Limited role variety in this batch. Add more contrasting shots to cover both body and feature layers.");
+       suggestions.push("For more Cut Layers: cap / CapEdge_Br with dynamic mics (SM57, MD421, MD441, PR30) at closer distances.");
+       suggestions.push("For more Body Layers: Cone or CapEdge_Dk / CapEdge_Cone_Tr with ribbon/darker dynamics (R121, M201) and/or slightly farther distances.");
+       suggestions.push("For Lead Polish: smooth captures with higher air_pct (6–9k) but controlled fizz — often CapEdge_Br or Cap/OffCenter at moderate distance.");
+     } else if (!hasFeature) {
+       verdict = "Needs more feature layers";
+       verdictColor = "text-amber-400";
+       suggestions.push(`Only ${featureLayers} feature layers (Cut + Polish). Add more cap / CapEdge_Br cut shots and at least 1 extra polish layer.`);
+     } else if (!hasBody) {
+       verdict = "Needs more body layers";
+       verdictColor = "text-amber-400";
+       suggestions.push(`Only ${bodyLayers} body layers (Foundation + Thickener). Add more Cone / CapEdge_Dk / CapEdge_Cone_Tr and/or ribbon body shots.`);
+     } else if (!hasPolish) {
+       verdict = "Needs at least one polish layer";
+       verdictColor = "text-amber-400";
+       suggestions.push("Add at least 1 Lead Polish (higher air_pct with high smooth score) to finish mixes without harshness.");
+     }
+ 
+     return {
+       verdict,
+       verdictColor,
+       suggestions,
+       total,
+       featureLayers,
+       bodyLayers,
+       foundation,
+       cutLayer,
+       midThickener,
+       leadPolish,
+       fizzTamer,
+       darkSpecialty,
+     };
+-  }, [batchResult]);
++  }, [batchRows, filteredRows, displayRows, results]);
+*** End Patch

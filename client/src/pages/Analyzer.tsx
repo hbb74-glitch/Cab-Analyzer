@@ -2268,17 +2268,12 @@ export default function Analyzer() {
   }, [batchResult, learnedProfile, activeProfiles]);
 
   const collectionCoverage = useMemo(() => {
-    if (!batchResult?.results?.length) return null;
+    const rows: any[] = batchResult?.results?.length ? batchResult.results : [];
+    if (!rows.length) return null;
 
-    const roles: string[] = batchResult.results.map((r: any) => {
-      try {
-        const tsvLine = buildSummaryTSVForRow(r);
-        const parts = String(tsvLine || "").split("\t");
-        return String(parts?.[2] ?? "").trim() || "Unclassified";
-      } catch {
-        return "Unclassified";
-      }
-    });
+    const roles: string[] = rows
+      .map((r: any) => String(r.musicalRole ?? r.musical_role ?? r.musical_role_label ?? r.role ?? "").trim())
+      .filter(Boolean);
 
     const total = roles.length;
     const count = (x: string) => roles.filter((r) => r === x).length;
