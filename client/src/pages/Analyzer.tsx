@@ -40,7 +40,6 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const mid = (bp.mid ?? 0) * 100;
   const highMid = (bp.highMid ?? 0) * 100;
   const presence = (bp.presence ?? 0) * 100;
-  console.log("presence internal:", presence);
   const lowMid = (bp.lowMid ?? 0) * 100;
   const bass = (bp.bass ?? 0) * 100;
   const subBass = (bp.subBass ?? 0) * 100;
@@ -2271,32 +2270,18 @@ export default function Analyzer() {
   const collectionCoverage = useMemo(() => {
     if (!batchResult?.results?.length) return null;
 
-    const roles = batchResult.results.map((r: any) => {
-      const raw = String(r.musicalRole ?? r.musical_role ?? r.role ?? "");
-      if (raw) return raw;
+    const roles: string[] = batchResult.results.map((r: any) => {
       try {
-        const bandsFromBatch = {
-          subBass: ((Number(r.subBassPercent) || 0) / 100),
-          bass: ((Number(r.bassPercent) || 0) / 100),
-          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
-          mid: ((Number(r.midPercent) || 0) / 100),
-          highMid: ((Number(r.highMidPercent) || 0) / 100),
-          presence: ((Number(r.presencePercent) || 0) / 100),
-          air: ((Number(r.airPercent) || 0) / 100),
-          fizz: ((Number(r.fizzPercent) || 0) / 100),
-        };
-        const tf = computeTonalFeatures({ ...r, bandsPercent: bandsFromBatch });
-        const base = classifyMusicalRole(tf);
-        const spk = inferSpeakerIdFromFilename(String(r.filename ?? r.name ?? ""));
-        const st = speakerStatsRef.current.get(spk);
-        return applyContextBias(base, tf, String(r.filename ?? r.name ?? ""), st);
+        const tsvLine = buildSummaryTSVForRow(r);
+        const parts = String(tsvLine || "").split("\t");
+        return String(parts?.[2] ?? "").trim() || "Unclassified";
       } catch {
-        return "";
+        return "Unclassified";
       }
     });
 
     const total = roles.length;
-    const count = (name: string) => roles.filter((x) => x === name).length;
+    const count = (x: string) => roles.filter((r) => r === x).length;
 
     const foundation = count("Foundation");
     const cutLayer = count("Cut Layer");
@@ -2312,7 +2297,6 @@ export default function Analyzer() {
     const hasBody = bodyLayers >= minForCategory;
     const hasFeature = featureLayers >= minForCategory;
     const hasPolish = leadPolish >= 1;
-    const hasTamer = fizzTamer >= 1;
 
     let verdict = "Limited coverage";
     let verdictColor = "text-red-400";
@@ -2321,14 +2305,19 @@ export default function Analyzer() {
     if (hasBody && hasFeature && hasPolish) {
       verdict = "Good coverage";
       verdictColor = "text-emerald-400";
-      suggestions.push(
-        `Strong spread: ${bodyLayers} body layers (Foundation + Mid Thickener) and ${featureLayers} feature layers (Cut + Polish).`
-      );
-      if (!hasTamer) suggestions.push("Add 1–2 dedicated Fizz Tamers (low air, low fizz) for harsher amps/IR combos.");
+      suggestions.push(`Strong spread: ${bodyLayers} body layers (Foundation + Mid Thickener) and ${featureLayers} feature layers (Cut Layer + Lead Polish).`);
+      if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
+    } else if (!hasBody && !hasFeature) {
+      verdict = "Limited coverage";
+      verdictColor = "text-red-400";
+      suggestions.push("Limited role variety in this batch. Add more contrasting shots to cover both body and feature layers.");
+      suggestions.push("For more Cut Layers: cap / CapEdge_Br with dynamic mics (SM57, MD421, MD441, PR30) at closer distances.");
+      suggestions.push("For more Body Layers: Cone or CapEdge_Dk / CapEdge_Cone_Tr with ribbon/darker dynamics (R121, M201) and/or slightly farther distances.");
+      suggestions.push("For Lead Polish: smooth captures with higher air_pct (6–9k) but controlled fizz — often CapEdge_Br or Cap/OffCenter at moderate distance.");
     } else if (!hasFeature) {
       verdict = "Needs more feature layers";
       verdictColor = "text-amber-400";
-      suggestions.push(`Only ${featureLayers} feature layers (Cut + Polish). Add more cap / CapEdge_Br cut shots and at least 1 extra Lead Polish.`);
+      suggestions.push(`Only ${featureLayers} feature layers (Cut + Polish). Add more cap / CapEdge_Br cut shots and at least 1 extra polish layer.`);
     } else if (!hasBody) {
       verdict = "Needs more body layers";
       verdictColor = "text-amber-400";
@@ -2336,11 +2325,7 @@ export default function Analyzer() {
     } else if (!hasPolish) {
       verdict = "Needs at least one polish layer";
       verdictColor = "text-amber-400";
-      suggestions.push("Add at least 1 Lead Polish (high air_pct with smooth score) to finish mixes without harshness.");
-    }
-
-    if (darkSpecialty >= Math.max(3, Math.ceil(total * 0.25))) {
-      suggestions.push("Many Dark Specialty shots detected — balance with more Cut/Polish shots for versatility.");
+      suggestions.push("Add at least 1 Lead Polish (higher air_pct with high smooth score) to finish mixes without harshness.");
     }
 
     return {
