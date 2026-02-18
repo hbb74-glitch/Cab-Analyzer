@@ -1709,7 +1709,7 @@ export default function IRMixer() {
         highMid: pair.blendBands.highMid,
         presence: pair.blendBands.presence,
         ratio: Math.round(r * 100) / 100,
-        score: Math.round(pair.score),
+        score: Math.round(pair.score) || 0,
         profileMatch: pair.bestMatch.profile,
       });
 
@@ -1944,7 +1944,7 @@ export default function IRMixer() {
         highMid: blendBands.highMid,
         presence: blendBands.presence,
         ratio: Math.round(r * 100) / 100,
-        score: Math.round(scored.best.score),
+        score: Math.round(scored.best.score) || 0,
         profileMatch: scored.best.profile,
         blendRatio: ratio,
       }]);
@@ -2119,7 +2119,7 @@ export default function IRMixer() {
         highMid: cr.blend.highMid,
         presence: cr.blend.presence,
         ratio: Math.round(r * 100) / 100,
-        score: Math.round(cr.match.best.score),
+        score: Math.round(cr.match.best.score) || 0,
         profileMatch: cr.match.best.profile,
       });
     }
