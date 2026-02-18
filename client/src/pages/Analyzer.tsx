@@ -40,6 +40,7 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const mid = (bp.mid ?? 0) * 100;
   const highMid = (bp.highMid ?? 0) * 100;
   const presence = (bp.presence ?? 0) * 100;
+  console.log("presence internal:", presence);
   const lowMid = (bp.lowMid ?? 0) * 100;
   const bass = (bp.bass ?? 0) * 100;
   const subBass = (bp.subBass ?? 0) * 100;
