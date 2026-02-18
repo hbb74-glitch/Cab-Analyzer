@@ -985,45 +985,6 @@ export default function IRMixer() {
 
   const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteEnabled, tasteVersion]);
 
-  const rerankTasteCandidatesForContext = useCallback((cands: SuggestedPairing[]) => {
-    if (!cands || cands.length < 2) return cands;
-
-    const hash = (s: string) => {
-      let h = 2166136261;
-      for (let i = 0; i < s.length; i++) {
-        h ^= s.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-      }
-      return h >>> 0;
-    };
-
-    const scored = cands.map((p) => {
-      const bF = featuresByFilename.get(p.baseFilename);
-      const fF = featuresByFilename.get(p.featureFilename);
-      let bias = 0;
-      let conf = 0;
-      try {
-        if (bF && fF) {
-          const vec = featurizeBlend(bF, fF, 0.5);
-          const r = getTasteBias(tasteContext, vec);
-          bias = r.bias;
-          conf = r.confidence;
-        }
-      } catch {
-      }
-      const tie = hash(`${tasteIntent}::${p.baseFilename}::${p.featureFilename}`);
-      return { p, bias, conf, tie };
-    });
-
-    scored.sort((a, b) => {
-      if (b.bias !== a.bias) return b.bias - a.bias;
-      if (b.conf !== a.conf) return b.conf - a.conf;
-      return a.tie - b.tie;
-    });
-
-    return scored.map((s) => s.p);
-  }, [featuresByFilename, tasteContext, tasteIntent]);
-
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
     const n = pairingPool.length;
@@ -1157,6 +1118,45 @@ export default function IRMixer() {
     }
     return m;
   }, [pairingPool]);
+
+  const rerankTasteCandidatesForContext = useCallback((cands: SuggestedPairing[]) => {
+    if (!cands || cands.length < 2) return cands;
+
+    const hash = (s: string) => {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    };
+
+    const scored = cands.map((p) => {
+      const bF = featuresByFilename.get(p.baseFilename);
+      const fF = featuresByFilename.get(p.featureFilename);
+      let bias = 0;
+      let conf = 0;
+      try {
+        if (bF && fF) {
+          const vec = featurizeBlend(bF, fF, 0.5);
+          const r = getTasteBias(tasteContext, vec);
+          bias = r.bias;
+          conf = r.confidence;
+        }
+      } catch {
+      }
+      const tie = hash(`${tasteIntent}::${p.baseFilename}::${p.featureFilename}`);
+      return { p, bias, conf, tie };
+    });
+
+    scored.sort((a, b) => {
+      if (b.bias !== a.bias) return b.bias - a.bias;
+      if (b.conf !== a.conf) return b.conf - a.conf;
+      return a.tie - b.tie;
+    });
+
+    return scored.map((s) => s.p);
+  }, [featuresByFilename, tasteContext, tasteIntent]);
 
   const suggestedPairsRaw = useMemo(() => {
     if (pairingPool.length < 2) return { all: [] as any[], top: [] as any[] };
