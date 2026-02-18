@@ -128,6 +128,19 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const notPresenceSpiky = presence <= 36 && zPresence <= 0.35;
   if (midHeavy && notPresenceSpiky) return "Mid Thickener";
 
+  // FINAL SPEAKER-VOICE FOUNDATION FALLBACK:
+  // Some speakers (notably G12T75) have a "normal" voice that otherwise matches the Fizz Tamer signature.
+  // If the shot is broadly near the center of this speaker's distribution, treat it as Foundation
+  // before allowing Fizz Tamer to capture it.
+  if (speakerStats) {
+    const nearVoice =
+      Math.abs(zCentroid) <= 0.9 &&
+      Math.abs(zExt) <= 1.0 &&
+      Math.abs(zTilt) <= 1.3 &&
+      smooth >= 84;
+    if (nearVoice) return "Foundation";
+  }
+
   const rolledOff = ext > 0 && (speakerStats ? (zExt <= -0.6) : (ext <= 4500));
   // FIZZ TAMER should be "dark relative to this speaker", not "dark in absolute Hz/tilt".
   // Use zTilt primarily; keep a mild absolute tilt guardrail.
