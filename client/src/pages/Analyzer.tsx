@@ -104,8 +104,9 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const veryDarkTilt = tilt <= -5.2 || zTilt <= -0.8;
   const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
   const lowAir = air <= 1.8 || zAir <= -0.3;
+  const notCutForward = (presence <= 26) || (cutCoreRatio <= 2.4);
 
-  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir) {
+  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir && notCutForward) {
     return "Fizz Tamer";
   }
 
