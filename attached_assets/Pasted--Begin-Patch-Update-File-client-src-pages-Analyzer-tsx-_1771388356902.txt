@@ -1,0 +1,188 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+   const tsvHeader = [
+     "filename", "score",
+     "musical_role", "raw_role", "role_source",
+     "centroid_exported_hz", "centroid_computed_hz",
+     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
+     "smooth_score", "hiMidMid_ratio",
+     "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
+     "fizz_label", "notes",
+   ].join("\t");
+ 
++  // === Single source of truth for musical role ===
++  // We were previously computing roles in multiple places:
++  // - TSV/export path (correct)
++  // - Card rendering path (different / missing context bias)
++  // That caused the on-screen badges + preference coverage to disagree with the TSV.
++  const ROLE_LABELS = useMemo(() => new Set([
++    "Foundation",
++    "Cut Layer",
++    "Mid Thickener",
++    "Lead Polish",
++    "Fizz Tamer",
++    "Dark Specialty",
++  ]), []);
++
++  const roleByFilename = useMemo(() => {
++    const map = new Map<string, string>();
++    const rows: any[] = (batchResult?.results ?? []);
++    for (const r of rows) {
++      const fn = safe(r?.filename ?? r?.name ?? "");
++      if (!fn) continue;
++
++      // Prefer an explicitly stored role if it is one of our valid labels.
++      const stored = String(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
++      if (stored && ROLE_LABELS.has(stored)) {
++        map.set(fn, stored);
++        continue;
++      }
++
++      // Otherwise derive role using the SAME pipeline as TSV export.
++      // (This includes bands normalization and applyContextBias.)
++      try {
++        const tsvLine = buildSummaryTSVForRow(r);
++        const parts = String(tsvLine || "").split("\t");
++        const role = String(parts?.[2] ?? "").trim();
++        if (role && ROLE_LABELS.has(role)) {
++          map.set(fn, role);
++          continue;
++        }
++      } catch {}
++
++      // Final fallback (should rarely be needed): compute using the same featureSource approach.
++      try {
++        const bandsFromBatch = {
++          subBass: ((Number(r.subBassPercent) || 0) / 100),
++          bass: ((Number(r.bassPercent) || 0) / 100),
++          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
++          mid: ((Number(r.midPercent) || 0) / 100),
++          highMid: ((Number(r.highMidPercent) || 0) / 100),
++          presence: ((Number(r.presencePercent) || 0) / 100),
++          air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
++        };
++        const featureSource: any = { ...r, bandsPercent: bandsFromBatch };
++        const tf = computeTonalFeatures(featureSource);
++        const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
++        const base = classifyMusicalRole(tf, st);
++        const role = applyContextBias(base, tf, fn, st);
++        if (role && ROLE_LABELS.has(role)) map.set(fn, role);
++      } catch {}
++    }
++    return map;
++  }, [batchResult, ROLE_LABELS]);
++
+@@
+   const collectionCoverage = useMemo(() => {
+     if (!batchResult?.results?.length) return null;
+ 
+-    const roles: string[] = batchResult.results.map((r: any) => {
+-      try {
+-        const tsvLine = buildSummaryTSVForRow(r);
+-        const parts = String(tsvLine || "").split("\t");
+-        return String(parts?.[2] ?? "").trim();
+-      } catch {
+-        return "";
+-      }
+-    }).filter(Boolean);
++    // Count from the same source the UI uses (roleByFilename).
++    const roles: string[] = Array.from(roleByFilename.values()).filter(Boolean);
+ 
+     const total = roles.length;
+     const count = (x: string) => roles.filter((r) => r === x).length;
+ 
+     const foundation = count("Foundation");
+     const cutLayer = count("Cut Layer");
+     const midThickener = count("Mid Thickener");
+     const leadPolish = count("Lead Polish");
+     const fizzTamer = count("Fizz Tamer");
+     const darkSpecialty = count("Dark Specialty");
+@@
+     return {
+       verdict,
+       verdictColor,
+       suggestions,
+       total,
+       featureLayers,
+       bodyLayers,
+       foundation,
+       cutLayer,
+       midThickener,
+       leadPolish,
+       fizzTamer,
+       darkSpecialty,
+     };
+-  }, [batchResult]);
++  }, [batchResult, roleByFilename]);
+ 
+@@
+-                                {(() => {
+-                                  try {
+-                                    const tf = computeTonalFeatures(r as any);
+-                                    const fn = String((r as any).filename ?? (r as any).name ?? "");
+-                                    const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+-                                    const role = classifyMusicalRole(tf, st);
+-                                    return (
+-                                      <span
+-                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+-                                        data-testid={`badge-batch-musical-role-${index}`}
+-                                      >
+-                                        {role}
+-                                      </span>
+-                                    );
+-                                  } catch {
+-                                    return null;
+-                                  }
+-                                })()}
++                                {(() => {
++                                  const fn = String((r as any).filename ?? (r as any).name ?? "");
++                                  const role = roleByFilename.get(fn) ?? "";
++                                  if (!role) return null;
++                                  return (
++                                    <span
++                                      className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
++                                      data-testid={`badge-batch-musical-role-${index}`}
++                                    >
++                                      {role}
++                                    </span>
++                                  );
++                                })()}
+ 
+@@
+-                            {!r.parsedInfo && (() => {
+-                              try {
+-                                const tf = computeTonalFeatures(r as any);
+-                                const fn = String((r as any).filename ?? (r as any).name ?? "");
+-                                const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+-                                const role = classifyMusicalRole(tf, st);
+-                                return (
+-                                  <div className="flex flex-wrap gap-1 mt-1">
+-                                    <span
+-                                      className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+-                                      data-testid={`badge-batch-musical-role-${index}`}
+-                                    >
+-                                      {role}
+-                                    </span>
+-                                  </div>
+-                                );
+-                              } catch {
+-                                return null;
+-                              }
+-                            })()}
++                            {!r.parsedInfo && (() => {
++                              const fn = String((r as any).filename ?? (r as any).name ?? "");
++                              const role = roleByFilename.get(fn) ?? "";
++                              if (!role) return null;
++                              return (
++                                <div className="flex flex-wrap gap-1 mt-1">
++                                  <span
++                                    className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
++                                    data-testid={`badge-batch-musical-role-${index}`}
++                                  >
++                                    {role}
++                                  </span>
++                                </div>
++                              );
++                            })()}
+*** End Patch

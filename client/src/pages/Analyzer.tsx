@@ -2082,6 +2082,58 @@ export default function Analyzer() {
     "fizz_label", "notes",
   ].join("\t");
 
+  const ROLE_LABELS = useMemo(() => new Set([
+    "Foundation",
+    "Cut Layer",
+    "Mid Thickener",
+    "Lead Polish",
+    "Fizz Tamer",
+    "Dark Specialty",
+  ]), []);
+
+  const roleByFilename = useMemo(() => {
+    const map = new Map<string, string>();
+    const rows: any[] = (batchResult?.results ?? []);
+    for (const r of rows) {
+      const fn = safe(r?.filename ?? r?.name ?? "");
+      if (!fn) continue;
+
+      const stored = String(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
+      if (stored && ROLE_LABELS.has(stored)) {
+        map.set(fn, stored);
+        continue;
+      }
+
+      try {
+        const tsvLine = buildSummaryTSVForRow(r);
+        const parts = String(tsvLine || "").split("\t");
+        const role = String(parts?.[2] ?? "").trim();
+        if (role && ROLE_LABELS.has(role)) {
+          map.set(fn, role);
+          continue;
+        }
+      } catch {}
+
+      try {
+        const bandsFromBatch = {
+          subBass: ((Number(r.subBassPercent) || 0) / 100),
+          bass: ((Number(r.bassPercent) || 0) / 100),
+          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+          mid: ((Number(r.midPercent) || 0) / 100),
+          highMid: ((Number(r.highMidPercent) || 0) / 100),
+          presence: ((Number(r.presencePercent) || 0) / 100),
+          air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
+        };
+        const featureSource: any = { ...r, bandsPercent: bandsFromBatch };
+        const tf = computeTonalFeatures(featureSource);
+        const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
+        const base = classifyMusicalRole(tf, st);
+        const role = applyContextBias(base, tf, fn, st);
+        if (role && ROLE_LABELS.has(role)) map.set(fn, role);
+      } catch {}
+    }
+    return map;
+  }, [batchResult, ROLE_LABELS]);
 
   const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
     queryKey: ["/api/tonal-profiles"],
@@ -2270,15 +2322,7 @@ export default function Analyzer() {
   const collectionCoverage = useMemo(() => {
     if (!batchResult?.results?.length) return null;
 
-    const roles: string[] = batchResult.results.map((r: any) => {
-      try {
-        const tsvLine = buildSummaryTSVForRow(r);
-        const parts = String(tsvLine || "").split("\t");
-        return String(parts?.[2] ?? "").trim();
-      } catch {
-        return "";
-      }
-    }).filter(Boolean);
+    const roles: string[] = Array.from(roleByFilename.values()).filter(Boolean);
 
     const total = roles.length;
     const count = (x: string) => roles.filter((r) => r === x).length;
@@ -2342,7 +2386,7 @@ export default function Analyzer() {
       fizzTamer,
       darkSpecialty,
     };
-  }, [batchResult]);
+  }, [batchResult, roleByFilename]);
 
   const gearGaps = useMemo(() => {
     if (!batchResult) return null;
@@ -5304,45 +5348,35 @@ export default function Analyzer() {
                                 )}
 
                                 {(() => {
-                                  try {
-                                    const tf = computeTonalFeatures(r as any);
-                                    const fn = String((r as any).filename ?? (r as any).name ?? "");
-                                    const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
-                                    const role = classifyMusicalRole(tf, st);
-                                    return (
-                                      <span
-                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
-                                        data-testid={`badge-batch-musical-role-${index}`}
-                                      >
-                                        {role}
-                                      </span>
-                                    );
-                                  } catch {
-                                    return null;
-                                  }
-                                })()}
-                              </div>
-                            )}
-
-                            {!r.parsedInfo && (() => {
-                              try {
-                                const tf = computeTonalFeatures(r as any);
-                                const fn = String((r as any).filename ?? (r as any).name ?? "");
-                                const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
-                                const role = classifyMusicalRole(tf, st);
-                                return (
-                                  <div className="flex flex-wrap gap-1 mt-1">
+                                  const fn = String((r as any).filename ?? (r as any).name ?? "");
+                                  const role = roleByFilename.get(fn) ?? "";
+                                  if (!role) return null;
+                                  return (
                                     <span
                                       className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
                                       data-testid={`badge-batch-musical-role-${index}`}
                                     >
                                       {role}
                                     </span>
-                                  </div>
-                                );
-                              } catch {
-                                return null;
-                              }
+                                  );
+                                })()}
+                              </div>
+                            )}
+
+                            {!r.parsedInfo && (() => {
+                              const fn = String((r as any).filename ?? (r as any).name ?? "");
+                              const role = roleByFilename.get(fn) ?? "";
+                              if (!role) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  <span
+                                    className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
+                                    data-testid={`badge-batch-musical-role-${index}`}
+                                  >
+                                    {role}
+                                  </span>
+                                </div>
+                              );
                             })()}
                           </div>
                           <div className={cn(
