@@ -1962,6 +1962,9 @@ export default function Analyzer() {
   const batchMetricsByFilenameRef = useRef<Map<string, AudioMetrics>>(new Map());
   // Must be declared before any callbacks/memos that read it (TDZ safety)
   const speakerStatsRef = useRef<Map<string, SpeakerStats>>(new Map());
+  // IMPORTANT: refs do not trigger rerenders. We also keep a state copy so
+  // "Foundation Candidate" recalculates once speaker stats are computed.
+  const [speakerStatsMap, setSpeakerStatsMap] = useState<Map<string, SpeakerStats>>(new Map());
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -2357,6 +2360,7 @@ export default function Analyzer() {
   const foundationCandidateBySpeaker = useMemo(() => {
     const map = new Map<string, string>();
     if (!batchResult?.results?.length) return map;
+    if (!speakerStatsMap || speakerStatsMap.size === 0) return map;
 
     type Cand = { fn: string; score: number };
     const bestBySpeaker = new Map<string, Cand>();
@@ -2365,7 +2369,7 @@ export default function Analyzer() {
       const fn = String(r?.filename ?? r?.name ?? "");
       if (!fn) continue;
       const spk = inferSpeakerIdFromFilename(fn);
-      const st: any = speakerStatsRef.current.get(spk);
+      const st: any = speakerStatsMap.get(spk);
       if (!st) continue;
 
       const centroid = Number(r?.centroid_computed_hz ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0);
@@ -2399,7 +2403,7 @@ export default function Analyzer() {
       map.set(spk, cand.fn);
     });
     return map;
-  }, [batchResult]);
+  }, [batchResult, speakerStatsMap]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;
@@ -2513,7 +2517,11 @@ export default function Analyzer() {
           });
         }
       }
-      speakerStatsRef.current = computeSpeakerStats(rows);
+      const computed = computeSpeakerStats(rows);
+      speakerStatsRef.current = computed;
+      // Trigger rerender so Foundation Candidate memo recalculates
+      // (useMemo doesn't react to ref.current changes)
+      setSpeakerStatsMap(computed);
     } catch {}
   }, [batchIRs]);
 
