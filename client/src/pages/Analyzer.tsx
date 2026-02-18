@@ -80,11 +80,11 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   // If a shot sits near the center of THIS SPEAKER's distribution, treat it as Foundation.
   if (speakerStats) {
     const nearCenter =
-      Math.abs(zCentroid) <= 0.6 &&
-      Math.abs(zTilt) <= 0.6 &&
-      Math.abs(zExt) <= 0.6;
-    const notFizzy = (fizz <= 1.2 || zFizz <= 0.35);
-    const smoothEnough = smooth >= 86;
+      Math.abs(zCentroid) <= 0.8 &&
+      Math.abs(zTilt) <= 0.8 &&
+      Math.abs(zExt) <= 0.8;
+    const notFizzy = (fizz <= 2.0 || zFizz <= 0.4);
+    const smoothEnough = smooth >= 84;
     if (nearCenter && smoothEnough && notFizzy) {
       return "Foundation";
     }
