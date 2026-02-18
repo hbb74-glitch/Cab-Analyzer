@@ -1971,7 +1971,8 @@ export default function Analyzer() {
     const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? (metricsForFile as any)?.spectralCentroidHz ?? (metricsForFile as any)?.spectralCentroid ?? "", 0);
 
     const role = getMusicalRoleForRow(r);
-    const roleSource = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim() ? "stored" : "computed";
+    const rawRole = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
+    const roleSource = rawRole ? "stored" : "computed";
 
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
 
@@ -2095,58 +2096,6 @@ export default function Analyzer() {
 
   const batchPreferenceRoles = null as any;
 
-  const collectionCoverage = useMemo(() => {
-    if (!batchResult?.results?.length) return null;
-
-    const roles = batchResult.results
-      .map((r: any) => getMusicalRoleForRow(r))
-      .filter(Boolean);
-
-    const total = roles.length;
-    const count = (x: string) => roles.filter((r: string) => r === x).length;
-
-    const foundation = count("Foundation");
-    const cutLayer = count("Cut Layer");
-    const midThickener = count("Mid Thickener");
-    const leadPolish = count("Lead Polish");
-    const fizzTamer = count("Fizz Tamer");
-    const darkSpecialty = count("Dark Specialty");
-
-    const minForCore = Math.max(2, Math.ceil(total * 0.15));
-    const hasFoundation = foundation >= minForCore;
-    const hasCut = cutLayer >= minForCore;
-    const hasPolish = leadPolish >= 1;
-    const hasThick = midThickener >= Math.max(1, Math.ceil(total * 0.10));
-
-    let verdict = "Limited coverage";
-    let verdictColor = "text-red-400";
-    const suggestions: string[] = [];
-
-    if (hasFoundation && hasCut && hasPolish) {
-      verdict = "Good coverage";
-      verdictColor = "text-emerald-400";
-      if (!hasThick) suggestions.push("Consider adding 1\u20132 Mid Thickeners for weight/body support (cone / CapEdge_Dk / CapEdge_Cone_Tr, ribbons, or farther distances).");
-      if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
-    } else {
-      if (!hasCut) suggestions.push("Add more Cut Layers (cap / CapEdge_Br with dynamic mics like SM57/MD421/MD441/PR30 at closer distances).");
-      if (!hasFoundation) suggestions.push("Add more Foundations (balanced cap-edge / transition shots, moderate distances).");
-      if (!hasPolish) suggestions.push("Add at least 1 Lead Polish (smooth \u2265 ~88 with higher air_pct 6\u20139k and controlled fizz).");
-      if (!hasThick) suggestions.push("Add at least 1 Mid Thickener (cone / darker transition positions, ribbons, slightly farther distances).");
-    }
-
-    return {
-      verdict,
-      verdictColor,
-      suggestions,
-      total,
-      foundation,
-      cutLayer,
-      midThickener,
-      leadPolish,
-      fizzTamer,
-      darkSpecialty,
-    };
-  }, [batchResult, getMusicalRoleForRow]);
 
   const gearGaps = useMemo(() => {
     if (!batchResult) return null;
@@ -2324,6 +2273,12 @@ export default function Analyzer() {
     const avgSimilarity = pairCount > 0 ? totalSim / pairCount : 0;
     const redundancyHeat = avgSimilarity > 0.98 ? "high" as const : avgSimilarity > 0.95 ? "medium" as const : "low" as const;
 
+    const roleCounts: Record<string, number> = {};
+    results.forEach((r: any) => {
+      const role = getMusicalRoleForRow(r);
+      if (role) roleCounts[role] = (roleCounts[role] ?? 0) + 1;
+    });
+
     return {
       mostVersatile: byVersatility[0],
       brightest: byTilt[0],
@@ -2334,8 +2289,66 @@ export default function Analyzer() {
       mostCombRisk: bySmooth[bySmooth.length - 1],
       redundancyHeat,
       avgSimilarity,
+      roleCounts,
     };
-  }, [batchResult]);
+  }, [batchResult, getMusicalRoleForRow]);
+
+  const collectionCoverage = useMemo(() => {
+    if (!batchMusicalSummary) return null;
+
+    const roleCounts = batchMusicalSummary?.roleCounts ?? {};
+
+    const foundation = roleCounts["Foundation"] ?? 0;
+    const cutLayer = roleCounts["Cut Layer"] ?? 0;
+    const midThickener = roleCounts["Mid Thickener"] ?? 0;
+    const leadPolish = roleCounts["Lead Polish"] ?? 0;
+    const fizzTamer = roleCounts["Fizz Tamer"] ?? 0;
+    const darkSpecialty = roleCounts["Dark Specialty"] ?? 0;
+
+    const total =
+      foundation +
+      cutLayer +
+      midThickener +
+      leadPolish +
+      fizzTamer +
+      darkSpecialty;
+
+    const minForCore = Math.max(2, Math.ceil(total * 0.15));
+
+    const hasFoundation = foundation >= minForCore;
+    const hasCut = cutLayer >= minForCore;
+    const hasPolish = leadPolish >= 1;
+    const hasThick = midThickener >= Math.max(1, Math.ceil(total * 0.10));
+
+    let verdict = "Limited coverage";
+    let verdictColor = "text-red-400";
+    const suggestions: string[] = [];
+
+    if (hasFoundation && hasCut && hasPolish) {
+      verdict = "Good coverage";
+      verdictColor = "text-emerald-400";
+      if (!hasThick) suggestions.push("Consider adding 1\u20132 Mid Thickeners for weight/body support (cone / CapEdge_Dk / CapEdge_Cone_Tr, ribbons, or farther distances).");
+      if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
+    } else {
+      if (!hasCut) suggestions.push("Add more Cut Layers (cap / CapEdge_Br with dynamic mics like SM57/MD421/MD441/PR30 at closer distances).");
+      if (!hasFoundation) suggestions.push("Add more Foundations (balanced cap-edge / transition shots, moderate distances).");
+      if (!hasPolish) suggestions.push("Add at least 1 Lead Polish (smooth \u2265 ~88 with higher air_pct 6\u20139k and controlled fizz).");
+      if (!hasThick) suggestions.push("Add at least 1 Mid Thickener (cone / darker transition positions, ribbons, slightly farther distances).");
+    }
+
+    return {
+      verdict,
+      verdictColor,
+      suggestions,
+      total,
+      foundation,
+      cutLayer,
+      midThickener,
+      leadPolish,
+      fizzTamer,
+      darkSpecialty,
+    };
+  }, [batchMusicalSummary]);
 
   // Section refs for navigation
   const analyzeRef = useRef<HTMLDivElement>(null);
