@@ -64,7 +64,9 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
     fizz <= 1.5;
 
   const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
-  const notTooDark = ext === 0 ? true : ext >= 4200;
+  // Speaker-relative extension check:
+  // prevents darker speakers (e.g. GA12-SC64, G12T75) from being penalized by absolute Hz thresholds.
+  const notTooDark = ext === 0 ? true : (speakerStats ? (zExt >= -0.2) : (ext >= 4200));
   const notBodyLean = bassLowMid >= 18;
 
   if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
@@ -75,7 +77,7 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
     return "Dark Specialty";
   }
 
-  const extended = ext > 0 && ext >= 4600;
+  const extended = ext > 0 && (speakerStats ? (zExt >= 0.6) : (ext >= 4600));
   const verySmooth = smooth >= 88;
   const hasAir = air >= 4.0 || zAir >= 0.70;
   const notFizzy = fizz <= 1.2 || zFizz <= 0.35;
@@ -100,7 +102,7 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const notPresenceSpiky = presence <= 36 && zPresence <= 0.35;
   if (midHeavy && notPresenceSpiky) return "Mid Thickener";
 
-  const rolledOff = ext > 0 && ext <= 4500;
+  const rolledOff = ext > 0 && (speakerStats ? (zExt <= -0.6) : (ext <= 4500));
   const veryDarkTilt = tilt <= -5.2 || zTilt <= -0.8;
   const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
   const lowAir = air <= 1.8 || zAir <= -0.3;
