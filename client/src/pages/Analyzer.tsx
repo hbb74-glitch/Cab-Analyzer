@@ -135,7 +135,15 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   // This prevents "normal" GA12/G12T75 shots from being mislabeled as fizz tamers.
   const lowPresenceForTamer = (presence <= 18) || (speakerStats ? (zPresence <= -0.4) : false);
 
-  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir && notCutForward && lowPresenceForTamer) {
+  // Tightened Fizz Tamer:
+  // Must be clearly darker than speaker baseline (z-based),
+  // not just naturally dark for that speaker.
+  const clearlyDarkRelative =
+    speakerStats
+      ? (zTilt <= -1.0 || zExt <= -1.0)
+      : (rolledOff || veryDarkTilt);
+
+  if (clearlyDarkRelative && smooth >= 82 && lowFizz && lowAir && zPresence <= -0.5) {
     return "Fizz Tamer";
   }
 
