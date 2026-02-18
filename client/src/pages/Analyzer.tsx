@@ -2261,66 +2261,102 @@ export default function Analyzer() {
   }, [batchResult, learnedProfile, activeProfiles]);
 
   const collectionCoverage = useMemo(() => {
-    if (!batchPreferenceRoles || !learnedProfile || learnedProfile.status === "no_data") return null;
-    const total = batchPreferenceRoles.length;
-    const featureCount = batchPreferenceRoles.filter((r) => r.role === "Feature element").length;
-    const bodyCount = batchPreferenceRoles.filter((r) => r.role === "Body element").length;
-    const unlikelyCount = batchPreferenceRoles.filter((r) => r.unlikelyToUse).length;
-    const unmatched = total - featureCount - bodyCount;
-    const avgFeatured = featureCount > 0
-      ? Math.round(batchPreferenceRoles.filter((r) => r.role === "Feature element").reduce((s, r) => s + r.featuredScore, 0) / featureCount)
-      : 0;
-    const avgBody = bodyCount > 0
-      ? Math.round(batchPreferenceRoles.filter((r) => r.role === "Body element").reduce((s, r) => s + r.bodyScore, 0) / bodyCount)
-      : 0;
+    if (!batchResult?.results?.length) return null;
 
-    const minForRole = Math.max(2, Math.ceil(total * 0.15));
-    const hasEnoughFeature = featureCount >= minForRole;
-    const hasEnoughBody = bodyCount >= minForRole;
+    const roles = batchResult.results.map((r: any) => {
+      const raw = String(r.musicalRole ?? r.musical_role ?? r.role ?? "");
+      if (raw) return raw;
+      try {
+        const bandsFromBatch = {
+          subBass: ((Number(r.subBassPercent) || 0) / 100),
+          bass: ((Number(r.bassPercent) || 0) / 100),
+          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+          mid: ((Number(r.midPercent) || 0) / 100),
+          highMid: ((Number(r.highMidPercent) || 0) / 100),
+          presence: ((Number(r.presencePercent) || 0) / 100),
+          air: ((Number(r.airPercent) || 0) / 100),
+          fizz: ((Number(r.fizzPercent) || 0) / 100),
+        };
+        const tf = computeTonalFeatures({ ...r, bandsPercent: bandsFromBatch });
+        const base = classifyMusicalRole(tf);
+        const spk = inferSpeakerIdFromFilename(String(r.filename ?? r.name ?? ""));
+        const st = speakerStatsRef.current.get(spk);
+        return applyContextBias(base, tf, String(r.filename ?? r.name ?? ""), st);
+      } catch {
+        return "";
+      }
+    });
+
+    const total = roles.length;
+    const count = (name: string) => roles.filter((x) => x === name).length;
+
+    const foundation = count("Foundation");
+    const cutLayer = count("Cut Layer");
+    const midThickener = count("Mid Thickener");
+    const leadPolish = count("Lead Polish");
+    const fizzTamer = count("Fizz Tamer");
+    const darkSpecialty = count("Dark Specialty");
+
+    const featureLayers = cutLayer + leadPolish;
+    const bodyLayers = foundation + midThickener;
+
+    const minForCategory = Math.max(2, Math.ceil(total * 0.15));
+    const hasBody = bodyLayers >= minForCategory;
+    const hasFeature = featureLayers >= minForCategory;
+    const hasPolish = leadPolish >= 1;
+    const hasTamer = fizzTamer >= 1;
 
     let verdict: string;
     let verdictColor: string;
     const suggestions: string[] = [];
 
-    if (hasEnoughFeature && hasEnoughBody) {
+    if (hasBody && hasFeature && hasPolish) {
       verdict = "Good coverage";
       verdictColor = "text-emerald-400";
-      suggestions.push(`${featureCount} feature-type and ${bodyCount} body-type IRs give you solid blending range for your preferred tones.`);
-    } else if (!hasEnoughFeature && !hasEnoughBody) {
+      suggestions.push(
+        `You have ${bodyLayers} body-layer IRs (Foundation + Mid Thickener) and ${featureLayers} feature-layer IRs (Cut Layer + Lead Polish), giving solid blending range.`
+      );
+      if (!hasTamer) {
+        suggestions.push("Consider adding 1–2 dedicated Fizz Tamers (low air, low fizz) for harsher amps/IR pairings.");
+      }
+    } else if (!hasBody && !hasFeature) {
       verdict = "Limited coverage";
       verdictColor = "text-red-400";
-      suggestions.push("Few IRs match your preferred tonal profiles. Consider capturing more shots with varied mic positions.");
-      suggestions.push("For brighter/feature tones: try condenser or ribbon mics at cap or cap-edge positions.");
-      suggestions.push("For warmer/body tones: try dynamic mics at cone or edge positions, slightly off-axis.");
-    } else if (!hasEnoughFeature) {
-      verdict = "Needs more feature-type shots";
+      suggestions.push("Limited role variety in this batch. Add more contrasting shots to cover both body and feature layers.");
+      suggestions.push("For more Cut Layers: cap / CapEdge_Br with dynamic mics (SM57, MD421, MD441, PR30) at closer distances.");
+      suggestions.push("For more Body Layers: Cone or CapEdge_Dk / CapEdge_Cone_Tr with ribbon/darker dynamics (R121, M201) and/or slightly farther distances.");
+      suggestions.push("For Lead Polish: smooth captures with higher air_pct (6–9k) but controlled fizz — often CapEdge_Br or Cap/OffCenter at moderate distance.");
+    } else if (!hasFeature) {
+      verdict = "Needs more feature layers";
       verdictColor = "text-amber-400";
-      suggestions.push(`Only ${featureCount} IR${featureCount !== 1 ? 's' : ''} lean toward the brighter, presence-forward character you tend to prefer in feature elements.`);
-      suggestions.push("Try cap or cap-edge positions with condensers or ribbons for more articulation and air.");
+      suggestions.push(`Only ${featureLayers} feature-layer IR${featureLayers !== 1 ? "s" : ""} (Cut Layer + Lead Polish). Add more cut/polish options.`);
+      suggestions.push("Try cap / CapEdge_Br with SM57/MD421/MD441/PR30. If you want polish not harshness, aim for higher air_pct with smooth score ≥ ~88 and controlled fizz.");
     } else {
-      verdict = "Needs more body-type shots";
+      verdict = "Needs more body layers";
       verdictColor = "text-amber-400";
-      suggestions.push(`Only ${bodyCount} IR${bodyCount !== 1 ? 's' : ''} lean toward the warmer, mid-forward character you prefer for foundation/body tones.`);
-      suggestions.push("Try cone or edge positions with dynamic mics for more weight and warmth.");
+      suggestions.push(`Only ${bodyLayers} body-layer IR${bodyLayers !== 1 ? "s" : ""} (Foundation + Mid Thickener). Add more core/body options.`);
+      suggestions.push("Try Cone or CapEdge_Dk / CapEdge_Cone_Tr with R121/M201 or MD421 at slightly farther distance for weight without fizz.");
     }
 
-    if (unlikelyCount > 0) {
-      suggestions.push(`${unlikelyCount} IR${unlikelyCount !== 1 ? 's' : ''} scored low against current preferences — these may still work well as standalone IRs or in different blend contexts.`);
+    if (darkSpecialty >= Math.max(3, Math.ceil(total * 0.25))) {
+      suggestions.push("You have a lot of Dark Specialty shots in this batch. Consider adding brighter Cut/Polish shots to balance the set.");
     }
 
     return {
-      featureCount,
-      bodyCount,
-      unlikelyCount,
-      unmatched,
-      avgFeatured,
-      avgBody,
       verdict,
       verdictColor,
       suggestions,
       total,
+      featureLayers,
+      bodyLayers,
+      foundation,
+      cutLayer,
+      midThickener,
+      leadPolish,
+      fizzTamer,
+      darkSpecialty,
     };
-  }, [batchPreferenceRoles, learnedProfile]);
+  }, [batchResult]);
 
   const gearGaps = useMemo(() => {
     if (!batchResult) return null;
@@ -4913,23 +4949,16 @@ export default function Analyzer() {
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs">
                         <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 font-mono" data-testid="text-feature-count">
-                          {collectionCoverage.featureCount} feature-type
-                          {collectionCoverage.avgFeatured > 0 && ` (avg ${collectionCoverage.avgFeatured})`}
+                          {collectionCoverage.featureLayers} feature layers
+                          <span className="text-muted-foreground"> (Cut {collectionCoverage.cutLayer}, Polish {collectionCoverage.leadPolish})</span>
                         </span>
                         <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-body-count">
-                          {collectionCoverage.bodyCount} body-type
-                          {collectionCoverage.avgBody > 0 && ` (avg ${collectionCoverage.avgBody})`}
+                          {collectionCoverage.bodyLayers} body layers
+                          <span className="text-muted-foreground"> (Foundation {collectionCoverage.foundation}, Thick {collectionCoverage.midThickener})</span>
                         </span>
-                        {collectionCoverage.unmatched > 0 && (
-                          <span className="px-2 py-1 rounded bg-white/5 text-muted-foreground font-mono">
-                            {collectionCoverage.unmatched} unmatched
-                          </span>
-                        )}
-                        {collectionCoverage.unlikelyCount > 0 && (
-                          <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-unlikely-count">
-                            {collectionCoverage.unlikelyCount} low match
-                          </span>
-                        )}
+                        <span className="px-2 py-1 rounded bg-white/5 text-muted-foreground font-mono">
+                          Fizz Tamers {collectionCoverage.fizzTamer} • Dark {collectionCoverage.darkSpecialty}
+                        </span>
                       </div>
                       <div className="space-y-1">
                         {collectionCoverage.suggestions.map((s, i) => (
