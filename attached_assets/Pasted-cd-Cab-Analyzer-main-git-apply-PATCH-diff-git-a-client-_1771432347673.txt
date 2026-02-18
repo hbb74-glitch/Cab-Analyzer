@@ -1,0 +1,48 @@
+cd Cab-Analyzer-main
+git apply - <<'PATCH'
+diff --git a/client/src/pages/Analyzer.tsx b/client/src/pages/Analyzer.tsx
+index b8a5e73..a19c2f4 100644
+--- a/client/src/pages/Analyzer.tsx
++++ b/client/src/pages/Analyzer.tsx
+@@ -1,5 +1,6 @@
+ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
+   const bp = (tf.bandsPercent ?? {}) as any;
++  // NOTE: speakerStats already provides zCentroid/zExt/zTilt/zAir/zFizz/zPresence where available.
+ 
+   const smooth = Number.isFinite(tf.smoothScore) ? (tf.smoothScore as number) : 0;
+   const tilt = Number.isFinite(tf.tiltDbPerOct) ? (tf.tiltDbPerOct as number) : 0;
+@@ -60,10 +61,17 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
+   if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
+     return "Foundation";
+   }
+ 
+-  // DARK SPECIALTY: unusually dark for the speaker (relative).
+-  if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zExt <= -1.2 || zTilt <= -1.3) {
++  // DARK SPECIALTY: unusually dark FOR THIS SPEAKER.
++  // Use speaker-relative zTilt/zExt primarily; keep only extreme absolute guardrails.
++  // This prevents naturally-dark speakers (GA12-SC64, G12T75, etc.) from being labeled Dark Specialty by default.
++  const extremeAbsDark = (ext > 0 && ext < 2900) || (tilt <= -8.0);
++  const speakerRelDark = (zExt <= -1.1) || (zTilt <= -1.2 && zCentroid <= -0.6);
++  if (extremeAbsDark || speakerRelDark) {
+     return "Dark Specialty";
+   }
+ 
+@@ -88,9 +96,13 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): string {
+   const midHeavy = mid >= 34 || lowMid >= 10 || bassLowMid >= 24;
+   const notPresenceSpiky = presence <= 36 && zPresence <= 0.35;
+   if (midHeavy && notPresenceSpiky) return "Mid Thickener";
+ 
+-  const rolledOff = ext > 0 && (speakerStats ? (zExt <= -0.6) : (ext <= 4500));
+-  const veryDarkTilt = tilt <= -5.2 || zTilt <= -0.8;
++  const rolledOff = ext > 0 && (speakerStats ? (zExt <= -0.6) : (ext <= 4500));
++  // FIZZ TAMER should be "dark relative to this speaker", not "dark in absolute Hz/tilt".
++  // Use zTilt primarily; keep a mild absolute tilt guardrail.
++  const veryDarkTilt = (speakerStats ? (zTilt <= -0.6) : (tilt <= -5.2)) || (tilt <= -7.0);
+   const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
+   const lowAir = air <= 1.8 || zAir <= -0.3;
+   const notCutForward = (presence <= 26) || (cutCoreRatio <= 2.4);
+ 
+   if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir && notCutForward) {
+     return "Fizz Tamer";
+   }
+PATCH
