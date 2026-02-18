@@ -2402,6 +2402,13 @@ export default function Analyzer() {
       bySpk.get(rd.spk)!.push(rd);
     }
 
+    // If a speaker batch contains any explicit Foundation-role IRs, choose the
+    // foundation candidate ONLY from those Foundations. If none exist, fall back to all.
+    const hasFoundationBySpk = new Map<string, boolean>();
+    bySpk.forEach((list, spk) => {
+      hasFoundationBySpk.set(spk, list.some(r => r.role === "Foundation"));
+    });
+
     const meanStd = (arr: number[]): [number, number] => {
       if (!arr.length) return [0, 1];
       const m = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -2426,6 +2433,9 @@ export default function Analyzer() {
       const st = spkStats.get(rd.spk);
       if (!st) continue;
 
+      // Hard preference: if this speaker has Foundations, restrict the candidate pool.
+      if (hasFoundationBySpk.get(rd.spk) && rd.role !== "Foundation") continue;
+
       const zC = (rd.centroid - st.mC) / st.sC;
       const zT = (rd.tilt - st.mT) / st.sT;
       const zE = (rd.ext - st.mE) / st.sE;
@@ -2437,6 +2447,7 @@ export default function Analyzer() {
       s += Math.max(0, (rd.lowMidPct - 12) / 25);
       s += Math.max(0, (rd.airPct - 6) / 10);
 
+      // Soft preference (only relevant when a speaker has 0 Foundations)
       if (rd.role === "Foundation") s -= 0.25;
 
       const prev = bestBySpeaker.get(rd.spk);
