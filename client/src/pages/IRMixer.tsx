@@ -1570,13 +1570,8 @@ export default function IRMixer() {
         clearTimeout(tasteCheckTimeoutRef.current);
         tasteCheckTimeoutRef.current = null;
       }
-      const pending = tasteCheckPhase.pendingRefineCandidates;
-      const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
       setTasteCheckPhase(null);
       if (tasteCheckMode === "learning") setTasteCheckPassed(true);
-      if (tasteCheckMode === "ratio" && pending.length > 0) {
-        proceedToRatioRefine(pending, pendingLoad);
-      }
     }
   }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase, proceedToRatioRefine]);
 
@@ -1624,9 +1619,6 @@ export default function IRMixer() {
       if (tasteCheckModeRef.current === "ratio") {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
-        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
-          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
-        }
         return;
       }
       const keepGoing = shouldContinueTasteCheck(
@@ -1639,9 +1631,6 @@ export default function IRMixer() {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
-        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
-          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
-        }
         return;
       }
 
@@ -1658,9 +1647,6 @@ export default function IRMixer() {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
-        if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
-          proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
-        }
         return;
       }
 
@@ -1731,10 +1717,7 @@ export default function IRMixer() {
     }
     setTasteCheckPhase(null);
     setTasteCheckPassed(true);
-    if (tasteCheckPhase.pendingRefineCandidates.length > 0) {
-      proceedToRatioRefine(tasteCheckPhase.pendingRefineCandidates, tasteCheckPhase.pendingLoadTopPick);
-    }
-  }, [tasteCheckPhase, proceedToRatioRefine]);
+  }, [tasteCheckPhase]);
 
   const liveConfidence = getTasteConfidence(learnedProfile || undefined);
   const tasteCheckBinary = tasteCheckPhase
@@ -1941,7 +1924,6 @@ export default function IRMixer() {
   const skipRatioRefine = useCallback(() => {
     if (!ratioRefinePhase) return;
     setRatioRefinePhase(null);
-    if (tasteCheckMode === "ratio") setTasteCheckMode("learning");
     finishRound(ratioRefinePhase.pendingLoadTopPick, null);
   }, [ratioRefinePhase, finishRound, tasteCheckMode]);
 
@@ -2028,7 +2010,6 @@ export default function IRMixer() {
     setRatioRefinePhase({ ...ratioRefinePhase, stage: "done", winner: ratio, downgraded });
     setTimeout(() => {
       setRatioRefinePhase(null);
-      if (tasteCheckMode === "ratio") setTasteCheckMode("learning");
       finishRound(ratioRefinePhase.pendingLoadTopPick, downgraded ? pk : null);
     }, 1500);
   }, [ratioRefinePhase, activeProfiles, submitSignalsMutation, finishRound, tasteCheckMode]);
