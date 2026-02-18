@@ -1,7 +1,7 @@
-import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, AlertTriangle, ShieldAlert, Sparkles } from "lucide-react";
+import { CheckCircle2, XCircle, Activity, Info, Target, Pencil, Layers, Zap, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, scoreIndividualIR, featuresFromBands, getGearContext, parseGearFromFilename, inferShotIntentFromFilename, type TonalBands, type TonalFeatures, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
+import { scoreAgainstAllProfiles, scoreWithAvoidPenalty, featuresFromBands, getGearContext, parseGearFromFilename, type TonalBands, type TonalFeatures, type MatchResult, type PreferenceProfile } from "@/lib/preference-profiles";
 import { TonalDashboard } from "./TonalDashboard";
 
 interface BestPosition {
@@ -123,6 +123,7 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
     highMid: tonalBalance.highMidPercent,
     presence: tonalBalance.presencePercent,
     air: tonalBalance.ultraHighPercent || 0,
+    fizz: 0,
   };
   const total = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
   if (total === 0) return null;
@@ -132,114 +133,18 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
     ? scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles)
     : scoreAgainstAllProfiles(featuresFromBands(bands));
 
-  let role: string | null = null;
-  let unlikelyToUse = false;
-  let unlikelyReason: string | null = null;
-  const avoidHits: string[] = [];
-  let pairingGuidance: string | null = null;
-
-  if (learnedProfile && learnedProfile.status !== "no_data" && activeProfiles) {
-    const { results: indResults } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
-    const featured = indResults.find((m) => m.profile === "Featured");
-    const body = indResults.find((m) => m.profile === "Body");
-    const fScore = featured?.score ?? 0;
-    const bScore = body?.score ?? 0;
-
-    const shotIntent = filename ? inferShotIntentFromFilename(filename) : null;
-    const intentBonus = shotIntent && shotIntent.confidence > 0 ? Math.round(8 * shotIntent.confidence) : 0;
-    const adjustedF = shotIntent?.role === "featured" ? fScore + intentBonus : fScore;
-    const adjustedB = shotIntent?.role === "body" ? bScore + intentBonus : bScore;
-    const bestScore = Math.max(adjustedF, adjustedB);
-
-    if (bestScore >= 35) {
-      role = adjustedF >= adjustedB ? "Feature element" : "Body element";
-    }
-
-    const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
-    const lowMidPlusMid = bands.lowMid + bands.mid;
-    const avoidTypes: string[] = [];
-    for (const zone of learnedProfile.avoidZones) {
-      if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
-        avoidHits.push(`LowMid+Mid ${Math.round(lowMidPlusMid)}% (blend limit ${zone.threshold}%)`);
-        avoidTypes.push("muddy");
-      } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
-        avoidHits.push(`Mid ${Math.round(bands.mid)}% (blend limit ${zone.threshold}%)`);
-        avoidTypes.push("mid_heavy");
-      } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
-        avoidHits.push(`Presence ${Math.round(bands.presence)}% (blend min ${zone.threshold}%)`);
-        avoidTypes.push("low_presence");
-      } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
-        avoidHits.push(`Ratio ${ratio.toFixed(2)} (blend min ${zone.threshold})`);
-        avoidTypes.push("low_ratio");
-      }
-    }
-
-    if (bestScore < 15) {
-      unlikelyToUse = true;
-      const isLowConfidence = learnedProfile.status === "learning" || (learnedProfile.signalCount ?? 0) < 10;
-      unlikelyReason = isLowConfidence
-        ? "Low match to current preferences (low confidence — still learning your taste)"
-        : "Low match to both preferred tonal profiles — may work better as a standalone IR";
-    }
-
-    if (avoidTypes.length > 0) {
-      const needsLowMid = avoidTypes.includes("muddy") || avoidTypes.includes("mid_heavy");
-      const needsHighPresence = avoidTypes.includes("low_presence") || avoidTypes.includes("low_ratio");
-      if (needsLowMid && needsHighPresence) {
-        pairingGuidance = "Look for bright, articulate IRs — low mids, high presence, strong HiMid/Mid ratio";
-      } else if (needsLowMid) {
-        pairingGuidance = "Look for lean IRs with less low-mid and mid weight to balance this out";
-      } else if (needsHighPresence) {
-        pairingGuidance = "Look for IRs with strong presence and high-mid content to add clarity";
-      }
-    }
-  }
 
   return (
     <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/5">
       <div className="flex items-center gap-2 mb-2">
         <Target className="w-4 h-4 text-indigo-400" />
-        <span className="text-xs font-semibold text-indigo-400">Preference Match</span>
+        <span className="text-xs font-semibold text-indigo-400">Blend Guidance</span>
       </div>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         {results.map((r) => (
           <ProfileMatchBadge key={r.profile} match={r} />
         ))}
-        {role && (
-          <span className={cn(
-            "inline-flex items-center gap-1 text-xs font-mono px-2 py-1 rounded border",
-            role === "Feature element"
-              ? "bg-cyan-500/15 text-cyan-400 border-cyan-500/25"
-              : "bg-amber-500/15 text-amber-400 border-amber-500/25"
-          )} data-testid={`badge-role-${role === "Feature element" ? "feature" : "body"}`}>
-            <Layers className="w-3 h-3" />
-            {role}
-          </span>
-        )}
       </div>
-      {unlikelyToUse && unlikelyReason && (
-        <div className="flex items-start gap-2 p-2 mb-2 rounded bg-amber-500/10 border border-amber-500/20" data-testid="warning-unlikely-to-use">
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-xs font-medium text-amber-400">Low match</p>
-            <p className="text-[11px] text-amber-400/70">{unlikelyReason}</p>
-          </div>
-        </div>
-      )}
-      {avoidHits.length > 0 && !unlikelyToUse && (
-        <div className="p-2.5 mb-2 rounded bg-amber-500/10 border border-amber-500/20 space-y-1.5" data-testid="warning-avoid-zone">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — pair with a complement</p>
-              <p className="text-[11px] text-amber-400/70">{avoidHits.join(" | ")}</p>
-            </div>
-          </div>
-          {pairingGuidance && (
-            <p className="text-[11px] text-amber-300/60 pl-5">{pairingGuidance}</p>
-          )}
-        </div>
-      )}
       {best.deviations.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">{best.summary}</p>
@@ -350,26 +255,6 @@ export function ResultCard({ score, isPerfect, advice, metrics, tonalMetrics, mi
         <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground border-b border-white/10 pb-4 flex-wrap">
           <Activity className="w-4 h-4 text-primary" />
           <span className="text-foreground font-medium">{filename}</span>
-          {(() => {
-            const intent = inferShotIntentFromFilename(filename);
-            if (intent.role === "neutral" || intent.confidence < 0.3) return null;
-            const isFeature = intent.role === "featured";
-            return (
-              <span
-                className={cn(
-                  "inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                  isFeature
-                    ? "bg-orange-500/10 text-orange-400/80 border-orange-500/20"
-                    : "bg-sky-500/10 text-sky-400/80 border-sky-500/20"
-                )}
-                title={intent.reason}
-                data-testid="badge-shot-intent"
-              >
-                {isFeature ? <Target className="w-2.5 h-2.5" /> : <Layers className="w-2.5 h-2.5" />}
-                {isFeature ? "Feature intent" : "Body intent"}
-              </span>
-            );
-          })()}
         </div>
       )}
       <div className="flex flex-col md:flex-row gap-8 items-start">

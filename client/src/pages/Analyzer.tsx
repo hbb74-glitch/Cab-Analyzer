@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap, ShieldAlert, AlertTriangle } from "lucide-react";
+import { UploadCloud, Music4, Mic2, AlertCircle, PlayCircle, Loader2, Activity, Layers, Trash2, Copy, Check, CheckCircle, XCircle, Pencil, Lightbulb, List, Target, Scissors, RefreshCcw, HelpCircle, ChevronUp, ChevronDown, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useCreateAnalysis, analyzeAudioFile, computeDeltaMetrics, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1228,52 +1228,10 @@ function cullIRs(
     return hints.length > 0 ? hints.join(', ') : 'neutral';
   };
 
-  const getPreferenceRole = (idx: number): string | undefined => {
-    if (!preferenceMap) return undefined;
-    const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref || pref.bestScore < 35) return undefined;
-    return pref.bestProfile === "Featured" ? "Feature element" : "Body element";
-  };
+  const getPreferenceRole = (_idx: number): string | undefined => undefined;
+  const roleDistribution = null;
 
-  const roleDistribution = (() => {
-    if (!preferenceMap || preferenceMap.size === 0) return null;
-    let featureCount = 0;
-    let bodyCount = 0;
-    let unclassified = 0;
-    for (let i = 0; i < irs.length; i++) {
-      const pref = preferenceMap.get(irs[i].filename);
-      if (!pref || pref.bestScore < 35) { unclassified++; continue; }
-      if (pref.bestProfile === "Featured") featureCount++;
-      else bodyCount++;
-    }
-    const totalClassified = featureCount + bodyCount;
-    if (totalClassified < 5) return null;
-    const featureRatio = featureCount / totalClassified;
-    const bodyRatio = bodyCount / totalClassified;
-    const featureScarce = featureRatio < 0.25;
-    const bodyScarce = bodyRatio < 0.25;
-    return { featureCount, bodyCount, totalClassified, unclassified, featureRatio, bodyRatio, featureScarce, bodyScarce };
-  })();
-
-  const getRoleScarcityBoost = (idx: number): number => {
-    if (roleBalanceMode === 'off' || !preferenceMap || !roleDistribution) return 0;
-    const pref = preferenceMap.get(irs[idx].filename);
-    if (!pref || pref.bestScore < 50) return 0;
-
-    const isScarceRole = (pref.bestProfile === "Featured" && roleDistribution.featureScarce) ||
-                         (pref.bestProfile === "Body" && roleDistribution.bodyScarce);
-    if (!isScarceRole) return 0;
-
-    const ratio = pref.bestProfile === "Featured" ? roleDistribution.featureRatio : roleDistribution.bodyRatio;
-    const scarcityFactor = Math.max(0, 1 - ratio * 4);
-    const confidenceScale = Math.min(1, (pref.bestScore - 50) / 50);
-    const qualityFloor = Math.max(0, ((irs[idx].score || 85) - 70) / 30);
-
-    if (roleBalanceMode === 'favor') {
-      return scarcityFactor * 10 * confidenceScale * qualityFloor + 3;
-    }
-    return scarcityFactor * 6 * confidenceScale * qualityFloor + 2;
-  };
+  const getRoleScarcityBoost = (_idx: number): number => 0;
 
   const getGearSentimentBoost = (idx: number): number => {
     if (!gearSentimentMap || gearSentimentMap.size === 0) return 0;
@@ -1659,13 +1617,7 @@ function cullIRs(
   keep.sort((a, b) => b.diversityContribution - a.diversityContribution);
   cut.sort((a, b) => b.similarity - a.similarity);
 
-  const roleStats = roleDistribution ? {
-    featureCount: roleDistribution.featureCount,
-    bodyCount: roleDistribution.bodyCount,
-    totalClassified: roleDistribution.totalClassified,
-    featureKept: keep.filter(k => k.preferenceRole === "Feature element").length,
-    bodyKept: keep.filter(k => k.preferenceRole === "Body element").length
-  } : undefined;
+  const roleStats = undefined;
 
   return { 
     result: { keep, cut, closeCallsResolved: closeCalls.length === 0 },
@@ -2018,23 +1970,10 @@ export default function Analyzer() {
     const centroidComputed = fmt(tf?.spectralCentroidHz ?? tf?.centroidHz ?? "", 0);
     const centroidExported = fmt(r.spectralCentroidHz ?? r.spectralCentroid ?? r.centroidHz ?? (metricsForFile as any)?.spectralCentroidHz ?? (metricsForFile as any)?.spectralCentroid ?? "", 0);
 
-    const rawRole = safe(r.musicalRole ?? r.role ?? r.musical_role ?? "");
-    const roleSource = rawRole ? "stored" : "computed";
+    const role = getMusicalRoleForRow(r);
+    const roleSource = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim() ? "stored" : "computed";
 
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
-
-    let role = rawRole;
-    if (!role) {
-      try {
-        const tfFinal = tf ?? computeTonalFeatures(featureSource);
-        const spk = inferSpeakerIdFromFilename(filename);
-        const st = speakerStatsRef.current.get(spk);
-        const base = classifyMusicalRole(tfFinal, st);
-        role = applyContextBias(base, tfFinal, filename, st);
-      } catch {
-        role = "";
-      }
-    }
 
     const centroid = centroidExported || centroidComputed;
     const tilt = fmt(r.spectralTilt ?? r.tiltDbPerOct ?? tf?.tiltDbPerOct ?? "");
@@ -2082,43 +2021,45 @@ export default function Analyzer() {
     "fizz_label", "notes",
   ].join("\t");
 
-  useEffect(() => {
-    if (!batchResult?.results?.length) return;
+  const getMusicalRoleForRow = useCallback((r: any): string => {
+    const filename = safe(r?.filename ?? r?.name ?? "");
+    if (!filename) return "";
 
-    const updated = batchResult.results.map((r: any) => {
-      const fn = String(r.filename ?? r.name ?? "");
+    const stored = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
+    if (stored) return stored;
 
-      if (r.musicalRole) return r;
+    const metricsForFile = batchMetricsByFilenameRef.current.get(filename);
+    const bandsFromBatch = {
+      subBass: ((Number(r.subBassPercent) || 0) / 100),
+      bass: ((Number(r.bassPercent) || 0) / 100),
+      lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+      mid: ((Number(r.midPercent) || 0) / 100),
+      highMid: ((Number(r.highMidPercent) || 0) / 100),
+      presence: ((Number(r.presencePercent) || 0) / 100),
+      air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
+    };
 
-      try {
-        const bandsFromBatch = {
-          subBass: ((Number(r.subBassPercent) || 0) / 100),
-          bass: ((Number(r.bassPercent) || 0) / 100),
-          lowMid: ((Number(r.lowMidPercent) || 0) / 100),
-          mid: ((Number(r.midPercent) || 0) / 100),
-          highMid: ((Number(r.highMidPercent) || 0) / 100),
-          presence: ((Number(r.presencePercent) || 0) / 100),
-          air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
-        };
+    const featureSource: any = {
+      ...r,
+      spectralCentroidHz:
+        ((metricsForFile as any)?.spectralCentroidHz ??
+        (metricsForFile as any)?.spectralCentroid ??
+        r?.spectralCentroidHz ??
+        r?.spectralCentroid ??
+        0),
+      bandsPercent: bandsFromBatch,
+    };
 
-        const featureSource: any = {
-          ...r,
-          bandsPercent: bandsFromBatch,
-        };
-
-        const tf = computeTonalFeatures(featureSource);
-        const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
-        const base = classifyMusicalRole(tf, st);
-        const role = applyContextBias(base, tf, fn, st);
-
-        return { ...r, musicalRole: role };
-      } catch {
-        return r;
-      }
-    });
-
-    batchResult.results = updated;
-  }, [batchResult]);
+    try {
+      const tf = computeTonalFeatures(featureSource);
+      const spk = inferSpeakerIdFromFilename(filename);
+      const st = speakerStatsRef.current.get(spk);
+      const base = classifyMusicalRole(tf, st);
+      return applyContextBias(base, tf, filename, st);
+    } catch {
+      return "";
+    }
+  }, []);
 
   const { data: tonalProfileRows } = useQuery<TonalProfileRow[]>({
     queryKey: ["/api/tonal-profiles"],
@@ -2152,163 +2093,13 @@ export default function Analyzer() {
     reason: string;
   }
 
-  interface BatchIRRole {
-    role: "Feature element" | "Body element" | null;
-    featuredScore: number;
-    bodyScore: number;
-    bestScore: number;
-    unlikelyToUse: boolean;
-    unlikelyReason: string | null;
-    avoidHits: string[];
-    avoidTypes: string[];
-    pairingSuggestions: PairingSuggestion[];
-    pairingGuidance: string | null;
-  }
-
-  const batchPreferenceRoles = useMemo(() => {
-    if (!batchResult || !learnedProfile || learnedProfile.status === "no_data") return null;
-
-    const allBands: TonalBands[] = batchResult.results.map((r) => ({
-      subBass: r.subBassPercent || 0,
-      bass: r.bassPercent || 0,
-      lowMid: r.lowMidPercent || 0,
-      mid: r.midPercent || 0,
-      highMid: r.highMidPercent || 0,
-      presence: r.presencePercent || 0,
-      air: 0,
-      fizz: 0,
-    }));
-
-    const firstPass = allBands.map((bands, idx) => {
-      const { results: matchResults } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
-      const featured = matchResults.find((m) => m.profile === "Featured");
-      const body = matchResults.find((m) => m.profile === "Body");
-      const fScore = featured?.score ?? 0;
-      const bScore = body?.score ?? 0;
-      const bestScore = Math.max(fScore, bScore);
-      const role = bestScore >= 35
-        ? (fScore >= bScore ? "Feature element" as const : "Body element" as const)
-        : null;
-
-      const avoidHits: string[] = [];
-      const avoidTypes: string[] = [];
-      const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 0;
-      const lowMidPlusMid = bands.lowMid + bands.mid;
-      for (const zone of learnedProfile.avoidZones) {
-        if (zone.band === "muddy_composite" && zone.direction === "high" && lowMidPlusMid >= zone.threshold) {
-          avoidHits.push(`LowMid+Mid ${Math.round(lowMidPlusMid)}% (blend limit ${zone.threshold}%)`);
-          avoidTypes.push("muddy");
-        } else if (zone.band === "mid" && zone.direction === "high" && bands.mid > zone.threshold) {
-          avoidHits.push(`Mid ${Math.round(bands.mid)}% (blend limit ${zone.threshold}%)`);
-          avoidTypes.push("mid_heavy");
-        } else if (zone.band === "presence" && zone.direction === "low" && bands.presence < zone.threshold) {
-          avoidHits.push(`Presence ${Math.round(bands.presence)}% (blend min ${zone.threshold}%)`);
-          avoidTypes.push("low_presence");
-        } else if (zone.band === "ratio" && zone.direction === "low" && ratio < zone.threshold) {
-          avoidHits.push(`Ratio ${ratio.toFixed(2)} (blend min ${zone.threshold})`);
-          avoidTypes.push("low_ratio");
-        }
-      }
-
-      let unlikelyToUse = false;
-      let unlikelyReason: string | null = null;
-      if (bestScore < 15) {
-        unlikelyToUse = true;
-        const isLowConfidence = learnedProfile.status === "learning" || (learnedProfile.signalCount ?? 0) < 10;
-        unlikelyReason = isLowConfidence
-          ? "Low match to current preferences (low confidence — still learning your taste)"
-          : "Low match to both preferred tonal profiles — may work better as a standalone IR";
-      }
-
-      return { role, featuredScore: fScore, bodyScore: bScore, bestScore, unlikelyToUse, unlikelyReason, avoidHits, avoidTypes, bands };
-    });
-
-    const roles: BatchIRRole[] = firstPass.map((item, idx) => {
-      const pairingSuggestions: PairingSuggestion[] = [];
-      let pairingGuidance: string | null = null;
-
-      if (item.avoidTypes.length > 0) {
-        const guidanceParts: string[] = [];
-        const needsLowMid = item.avoidTypes.includes("muddy") || item.avoidTypes.includes("mid_heavy");
-        const needsHighPresence = item.avoidTypes.includes("low_presence") || item.avoidTypes.includes("low_ratio");
-
-        if (needsLowMid && needsHighPresence) {
-          guidanceParts.push("Look for bright, articulate IRs — low mids, high presence, strong HiMid/Mid ratio");
-        } else if (needsLowMid) {
-          guidanceParts.push("Look for lean IRs with less low-mid and mid weight to balance this out");
-        } else if (needsHighPresence) {
-          guidanceParts.push("Look for IRs with strong presence and high-mid content to add clarity");
-        }
-        pairingGuidance = guidanceParts.join(". ");
-
-        const scored = firstPass.map((other, otherIdx) => {
-          if (otherIdx === idx || other.unlikelyToUse) return { otherIdx, score: -1 };
-          const ob = other.bands;
-          let complementScore = 0;
-
-          if (needsLowMid) {
-            const otherLowMidMid = ob.lowMid + ob.mid;
-            const thisLowMidMid = item.bands.lowMid + item.bands.mid;
-            if (otherLowMidMid < thisLowMidMid) {
-              complementScore += (thisLowMidMid - otherLowMidMid) * 2;
-            }
-          }
-          if (needsHighPresence) {
-            if (ob.presence > item.bands.presence) {
-              complementScore += (ob.presence - item.bands.presence) * 2;
-            }
-            const otherRatio = ob.mid > 0 ? ob.highMid / ob.mid : 0;
-            const thisRatio = item.bands.mid > 0 ? item.bands.highMid / item.bands.mid : 0;
-            if (otherRatio > thisRatio) {
-              complementScore += (otherRatio - thisRatio) * 15;
-            }
-          }
-
-          if (other.bestScore >= 35) complementScore += 10;
-          if (other.avoidTypes.length === 0) complementScore += 5;
-
-          return { otherIdx, score: complementScore };
-        }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
-
-        for (const s of scored.slice(0, 3)) {
-          const ob = firstPass[s.otherIdx].bands;
-          const reasons: string[] = [];
-          if (needsLowMid && (ob.lowMid + ob.mid) < (item.bands.lowMid + item.bands.mid)) {
-            reasons.push(`leaner mids (${Math.round(ob.lowMid + ob.mid)}%)`);
-          }
-          if (needsHighPresence && ob.presence > item.bands.presence) {
-            reasons.push(`higher presence (${Math.round(ob.presence)}%)`);
-          }
-          pairingSuggestions.push({
-            filename: batchResult.results[s.otherIdx].filename,
-            index: s.otherIdx,
-            reason: reasons.length > 0 ? reasons.join(", ") : "complementary balance",
-          });
-        }
-      }
-
-      return {
-        role: item.role,
-        featuredScore: item.featuredScore,
-        bodyScore: item.bodyScore,
-        bestScore: item.bestScore,
-        unlikelyToUse: item.unlikelyToUse,
-        unlikelyReason: item.unlikelyReason,
-        avoidHits: item.avoidHits,
-        avoidTypes: item.avoidTypes,
-        pairingSuggestions,
-        pairingGuidance,
-      };
-    });
-
-    return roles;
-  }, [batchResult, learnedProfile, activeProfiles]);
+  const batchPreferenceRoles = null as any;
 
   const collectionCoverage = useMemo(() => {
     if (!batchResult?.results?.length) return null;
 
     const roles = batchResult.results
-      .map((r: any) => r.musicalRole)
+      .map((r: any) => getMusicalRoleForRow(r))
       .filter(Boolean);
 
     const total = roles.length;
@@ -2321,42 +2112,26 @@ export default function Analyzer() {
     const fizzTamer = count("Fizz Tamer");
     const darkSpecialty = count("Dark Specialty");
 
-    const featureLayers = cutLayer + leadPolish;
-    const bodyLayers = foundation + midThickener;
-
-    const minForCategory = Math.max(2, Math.ceil(total * 0.15));
-    const hasBody = bodyLayers >= minForCategory;
-    const hasFeature = featureLayers >= minForCategory;
+    const minForCore = Math.max(2, Math.ceil(total * 0.15));
+    const hasFoundation = foundation >= minForCore;
+    const hasCut = cutLayer >= minForCore;
     const hasPolish = leadPolish >= 1;
+    const hasThick = midThickener >= Math.max(1, Math.ceil(total * 0.10));
 
     let verdict = "Limited coverage";
     let verdictColor = "text-red-400";
     const suggestions: string[] = [];
 
-    if (hasBody && hasFeature && hasPolish) {
+    if (hasFoundation && hasCut && hasPolish) {
       verdict = "Good coverage";
       verdictColor = "text-emerald-400";
-      suggestions.push(`Strong spread: ${bodyLayers} body layers (Foundation + Mid Thickener) and ${featureLayers} feature layers (Cut Layer + Lead Polish).`);
+      if (!hasThick) suggestions.push("Consider adding 1\u20132 Mid Thickeners for weight/body support (cone / CapEdge_Dk / CapEdge_Cone_Tr, ribbons, or farther distances).");
       if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
-    } else if (!hasBody && !hasFeature) {
-      verdict = "Limited coverage";
-      verdictColor = "text-red-400";
-      suggestions.push("Limited role variety in this batch. Add more contrasting shots to cover both body and feature layers.");
-      suggestions.push("For more Cut Layers: cap / CapEdge_Br with dynamic mics (SM57, MD421, MD441, PR30) at closer distances.");
-      suggestions.push("For more Body Layers: Cone or CapEdge_Dk / CapEdge_Cone_Tr with ribbon/darker dynamics (R121, M201) and/or slightly farther distances.");
-      suggestions.push("For Lead Polish: smooth captures with higher air_pct (6–9k) but controlled fizz — often CapEdge_Br or Cap/OffCenter at moderate distance.");
-    } else if (!hasFeature) {
-      verdict = "Needs more feature layers";
-      verdictColor = "text-amber-400";
-      suggestions.push(`Only ${featureLayers} feature layers (Cut + Polish). Add more cap / CapEdge_Br cut shots and at least 1 extra polish layer.`);
-    } else if (!hasBody) {
-      verdict = "Needs more body layers";
-      verdictColor = "text-amber-400";
-      suggestions.push(`Only ${bodyLayers} body layers (Foundation + Thickener). Add more Cone / CapEdge_Dk / CapEdge_Cone_Tr and/or ribbon body shots.`);
-    } else if (!hasPolish) {
-      verdict = "Needs at least one polish layer";
-      verdictColor = "text-amber-400";
-      suggestions.push("Add at least 1 Lead Polish (higher air_pct with high smooth score) to finish mixes without harshness.");
+    } else {
+      if (!hasCut) suggestions.push("Add more Cut Layers (cap / CapEdge_Br with dynamic mics like SM57/MD421/MD441/PR30 at closer distances).");
+      if (!hasFoundation) suggestions.push("Add more Foundations (balanced cap-edge / transition shots, moderate distances).");
+      if (!hasPolish) suggestions.push("Add at least 1 Lead Polish (smooth \u2265 ~88 with higher air_pct 6\u20139k and controlled fizz).");
+      if (!hasThick) suggestions.push("Add at least 1 Mid Thickener (cone / darker transition positions, ribbons, slightly farther distances).");
     }
 
     return {
@@ -2364,8 +2139,6 @@ export default function Analyzer() {
       verdictColor,
       suggestions,
       total,
-      featureLayers,
-      bodyLayers,
       foundation,
       cutLayer,
       midThickener,
@@ -2373,7 +2146,7 @@ export default function Analyzer() {
       fizzTamer,
       darkSpecialty,
     };
-  }, [batchResult]);
+  }, [batchResult, getMusicalRoleForRow]);
 
   const gearGaps = useMemo(() => {
     if (!batchResult) return null;
@@ -4958,23 +4731,27 @@ export default function Analyzer() {
                       <div className="flex items-center justify-between gap-4 flex-wrap">
                         <div className="flex items-center gap-2">
                           <Layers className="w-4 h-4 text-indigo-400" />
-                          <span className="text-sm font-semibold text-indigo-400">Preference Coverage</span>
+                          <span className="text-sm font-semibold text-indigo-400">Collection Coverage</span>
                         </div>
                         <span className={cn("text-sm font-medium", collectionCoverage.verdictColor)} data-testid="text-coverage-verdict">
                           {collectionCoverage.verdict}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-3 text-xs">
-                        <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 font-mono" data-testid="text-feature-count">
-                          {collectionCoverage.featureLayers} feature layers
-                          <span className="text-muted-foreground"> (Cut {collectionCoverage.cutLayer}, Polish {collectionCoverage.leadPolish})</span>
+                        <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-foundation-count">
+                          Foundation {collectionCoverage.foundation}
                         </span>
-                        <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono" data-testid="text-body-count">
-                          {collectionCoverage.bodyLayers} body layers
-                          <span className="text-muted-foreground"> (Foundation {collectionCoverage.foundation}, Thick {collectionCoverage.midThickener})</span>
+                        <span className="px-2 py-1 rounded bg-cyan-500/10 text-cyan-400 font-mono" data-testid="text-cut-count">
+                          Cut {collectionCoverage.cutLayer}
+                        </span>
+                        <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono" data-testid="text-thick-count">
+                          Thick {collectionCoverage.midThickener}
+                        </span>
+                        <span className="px-2 py-1 rounded bg-violet-500/10 text-violet-400 font-mono" data-testid="text-polish-count">
+                          Polish {collectionCoverage.leadPolish}
                         </span>
                         <span className="px-2 py-1 rounded bg-white/5 text-muted-foreground font-mono">
-                          Fizz Tamers {collectionCoverage.fizzTamer} • Dark {collectionCoverage.darkSpecialty}
+                          Fizz Tamer {collectionCoverage.fizzTamer} | Dark {collectionCoverage.darkSpecialty}
                         </span>
                       </div>
                       <div className="space-y-1">
@@ -5335,7 +5112,7 @@ export default function Analyzer() {
                                 )}
 
                                 {(() => {
-                                  const role = (r as any).musicalRole;
+                                  const role = getMusicalRoleForRow(r);
                                   if (!role) return null;
                                   return (
                                     <span
@@ -5350,7 +5127,7 @@ export default function Analyzer() {
                             )}
 
                             {!r.parsedInfo && (() => {
-                              const role = (r as any).musicalRole;
+                              const role = getMusicalRoleForRow(r);
                               if (!role) return null;
                               return (
                                 <div className="flex flex-wrap gap-1 mt-1">
@@ -5374,39 +5151,6 @@ export default function Analyzer() {
                           </div>
                         </div>
 
-                        {batchPreferenceRoles?.[index]?.unlikelyToUse && (
-                          <div className="flex items-start gap-2 p-2 rounded bg-red-500/10 border border-red-500/20" data-testid={`warning-unlikely-${index}`}>
-                            <ShieldAlert className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs font-medium text-red-400">Unlikely to use</p>
-                              <p className="text-[11px] text-red-400/70">{batchPreferenceRoles[index].unlikelyReason}</p>
-                            </div>
-                          </div>
-                        )}
-                        {batchPreferenceRoles && batchPreferenceRoles[index]?.avoidHits?.length > 0 && !batchPreferenceRoles[index]?.unlikelyToUse && (
-                          <div className="p-2.5 rounded bg-amber-500/10 border border-amber-500/20 space-y-2" data-testid={`warning-avoid-${index}`}>
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-[10px] text-amber-400/50 mb-0.5">Blend context — pair with a complement</p>
-                                <p className="text-[11px] text-amber-400/70">{batchPreferenceRoles[index].avoidHits.join(" | ")}</p>
-                              </div>
-                            </div>
-                            {batchPreferenceRoles[index].pairingGuidance && (
-                              <p className="text-[11px] text-amber-300/60 pl-5">{batchPreferenceRoles[index].pairingGuidance}</p>
-                            )}
-                            {batchPreferenceRoles[index].pairingSuggestions.length > 0 && (
-                              <div className="pl-5 space-y-1">
-                                <p className="text-[10px] text-amber-400/50 font-medium">Try pairing with:</p>
-                                {batchPreferenceRoles[index].pairingSuggestions.map((s, si) => (
-                                  <p key={si} className="text-[11px] text-amber-300/80 font-mono truncate" data-testid={`suggestion-pair-${index}-${si}`}>
-                                    {s.filename} <span className="text-amber-400/50 font-sans">— {s.reason}</span>
-                                  </p>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
 
                         <p className="text-sm text-foreground/80">{r.advice}</p>
 
@@ -7214,7 +6958,7 @@ export default function Analyzer() {
                         const rowObj: any = {
                           filename: result.filename ?? (result as any).name ?? "single_result",
                           score: result.qualityScore ?? (result as any).score ?? "",
-                          role: (result as any).musicalRole ?? (result as any).role ?? "",
+                          role: getMusicalRoleForRow(result) || "",
                           spectralCentroidHz: (metrics as any)?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
                           spectralTilt: (metrics as any)?.spectralTilt ?? "",
                           rolloffFreq: (metrics as any)?.rolloffFreq ?? "",
