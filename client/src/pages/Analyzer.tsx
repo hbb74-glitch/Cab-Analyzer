@@ -1960,6 +1960,8 @@ export default function Analyzer() {
     setAnalyzerMode: setMode
   } = useResults();
   const batchMetricsByFilenameRef = useRef<Map<string, AudioMetrics>>(new Map());
+  // Must be declared before any callbacks/memos that read it (TDZ safety)
+  const speakerStatsRef = useRef<Map<string, SpeakerStats>>(new Map());
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -2473,7 +2475,6 @@ export default function Analyzer() {
 
   // Batch mode state
   const [batchIRs, setBatchIRs] = useState<BatchIR[]>([]);
-  const speakerStatsRef = useRef<Map<string, SpeakerStats>>(new Map());
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
