@@ -985,6 +985,21 @@ export default function IRMixer() {
 
   const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteEnabled, tasteVersion]);
 
+  useEffect(() => {
+    try {
+      setTasteCheckPhase(null as any);
+    } catch {}
+    try {
+      modeTriggeredTasteCheck.current = false;
+    } catch {}
+    try {
+      // @ts-ignore
+      setTasteCheckRound?.(0);
+      // @ts-ignore
+      setTasteCheckHistory?.([]);
+    } catch {}
+  }, [tasteIntent]);
+
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
     const n = pairingPool.length;
