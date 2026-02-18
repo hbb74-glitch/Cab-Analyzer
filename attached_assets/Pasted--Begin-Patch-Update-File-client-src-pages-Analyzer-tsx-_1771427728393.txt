@@ -1,0 +1,102 @@
+*** Begin Patch
+*** Update File: client/src/pages/Analyzer.tsx
+@@
+-    if (learnedProfile && learnedProfile.status !== "no_data") {
+-      let featureCount = 0;
+-      let bodyCount = 0;
+-      for (const ir of irs) {
+-        const totalEnergy = (ir.metrics.subBassEnergy || 0) + (ir.metrics.bassEnergy || 0) +
+-          (ir.metrics.lowMidEnergy || 0) + (ir.metrics.midEnergy6 || 0) +
+-          (ir.metrics.highMidEnergy || 0) + (ir.metrics.presenceEnergy || 0);
+-        if (totalEnergy === 0) continue;
+-        const toPercent = (e: number) => Math.round((e / totalEnergy) * 100);
+-        const bands: TonalBands = {
+-          subBass: toPercent(ir.metrics.subBassEnergy || 0),
+-          bass: toPercent(ir.metrics.bassEnergy || 0),
+-          lowMid: toPercent(ir.metrics.lowMidEnergy || 0),
+-          mid: toPercent(ir.metrics.midEnergy6 || 0),
+-          highMid: toPercent(ir.metrics.highMidEnergy || 0),
+-          presence: toPercent(ir.metrics.presenceEnergy || 0),
+-          air: 0,
+-          fizz: 0,
+-        };
+-        const { best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
+-        if (best.score < 35) continue;
+-        if (best.profile === "Featured") featureCount++;
+-        else bodyCount++;
+-      }
+-      const totalClassified = featureCount + bodyCount;
+-      if (totalClassified >= 4) {
+-        const featureRatio = featureCount / totalClassified;
+-        const bodyRatio = bodyCount / totalClassified;
+-        const scarceRole = featureRatio < 0.25 ? "Feature" : bodyRatio < 0.25 ? "Body" : null;
+-        const scarceCount = scarceRole === "Feature" ? featureCount : scarceRole === "Body" ? bodyCount : 0;
+-        if (scarceRole && scarceCount > 0) {
+-          preferences.push({
+-            type: 'roleBalance',
+-            question: `Only ${scarceCount} of ${totalClassified} classified IRs are ${scarceRole} shots. Protect them when culling?`,
+-            options: [
+-              { label: `Favor ${scarceRole} shots (strong protection)`, value: 'favor' },
+-              { label: `Protect ${scarceRole} shots (light protection)`, value: 'protect' },
+-              { label: 'No preference (let culler decide)', value: 'off' }
+-            ]
+-          });
+-        }
+-      }
+-    }
++    // NOTE: Legacy preference-role logic (Featured/Body shots) is deprecated.
++    // We intentionally do not generate any "Feature/Body" scarcity prompts here.
+@@
+-                        {/* Preference Match (from old tonal balance) */}
+-                        {r.midPercent != null && r.highMidPercent != null && r.presencePercent != null && (
+-                          <div className="mt-2 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+-                            {(() => {
+-                              const bands: TonalBands = {
+-                                subBass: r.subBassPercent || 0,
+-                                bass: r.bassPercent || 0,
+-                                lowMid: r.lowMidPercent || 0,
+-                                mid: r.midPercent || 0,
+-                                highMid: r.highMidPercent || 0,
+-                                presence: r.presencePercent || 0,
+-                                air: 0,
+-                                fizz: 0,
+-                              };
+-                              const { results: matchResults, best } = learnedProfile
+-                                ? scoreWithAvoidPenalty(featuresFromBands(bands), activeProfiles, learnedProfile)
+-                                : scoreAgainstAllProfiles(featuresFromBands(bands), activeProfiles);
+-                              const matchColorMap: Record<string, string> = {
+-                                strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+-                                close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+-                                partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+-                                miss: "bg-white/5 text-muted-foreground border-white/10",
+-                              };
+-                              return (
+-                                <div className="mt-2 pt-2 border-t border-white/5">
+-                                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+-                                    <Target className="w-3.5 h-3.5 text-indigo-400" />
+-                                    <span className="text-[10px] font-semibold text-indigo-400">Preference Match</span>
+-                                    {matchResults.map((mr) => (
+-                                      <span key={mr.profile} className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", matchColorMap[mr.label])} data-testid={`badge-batch-match-${index}-${mr.profile.toLowerCase()}`}>
+-                                        {mr.profile} {mr.score}
+-                                      </span>
+-                                    ))}
+-                                  </div>
+-                                  {best.deviations.length > 0 && (
+-                                    <div className="flex items-center gap-1.5 flex-wrap">
+-                                      {best.deviations.map((d, di) => (
+-                                        <span key={di} className={cn(
+-                                          "text-[9px] font-mono px-1 py-0.5 rounded",
+-                                          d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
+-                                        )}>
+-                                          {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
+-                                        </span>
+-                                      ))}
+-                                    </div>
+-                                  )}
+-                                </div>
+-                              );
+-                            })()}
+-                          </div>
+-                        )}
++                        {/* Legacy Preference Match (Featured/Body profiles) removed — musical roles only. */}
+*** End Patch
