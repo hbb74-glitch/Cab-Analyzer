@@ -53,6 +53,7 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const zExt = speakerStats ? zScore(ext, speakerStats.mean.ext, speakerStats.std.ext) : 0;
   const zPresence = speakerStats ? zScore(presence, speakerStats.mean.presence, speakerStats.std.presence) : 0;
   const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
+  // zAir/zFizz already computed earlier in file where available
   const zAir = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
   const zFizz = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
 
@@ -72,6 +73,21 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
 
   if (balancedBands && notExtremeTilt && notTooDark && notBodyLean) {
     return "Foundation";
+  }
+
+  // SPEAKER-RELATIVE FOUNDATION (center-mass rule):
+  // For naturally dark speakers (GA12-SC64, G12T75, etc.), absolute tilt/ext thresholds are misleading.
+  // If a shot sits near the center of THIS SPEAKER's distribution, treat it as Foundation.
+  if (speakerStats) {
+    const nearCenter =
+      Math.abs(zCentroid) <= 0.6 &&
+      Math.abs(zTilt) <= 0.6 &&
+      Math.abs(zExt) <= 0.6;
+    const notFizzy = (fizz <= 1.2 || zFizz <= 0.35);
+    const smoothEnough = smooth >= 86;
+    if (nearCenter && smoothEnough && notFizzy) {
+      return "Foundation";
+    }
   }
 
   // DARK SPECIALTY: unusually dark FOR THIS SPEAKER.
@@ -115,8 +131,11 @@ function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): st
   const lowFizz = fizz <= 0.6 || zFizz <= -0.4;
   const lowAir = air <= 1.8 || zAir <= -0.3;
   const notCutForward = (presence <= 26) || (cutCoreRatio <= 2.4);
+  // NEW: on dark speakers, many shots have low air by default; require low presence (absolute) OR low zPresence.
+  // This prevents "normal" GA12/G12T75 shots from being mislabeled as fizz tamers.
+  const lowPresenceForTamer = (presence <= 18) || (speakerStats ? (zPresence <= -0.4) : false);
 
-  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir && notCutForward) {
+  if ((rolledOff || veryDarkTilt) && smooth >= 82 && lowFizz && lowAir && notCutForward && lowPresenceForTamer) {
     return "Fizz Tamer";
   }
 
