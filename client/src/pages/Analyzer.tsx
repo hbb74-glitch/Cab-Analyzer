@@ -2357,53 +2357,97 @@ export default function Analyzer() {
   // === Foundation Candidate (one per speaker) ===
   // Choose a single "general-purpose / start-here" IR per speaker without forcing musical_role labels.
   // Uses speaker-relative z-scores + smoothness + penalties for extremes.
+  // Derives its own per-speaker stats from batchResult.results so it works even when
+  // the batchIRs-based speakerStatsMap hasn't populated (common path: stats come from
+  // analysis results, not pre-upload data).
   const foundationCandidateBySpeaker = useMemo(() => {
     const map = new Map<string, string>();
-    if (!batchResult?.results?.length) return map;
-    if (!speakerStatsMap || speakerStatsMap.size === 0) return map;
+    const results = batchResult?.results as any[] | undefined;
+    if (!results?.length) return map;
 
-    type Cand = { fn: string; score: number };
-    const bestBySpeaker = new Map<string, Cand>();
-
-    for (const r of batchResult.results as any[]) {
+    // -- 1. Extract per-result tonal values --
+    type RowData = {
+      fn: string;
+      spk: string;
+      centroid: number;
+      tilt: number;
+      ext: number;
+      lowMidPct: number;
+      presencePct: number;
+      airPct: number;
+      smooth: number;
+      role: string;
+    };
+    const rows: RowData[] = [];
+    for (const r of results) {
       const fn = String(r?.filename ?? r?.name ?? "");
       if (!fn) continue;
       const spk = inferSpeakerIdFromFilename(fn);
-      const st: any = speakerStatsMap.get(spk);
+      const centroid = Number(r?.spectralCentroidHz ?? r?.spectralCentroid ?? r?.centroid_computed_hz ?? 0);
+      const tilt = Number(r?.spectralTilt ?? r?.tiltDbPerOct ?? r?.spectral_tilt_db_per_oct ?? 0);
+      const ext = Number(r?.highExtensionHz ?? r?.rolloffFreq ?? r?.rolloff_or_high_extension_hz ?? 0);
+      const lowMidPct = Number(r?.lowMidPercent ?? r?.lowMid_pct ?? 0);
+      const presencePct = Number(r?.presencePercent ?? r?.presence_pct ?? 0);
+      const airPct = Number(r?.airPercent ?? r?.air_pct ?? 0);
+      const smooth = Number(r?.smoothScore ?? r?.smooth_score ?? r?.frequencySmoothness ?? 0);
+      const role = String(r?.musicalRole ?? r?.musical_role ?? "");
+      rows.push({ fn, spk, centroid, tilt, ext, lowMidPct, presencePct, airPct, smooth, role });
+    }
+    if (!rows.length) return map;
+
+    // -- 2. Compute per-speaker mean/std inline so we don't depend on speakerStatsMap --
+    const bySpk = new Map<string, RowData[]>();
+    for (const rd of rows) {
+      if (!bySpk.has(rd.spk)) bySpk.set(rd.spk, []);
+      bySpk.get(rd.spk)!.push(rd);
+    }
+
+    const meanStd = (arr: number[]): [number, number] => {
+      if (!arr.length) return [0, 1];
+      const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+      const v = arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length;
+      return [m, Math.sqrt(v) || 1];
+    };
+
+    type SpkStats = { mC: number; sC: number; mT: number; sT: number; mE: number; sE: number };
+    const spkStats = new Map<string, SpkStats>();
+    bySpk.forEach((list, spk) => {
+      const [mC, sC] = meanStd(list.map(r => r.centroid));
+      const [mT, sT] = meanStd(list.map(r => r.tilt));
+      const [mE, sE] = meanStd(list.map(r => r.ext));
+      spkStats.set(spk, { mC, sC, mT, sT, mE, sE });
+    });
+
+    // -- 3. Score each IR --
+    type Cand = { fn: string; score: number };
+    const bestBySpeaker = new Map<string, Cand>();
+
+    for (const rd of rows) {
+      const st = spkStats.get(rd.spk);
       if (!st) continue;
 
-      const centroid = Number(r?.centroid_computed_hz ?? r?.spectralCentroidHz ?? r?.spectralCentroid ?? 0);
-      const tilt = Number(r?.spectral_tilt_db_per_oct ?? r?.tiltDbPerOct ?? r?.spectralTilt ?? 0);
-      const ext = Number(r?.rolloff_or_high_extension_hz ?? r?.rolloffFreq ?? r?.rolloffFrequency ?? r?.highExtensionHz ?? 0);
-
-      const lowMidPct = Number(r?.lowMid_pct ?? r?.lowMidPercent ?? 0);
-      const presencePct = Number(r?.presence_pct ?? r?.presencePercent ?? 0);
-      const airPct = Number(r?.air_pct ?? r?.airPercent ?? 0);
-      const smooth = Number(r?.smooth_score ?? r?.smoothScore ?? r?.frequencySmoothness ?? 0);
-
-      const zC = (st.stdCentroid ? (centroid - st.meanCentroid) / st.stdCentroid : 0);
-      const zT = (st.stdTilt ? (tilt - st.meanTilt) / st.stdTilt : 0);
-      const zE = (st.stdExt ? (ext - st.meanExt) / st.stdExt : 0);
+      const zC = (rd.centroid - st.mC) / st.sC;
+      const zT = (rd.tilt - st.mT) / st.sT;
+      const zE = (rd.ext - st.mE) / st.sE;
 
       let s = 0;
       s += Math.abs(zC) + Math.abs(zT) + Math.abs(zE);
-      s += (smooth ? (90 - smooth) / 10 : 0);
-      s += Math.max(0, (presencePct - 22) / 30);
-      s += Math.max(0, (lowMidPct - 12) / 25);
-      s += Math.max(0, (airPct - 6) / 10);
+      s += (rd.smooth ? (90 - rd.smooth) / 10 : 0);
+      s += Math.max(0, (rd.presencePct - 22) / 30);
+      s += Math.max(0, (rd.lowMidPct - 12) / 25);
+      s += Math.max(0, (rd.airPct - 6) / 10);
 
-      const role = String(r?.musical_role ?? r?.musicalRole ?? "");
-      if (role === "Foundation") s -= 0.25;
+      if (rd.role === "Foundation") s -= 0.25;
 
-      const prev = bestBySpeaker.get(spk);
-      if (!prev || s < prev.score) bestBySpeaker.set(spk, { fn, score: s });
+      const prev = bestBySpeaker.get(rd.spk);
+      if (!prev || s < prev.score) bestBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
     }
 
     bestBySpeaker.forEach((cand, spk) => {
       map.set(spk, cand.fn);
     });
     return map;
-  }, [batchResult, speakerStatsMap]);
+  }, [batchResult]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;
