@@ -2473,6 +2473,19 @@ export default function IRMixer() {
         </button>
 
         <button
+          className="px-2 py-1 rounded border border-orange-700/50 text-orange-400/80"
+          onClick={() => {
+            clearSandbox();
+            setTasteVersion(v => v + 1);
+            toast({ title: "Sandbox reset", description: "All sandbox/training data has been cleared.", duration: 3000 });
+          }}
+          title="Clear all sandbox/training data without affecting live learning"
+          data-testid="button-taste-reset-sandbox"
+        >
+          Reset Sandbox
+        </button>
+
+        <button
           className="px-2 py-1 rounded border border-red-800/50 text-red-400/80"
           onClick={() => setResetAllConfirm(true)}
           title="Reset ALL taste learning across all intents and modes"
