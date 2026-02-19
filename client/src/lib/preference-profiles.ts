@@ -587,7 +587,9 @@ export function suggestPairings(
   count: number = 3,
   learned?: LearnedProfileData,
   excludePairs?: Set<string>,
-  exposureCounts?: Map<string, number>
+  exposureCounts?: Map<string, number>,
+  intent?: "rhythm" | "lead" | "clean",
+  irWinRecords?: Record<string, IRWinRecord>
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
@@ -604,6 +606,18 @@ export function suggestPairings(
   const maxExposure = exposureCounts
     ? Math.max(...Array.from(exposureCounts.values()), 1)
     : 0;
+
+  const spkStats = computeSpeakerStats(irs.map(ir => ({ filename: ir.filename, tf: ir.features })));
+  const irRoles = new Map<string, MusicalRole>();
+  for (const ir of irs) {
+    const spk = inferSpeakerIdFromFilename(ir.filename);
+    const stats = spkStats.get(spk);
+    irRoles.set(ir.filename, classifyIR(ir.features, ir.filename, stats));
+  }
+  findFoundationCandidates(irs, spkStats, irRoles);
+  if (irWinRecords && intent) {
+    softenRolesFromLearning(irRoles, irWinRecords, intent as Intent);
+  }
 
   const allCombos: SuggestedPairing[] = [];
 
@@ -653,6 +667,10 @@ export function suggestPairings(
         intentAlignBoost = -Math.round(3 * Math.min(baseIntent.confidence, featIntent.confidence));
       }
 
+      const roleA = irRoles.get(irs[i].filename) || "Foundation";
+      const roleB = irRoles.get(irs[j].filename) || "Foundation";
+      const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -660,7 +678,7 @@ export function suggestPairings(
         bestMatch: bestResult.best,
         blendScore: bestBQ.blendScore,
         blendLabel: bestBQ.blendLabel,
-        score: bestBQ.blendScore + noveltyBoost + intentAlignBoost,
+        score: bestBQ.blendScore + noveltyBoost + intentAlignBoost + roleBonus,
         rank: 0,
         suggestedRatio: bestRatioUsed.base !== 0.5 ? bestRatioUsed : undefined,
       });

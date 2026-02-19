@@ -1147,7 +1147,9 @@ export default function IRMixer() {
       20,
       learnedProfile || undefined,
       evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
-      exposureCounts.size > 0 ? exposureCounts : undefined
+      exposureCounts.size > 0 ? exposureCounts : undefined,
+      tasteIntent as "rhythm" | "lead" | "clean",
+      getIRWinRecords(tasteContext)
     );
 
     const vecByKey = new Map<string, number[]>();
@@ -1291,7 +1293,7 @@ export default function IRMixer() {
 
     const top = selected.slice(0, 4).map((p, idx) => ({ ...p, rank: idx + 1 }));
     return { all: rescored, top };
-  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion]);
+  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion, tasteIntent]);
 
   const suggestedPairs = suggestedPairsRaw.top;
   const suggestedPairsDebug = suggestedPairsRaw.all.map((p: any) => ({
