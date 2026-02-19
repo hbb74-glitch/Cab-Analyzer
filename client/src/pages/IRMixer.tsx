@@ -3151,10 +3151,7 @@ export default function IRMixer() {
                           </div>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] font-mono text-amber-400">
-                              Foundation: {fr.bodyScore}
-                            </span>
-                            <span className="text-[10px] font-mono text-muted-foreground">
-                              Cut/Presence: {fr.featuredScore}
+                              Score: {fr.bodyScore}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
