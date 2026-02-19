@@ -1,0 +1,22 @@
+filename	score	musical_role	raw_role	role_source	centroid_exported_hz	centroid_computed_hz	spectral_tilt_db_per_oct	rolloff_or_high_extension_hz	smooth_score	hiMidMid_ratio	subBass_pct	bass_pct	lowMid_pct	mid_pct	highMid_pct	presence_pct	air_pct	fizz_label	notes
+G12-65_R121_Cap_6in.wav	94.0	Foundation		computed	2191	2191	-4.0	3773.0	86	1.37	0.2	2.6	3.2	35.4	48.5	9.3	0.90	Dark / rolled-off	
+G12-65_Roswell_Cap_5in.wav	92.0	Dark Specialty		computed	1725	1725	-6.0	3281.0	89	0.96	0.2	1.4	10.6	41.5	39.7	6.1	0.40	Low fizz (tamed)	
+G12-65_SM57_Cap_Cone_Tr_2in.wav	94.0	Foundation		computed	2227	2227	-4.0	4090.0	89	1.30	0.1	2.2	9.1	32.0	41.7	13.8	1.10	Neutral	
+G12-65_SM57_CapEdge_Br_2in.wav	94.0	Lead Polish		computed	2850	2850	-3.1	5355.0	89	2.50	0.0	2.4	5.5	19.7	49.3	21.0	2.10	Polished top (not fizzy)	
+G12-65_SM7b_Cap_OffCenter_3in.wav	94.0	Foundation		computed	2008	2008	-5.1	3662.0	90	1.46	0.2	1.5	12.7	30.2	44.1	10.6	0.60	Low fizz (tamed)	
+G12-65_SM7b_Cone_Br_3in.wav	94.0	Dark Specialty		computed	1685	1685	-5.9	3299.0	87	0.81	0.2	2.4	9.9	44.6	36.2	6.3	0.40	Dark / rolled-off	
+G12-65_M160_Cap_Cone_Tr_4in.wav	94.0	Foundation		computed	2040	2040	-5.3	3357.0	89	2.73	0.5	8.1	7.7	20.8	56.7	5.6	0.60	Low fizz (tamed)	
+G12-65_SM57_CapEdge_2in.wav	94.0	Foundation		computed	2465	2465	-3.6	4336.0	87	1.76	0.1	2.2	5.0	27.2	47.8	16.1	1.60	Neutral	
+G12-65_SM7b_CapEdge_3in.wav	94.0	Mid Thickener		computed	1941	1941	-5.1	3521.0	90	1.13	0.2	2.9	6.5	38.4	43.3	8.2	0.50	Low fizz (tamed)	
+G12-65_e906_Flat_CapEdge_3in.wav	94.0	Foundation		computed	2623	2623	-4.0	4441.0	90	2.32	0.1	2.2	6.3	22.2	51.6	16.6	1.00	Neutral	
+G12-65_SM57_Cap_OffCenter_2in.wav	94.0	Foundation		computed	2617	2617	-3.4	4729.0	89	2.09	0.1	3.6	6.6	22.2	46.3	19.0	2.20	Neutral	
+G12-65_SM7b_Cap_Cone_Tr_3in.wav	94.0	Dark Specialty		computed	1642	1642	-6.0	3275.0	89	1.05	0.2	2.6	19.5	35.1	36.7	5.2	0.70	Low fizz (tamed)	
+G12-65_M160_Cone_Br_4in.wav	94.0	Fizz Tamer		computed	1950	1950	-5.4	3357.0	86	1.44	0.1	3.8	6.7	33.9	48.7	6.3	0.40	Dark / rolled-off	
+G12-65_Roswell_Cap_6in.wav	94.0	Dark Specialty		computed	1894	1894	-5.6	3375.0	88	1.39	0.3	2.0	9.0	34.3	47.8	6.2	0.40	Dark / rolled-off	
+G12-65_MD441_Presence_Cap_Cone_Tr_4.5in.wav	94.0	Foundation		computed	2397	2397	-4.2	4295.0	88	1.62	0.0	2.0	9.4	26.3	42.6	19.0	0.60	Neutral	
+G12-65_MD421_Cap_Cone_Tr_3in.wav	92.0	Cut Layer		computed	2702	2702	-3.7	4324.0	89	1.53	0.1	1.1	5.8	23.9	36.6	31.2	1.30	Neutral	
+G12-65_PR30_Cap_Cone_Tr_3in.wav	94.0	Foundation		computed	2691	2691	-3.2	4184.0	88	2.86	0.1	5.1	5.9	18.5	53.0	16.0	1.40	Neutral	
+G12-65_PR30_CapEdge_3in.wav	94.0	Cut Layer		computed	3009	3009	-3.2	5156.0	88	3.64	0.1	2.0	3.2	14.9	54.2	24.4	1.20	Neutral	
+G12-65_MD421_Cone_3in.wav	92.0	Foundation		computed	2313	2313	-3.6	4178.0	87	1.72	0.2	1.7	10.0	26.1	44.9	14.8	2.40	Neutral	
+G12-65_MD441_Presence_Cap_OffCenter_5in.wav	94.0	Cut Layer		computed	3018	3018	-3.0	5285.0	85	2.64	0.1	0.9	8.6	16.2	42.7	30.6	1.00	Neutral	
+G12-65_PR30_CapEdge_Br_3in.wav	94.0	Cut Layer		computed	3242	3242	-2.6	5209.0	86	4.29	0.1	1.3	2.7	13.5	57.9	23.5	1.20	Polished top (not fizzy)
