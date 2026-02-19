@@ -13,7 +13,7 @@ import {
   scoreToLabel,
   zeroBands,
 } from "./tonal-engine";
-import { classifyIR, scoreRolePairForIntent, computeSpeakerStats, findFoundationCandidates, inferSpeakerIdFromFilename, type MusicalRole, type Intent } from "./musical-roles";
+import { classifyIR, scoreRolePairForIntent, computeSpeakerStats, findFoundationCandidates, softenRolesFromLearning, inferSpeakerIdFromFilename, type MusicalRole, type Intent, type IRWinRecord } from "./musical-roles";
 
 export type { TonalBands, TonalFeatures, BandKey };
 
@@ -1040,7 +1040,8 @@ export function pickTasteCheckCandidates(
   excludePairs?: Set<string>,
   history?: TasteCheckRoundResult[],
   modeOverride?: "acquisition" | "tester" | "learning",
-  intent?: "rhythm" | "lead" | "clean"
+  intent?: "rhythm" | "lead" | "clean",
+  irWinRecords?: Record<string, IRWinRecord>
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
@@ -1060,6 +1061,10 @@ export function pickTasteCheckCandidates(
     irRoles.set(ir.filename, classifyIR(ir.features, ir.filename, stats));
   }
   findFoundationCandidates(irs, spkStats, irRoles);
+
+  if (irWinRecords && intent) {
+    softenRolesFromLearning(irRoles, irWinRecords, intent as Intent);
+  }
 
   const allCombos: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number })[] = [];
   for (let i = 0; i < irs.length; i++) {

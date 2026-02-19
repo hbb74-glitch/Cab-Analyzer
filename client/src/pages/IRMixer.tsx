@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1543,7 +1543,8 @@ export default function IRMixer() {
         pairingPool, activeProfiles, learnedProfile || undefined,
         evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
         undefined, tasteCheckMode as "acquisition" | "tester" | "learning",
-        tasteIntent as "rhythm" | "lead" | "clean"
+        tasteIntent as "rhythm" | "lead" | "clean",
+        getIRWinRecords(tasteContext)
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1647,7 +1648,8 @@ export default function IRMixer() {
         undefined,
         newHistory,
         tasteCheckMode === "ratio" ? "learning" : tasteCheckMode,
-        tasteIntent as "rhythm" | "lead" | "clean"
+        tasteIntent as "rhythm" | "lead" | "clean",
+        getIRWinRecords(tasteContext)
       );
 
       if (!nextPick) {
@@ -1848,12 +1850,21 @@ export default function IRMixer() {
             const tagsA = (pairingFeedback[a.pairKey] ?? []) as string[];
             const tagsB = (pairingFeedback[b.pairKey] ?? []) as string[];
 
+            const aFiles = a.pairKey.split("||");
+            const bFiles = b.pairKey.split("||");
+
             if (diff === 0) {
               recordOutcome(tasteContext, a.xc, b.xc, "tie", { source: "learning" });
+              recordIROutcome(tasteContext, [...aFiles, ...bFiles], []);
               continue;
             }
-            if (diff > 0) recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning", tagsA, tagsB });
-            else recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning", tagsA: tagsB, tagsB: tagsA });
+            if (diff > 0) {
+              recordOutcome(tasteContext, a.xc, b.xc, "a", { lr, source: "learning", tagsA, tagsB });
+              recordIROutcome(tasteContext, aFiles, bFiles);
+            } else {
+              recordOutcome(tasteContext, b.xc, a.xc, "a", { lr, source: "learning", tagsA: tagsB, tagsB: tagsA });
+              recordIROutcome(tasteContext, bFiles, aFiles);
+            }
           }
         }
         setTasteVersion((v) => v + 1);
@@ -1903,6 +1914,7 @@ export default function IRMixer() {
             undefined,
             tasteCheckMode as "acquisition" | "tester" | "learning",
             tasteIntent as "rhythm" | "lead" | "clean",
+            getIRWinRecords(tasteContext)
           );
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -2053,12 +2065,14 @@ export default function IRMixer() {
       if (pair && bF && fF) {
         const xA = featurizeBlend(bF, fF, current.a);
         const xB = featurizeBlend(bF, fF, current.b);
-        if (pickedSide === "a") recordOutcome(tasteContext, xA, xB, "a", { source: "ratio" });
-        else if (pickedSide === "b") recordOutcome(tasteContext, xA, xB, "b", { source: "ratio" });
-        else if (pickedSide === "tie") recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
-        else if (pickedSide === "both") {
+        if (pickedSide === "a" || pickedSide === "b") {
+          recordOutcome(tasteContext, xA, xB, pickedSide, { source: "ratio" });
+        } else if (pickedSide === "tie") {
+          recordOutcome(tasteContext, xA, xB, "tie", { source: "ratio" });
+        } else if (pickedSide === "both") {
           const pairKey = `${cand.pair?.baseFilename ?? "base"}__${cand.pair?.featureFilename ?? "feat"}__ratio`;
           recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ratio" });
+          recordIROutcome(tasteContext, [pair.baseFilename, pair.featureFilename], [], true);
         }
         setTasteVersion(v => v + 1);
       }
@@ -2443,6 +2457,7 @@ export default function IRMixer() {
           const xB = xA;
           const pairKey = `${top.baseFilename}__${top.featureFilename}`;
           recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "pick4" });
+          recordIROutcome(tasteContext, [top.baseFilename, top.featureFilename], [], true);
           setTasteVersion(v => v + 1);
         }}
         title="Mark the top suggestion as 'both useful' (complement) to boost it modestly"
@@ -2597,8 +2612,8 @@ export default function IRMixer() {
                       const action = singleIrRatings[ir.filename];
                       if (!action) return null;
                       if (!ir?.features) return null;
-                      return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features) };
-                    }).filter(Boolean) as { action: string; strength: number; x: number[] }[];
+                      return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features), filename: ir.filename as string };
+                    }).filter(Boolean) as { action: string; strength: number; x: number[]; filename: string }[];
 
                     if (rated.length >= 2) {
                       const mean = meanVector(rated.map(r => r.x));
@@ -2610,10 +2625,16 @@ export default function IRMixer() {
                           const diff = a.strength - b.strength;
                           if (diff === 0) {
                             recordOutcome(singleIrTasteContext, a.xc, b.xc, "tie", { source: "learning" });
+                            recordIROutcome(singleIrTasteContext, [a.filename, b.filename], []);
                           } else {
                             const lr = 0.06 * Math.min(2, Math.abs(diff));
-                            if (diff > 0) recordOutcome(singleIrTasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
-                            else recordOutcome(singleIrTasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+                            if (diff > 0) {
+                              recordOutcome(singleIrTasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
+                              recordIROutcome(singleIrTasteContext, [a.filename], [b.filename]);
+                            } else {
+                              recordOutcome(singleIrTasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
+                              recordIROutcome(singleIrTasteContext, [b.filename], [a.filename]);
+                            }
                           }
                         }
                       }

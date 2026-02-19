@@ -1,5 +1,6 @@
 import type { TonalFeatures, BandKey } from "@/lib/tonal-engine";
 import { BAND_KEYS, blendFeatures } from "@/lib/tonal-engine";
+import type { IRWinRecord } from "@/lib/musical-roles";
 
 export type TasteMode = "singleIR" | "blend";
 export type TasteIntent = "rhythm" | "lead" | "clean";
@@ -14,12 +15,6 @@ export type TasteContext = {
 type ModelState = {
   w: number[];
   nVotes: number;
-};
-
-type IRWinRecord = {
-  wins: number;
-  losses: number;
-  bothCount: number;
 };
 
 type StoreState = {

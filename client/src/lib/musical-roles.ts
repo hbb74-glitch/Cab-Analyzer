@@ -353,6 +353,41 @@ export function scoreRolePairForIntent(
   return aGood + bGood + aAvoid + bAvoid;
 }
 
+export type IRWinRecord = {
+  wins: number;
+  losses: number;
+  bothCount: number;
+};
+
+export function softenRolesFromLearning(
+  roleMap: Map<string, MusicalRole>,
+  irWinRecords: Record<string, IRWinRecord>,
+  intent: Intent
+): void {
+  for (const [filename, rec] of Object.entries(irWinRecords)) {
+    const currentRole = roleMap.get(filename);
+    if (!currentRole || currentRole === "Foundation") continue;
+
+    const net = rec.wins + rec.bothCount * 0.5 - rec.losses;
+    const total = rec.wins + rec.losses + rec.bothCount;
+    if (total < 2 || net <= 0) continue;
+
+    const winRate = (rec.wins + rec.bothCount * 0.5) / Math.max(1, total);
+
+    if (net >= 4 && winRate >= 0.6) {
+      roleMap.set(filename, "Foundation");
+    } else if (net >= 2 && winRate >= 0.5) {
+      const prefs = INTENT_ROLE_PREFERENCES[intent];
+      if (prefs && !prefs.good.includes(currentRole)) {
+        const softTarget = prefs.good[0];
+        if (softTarget && softTarget !== currentRole) {
+          roleMap.set(filename, softTarget);
+        }
+      }
+    }
+  }
+}
+
 export function findFoundationCandidates(
   irs: { filename: string; features: TonalFeatures }[],
   speakerStatsMap: Map<string, SpeakerStats>,
