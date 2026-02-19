@@ -201,7 +201,7 @@ interface TestAIResult {
   reasoning: string;
 }
 
-function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
+function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ interpretation: string; results: TestAIResult[] } | null>(null);
   const { toast } = useToast();
@@ -301,7 +301,10 @@ function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
                             {r.score}
                           </span>
                           <div className="min-w-0">
-                            <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                              <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
+                            </div>
                             <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
                           </div>
                         </div>
@@ -321,7 +324,10 @@ function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
                       {r.score}
                     </span>
                     <div className="min-w-0">
-                      <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                        <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
+                      </div>
                       <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
                     </div>
                   </div>
@@ -335,7 +341,7 @@ function TestAIPanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
   );
 }
 
-function FindTonePanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
+function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
   const [toneRequestText, setToneRequestText] = useState("");
   const [toneResults, setToneResults] = useState<{ suggestions: ToneSuggestion[]; interpretation: string } | null>(null);
   const [toneCopied, setToneCopied] = useState(false);
@@ -455,10 +461,12 @@ function FindTonePanel({ allIRs }: { allIRs: AnalyzedIR[] }) {
                     {Math.round(sug.confidence * 100)}% match
                   </span>
                 </div>
-                <div className="text-xs text-foreground mb-1">
+                <div className="flex items-center gap-1.5 text-xs text-foreground mb-1 flex-wrap">
                   <span className="font-medium">{sug.baseIR.replace(/\.wav$/i, '')}</span>
-                  <span className="text-muted-foreground mx-1">+</span>
+                  <MusicalRoleBadgeFromFeatures filename={sug.baseIR} features={allIRs.find(ir => ir.filename === sug.baseIR)?.features} speakerStatsMap={speakerStatsMap} />
+                  <span className="text-muted-foreground">+</span>
                   <span className="font-medium">{sug.featureIR.replace(/\.wav$/i, '')}</span>
+                  <MusicalRoleBadgeFromFeatures filename={sug.featureIR} features={allIRs.find(ir => ir.filename === sug.featureIR)?.features} speakerStatsMap={speakerStatsMap} />
                 </div>
                 <p className="text-[10px] text-muted-foreground">{sug.expectedTone}</p>
                 <p className="text-[10px] text-muted-foreground/70 mt-1">{sug.reasoning}</p>
@@ -1022,59 +1030,6 @@ export default function IRMixer() {
     const end = start + SINGLE_IR_PAGE_SIZE;
     return pairingPool.slice(start, end);
   }, [pairingPool, singleIrPage]);
-
-  const classifySingleIrRole = useCallback((features: TonalFeatures | undefined) => {
-    if (!features) return { base: "Unknown", bias: "" };
-
-    const bp: any = (features.bandsPercent ?? {});
-    const smooth = Number(features.smoothScore ?? 0);
-    const tilt = Number(features.tiltDbPerOct ?? 0);
-    const ext = Number(features.rolloffFreq ?? 0);
-
-    const mid = Number((bp.mid ?? 0) * 100);
-    const highMid = Number((bp.highMid ?? 0) * 100);
-    const presence = Number((bp.presence ?? 0) * 100);
-    const lowMid = Number((bp.lowMid ?? 0) * 100);
-    const bass = Number((bp.bass ?? 0) * 100);
-    const subBass = Number((bp.subBass ?? 0) * 100);
-    const air = Number((bp.air ?? 0) * 100);
-
-    const rawFizz = Number((features as any).fizzEnergy ?? 0);
-    const fizz = (Number.isFinite(rawFizz) ? (rawFizz > 1.2 ? rawFizz : rawFizz * 100) : 0);
-
-    const hiMidMid = mid > 0 ? (highMid / mid) : 10;
-    const bassLowMid = subBass + bass + lowMid;
-    const core = Math.max(1e-6, (mid + lowMid));
-    const cutCoreRatio = (highMid + presence) / core;
-
-    let baseRole: string = "Foundation";
-
-    if ((presence >= 50 || cutCoreRatio >= 3.0) && (mid + lowMid) <= 24) baseRole = "Cut Layer";
-    else if ((mid >= 34 || lowMid >= 12 || bassLowMid >= 26) && presence <= 34) baseRole = "Mid Thickener";
-    else if ((ext > 0 && ext < 3600) || tilt <= -6.2) baseRole = "Dark Specialty";
-    else if (
-      ((ext > 0 && ext <= 4500) || tilt <= -5.2) &&
-      smooth >= 82 &&
-      air <= 2.0 &&
-      fizz <= 1.2 &&
-      (presence <= 26 || cutCoreRatio <= 2.4)
-    ) baseRole = "Fizz Tamer";
-    else if (smooth >= 88 && ext > 0 && ext >= 4600 && presence >= 22 && presence <= 55 && air >= 4.0 && fizz <= 1.2 && cutCoreRatio <= 3.4) baseRole = "Lead Polish";
-
-    let biasLabel = "";
-    try {
-      const ctx = singleIrTasteContext;
-      const status = getTasteStatus(ctx);
-      if (status.nVotes > 5) {
-        const vec = featurizeSingleIR(features);
-        const bias = getTasteBias(ctx, vec).bias;
-        if (bias > 2) biasLabel = "↑ favored by taste";
-        else if (bias < -2) biasLabel = "↓ disfavored by taste";
-      }
-    } catch {}
-
-    return { base: baseRole, bias: biasLabel };
-  }, [singleIrTasteContext]);
 
   const WHY_TAGS = useMemo(() => ([
     "perfect",
@@ -2547,25 +2502,10 @@ export default function IRMixer() {
 
             {singleIrPageItems.map((ir: any, idx: number) => (
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
-                <div className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</div>
-
-                {ir?.features && (
-                  <div className="text-xs mt-1 opacity-80">
-                    {(() => {
-                      const role = classifySingleIrRole(ir.features);
-                      return (
-                        <>
-                          Role: <span className="font-semibold">{role.base}</span>
-                          {role.bias && (
-                            <span className="ml-2 text-emerald-400">
-                              ({role.bias})
-                            </span>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</span>
+                  <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                </div>
 
                 <div className="flex gap-2 mt-2 flex-wrap">
                   {(["love","like","meh","nope"] as const).map((r) => (
@@ -3008,6 +2948,7 @@ export default function IRMixer() {
                             <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${fr.rank - 1}`}>
                               {fr.filename.replace(/(_\d{13})?\.wav$/, "")}
                             </span>
+                            <MusicalRoleBadgeFromFeatures filename={fr.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                             <ShotIntentBadge filename={fr.filename} />
                           </div>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -3055,11 +2996,11 @@ export default function IRMixer() {
         </div>
 
         {allIRs.length >= 1 && (
-          <TestAIPanel allIRs={allIRs} />
+          <TestAIPanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />
         )}
 
         {allIRs.length >= 2 && (
-          <FindTonePanel allIRs={allIRs} />
+          <FindTonePanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />
         )}
 
         <div className="mb-8 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
@@ -3164,11 +3105,13 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-teal-400 truncate">
                             {cr.irA.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <MusicalRoleBadgeFromFeatures filename={cr.irA.filename} features={cr.irA.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={cr.irA.filename} />
                           <span className="text-[10px] text-muted-foreground shrink-0">+</span>
                           <span className="text-xs font-mono text-teal-400 truncate">
                             {cr.irB.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <MusicalRoleBadgeFromFeatures filename={cr.irB.filename} features={cr.irB.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={cr.irB.filename} />
                           <BlendQualityBadge score={Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length)} label={(() => { const avg = Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length); return avg >= 80 ? "strong" as const : avg >= 60 ? "close" as const : avg >= 40 ? "partial" as const : "miss" as const; })()} />
                         </div>
@@ -3500,6 +3443,7 @@ export default function IRMixer() {
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
                           {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                         </p>
+                        <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={pair.baseFilename} />
                       </div>
                       <p className="text-[10px] text-muted-foreground">
@@ -3511,6 +3455,7 @@ export default function IRMixer() {
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
                           {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
                         </p>
+                        <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={pair.featureFilename} />
                       </div>
                       {tasteEnabled && tasteStatus.nVotes > 0 && (() => {
@@ -4095,18 +4040,7 @@ export default function IRMixer() {
               <div className="space-y-2">
                 {sorted.map((ir, idx) => {
                   const match = scoreAgainstAllProfiles(ir.features, activeProfiles);
-                  const tilt = ir.features.tiltDbPerOct ?? 0;
-                  const smooth = ir.features.smoothScore ?? 0;
                   const centroid = ir.metrics.spectralCentroid ?? 0;
-                  const bodyVal = (ir.bands.lowMid ?? 0) + (ir.bands.bass ?? 0) * 0.5;
-                  const biteVal = (ir.bands.highMid ?? 0) + (ir.bands.presence ?? 0) * 0.6;
-                  let roleSuggestion: string;
-                  if (bodyVal > 25 && tilt < -0.5) roleSuggestion = "Foundation / Body";
-                  else if (biteVal > 15 && tilt > 0.5) roleSuggestion = "Feature / Cut layer";
-                  else if (smooth > 75 && Math.abs(tilt) < 1) roleSuggestion = "Texture / Ambient";
-                  else if (biteVal > 20) roleSuggestion = "Lead / Bite";
-                  else roleSuggestion = "Versatile";
-
                   return (
                     <div key={ir.filename} className={cn(
                       "p-3 rounded-xl border",
@@ -4119,20 +4053,11 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-foreground truncate">
                             {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={ir.filename} />
                           {match.results.map((r) => (
                             <MatchBadge key={r.profile} match={r} />
                           ))}
-                          <span className={cn(
-                            "text-[10px] font-mono px-1.5 py-0.5 rounded border",
-                            roleSuggestion.includes("Foundation") ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                            roleSuggestion.includes("Feature") ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" :
-                            roleSuggestion.includes("Lead") ? "bg-red-500/10 text-red-400 border-red-500/20" :
-                            roleSuggestion.includes("Texture") ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
-                            "bg-white/5 text-muted-foreground border-white/10"
-                          )} data-testid={`badge-role-suggestion-${idx}`}>
-                            {roleSuggestion}
-                          </span>
                         </div>
                       </div>
                       <TonalReadouts features={ir.features} centroid={centroid} />
@@ -4159,6 +4084,7 @@ export default function IRMixer() {
                     <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">
                       {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}
                     </span>
+                    <MusicalRoleBadgeFromFeatures filename={baseIR.filename} features={baseIR.features} speakerStatsMap={speakerStatsMap} />
                     <ShotIntentBadge filename={baseIR.filename} />
                   </div>
                   <Button
@@ -4212,6 +4138,7 @@ export default function IRMixer() {
                         <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${origIdx}`}>
                           {bp.filename.replace(/(_\d{13})?\.wav$/, "")}
                         </span>
+                        <MusicalRoleBadgeFromFeatures filename={bp.filename} features={featureIRs.find(f => f.filename === bp.filename)?.features} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={bp.filename} />
                         <span className="text-[9px] font-mono text-muted-foreground shrink-0">
                           best @ {bp.bestRatio.label} = {bp.bestBlendScore} ({bp.bestBlendProfile})
@@ -4239,6 +4166,7 @@ export default function IRMixer() {
                         <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${idx}`}>
                           {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                         </span>
+                        <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={ir.filename} />
                         <MatchBadge match={best} />
                       </div>
@@ -4318,6 +4246,7 @@ export default function IRMixer() {
                           <span className="text-xs font-mono text-indigo-400 truncate" data-testid={`text-blend-name-${idx}`}>
                             {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")} + {result.feature.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
+                          <MusicalRoleBadgeFromFeatures filename={result.feature.filename} features={result.feature.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={result.feature.filename} />
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {currentRatio.label}
