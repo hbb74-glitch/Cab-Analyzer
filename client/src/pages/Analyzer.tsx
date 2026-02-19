@@ -2145,6 +2145,7 @@ export default function Analyzer() {
           const centroid =
             (irMatch as any)?.metrics?.spectralCentroidHz ??
             (irMatch as any)?.metrics?.spectralCentroid ??
+            r?.spectralCentroid ??
             0;
           rows.push({
             filename,
