@@ -13,6 +13,7 @@ import {
   scoreToLabel,
   zeroBands,
 } from "./tonal-engine";
+import { classifyIR, scoreRolePairForIntent, computeSpeakerStats, findFoundationCandidates, inferSpeakerIdFromFilename, type MusicalRole, type Intent } from "./musical-roles";
 
 export type { TonalBands, TonalFeatures, BandKey };
 
@@ -67,6 +68,7 @@ export const FEATURED_PROFILE: PreferenceProfile = {
     highMid: 2,
     presence: 4,
     air: -2,
+    fizz: -8,
   },
   targetTiltDbPerOct: -1.5,
 };
@@ -82,6 +84,7 @@ export const BODY_PROFILE: PreferenceProfile = {
     highMid: 1,
     presence: -4,
     air: -10,
+    fizz: -14,
   },
   targetTiltDbPerOct: 0.5,
 };
@@ -184,6 +187,7 @@ export function computeSpeakerRelativeProfiles(
         highMid: makeBandTarget("highMid", true),
         presence: makeBandTarget("presence", true),
         air: makeBandTarget("air", true),
+        fizz: makeBandTarget("fizz", false),
       },
       targetTiltDbPerOct: Math.round(tiltP25 * 10) / 10,
     },
@@ -198,6 +202,7 @@ export function computeSpeakerRelativeProfiles(
         highMid: makeBandTarget("highMid", false),
         presence: makeBandTarget("presence", false),
         air: makeBandTarget("air", false),
+        fizz: makeBandTarget("fizz", false),
       },
       targetTiltDbPerOct: Math.round(tiltP75 * 10) / 10,
     },
@@ -931,8 +936,6 @@ function extractSessionIRExposure(history?: TasteCheckRoundResult[]): Map<string
   return counts;
 }
 
-type Intent = "rhythm" | "lead" | "clean";
-
 function safeNum(v: any, fb = 0): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fb;
@@ -1000,7 +1003,7 @@ function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
 }
 
 function computePoolIntentRankScores(
-  combos: { _features: TonalFeatures }[],
+  combos: { _features: TonalFeatures; _roleBonus?: number }[],
   intent: string
 ): number[] {
   const w = INTENT_WEIGHTS[intent];
@@ -1025,6 +1028,7 @@ function computePoolIntentRankScores(
     for (const k of INTENT_BAND_KEYS) {
       s += (w[k] ?? 0) * (ranks[k][idx] - 0.5);
     }
+    s += (combos[idx]._roleBonus ?? 0);
     return s;
   });
 }
@@ -1048,7 +1052,16 @@ export function pickTasteCheckCandidates(
   const maxSessionExposure = sessionExposure.size > 0
     ? Math.max(...Array.from(sessionExposure.values()), 1) : 0;
 
-  const allCombos: (SuggestedPairing & { _features: TonalFeatures })[] = [];
+  const spkStats = computeSpeakerStats(irs.map(ir => ({ filename: ir.filename, tf: ir.features })));
+  const irRoles = new Map<string, MusicalRole>();
+  for (const ir of irs) {
+    const spk = inferSpeakerIdFromFilename(ir.filename);
+    const stats = spkStats.get(spk);
+    irRoles.set(ir.filename, classifyIR(ir.features, ir.filename, stats));
+  }
+  findFoundationCandidates(irs, spkStats, irRoles);
+
+  const allCombos: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number })[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
       const ck = [irs[i].filename, irs[j].filename].sort().join("||");
@@ -1071,6 +1084,10 @@ export function pickTasteCheckCandidates(
 
       const prior = intentPriorScore(blended, intent as any);
 
+      const roleA = irRoles.get(irs[i].filename) || "Foundation";
+      const roleB = irRoles.get(irs[j].filename) || "Foundation";
+      const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -1081,6 +1098,7 @@ export function pickTasteCheckCandidates(
         score: (bq.blendScore - exposurePenalty) + prior,
         rank: 0,
         _features: blended,
+        _roleBonus: roleBonus,
       });
     }
   }
@@ -1133,7 +1151,9 @@ export function pickTasteCheckCandidates(
       console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length}`);
       for (let di = 0; di < Math.min(8, intentScored.length); di++) {
         const d = intentScored[di];
-        console.log(`  #${di} rk=${d.rk.toFixed(3)} ${d.c.baseFilename} + ${d.c.featureFilename}`);
+        const rA = irRoles.get(d.c.baseFilename) ?? "?";
+        const rB = irRoles.get(d.c.featureFilename) ?? "?";
+        console.log(`  #${di} rk=${d.rk.toFixed(3)} [${rA}+${rB} rb=${d.c._roleBonus.toFixed(1)}] ${d.c.baseFilename} + ${d.c.featureFilename}`);
       }
 
       const seen = new Set<string>();
