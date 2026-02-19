@@ -22,7 +22,7 @@ import { scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfi
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
-import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, pickFoundationCandidates, type SpeakerStats } from "@/lib/musical-roles";
+import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, pickFoundationCandidates, setClassifyDebugFilename, type SpeakerStats } from "@/lib/musical-roles";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -1795,7 +1795,14 @@ export default function Analyzer() {
       const tf = computeTonalFeatures(featureSource);
       const spk = inferSpeakerIdFromFilename(filename);
       const st = speakerStatsRef.current.get(spk);
+      if (filename.includes("R121_Cap_6in")) {
+        setClassifyDebugFilename("[Analyzer] " + filename);
+      }
       const base = classifyMusicalRole(tf, st);
+      if (filename.includes("R121_Cap_6in")) {
+        setClassifyDebugFilename(null);
+        console.log("[Analyzer DEBUG] R121_Cap_6in role:", applyContextBias(base, tf, filename, st));
+      }
       return applyContextBias(base, tf, filename, st);
     } catch {
       return "";

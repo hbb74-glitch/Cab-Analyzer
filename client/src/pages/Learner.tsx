@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
-import { classifyIR, pickFoundationCandidates, inferSpeakerIdFromFilename } from "@/lib/musical-roles";
+import { classifyIR, pickFoundationCandidates, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
@@ -912,12 +912,24 @@ export default function Learner() {
       "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
       "fizz_label", "notes",
     ].join("\t");
+    if (allIRs.length > 0) {
+      const spk0 = inferSpeakerIdFromFilename(allIRs[0].filename);
+      const stats0 = speakerStatsMap.get(spk0);
+      console.log("[Learner TSV] speakerStats for", spk0, ":", stats0 ? JSON.stringify({ mean: stats0.mean, std: stats0.std }) : "NONE");
+    }
     const rows = allIRs.map(ir => {
       const tf = ir.features;
       const bp = tf.bandsPercent;
       const spk = inferSpeakerIdFromFilename(ir.filename);
       const stats = speakerStatsMap.get(spk);
+      if (ir.filename.includes("R121_Cap_6in")) {
+        setClassifyDebugFilename("[Learner] " + ir.filename);
+      }
       const role = classifyIR(tf, ir.filename, stats);
+      if (ir.filename.includes("R121_Cap_6in")) {
+        setClassifyDebugFilename(null);
+        console.log("[Learner TSV DEBUG] R121_Cap_6in role:", role);
+      }
       const centroid = fmt(tf.spectralCentroidHz ?? 0, 0);
       const tilt = fmt(tf.tiltDbPerOct ?? 0);
       const rolloff = fmt(tf.rolloffFreq ?? 0, 1);
@@ -1084,9 +1096,15 @@ export default function Learner() {
         analyzed.push({ filename: file.name, metrics });
       }
       const normMap = await normalizeViaServer(analyzed);
+      console.log("[Learner] normalizeViaServer returned", normMap.size, "entries for", analyzed.length, "files");
       const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
         const norm = normMap.get(filename);
         const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
+        if (filename.includes("R121_Cap_6in")) {
+          const clientFeatures = computeTonalFeatures(metrics);
+          console.log("[Learner DEBUG] R121_Cap_6in server-norm:", !!norm, "fizzEnergy:", features.fizzEnergy, "bandsPercent.mid:", features.bandsPercent.mid, "bandsPercent.fizz:", features.bandsPercent.fizz);
+          console.log("[Learner DEBUG] R121_Cap_6in client-only fizzEnergy:", clientFeatures.fizzEnergy, "bandsPercent.mid:", clientFeatures.bandsPercent.mid, "bandsPercent.fizz:", clientFeatures.bandsPercent.fizz);
+        }
         return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
       });
       setAllIRs(results);

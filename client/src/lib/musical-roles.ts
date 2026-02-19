@@ -75,6 +75,9 @@ export function computeSpeakerStats(rows: Array<{ filename: string; tf: TonalFea
   return stats;
 }
 
+let _classifyDebugFilename: string | null = null;
+export function setClassifyDebugFilename(f: string | null) { _classifyDebugFilename = f; }
+
 export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerStats): MusicalRole {
   const bp = (tf.bandsPercent ?? {}) as any;
 
@@ -106,6 +109,17 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
   const zTilt = speakerStats ? zScore(tilt, speakerStats.mean.tilt, speakerStats.std.tilt) : 0;
   const zAir = speakerStats ? zScore(air, speakerStats.mean.air, speakerStats.std.air) : 0;
   const zFizz = speakerStats ? zScore(fizz, speakerStats.mean.fizz, speakerStats.std.fizz) : 0;
+
+  if (_classifyDebugFilename) {
+    console.log(`[classifyMusicalRole DEBUG] ${_classifyDebugFilename}:`, JSON.stringify({
+      mid, highMid, presence, lowMid, bass, subBass, air, fizz, smooth, tilt, ext, centroid,
+      bassLowMid, core, cutCoreRatio,
+      zCentroid, zExt, zPresence, zTilt, zAir, zFizz,
+      hasSpeakerStats: !!speakerStats,
+      speakerMean: speakerStats?.mean,
+      speakerStd: speakerStats?.std,
+    }));
+  }
 
   const balancedBands =
     mid >= 22 && mid <= 35 &&
