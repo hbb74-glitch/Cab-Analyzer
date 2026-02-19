@@ -981,7 +981,7 @@ function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
     s += (b.air >= 1.5 && b.air <= 5.0) ? 2.0 : -1.0;
     s += (b.pres >= 16 && b.pres <= 30) ? 2.0 : -1.5;
     s += (ratio >= 1.5 && ratio <= 3.0) ? 1.5 : -1.0;
-    s += (b.highMid >= 25 && b.highMid <= 55) ? 1.5 : -0.5;
+    s += (b.hiMid >= 25 && b.hiMid <= 55) ? 1.5 : -0.5;
     s += (b.lowMid <= 16) ? 0.8 : -0.8;
   }
 
@@ -1090,6 +1090,29 @@ export function pickTasteCheckCandidates(
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
+
+    if (intent) {
+      const byIntent = [...allCombos].sort((a, b) => b.score - a.score);
+      const seen = new Set<string>();
+      const top: SuggestedPairing[] = [];
+      for (const c of byIntent) {
+        const k = [c.baseFilename, c.featureFilename].sort().join("||");
+        if (seen.has(k)) continue;
+        seen.add(k);
+        top.push(c as SuggestedPairing);
+        if (top.length >= 4) break;
+      }
+      if (top.length >= 4) {
+        return {
+          candidates: top,
+          axisName: chosenAxis.axis.name,
+          roundType: "quad" as const,
+          axisLabels: [...chosenAxis.axis.label] as [string, string],
+          confidence,
+        };
+      }
+    }
+
     const scored = allCombos.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
     scored.sort((a, b) => a.axisVal - b.axisVal);
 
@@ -1133,6 +1156,28 @@ export function pickTasteCheckCandidates(
   }
 
   const axisCompute = chosenAxis.axis.compute;
+
+  if (intent && allCombos.length >= 2) {
+    const byIntent = [...allCombos].sort((a, b) => b.score - a.score);
+    const seen = new Set<string>();
+    const topTwo: SuggestedPairing[] = [];
+    for (const c of byIntent) {
+      const k = [c.baseFilename, c.featureFilename].sort().join("||");
+      if (seen.has(k)) continue;
+      seen.add(k);
+      topTwo.push(c as SuggestedPairing);
+      if (topTwo.length >= 2) break;
+    }
+    if (topTwo.length >= 2) {
+      return {
+        candidates: topTwo,
+        axisName: chosenAxis.axis.name,
+        roundType: "binary" as const,
+        axisLabels: [...chosenAxis.axis.label] as [string, string],
+        confidence,
+      };
+    }
+  }
 
   const scoredWithQuality = allCombos
     .map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }))
