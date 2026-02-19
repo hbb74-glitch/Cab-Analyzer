@@ -3115,6 +3115,26 @@ export default function IRMixer() {
             isLoading={isLoadingAll}
           />
 
+          {showFoundation && allIRs.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
+              <details open>
+                <summary className="text-xs text-muted-foreground uppercase tracking-wider mb-2 cursor-pointer select-none">
+                  Loaded IRs — Role Summary ({allIRs.length})
+                </summary>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2 max-h-[300px] overflow-y-auto pr-1">
+                  {allIRs.map((ir) => (
+                    <div key={ir.filename} className="flex items-center gap-1.5 py-0.5 px-2 rounded bg-white/[0.02]" data-testid={`ir-role-summary-${ir.filename}`}>
+                      <span className="text-[10px] font-mono text-foreground truncate flex-1 min-w-0">
+                        {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
+                      </span>
+                      <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </motion.div>
+          )}
+
           {showFoundation && foundationResults.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by Foundation score -- best base IRs ({foundationResults.length} IRs)</p>
