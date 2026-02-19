@@ -21,6 +21,8 @@ export type EloEntry = {
   rating: number;
   matchCount: number;
   uncertainty: number;
+  lastMatchRound?: number;
+  winCount?: number;
 };
 
 type StoreState = {
@@ -609,7 +611,8 @@ export function recordEloOutcome(
   ctx: TasteContext,
   winnerFiles: [string, string],
   loserFiles: [string, string],
-  isDraw = false
+  isDraw = false,
+  currentRound?: number
 ): void {
   const state = loadState();
   const key = eloKey(ctx);
@@ -635,16 +638,62 @@ export function recordEloOutcome(
   w.uncertainty = 1 / Math.sqrt(w.matchCount + 1);
   l.uncertainty = 1 / Math.sqrt(l.matchCount + 1);
 
+  if (currentRound !== undefined) {
+    w.lastMatchRound = currentRound;
+    l.lastMatchRound = currentRound;
+  }
+  if (!isDraw) {
+    w.winCount = (w.winCount ?? 0) + 1;
+  }
+
   saveState(state);
+}
+
+export function applyGlickoDecay(
+  ratings: Record<string, EloEntry>,
+  currentRound: number,
+  decayRate = 0.02,
+  maxDecay = 0.3
+): Record<string, EloEntry> {
+  const decayed: Record<string, EloEntry> = {};
+  for (const [ck, entry] of Object.entries(ratings)) {
+    const roundsSinceMatch = currentRound - (entry.lastMatchRound ?? 0);
+    const decay = Math.min(maxDecay, decayRate * roundsSinceMatch);
+    const newUncertainty = Math.min(1.0, entry.uncertainty + decay);
+    decayed[ck] = { ...entry, uncertainty: newUncertainty };
+  }
+  return decayed;
+}
+
+export function thompsonSample(entry: EloEntry): number {
+  const mean = entry.rating;
+  const stdDev = 200 * entry.uncertainty;
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const z = Math.sqrt(-2 * Math.log(Math.max(1e-10, u1))) * Math.cos(2 * Math.PI * u2);
+  return mean + stdDev * z;
+}
+
+export function informationGain(a: EloEntry, b: EloEntry): number {
+  const ratingProximity = 1 - Math.min(1, Math.abs(a.rating - b.rating) / 200);
+  const avgUncertainty = (a.uncertainty + b.uncertainty) / 2;
+  const maxUncertainty = Math.max(a.uncertainty, b.uncertainty);
+  return ratingProximity * 0.5 + avgUncertainty * 0.3 + maxUncertainty * 0.2;
+}
+
+export function winRate(entry: EloEntry): number {
+  if (entry.matchCount === 0) return 0.5;
+  return (entry.winCount ?? 0) / entry.matchCount;
 }
 
 export function recordEloQuadOutcome(
   ctx: TasteContext,
   winner: [string, string],
-  losers: [string, string][]
+  losers: [string, string][],
+  currentRound?: number
 ): void {
   for (const loser of losers) {
-    recordEloOutcome(ctx, winner, loser);
+    recordEloOutcome(ctx, winner, loser, false, currentRound);
   }
 }
 

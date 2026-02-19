@@ -14,7 +14,7 @@ import {
   zeroBands,
 } from "./tonal-engine";
 import { classifyIR, scoreRolePairForIntent, INTENT_ROLE_PREFERENCES, computeSpeakerStats, findFoundationCandidates, softenRolesFromLearning, inferSpeakerIdFromFilename, type MusicalRole, type Intent, type IRWinRecord } from "./musical-roles";
-import type { EloEntry } from "./tasteStore";
+import { type EloEntry, thompsonSample, informationGain, applyGlickoDecay, winRate } from "./tasteStore";
 
 export type { TonalBands, TonalFeatures, BandKey };
 
@@ -1165,12 +1165,170 @@ function computePoolIntentRankScores(
   });
 }
 
+type ComboWithMeta = SuggestedPairing & {
+  _features: TonalFeatures;
+  _roleBonus: number;
+  _roleA: MusicalRole;
+  _roleB: MusicalRole;
+  _rolePairKey: string;
+  _ucb: number;
+  _uncertainty: number;
+  _isBoundary: boolean;
+  _thompsonScore?: number;
+  _infoGain?: number;
+};
+
+function detectPlateauWinners(
+  combos: ComboWithMeta[],
+  eloRatings: Record<string, EloEntry> | undefined,
+  plateauThreshold = 8,
+  minRating = ELO_BASE_RATING + 20
+): ComboWithMeta[] {
+  if (!eloRatings) return [];
+
+  const winners = combos.filter(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const elo = eloRatings[ck];
+    return elo && elo.rating >= minRating && elo.matchCount >= 2;
+  });
+
+  if (winners.length < 3) return [];
+
+  const ratings = winners.map(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    return eloRatings[ck]?.rating ?? ELO_BASE_RATING;
+  });
+
+  const maxR = Math.max(...ratings);
+  const minR = Math.min(...ratings);
+  const spread = maxR - minR;
+
+  if (spread <= plateauThreshold) {
+    return winners;
+  }
+
+  const topTier = winners.filter(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const r = eloRatings[ck]?.rating ?? ELO_BASE_RATING;
+    return r >= maxR - plateauThreshold;
+  });
+
+  return topTier.length >= 3 ? topTier : [];
+}
+
+function swissPairScore(
+  a: EloEntry | undefined,
+  b: EloEntry | undefined
+): number {
+  const rA = a?.rating ?? ELO_BASE_RATING;
+  const rB = b?.rating ?? ELO_BASE_RATING;
+  const ratingProximity = 1 - Math.min(1, Math.abs(rA - rB) / 150);
+
+  const aUnc = a?.uncertainty ?? 1.0;
+  const bUnc = b?.uncertainty ?? 1.0;
+  const avgUncertainty = (aUnc + bUnc) / 2;
+
+  const aMatches = a?.matchCount ?? 0;
+  const bMatches = b?.matchCount ?? 0;
+  const directMatchPenalty = (aMatches > 0 && bMatches > 0 && Math.abs(aMatches - bMatches) <= 1) ? 0 : 0.2;
+
+  return ratingProximity * 0.5 + avgUncertainty * 0.3 + directMatchPenalty;
+}
+
+function pickSwissPairs(
+  pool: ComboWithMeta[],
+  count: number,
+  eloRatings: Record<string, EloEntry> | undefined
+): ComboWithMeta[] {
+  if (pool.length <= count || !eloRatings) return pool.slice(0, count);
+
+  const sorted = [...pool].sort((a, b) => {
+    const ckA = [a.baseFilename, a.featureFilename].sort().join("||");
+    const ckB = [b.baseFilename, b.featureFilename].sort().join("||");
+    const rA = eloRatings[ckA]?.rating ?? ELO_BASE_RATING;
+    const rB = eloRatings[ckB]?.rating ?? ELO_BASE_RATING;
+    return rB - rA;
+  });
+
+  if (count === 2) {
+    let bestPair: [ComboWithMeta, ComboWithMeta] | null = null;
+    let bestScore = -Infinity;
+
+    for (let i = 0; i < Math.min(sorted.length, 10); i++) {
+      for (let j = i + 1; j < Math.min(sorted.length, 15); j++) {
+        const ckA = [sorted[i].baseFilename, sorted[i].featureFilename].sort().join("||");
+        const ckB = [sorted[j].baseFilename, sorted[j].featureFilename].sort().join("||");
+        const eloA = eloRatings[ckA];
+        const eloB = eloRatings[ckB];
+        const score = swissPairScore(eloA, eloB) +
+          (eloA && eloB ? informationGain(eloA, eloB) : 0.5);
+        if (score > bestScore) {
+          bestScore = score;
+          bestPair = [sorted[i], sorted[j]];
+        }
+      }
+    }
+
+    return bestPair ?? [sorted[0], sorted[1]];
+  }
+
+  const picked: ComboWithMeta[] = [sorted[0]];
+  const pickedKeys = new Set([[sorted[0].baseFilename, sorted[0].featureFilename].sort().join("||")]);
+
+  while (picked.length < count && picked.length < sorted.length) {
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+
+    for (let i = 0; i < sorted.length; i++) {
+      const ck = [sorted[i].baseFilename, sorted[i].featureFilename].sort().join("||");
+      if (pickedKeys.has(ck)) continue;
+
+      let pairScore = 0;
+      for (const p of picked) {
+        const pk = [p.baseFilename, p.featureFilename].sort().join("||");
+        const eloA = eloRatings[ck];
+        const eloB = eloRatings[pk];
+        pairScore += swissPairScore(eloA, eloB);
+        if (eloA && eloB) pairScore += informationGain(eloA, eloB);
+      }
+      pairScore /= picked.length;
+
+      const dist = picked.reduce((sum, p) => sum + tonalDistance(sorted[i]._features, p._features), 0) / picked.length;
+      const totalScore = pairScore + dist * 0.3;
+
+      if (totalScore > bestScore) {
+        bestScore = totalScore;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx === -1) break;
+    picked.push(sorted[bestIdx]);
+    pickedKeys.add([sorted[bestIdx].baseFilename, sorted[bestIdx].featureFilename].sort().join("||"));
+  }
+
+  return picked;
+}
+
+function computeAdaptiveExplorationRate(
+  totalRounds: number,
+  coverageRatio: number,
+  confidence: TasteConfidence
+): number {
+  const baseFade = Math.max(0.15, 1 - totalRounds * 0.03);
+  const coveragePenalty = coverageRatio > 0.7 ? 0.5 : (coverageRatio > 0.5 ? 0.75 : 1.0);
+  const confScale = confidence === "high" ? 0.5 : confidence === "moderate" ? 0.75 : 1.0;
+  return Math.max(0.1, Math.min(1.0, baseFade * coveragePenalty * confScale));
+}
+
 function pickDiverseFromPool(
-  pool: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string; _ucb: number; _uncertainty: number; _isBoundary: boolean })[],
+  pool: ComboWithMeta[],
   count: number,
   intent?: string,
-  signal?: TasteSignal | null
-): typeof pool {
+  signal?: TasteSignal | null,
+  eloRatings?: Record<string, EloEntry>,
+  explorationRate = 0.5
+): ComboWithMeta[] {
   if (pool.length <= count) return pool;
 
   const prefs = intent ? INTENT_ROLE_PREFERENCES[intent as Intent] : null;
@@ -1183,14 +1341,23 @@ function pickDiverseFromPool(
   const scored = pool.map((c, idx) => {
     const tierBonus = preferredKeys.has(c._rolePairKey) ? 6 : (c._roleBonus > 0 ? 3 : 0);
     const fb = tasteFeedbackScore(c._features, signal ?? null);
-    const eloBonus = c._ucb * 2;
-    const explorationBonus = c._uncertainty >= 0.6 ? 5 : (c._uncertainty >= 0.4 ? 2 : 0);
-    return { c, intentScore: intentScores[idx] + tierBonus + fb + eloBonus + explorationBonus, idx };
+
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const eloEntry = eloRatings?.[ck];
+    const ts = eloEntry ? (thompsonSample(eloEntry) - ELO_BASE_RATING) / 200 : 0;
+    const explorationBonus = c._uncertainty >= 0.6 ? 5 * explorationRate : (c._uncertainty >= 0.4 ? 2 * explorationRate : 0);
+    const thompsonBonus = ts * 2 * (1 - explorationRate * 0.5);
+
+    return {
+      c, idx,
+      intentScore: intentScores[idx] + tierBonus + fb + thompsonBonus + explorationBonus,
+      thompsonSample: ts,
+    };
   });
   scored.sort((a, b) => b.intentScore - a.intentScore);
 
   const seed = scored[0].c;
-  const picked: typeof pool = [seed];
+  const picked: ComboWithMeta[] = [seed];
   const usedRolePairs = new Set<string>([seed._rolePairKey]);
   const usedIRs = new Set<string>([seed.baseFilename, seed.featureFilename]);
   const pickedKeys = new Set<string>([[seed.baseFilename, seed.featureFilename].sort().join("||")]);
@@ -1223,8 +1390,23 @@ function pickDiverseFromPool(
       const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
       const irNoveltyBonus = (!usedIRs.has(c.baseFilename) && !usedIRs.has(c.featureFilename)) ? 3 : 0;
       const boundaryBonus = c._isBoundary ? 2 : 0;
-      const uncBonus = c._uncertainty >= 0.6 ? 4 : (c._uncertainty >= 0.4 ? 1.5 : 0);
-      const score = dist * 0.5 + intentScore + roleDiversityBonus + irNoveltyBonus + boundaryBonus + uncBonus;
+      const uncBonus = c._uncertainty >= 0.6 ? 4 * explorationRate : (c._uncertainty >= 0.4 ? 1.5 * explorationRate : 0);
+
+      let infoGainBonus = 0;
+      if (eloRatings) {
+        const thisElo = eloRatings[k];
+        if (thisElo) {
+          for (const p of picked) {
+            const pk = [p.baseFilename, p.featureFilename].sort().join("||");
+            const pElo = eloRatings[pk];
+            if (pElo) infoGainBonus += informationGain(thisElo, pElo);
+          }
+          infoGainBonus /= picked.length;
+          infoGainBonus *= 3;
+        }
+      }
+
+      const score = dist * 0.5 + intentScore + roleDiversityBonus + irNoveltyBonus + boundaryBonus + uncBonus + infoGainBonus;
 
       if (score > bestScore) {
         bestScore = score;
@@ -1300,8 +1482,7 @@ export function pickTasteCheckCandidates(
   }
 
   const totalRounds = history?.length ?? 0;
-  type ComboEntry = SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string; _ucb: number; _uncertainty: number; _isBoundary: boolean };
-  const allCombos: ComboEntry[] = [];
+  const allCombos: ComboWithMeta[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
       const ck = [irs[i].filename, irs[j].filename].sort().join("||");
@@ -1360,15 +1541,28 @@ export function pickTasteCheckCandidates(
 
   if (allCombos.length < 2) return null;
 
+  const activeEloRatings = eloRatings && totalRounds > 0
+    ? applyGlickoDecay(eloRatings, totalRounds)
+    : eloRatings;
+
+  for (const c of allCombos) {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const decayed = activeEloRatings?.[ck];
+    if (decayed) {
+      c._uncertainty = decayed.uncertainty;
+      c._ucb = ucbScore(decayed, totalRounds);
+    }
+  }
+
   const settledLoserThreshold = ELO_BASE_RATING - 40;
   const settledUncertaintyMax = 0.45;
   const settledMinMatches = 4;
   const settledBefore = allCombos.length;
 
-  const settledLosers: typeof allCombos = [];
+  const settledLosers: ComboWithMeta[] = [];
   const tastePool = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-    const elo = eloRatings?.[ck];
+    const elo = activeEloRatings?.[ck];
     if (elo && elo.rating < settledLoserThreshold && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches) {
       settledLosers.push(c);
       return false;
@@ -1379,13 +1573,14 @@ export function pickTasteCheckCandidates(
 
   const settledWinners = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-    const elo = eloRatings?.[ck];
+    const elo = activeEloRatings?.[ck];
     return elo && elo.rating >= ELO_BASE_RATING + 20 && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches;
   });
 
   const totalUniqueCombos = allCombos.length;
-  const seenCombos = eloRatings ? Object.values(eloRatings).filter(e => e.matchCount > 0).length : 0;
+  const seenCombos = activeEloRatings ? Object.values(activeEloRatings).filter(e => e.matchCount > 0).length : 0;
   const coverageRatio = totalUniqueCombos > 0 ? seenCombos / totalUniqueCombos : 0;
+  const explorationRate = computeAdaptiveExplorationRate(totalRounds, coverageRatio, confidence);
 
   const CALIBRATION_COVERAGE_GATE = 0.55;
   const CALIBRATION_INTERVAL = 5;
@@ -1405,23 +1600,21 @@ export function pickTasteCheckCandidates(
 
     const bestSettledWinnerRating = Math.max(...settledWinners.map(c => {
       const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-      return eloRatings?.[ck]?.rating ?? ELO_BASE_RATING;
+      return activeEloRatings?.[ck]?.rating ?? ELO_BASE_RATING;
     }));
 
     calibrationCandidates.sort((a, b) => {
       const ckA = [a.baseFilename, a.featureFilename].sort().join("||");
       const ckB = [b.baseFilename, b.featureFilename].sort().join("||");
-      const eloA = eloRatings?.[ckA];
-      const eloB = eloRatings?.[ckB];
-      const ratingA = eloA?.rating ?? ELO_BASE_RATING;
-      const ratingB = eloB?.rating ?? ELO_BASE_RATING;
+      const ratingA = activeEloRatings?.[ckA]?.rating ?? ELO_BASE_RATING;
+      const ratingB = activeEloRatings?.[ckB]?.rating ?? ELO_BASE_RATING;
       const gapA = Math.abs(ratingA - bestSettledWinnerRating);
       const gapB = Math.abs(ratingB - bestSettledWinnerRating);
       return gapA - gapB;
     });
     calibrationCombo = calibrationCandidates[0] ?? null;
     if (calibrationCombo) {
-      console.log(`[CALIBRATION] round=${totalRounds} coverage=${(coverageRatio * 100).toFixed(0)}% reintroducing settled combo: ${calibrationCombo.baseFilename} + ${calibrationCombo.featureFilename} (Elo=${eloRatings?.[[calibrationCombo.baseFilename, calibrationCombo.featureFilename].sort().join("||")]?.rating.toFixed(0)})`);
+      console.log(`[CALIBRATION] round=${totalRounds} coverage=${(coverageRatio * 100).toFixed(0)}% reintroducing settled combo: ${calibrationCombo.baseFilename} + ${calibrationCombo.featureFilename} (Elo=${activeEloRatings?.[[calibrationCombo.baseFilename, calibrationCombo.featureFilename].sort().join("||")]?.rating.toFixed(0)})`);
     }
   }
 
@@ -1438,9 +1631,16 @@ export function pickTasteCheckCandidates(
     if (idx < workingPool.length) workingPool[idx]._isBoundary = true;
   });
 
+  const plateauWinners = detectPlateauWinners(workingPool, activeEloRatings);
+  const isRefinementRound = plateauWinners.length >= 3
+    && coverageRatio >= 0.4
+    && !isCalibrationRound
+    && totalRounds > 3
+    && totalRounds % 3 === 0;
+
   if (tasteSignal || eloRatings) {
-    const hasElo = eloRatings && Object.keys(eloRatings).length > 0;
-    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled, ${sessionDeduped} session dupes) coverage=${(coverageRatio * 100).toFixed(0)}% calibration=${isCalibrationRound}`);
+    const hasElo = activeEloRatings && Object.keys(activeEloRatings).length > 0;
+    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(activeEloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled, ${sessionDeduped} session dupes) coverage=${(coverageRatio * 100).toFixed(0)}% explRate=${explorationRate.toFixed(2)} plateau=${plateauWinners.length} calibration=${isCalibrationRound} refinement=${isRefinementRound}`);
   }
 
   const round = history?.length ?? 0;
@@ -1495,11 +1695,18 @@ export function pickTasteCheckCandidates(
           ? excludeCalib(workingPool)
           : workingPool;
 
-      const diverse = pickDiverseFromPool(candidatePool, pickCount, intent, tasteSignal);
+      let diverse: ComboWithMeta[];
+      if (isRefinementRound && plateauWinners.length >= pickCount) {
+        const swissPairs = pickSwissPairs(plateauWinners, activeEloRatings, pickCount);
+        diverse = swissPairs;
+        console.log(`[REFINEMENT quad] Swiss-paired ${swissPairs.length} plateau winners for winner-vs-winner round`);
+      } else {
+        diverse = pickDiverseFromPool(candidatePool, pickCount, intent, tasteSignal, activeEloRatings, explorationRate);
+      }
 
       const finalCandidates = calibrationCombo ? [...diverse, calibrationCombo] : diverse;
 
-      console.log(`[INTENT-PICK quad] intent=${intent} combos=${workingPool.length} roleFiltered=${roleFiltered.length} calibration=${!!calibrationCombo}`);
+      console.log(`[INTENT-PICK quad] intent=${intent} combos=${workingPool.length} roleFiltered=${roleFiltered.length} calibration=${!!calibrationCombo} refinement=${isRefinementRound}`);
       for (const d of finalCandidates) {
         const isCalib = calibKey && [d.baseFilename, d.featureFilename].sort().join("||") === calibKey;
         console.log(`  ${isCalib ? "[CALIB] " : ""}[${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
@@ -1570,7 +1777,7 @@ export function pickTasteCheckCandidates(
       [c.baseFilename, c.featureFilename].sort().join("||") !== calibKeyBin
     );
     if (opponentPool.length >= 1) {
-      const opponent = pickDiverseFromPool(opponentPool, 1, intent ?? undefined, tasteSignal);
+      const opponent = pickDiverseFromPool(opponentPool, 1, intent ?? undefined, tasteSignal, activeEloRatings, explorationRate);
       if (opponent.length >= 1) {
         const pair = [opponent[0], calibrationCombo];
         console.log(`[CALIBRATION binary] ${calibrationCombo.baseFilename}+${calibrationCombo.featureFilename} vs ${opponent[0].baseFilename}+${opponent[0].featureFilename}`);
@@ -1589,9 +1796,15 @@ export function pickTasteCheckCandidates(
     const roleFiltered = workingPool.filter(c => c._roleBonus > 0);
     const binaryPool = roleFiltered.length >= 2 ? roleFiltered : workingPool;
 
-    const diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal);
+    let diverse: ComboWithMeta[];
+    if (isRefinementRound && plateauWinners.length >= 2) {
+      diverse = pickSwissPairs(plateauWinners, activeEloRatings, 2);
+      console.log(`[REFINEMENT binary] Swiss-paired ${diverse.length} plateau winners`);
+    } else {
+      diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal, activeEloRatings, explorationRate);
+    }
 
-    console.log(`[INTENT-PICK binary] intent=${intent} roleFiltered=${roleFiltered.length} pool=${binaryPool.length}`);
+    console.log(`[INTENT-PICK binary] intent=${intent} roleFiltered=${roleFiltered.length} pool=${binaryPool.length} refinement=${isRefinementRound}`);
     for (const d of diverse) {
       console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
     }
