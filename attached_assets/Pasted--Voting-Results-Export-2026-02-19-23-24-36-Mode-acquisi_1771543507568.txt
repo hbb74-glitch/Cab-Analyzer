@@ -1,0 +1,63 @@
+=== Voting Results Export — 2026-02-19 23:24:36 ===
+Mode: acquisition | Intent: rhythm | Training: yes (sandbox)
+Rounds completed: 0
+Profile status: mastered | Signals: 118 | Liked: 117 | Noped: 1
+
+--- Preference Corrections Applied ---
+1. tonal feedback applied: more_bite, less_harsh, aggressive
+
+--- Elo Ratings ---
+combo_key	rating	matches	uncertainty
+V30_M201_Cap_Cone_Tr_3in.wav + V30_R121_Cap_6in.wav	1535	3	0.50
+V30_M201_CapEdge_3in.wav + V30_R121_Cap_6in.wav	1535	3	0.50
+V30_M201_CapEdge_3in.wav + V30_R121_Cap_4in.wav	1535	3	0.50
+V30_M201_Cap_OffCenter_3in.wav + V30_SM57_R121_Thick_A_5in.wav	1535	3	0.50
+V30_M201_Cap_Cone_Tr_3in.wav + V30_MD441_Presence_Cap_Cone_Tr_3in.wav	1535	3	0.50
+V30_M201_CapEdge_3in.wav + V30_PR30_Cap_Cone_Tr_3in.wav	1535	3	0.50
+V30_PR30_CapEdge_Br_3in.wav + V30_SM57_R121_Thick_A_5in.wav	1534	3	0.50
+V30_M201_Cap_OffCenter_3in.wav + V30_R121_Cap_6in.wav	1534	3	0.50
+V30_M201_Cap_OffCenter_3in.wav + V30_Roswell_Cap_6in.wav	1534	3	0.50
+V30_M201_CapEdge_3in.wav + V30_MD441_Presence_Cap_Cone_Tr_3in.wav	1534	3	0.50
+V30_R121_Cap_6in.wav + V30_e906_Presence_CapEdge_3in.wav	1534	3	0.50
+V30_M201_Cap_OffCenter_3in.wav + V30_R121_Cap_4in.wav	1534	3	0.50
+V30_PR30_Cap_Cone_Tr_3in.wav + V30_R121_Cap_6in.wav	1534	3	0.50
+V30_M201_CapEdge_3in.wav + V30_M201_Cap_Cone_Tr_3in.wav	1533	3	0.50
+V30_M201_CapEdge_3in.wav + V30_M201_Cap_OffCenter_3in.wav	1533	3	0.50
+V30_R121_Cap_6in.wav + V30_SM57_Cap_Cone_Tr_2in.wav	1533	3	0.50
+V30_R121_Cap_4in.wav + V30_e906_Presence_CapEdge_3in.wav	1533	3	0.50
+V30_M201_Cap_Cone_Tr_3in.wav + V30_e906_Presence_CapEdge_3in.wav	1533	3	0.50
+V30_PR30_Cap_Cone_Tr_3in.wav + V30_R121_Cap_4in.wav	1532	3	0.50
+V30_MD421_Cap_Cone_Tr_4in.wav + V30_MD441_Presence_Cap_1in.wav	1492	6	0.38
+V30_MD421_Cap_3.5in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_MD421_CapEdge_3.5in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_PR30_CapEdge_Br_3in.wav + V30_SM57_R121_Balanced_A_6in.wav	1485	1	0.71
+V30_PR30_CapEdge_3in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_MD441_Presence_Cap_1in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_MD421_CapEdge_3.5in.wav + V30_MD421_Cap_Cone_Tr_4in.wav	1485	1	0.71
+V30_PR30_CapEdge_Br_3in.wav + V30_PR30_Cap_Cone_Tr_3in.wav	1485	1	0.71
+V30_MD441_Presence_Cap_Cone_Tr_3in.wav + V30_R121_Cap_6in.wav	1485	1	0.71
+V30_MD421_Cone_4in.wav + V30_Roswell_Cap_6in.wav	1485	1	0.71
+V30_M201_Cap_OffCenter_3in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_MD441_Presence_Cap_Cone_Tr_3in.wav + V30_PR30_CapEdge_Br_3in.wav	1485	1	0.71
+V30_PR30_CapEdge_Br_3in.wav + V30_SM57_CapEdge_Br_2in.wav	1485	1	0.71
+V30_R121_Cap_4in.wav + V30_R121_Cap_6in.wav	1484	1	0.71
+V30_M201_CapEdge_3in.wav + V30_Roswell_Cap_6in.wav	1484	1	0.71
+V30_M201_Cap_Cone_Tr_3in.wav + V30_M201_Cap_OffCenter_3in.wav	1484	1	0.71
+V30_M201_Cone_3in.wav + V30_R121_Cap_6in.wav	1484	1	0.71
+V30_M201_Cap_Cone_Tr_3in.wav + V30_R121_Cap_4in.wav	1483	1	0.71
+V30_MD421_CapEdge_Br_3.5in.wav + V30_MD441_Presence_Cap_1in.wav	1475	2	0.58
+V30_MD441_Flat_CapEdge_2in.wav + V30_R121_Cap_4in.wav	1474	2	0.58
+V30_R121_Cap_4in.wav + V30_Roswell_Cap_6in.wav	1473	2	0.58
+V30_MD421_Cap_3.5in.wav + V30_MD441_Presence_Cap_1in.wav	1460	4	0.45
+V30_MD421_CapEdge_3.5in.wav + V30_MD421_CapEdge_Br_3.5in.wav	1460	4	0.45
+V30_MD421_Cone_4in.wav + V30_MD441_Flat_CapEdge_2in.wav	1458	4	0.45
+V30_MD441_Flat_CapEdge_2in.wav + V30_R121_Cap_6in.wav	1457	4	0.45
+V30_R121_Cap_6in.wav + V30_Roswell_Cap_6in.wav	1457	4	0.45
+V30_R121_Cap_6in.wav + V30_Roswell_Cap_5in.wav	1457	4	0.45
+V30_MD421_CapEdge_3.5in.wav + V30_MD421_Cap_3.5in.wav	1454	5	0.41
+V30_MD421_CapEdge_3.5in.wav + V30_MD441_Presence_Cap_1in.wav	1454	5	0.41
+
+--- Taste Learning Summary ---
+Total votes: 60 | Confidence: 100%
+
+=== End of Voting Results ===
