@@ -1136,7 +1136,7 @@ export function pickTasteCheckCandidates(
   if (irs.length < 2) return null;
 
   const confidence = getTasteConfidence(learned);
-  const forceBinary = modeOverride === "tester" || (modeOverride !== "acquisition" && confidence === "high");
+  const forceBinary = modeOverride === "tester";
 
   const sessionShown = extractSessionShownPairs(history);
   const sessionExposure = extractSessionIRExposure(history);

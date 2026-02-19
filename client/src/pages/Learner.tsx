@@ -1885,7 +1885,7 @@ export default function Learner() {
 
   const liveConfidence = getTasteConfidence(learnedProfile || undefined);
   const tasteCheckBinary = tasteCheckPhase
-    ? (tasteCheckMode === "tester" || (tasteCheckMode === "learning" && (liveConfidence === "high" || tasteCheckPhase.confidence === "high")) || tasteCheckPhase.candidates.length <= 2)
+    ? (tasteCheckMode === "tester" || tasteCheckPhase.candidates.length <= 2)
     : false;
   const tasteCheckDisplayCandidates = tasteCheckPhase
     ? (tasteCheckBinary ? tasteCheckPhase.candidates.slice(0, 2) : tasteCheckPhase.candidates)
