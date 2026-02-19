@@ -5095,6 +5095,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             spectralDeviation: scored.spectralDeviation,
             frequencySmoothness: scored.frequencySmoothness,
             noiseFloorDb: scored.noiseFloorDb,
+            spectralCentroid: ir.spectralCentroid ?? 0,
             spectralTilt: ir.spectralTilt ?? null,
             rolloffFreq: ir.rolloffFreq ?? null,
             smoothScore: ir.smoothScore ?? null,

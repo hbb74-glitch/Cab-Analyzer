@@ -277,6 +277,7 @@ export const batchIRResultSchema = z.object({
   spectralDeviation: spectralDeviationSchema.optional().nullable(),
   frequencySmoothness: z.number().optional().nullable(),
   noiseFloorDb: z.number().optional().nullable(),
+  spectralCentroid: z.number().optional().nullable(),
   spectralTilt: z.number().optional().nullable(),
   rolloffFreq: z.number().optional().nullable(),
   smoothScore: z.number().optional().nullable(),

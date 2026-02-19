@@ -2038,7 +2038,7 @@ export default function Analyzer() {
       avgSimilarity,
       roleCounts,
     };
-  }, [batchResult, getMusicalRoleForRow]);
+  }, [batchResult, getMusicalRoleForRow, speakerStatsMap]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;
