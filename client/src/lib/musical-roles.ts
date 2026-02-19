@@ -159,15 +159,17 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
     return "Dark Specialty";
   }
 
-  const extended = ext > 0 && (speakerStats ? (zExt >= 0.6) : (ext >= 4600));
-  const verySmooth = smooth >= 88;
-  const hasAir = air >= 4.0 || zAir >= 0.70;
+  const extended = ext > 0 && (speakerStats ? (zExt >= 0.6) : (ext >= 4200));
+  const verySmooth = smooth >= 87;
+  const hasPresenceClarity = presence >= 14 && presence <= 55;
   const notFizzy = fizz <= 1.2 || zFizz <= 0.35;
-  const presenceModerate = presence >= 22 && presence <= 55;
-  const notScoopedToDeath = (mid + lowMid) >= 22;
+  const notScoopedToDeath = (mid + lowMid) >= 16;
   const notExtremeCut = presence <= 58 && zPresence <= 1.9 && cutCoreRatio <= 3.4;
+  const aboveAvgTopEnd = speakerStats
+    ? (zCentroid >= 0.4 || zPresence >= 0.3)
+    : (centroid >= 2500 || presence >= 20);
 
-  if (extended && verySmooth && hasAir && notFizzy && presenceModerate && notScoopedToDeath && notExtremeCut) {
+  if (extended && verySmooth && notFizzy && hasPresenceClarity && notScoopedToDeath && notExtremeCut && aboveAvgTopEnd) {
     return "Lead Polish";
   }
 

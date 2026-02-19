@@ -22,7 +22,7 @@ import { scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfi
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
-import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, pickFoundationCandidates, setClassifyDebugFilename, type SpeakerStats } from "@/lib/musical-roles";
+import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, setClassifyDebugFilename, type SpeakerStats } from "@/lib/musical-roles";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -2038,35 +2038,6 @@ export default function Analyzer() {
       avgSimilarity,
       roleCounts,
     };
-  }, [batchResult, getMusicalRoleForRow]);
-
-  // === Foundation Candidate (one per speaker) ===
-  // Choose a single "general-purpose / start-here" IR per speaker without forcing musical_role labels.
-  // Uses speaker-relative z-scores + smoothness + penalties for extremes.
-  // Derives its own per-speaker stats from batchResult.results so it works even when
-  // the batchIRs-based speakerStatsMap hasn't populated (common path: stats come from
-  // analysis results, not pre-upload data).
-  const foundationCandidateBySpeaker = useMemo(() => {
-    const results = batchResult?.results as any[] | undefined;
-    if (!results?.length) return new Map<string, string>();
-
-    const items: import("@/lib/musical-roles").FoundationCandidateInput[] = [];
-    for (const r of results) {
-      const fn = String(r?.filename ?? r?.name ?? "");
-      if (!fn) continue;
-      items.push({
-        filename: fn,
-        role: getMusicalRoleForRow(r) || String(r?.musicalRole ?? r?.musical_role ?? ""),
-        centroid: Number(r?.spectralCentroidHz ?? r?.spectralCentroid ?? r?.centroid_computed_hz ?? 0),
-        tilt: Number(r?.spectralTilt ?? r?.tiltDbPerOct ?? r?.spectral_tilt_db_per_oct ?? 0),
-        ext: Number(r?.highExtensionHz ?? r?.rolloffFreq ?? r?.rolloff_or_high_extension_hz ?? 0),
-        lowMidPct: Number(r?.lowMidPercent ?? r?.lowMid_pct ?? 0),
-        presencePct: Number(r?.presencePercent ?? r?.presence_pct ?? 0),
-        airPct: Number(r?.airPercent ?? r?.air_pct ?? 0),
-        smooth: Number(r?.smoothScore ?? r?.smooth_score ?? r?.frequencySmoothness ?? 0),
-      });
-    }
-    return pickFoundationCandidates(items);
   }, [batchResult, getMusicalRoleForRow]);
 
   const collectionCoverage = useMemo(() => {
@@ -4455,39 +4426,6 @@ export default function Analyzer() {
                         </div>
                       </div>
 
-                      {foundationCandidateBySpeaker && foundationCandidateBySpeaker.size > 0 && (
-                        <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-semibold text-emerald-300">Start here (Foundation candidate)</span>
-                            <span className="text-[10px] text-muted-foreground">
-                              Best general-purpose IR per speaker batch (does not change musical role)
-                            </span>
-                          </div>
-                          <div className="space-y-1">
-                            {Array.from(foundationCandidateBySpeaker.entries()).slice(0, 8).map(([spk, fn]) => (
-                              <div key={spk} className="flex items-center justify-between gap-3 text-[11px]">
-                                <span className="text-muted-foreground font-mono truncate" style={{ maxWidth: "28%" }}>
-                                  {spk}
-                                </span>
-                                <span
-                                  className="font-mono text-emerald-200 truncate"
-                                  style={{ maxWidth: "70%" }}
-                                  title={fn}
-                                  data-testid={`foundation-candidate-${spk}`}
-                                >
-                                  {fn}
-                                </span>
-                              </div>
-                            ))}
-                            {foundationCandidateBySpeaker.size > 8 && (
-                              <div className="text-[10px] text-muted-foreground">
-                                Showing first 8 speakers…
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                         {[
                           { label: "Most versatile", item: batchMusicalSummary.mostVersatile, icon: "crown" },
@@ -4903,9 +4841,6 @@ export default function Analyzer() {
                                 {(() => {
                                   const role = getMusicalRoleForRow(r);
                                   if (!role) return null;
-                                  const fn = String((r as any).filename ?? (r as any).name ?? "");
-                                  const spk = inferSpeakerIdFromFilename(fn);
-                                  const isFoundationCandidate = fn && (foundationCandidateBySpeaker.get(spk) === fn);
                                   return (
                                     <div className="flex items-center gap-1 flex-wrap">
                                       <span
@@ -4914,15 +4849,6 @@ export default function Analyzer() {
                                       >
                                         {role}
                                       </span>
-                                      {isFoundationCandidate && (
-                                        <span
-                                          className="px-1.5 py-0.5 text-[10px] rounded font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
-                                          title="Best general-purpose / start-here IR for this speaker batch"
-                                          data-testid={`badge-foundation-candidate-${index}`}
-                                        >
-                                          Foundation candidate
-                                        </span>
-                                      )}
                                     </div>
                                   );
                                 })()}
