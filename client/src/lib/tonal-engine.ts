@@ -175,13 +175,14 @@ export function computeTonalFeatures(r: any): TonalFeatures {
   const smoothRaw =
     toNum(r?.smoothScore ?? r?.frequencySmoothness ?? r?.smooth);
 
+  const bandsRaw = extractBandsRaw(r);
+  const bandsShapeDb = bandsToShapeDb(bandsRaw);
+
   const bandsRawSource =
     r?.bandsPercent ?? r?.bandPercents ?? r?.bandEnergies ?? r?.bands ?? r?.tf?.bandsPercent;
 
-  const bandsPercent = normalizeBands(bandsRawSource);
-
-  const bandsRaw = extractBandsRaw(r);
-  const bandsShapeDb = bandsToShapeDb(bandsRaw);
+  const hasBandsRawData = bandsRaw && BAND_KEYS.some(k => bandsRaw[k] !== 0);
+  const bandsPercent = normalizeBands(bandsRawSource ?? (hasBandsRawData ? bandsRaw : undefined));
 
   const smoothFromMetrics = normalizeSmoothScore(smoothRaw || r?.smoothScore);
   const smoothScore =
