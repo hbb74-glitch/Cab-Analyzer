@@ -6635,14 +6635,25 @@ export default function Analyzer() {
                     <SummaryCopyButton
                       buildSummaryText={() => {
                         if (!result || !metrics) return "";
+                        const m = metrics as any;
+                        const total6 = (m.subBassEnergy || 0) + (m.bassEnergy || 0) + (m.lowMidEnergy || 0) +
+                          (m.midEnergy6 || 0) + (m.highMidEnergy || 0) + (m.presenceEnergy || 0) + (m.ultraHighEnergy || 0) || 1;
+                        const pct = (v: number) => Math.round(((v || 0) / total6) * 1000) / 10;
                         const rowObj: any = {
                           filename: result.filename ?? (result as any).name ?? "single_result",
                           score: result.qualityScore ?? (result as any).score ?? "",
-                          role: getMusicalRoleForRow(result) || "",
-                          spectralCentroidHz: (metrics as any)?.spectralCentroidHz ?? metrics?.spectralCentroid ?? "",
-                          spectralTilt: (metrics as any)?.spectralTilt ?? "",
-                          rolloffFreq: (metrics as any)?.rolloffFreq ?? "",
-                          smoothScore: metrics?.smoothScore ?? (metrics as any)?.frequencySmoothness ?? "",
+                          spectralCentroid: m.spectralCentroidHz ?? m.spectralCentroid ?? "",
+                          spectralTilt: m.spectralTilt ?? "",
+                          rolloffFreq: m.rolloffFreq ?? "",
+                          smoothScore: m.smoothScore ?? m.frequencySmoothness ?? "",
+                          subBassPercent: pct(m.subBassEnergy),
+                          bassPercent: pct(m.bassEnergy),
+                          lowMidPercent: pct(m.lowMidEnergy),
+                          midPercent: pct(m.midEnergy6),
+                          highMidPercent: pct(m.highMidEnergy),
+                          presencePercent: pct(m.presenceEnergy),
+                          ultraHighPercent: pct(m.ultraHighEnergy),
+                          parsedInfo: (result as any)?.parsedInfo ?? null,
                           fizzLabel: (result as any)?.fizzLabel ?? "",
                           notes: "",
                         };
