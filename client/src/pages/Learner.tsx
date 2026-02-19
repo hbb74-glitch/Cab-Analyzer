@@ -4181,15 +4181,14 @@ export default function Learner() {
                               <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
                             </div>
                             <BandChart bands={pair.blendBands} height={10} compact />
-                            <div className="flex items-center justify-between gap-1 flex-wrap">
-                              <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
                               <span className={cn(
                                 "text-[10px] font-mono px-1.5 py-0.5 rounded",
                                 hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
                                 hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
                                 "bg-amber-500/20 text-amber-400"
                               )}>
-                                {hiMidMidRatio.toFixed(2)}
+                                HiMid/Mid: {hiMidMidRatio.toFixed(2)}
                               </span>
                             </div>
                           </button>
