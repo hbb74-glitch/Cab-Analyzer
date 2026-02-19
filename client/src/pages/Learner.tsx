@@ -855,7 +855,7 @@ export default function Learner() {
         spectralCentroidHz: ir.features.spectralCentroidHz ?? 0,
         tiltDbPerOct: ir.features.tiltDbPerOct ?? 0,
         rolloffFreq: ir.features.rolloffFreq ?? 0,
-        smoothScore: ir.metrics?.smoothScore ?? ir.metrics?.frequencySmoothness ?? ir.features.smoothScore ?? 0,
+        smoothScore: ir.features.smoothScore ?? 0,
       };
       return { filename: ir.filename, tf };
     }));
