@@ -3150,7 +3150,7 @@ export default function Learner() {
                 data-testid="button-copy-voting-log-top"
               >
                 <Copy className="w-3 h-3 mr-1" />
-                Export Session
+                Copy Voting Log
               </Button>
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
                 <button
