@@ -4184,29 +4184,17 @@ export default function Learner() {
 
                 {!tasteCheckPhase.showingResult && (
                   <>
-                    {(() => {
-                      const isGuidedRound = tasteCheckBinary && tasteCheckPhase.round % 2 === 1;
-                      const isOpenRound = tasteCheckBinary && !isGuidedRound;
-                      return (
-                        <>
                     <p className="text-xs text-muted-foreground">
-                      {!tasteCheckBinary
-                        ? "Listen to each blend and pick the one that sounds best to you."
-                        : isGuidedRound
-                        ? `Focus on ${tasteCheckPhase.axisName.toLowerCase()}: does "${tasteCheckPhase.axisLabels[0].toLowerCase()}" or "${tasteCheckPhase.axisLabels[1].toLowerCase()}" sound better to you?`
-                        : "Just go with your gut — pick whichever blend you prefer."}
+                      Pick whichever blend sounds best to you.
                     </p>
                     <div className={cn(
                       "grid gap-3",
-                      !tasteCheckBinary && tasteCheckDisplayCandidates.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
+                      tasteCheckDisplayCandidates.length > 2 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"
                     )}>
                       {tasteCheckDisplayCandidates.map((pair, idx) => {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
-                        const axisLabel = isGuidedRound
-                          ? (idx === 0 ? `"${tasteCheckPhase.axisLabels[0]}"` : `"${tasteCheckPhase.axisLabels[1]}"`)
-                          : null;
                         return (
                           <button
                             key={idx}
@@ -4216,18 +4204,8 @@ export default function Learner() {
                           >
                             <div className="flex items-center justify-center gap-2">
                               <p className="text-xs font-semibold text-foreground uppercase tracking-widest">
-                                {!tasteCheckBinary && tasteCheckDisplayCandidates.length > 2
-                                  ? String.fromCharCode(65 + idx)
-                                  : idx === 0 ? "A" : "B"}
+                                {String.fromCharCode(65 + idx)}
                               </p>
-                              {axisLabel && (
-                                <span className={cn(
-                                  "text-[10px] font-medium px-1.5 py-0.5 rounded",
-                                  idx === 0 ? "bg-blue-500/15 text-blue-400" : "bg-amber-500/15 text-amber-400"
-                                )}>
-                                  {axisLabel}
-                                </span>
-                              )}
                             </div>
                             <div className="flex items-center gap-1 flex-wrap">
                               <p className="text-[10px] font-mono text-foreground truncate">
@@ -4277,9 +4255,6 @@ export default function Learner() {
                         Both useful
                       </button>
                     </div>
-                        </>
-                      );
-                    })()}
                   </>
                 )}
 
