@@ -680,6 +680,7 @@ export default function Learner() {
   const [pairingRound, setPairingRound] = useState(0);
   const [totalRoundsCompleted, setTotalRoundsCompleted] = useState(0);
   const [cumulativeSignals, setCumulativeSignals] = useState({ liked: 0, noped: 0 });
+  const [votingLog, setVotingLog] = useState<{ round: number; base: string; feature: string; rating: string; tags: string; text: string; score: number; profile: string }[]>([]);
   const [doneRefining, setDoneRefining] = useState(false);
   const [noMorePairs, setNoMorePairs] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -955,6 +956,7 @@ export default function Learner() {
     setDismissedPairings(new Set());
     setPairingRound(0);
     setTotalRoundsCompleted(0);
+    setVotingLog([]);
     setDoneRefining(false);
     setNoMorePairs(false);
     setHistoryLoaded(false);
@@ -1479,6 +1481,98 @@ export default function Learner() {
     tasteBoost: p._tasteBoost ?? 0,
     totalScore: p._totalScore ?? p.score,
   }));
+
+  const copyVotingResults = useCallback(() => {
+    const lines: string[] = [];
+    const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
+    lines.push(`=== Voting Results Export — ${ts} ===`);
+    lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | Training: ${trainingMode ? "yes (sandbox)" : "no (live)"}`);
+    lines.push(`Rounds completed: ${totalRoundsCompleted}`);
+    if (learnedProfile && learnedProfile.status !== "no_data") {
+      lines.push(`Profile status: ${learnedProfile.status} | Signals: ${learnedProfile.signalCount} | Liked: ${learnedProfile.likedCount} | Noped: ${learnedProfile.nopedCount}`);
+    }
+    lines.push("");
+
+    const history = tasteCheckPhase?.history ?? [];
+    if (history.length > 0) {
+      lines.push("--- Taste Check Rounds ---");
+      lines.push("round\ttype\taxis\toptions_offered\tpicked");
+      history.forEach((h, idx) => {
+        const optionNames = h.options.map(o => `${o.baseFilename} + ${o.featureFilename}`).join(" | ");
+        const picked = h.pickedIndex >= 0 && h.pickedIndex < h.options.length
+          ? `${h.options[h.pickedIndex].baseFilename} + ${h.options[h.pickedIndex].featureFilename}`
+          : "(skipped)";
+        lines.push(`${idx + 1}\t${h.roundType}\t${h.axisName}\t${optionNames}\t${picked}`);
+      });
+      lines.push("");
+    }
+
+    const currentRoundEntries = suggestedPairs
+      .filter(pair => {
+        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+        return pairingRankings[pk] || dismissedPairings.has(pk);
+      })
+      .map(pair => {
+        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+        const isDismissed = dismissedPairings.has(pk);
+        const rank = pairingRankings[pk];
+        const rating = isDismissed ? "Nope" : rank === 1 ? "Love" : rank === 2 ? "Like" : rank === 3 ? "Meh" : "(unrated)";
+        const tags = (pairingFeedback[pk] ?? []).join(", ");
+        const text = pairingFeedbackText[pk]?.trim() ?? "";
+        return { round: totalRoundsCompleted + 1, base: pair.baseFilename, feature: pair.featureFilename, rating, tags, text, score: Math.round(pair.blendScore), profile: pair.bestMatch.profile };
+      });
+
+    const allVotes = [...votingLog, ...currentRoundEntries];
+    if (allVotes.length > 0) {
+      lines.push("--- Pairing Ratings (all rounds) ---");
+      lines.push("round\tbase_ir\tfeature_ir\trating\ttags\ttext_feedback\tblend_score\tprofile_match");
+      for (const v of allVotes) {
+        lines.push(`${v.round}\t${v.base}\t${v.feature}\t${v.rating}\t${v.tags}\t${v.text}\t${v.score}\t${v.profile}`);
+      }
+      lines.push("");
+    }
+
+    const irRatingEntries = Object.entries(singleIrRatings);
+    if (irRatingEntries.length > 0) {
+      lines.push("--- Individual IR Ratings ---");
+      lines.push("filename\trating");
+      for (const [filename, rating] of irRatingEntries) {
+        lines.push(`${filename}\t${rating}`);
+      }
+      lines.push("");
+    }
+
+    const corrections = learnedProfile?.courseCorrections ?? [];
+    if (corrections.length > 0) {
+      lines.push("--- Preference Corrections Applied ---");
+      corrections.forEach((c, i) => lines.push(`${i + 1}. ${c}`));
+      lines.push("");
+    }
+
+    const eloData = getEloRatings(tasteContext);
+    const eloEntries = Object.entries(eloData);
+    if (eloEntries.length > 0) {
+      lines.push("--- Elo Ratings ---");
+      lines.push("combo_key\trating\tmatches\tuncertainty");
+      const sorted = eloEntries.sort((a, b) => b[1].rating - a[1].rating);
+      for (const [key, entry] of sorted) {
+        lines.push(`${key.replace("||", " + ")}\t${Math.round(entry.rating)}\t${entry.matchCount}\t${entry.uncertainty.toFixed(2)}`);
+      }
+      lines.push("");
+    }
+
+    const tasteStatus = getTasteStatus(tasteContext);
+    if (tasteStatus.nVotes > 0) {
+      lines.push("--- Taste Learning Summary ---");
+      lines.push(`Total votes: ${tasteStatus.nVotes} | Confidence: ${(tasteStatus.confidence * 100).toFixed(0)}%`);
+      lines.push("");
+    }
+
+    lines.push(`=== End of Voting Results ===`);
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      toast({ title: "Copied", description: `Voting results copied to clipboard (${lines.length} lines)` });
+    });
+  }, [tasteCheckMode, tasteIntent, trainingMode, totalRoundsCompleted, learnedProfile, tasteCheckPhase, suggestedPairs, pairingRankings, dismissedPairings, pairingFeedback, pairingFeedbackText, singleIrRatings, tasteContext, votingLog, toast]);
 
   const hasPairingPool = pairingPool.length >= 2;
 
@@ -2043,7 +2137,24 @@ export default function Learner() {
       liked: prev.liked + roundLiked,
       noped: prev.noped + roundNoped,
     }));
+    const currentRound = totalRoundsCompleted + 1;
     setTotalRoundsCompleted((prev) => prev + 1);
+
+    const newLogEntries = suggestedPairs
+      .filter(pair => {
+        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+        return pairingRankings[pk] || dismissedPairings.has(pk);
+      })
+      .map(pair => {
+        const pk = `${pair.baseFilename}||${pair.featureFilename}`;
+        const isDismissed = dismissedPairings.has(pk);
+        const rank = pairingRankings[pk];
+        const rating = isDismissed ? "Nope" : rank === 1 ? "Love" : rank === 2 ? "Like" : "Meh";
+        const tags = (pairingFeedback[pk] ?? []).join(", ");
+        const text = pairingFeedbackText[pk]?.trim() ?? "";
+        return { round: currentRound, base: pair.baseFilename, feature: pair.featureFilename, rating, tags, text, score: Math.round(pair.blendScore), profile: pair.bestMatch.profile };
+      });
+    setVotingLog(prev => [...prev, ...newLogEntries]);
 
     setPairingRankings({});
     setDismissedPairings(new Set());
@@ -3788,11 +3899,22 @@ export default function Learner() {
                   </Badge>
                 )}
               </h4>
-              {totalRoundsCompleted > 0 && (
-                <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
-                  {cumulativeSignals.liked} rated / {cumulativeSignals.noped} noped so far
-                </span>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {totalRoundsCompleted > 0 && (
+                  <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-cumulative-signals">
+                    {cumulativeSignals.liked} rated / {cumulativeSignals.noped} noped so far
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={copyVotingResults}
+                  data-testid="button-copy-voting-results"
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy Voting Log
+                </Button>
+              </div>
             </div>
             {!ratioRefinePhase && tasteCheckMode !== "ratio" && !tasteCheckPhase && (
             <p className="text-xs text-muted-foreground mb-4">
