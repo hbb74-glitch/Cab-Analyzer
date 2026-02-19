@@ -182,7 +182,26 @@ export function computeTonalFeatures(r: any): TonalFeatures {
     r?.bandsPercent ?? r?.bandPercents ?? r?.bandEnergies ?? r?.bands ?? r?.tf?.bandsPercent;
 
   const hasBandsRawData = bandsRaw && BAND_KEYS.some(k => bandsRaw[k] !== 0);
-  const bandsPercent = normalizeBands(bandsRawSource ?? (hasBandsRawData ? bandsRaw : undefined));
+  let bandsPercentFallback: TonalBands | undefined;
+  if (!bandsRawSource && hasBandsRawData) {
+    const sevenBandTotal =
+      (bandsRaw.subBass || 0) + (bandsRaw.bass || 0) + (bandsRaw.lowMid || 0) +
+      (bandsRaw.mid || 0) + (bandsRaw.highMid || 0) + (bandsRaw.presence || 0) +
+      (bandsRaw.air || 0);
+    const denom = sevenBandTotal > 0 ? sevenBandTotal : 1;
+    const roundPct = (v: number) => Math.round((v / denom) * 1000) / 1000;
+    bandsPercentFallback = {
+      subBass: roundPct(bandsRaw.subBass || 0),
+      bass: roundPct(bandsRaw.bass || 0),
+      lowMid: roundPct(bandsRaw.lowMid || 0),
+      mid: roundPct(bandsRaw.mid || 0),
+      highMid: roundPct(bandsRaw.highMid || 0),
+      presence: roundPct(bandsRaw.presence || 0),
+      air: roundPct(bandsRaw.air || 0),
+      fizz: bandsRaw.fizz || 0,
+    };
+  }
+  const bandsPercent = normalizeBands(bandsRawSource ?? bandsPercentFallback);
 
   const smoothFromMetrics = normalizeSmoothScore(smoothRaw || r?.smoothScore);
   const smoothScore =
