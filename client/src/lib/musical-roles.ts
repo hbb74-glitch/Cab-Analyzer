@@ -129,7 +129,9 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
     air <= 6.0 &&
     fizz <= 1.5;
 
-  const notExtremeTilt = tilt >= -5.5 && tilt <= -1.0;
+  const notExtremeTilt = speakerStats
+    ? (Math.abs(zTilt) <= 1.2)
+    : (tilt >= -5.5 && tilt <= -1.0);
   const notTooDark = ext === 0 ? true : (speakerStats ? (zExt >= -0.2) : (ext >= 4200));
   const notBodyLean = bassLowMid >= 18;
 
@@ -153,7 +155,7 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
 
   const extremeAbsDark = (ext > 0 && ext < 2900) || (tilt <= -8.0);
   const speakerRelDark = (zExt <= -1.1) || (zTilt <= -1.2 && zCentroid <= -0.6);
-  if (extremeAbsDark || speakerRelDark) {
+  if (speakerStats ? speakerRelDark : (extremeAbsDark || speakerRelDark)) {
     return "Dark Specialty";
   }
 
