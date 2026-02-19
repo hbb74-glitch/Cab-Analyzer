@@ -1233,7 +1233,7 @@ export function pickTasteCheckCandidates(
   let chosenAxis: typeof axisWithSpread[0];
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
-  const quadRounds = forceBinary ? 0 : confidence === "moderate" ? 1 : 2;
+  const quadRounds = forceBinary ? 0 : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
 
   if (!forceBinary && round < quadRounds && allCombos.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
