@@ -155,8 +155,16 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
 
   const extremeAbsDark = (ext > 0 && ext < 2900) || (tilt <= -8.0);
   const speakerRelDark = (zExt <= -1.1) || (zTilt <= -1.2 && zCentroid <= -0.6);
-  if (speakerStats ? speakerRelDark : (extremeAbsDark || speakerRelDark)) {
-    return "Dark Specialty";
+  const midHeavyCandidate = (mid >= 34 || bassLowMid >= 28) && presence <= 36;
+  if (midHeavyCandidate) {
+    const veryDark = speakerStats
+      ? ((zExt <= -1.5) || (zTilt <= -1.5 && zCentroid <= -0.9))
+      : extremeAbsDark;
+    if (veryDark) return "Dark Specialty";
+  } else {
+    if (speakerStats ? speakerRelDark : (extremeAbsDark || speakerRelDark)) {
+      return "Dark Specialty";
+    }
   }
 
   const extended = ext > 0 && (speakerStats ? (zExt >= 0.6) : (ext >= 4200));
