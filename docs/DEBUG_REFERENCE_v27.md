@@ -17,7 +17,7 @@
 
 | Page | Lines | Purpose |
 |---|---|---|
-| `IRMixer.tsx` | 4483 | Blend preview, individual IR eval, taste learning, pairing suggestions, Learner quad-pick, Foundation Finder, Gap Finder, tonal insights, TSV export |
+| `Learner.tsx` | 4483 | Blend preview, individual IR eval, taste learning, pairing suggestions, Learner quad-pick, Foundation Finder, Gap Finder, tonal insights, TSV export |
 | `Analyzer.tsx` | 6925 | Single/batch IR upload + analysis, AI quality assessment, spectral centroid scoring, batch TSV export |
 | `Pairing.tsx` | 668 | Server-side IR pairing analysis (mic A + mic B + AI) |
 | `CherryPicker.tsx` | 698 | Match user audio preference across new IR collections |

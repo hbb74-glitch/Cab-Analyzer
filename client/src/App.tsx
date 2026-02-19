@@ -10,7 +10,7 @@ import { ResultsProvider } from "@/context/ResultsContext";
 import Analyzer from "@/pages/Analyzer";
 import FractalSettings from "@/pages/FractalSettings";
 import MikingGuide from "@/pages/MikingGuide";
-import IRMixer from "@/pages/IRMixer";
+import Learner from "@/pages/Learner";
 import AmpDesigner from "@/pages/AmpDesigner";
 import AmpDialIn from "@/pages/AmpDialIn";
 import Pairing from "@/pages/Pairing";
@@ -24,7 +24,7 @@ function Router() {
       <Route path="/" component={Analyzer} />
 
       {/* New top-nav routes */}
-      <Route path="/learner" component={IRMixer} />
+      <Route path="/learner" component={Learner} />
       <Route path="/blend-builder" component={Pairing} />
       {/* Mic Shots Suggester = AI-driven shot suggester */}
       <Route path="/mic-shots-suggester" component={Recommendations} />
@@ -34,7 +34,7 @@ function Router() {
       <Route path="/reference-manual" component={MikingGuide} />
 
       {/* Back-compat routes */}
-      <Route path="/mixer" component={IRMixer} />
+      <Route path="/mixer" component={Learner} />
       <Route path="/pairing" component={Pairing} />
       <Route path="/miking-guide" component={MikingGuide} />
       <Route path="/recommendations" component={Recommendations} />

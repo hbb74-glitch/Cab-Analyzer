@@ -4791,7 +4791,7 @@ export default function Analyzer() {
                         <div className="space-y-1.5">
                           <p className="text-xs text-muted-foreground">
                             {gearGaps.noDataYet
-                              ? "The app doesn't know your gear yet. Rate some blends in the IR Mixer to teach it what this gear sounds like:"
+                              ? "The app doesn't know your gear yet. Rate some blends in the Learner to teach it what this gear sounds like:"
                               : gearGaps.newGear.length === 1
                                 ? "This gear hasn't been rated yet — the app can't offer tonal insights until you teach it:"
                                 : "This gear hasn't been rated yet — rate some blends to teach the app:"}
@@ -4840,7 +4840,7 @@ export default function Analyzer() {
                         </div>
                       )}
                       <p className="text-xs text-violet-400/70">
-                        Head to the <a href="/mixer" className="underline font-medium text-violet-400 hover:text-violet-300">IR Mixer</a> and rate some blends with this gear to build tonal profiles.
+                        Head to the <a href="/learner" className="underline font-medium text-violet-400 hover:text-violet-300">Learner</a> and rate some blends with this gear to build tonal profiles.
                       </p>
                     </div>
                   )}

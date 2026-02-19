@@ -219,7 +219,7 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
             <div className="flex items-center gap-1.5 flex-wrap">
               <Sparkles className="w-3 h-3 text-violet-400/70" />
               <span className="text-[9px] text-violet-400/70">
-                {unknownPieces.join(", ")} not yet learned — <a href="/mixer" className="underline">rate blends</a> to teach the app
+                {unknownPieces.join(", ")} not yet learned — <a href="/learner" className="underline">rate blends</a> to teach the app
               </span>
             </div>
           </div>

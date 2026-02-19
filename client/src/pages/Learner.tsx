@@ -658,7 +658,7 @@ function DropZone({
   );
 }
 
-export default function IRMixer() {
+export default function Learner() {
   const { toast } = useToast();
   const [baseIR, setBaseIR] = useState<AnalyzedIR | null>(null);
   const [featureIRs, setFeatureIRs] = useState<AnalyzedIR[]>([]);
@@ -2867,7 +2867,7 @@ export default function IRMixer() {
               <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
                 <Blend className="w-5 h-5 text-indigo-400" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">IR Mixer</h1>
+              <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Learner</h1>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
