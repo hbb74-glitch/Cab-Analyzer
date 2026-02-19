@@ -3143,6 +3143,17 @@ export default function Learner() {
               <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Learner</h1>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {(votingLog.length > 0 || totalRoundsCompleted > 0 || Object.keys(singleIrRatings).length > 0) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={copyVotingResults}
+                  data-testid="button-copy-voting-log-top"
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Export Session
+                </Button>
+              )}
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
                 <button
                   onClick={() => {
@@ -4531,11 +4542,22 @@ export default function Learner() {
         )}
 
         {doneRefining && (
-          <div className="mb-8 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2">
-            <Brain className="w-4 h-4 text-emerald-400 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              {totalRoundsCompleted} round{totalRoundsCompleted !== 1 ? "s" : ""} complete -- {cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped. Profiles refined. #1 pairing loaded below.
-            </p>
+          <div className="mb-8 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-emerald-400 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                {totalRoundsCompleted} round{totalRoundsCompleted !== 1 ? "s" : ""} complete -- {cumulativeSignals.liked} liked, {cumulativeSignals.noped} noped. Profiles refined. #1 pairing loaded below.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={copyVotingResults}
+              data-testid="button-copy-voting-results-done"
+            >
+              <Copy className="w-3 h-3 mr-1" />
+              Copy Voting Log
+            </Button>
           </div>
         )}
 
