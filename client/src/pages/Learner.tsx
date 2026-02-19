@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
+import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
   type TonalFeatures,
@@ -974,13 +975,71 @@ export default function Learner() {
     setExposureCounts(new Map());
   }, []);
 
+  const normalizeViaServer = useCallback(async (
+    items: Array<{ filename: string; metrics: AudioMetrics }>
+  ): Promise<Map<string, NormalizedIR>> => {
+    try {
+      const irs = items.map(it => ({
+        filename: it.filename,
+        subBassEnergy: it.metrics.subBassEnergy,
+        bassEnergy: it.metrics.bassEnergy,
+        lowMidEnergy: it.metrics.lowMidEnergy,
+        midEnergy6: it.metrics.midEnergy6,
+        highMidEnergy: it.metrics.highMidEnergy,
+        presenceEnergy: it.metrics.presenceEnergy,
+        ultraHighEnergy: it.metrics.ultraHighEnergy,
+        spectralCentroid: it.metrics.spectralCentroid,
+        spectralTilt: (it.metrics as any).spectralTilt,
+        rolloffFreq: (it.metrics as any).rolloffFreq,
+        smoothScore: (it.metrics as any).smoothScore,
+      }));
+      const res = await fetch(api.normalizeBands.normalize.path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ irs }),
+      });
+      if (!res.ok) throw new Error("normalize failed");
+      const data = api.normalizeBands.normalize.responses[200].parse(await res.json());
+      const map = new Map<string, NormalizedIR>();
+      for (const r of data.results) map.set(r.filename, r);
+      return map;
+    } catch (e) {
+      console.error("Server normalization failed, falling back to client:", e);
+      return new Map();
+    }
+  }, []);
+
+  const buildFeaturesFromServer = useCallback((metrics: AudioMetrics, norm: NormalizedIR): TonalFeatures => {
+    const bandsPercent = {
+      subBass: norm.subBassPercent / 100,
+      bass: norm.bassPercent / 100,
+      lowMid: norm.lowMidPercent / 100,
+      mid: norm.midPercent / 100,
+      highMid: norm.highMidPercent / 100,
+      presence: norm.presencePercent / 100,
+      air: norm.airPercent / 100,
+    };
+    const featureSource: any = {
+      ...metrics,
+      bandsPercent,
+      spectralCentroidHz: norm.spectralCentroidHz,
+      spectralTilt: norm.spectralTiltDbPerOct,
+      rolloffFreq: norm.rolloffFreq,
+      smoothScore: norm.smoothScore,
+      fizzEnergy: 0,
+    };
+    return computeTonalFeatures(featureSource);
+  }, []);
+
   const handleBaseFile = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingBase(true);
     try {
       const file = files[0];
       const metrics = await analyzeAudioFile(file);
-      const features = computeTonalFeatures(metrics);
+      const normMap = await normalizeViaServer([{ filename: file.name, metrics }]);
+      const norm = normMap.get(file.name);
+      const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
       const rawEnergy = features.bandsRaw;
       const bands = features.bandsPercent;
       setBaseIR({ filename: file.name, metrics, rawEnergy, bands, features });
@@ -989,26 +1048,29 @@ export default function Learner() {
       console.error("Failed to analyze base IR:", e);
     }
     setIsLoadingBase(false);
-  }, [resetPairingState]);
+  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
 
   const handleFeatureFiles = useCallback(async (files: File[]) => {
     setIsLoadingFeatures(true);
     try {
-      const results: AnalyzedIR[] = [];
+      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const features = computeTonalFeatures(metrics);
-        const rawEnergy = features.bandsRaw;
-        const bands = features.bandsPercent;
-        results.push({ filename: file.name, metrics, rawEnergy, bands, features });
+        analyzed.push({ filename: file.name, metrics });
       }
+      const normMap = await normalizeViaServer(analyzed);
+      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
+        const norm = normMap.get(filename);
+        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
+        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
+      });
       setFeatureIRs((prev) => [...prev, ...results]);
       resetPairingState();
     } catch (e) {
       console.error("Failed to analyze feature IRs:", e);
     }
     setIsLoadingFeatures(false);
-  }, [resetPairingState]);
+  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
 
   const handleAllFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -1016,20 +1078,23 @@ export default function Learner() {
     setShowFoundation(true);
     resetPairingState();
     try {
-      const results: AnalyzedIR[] = [];
+      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const features = computeTonalFeatures(metrics);
-        const rawEnergy = features.bandsRaw;
-        const bands = features.bandsPercent;
-        results.push({ filename: file.name, metrics, rawEnergy, bands, features });
+        analyzed.push({ filename: file.name, metrics });
       }
+      const normMap = await normalizeViaServer(analyzed);
+      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
+        const norm = normMap.get(filename);
+        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
+        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
+      });
       setAllIRs(results);
     } catch (e) {
       console.error("Failed to analyze IRs:", e);
     }
     setIsLoadingAll(false);
-  }, [resetPairingState]);
+  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
 
   const removeFeature = useCallback((idx: number) => {
     setFeatureIRs((prev) => prev.filter((_, i) => i !== idx));
@@ -1042,20 +1107,23 @@ export default function Learner() {
     setShowCrossCab(true);
     clearCrossCabRatings();
     try {
-      const results: AnalyzedIR[] = [];
+      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const features = computeTonalFeatures(metrics);
-        const rawEnergy = features.bandsRaw;
-        const bands = features.bandsPercent;
-        results.push({ filename: file.name, metrics, rawEnergy, bands, features });
+        analyzed.push({ filename: file.name, metrics });
       }
+      const normMap = await normalizeViaServer(analyzed);
+      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
+        const norm = normMap.get(filename);
+        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
+        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
+      });
       setCabAIRs(results);
     } catch (e) {
       console.error("Failed to analyze Cabinet A IRs:", e);
     }
     setIsLoadingCabA(false);
-  }, [clearCrossCabRatings]);
+  }, [clearCrossCabRatings, normalizeViaServer, buildFeaturesFromServer]);
 
   const handleCabBFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -1063,20 +1131,23 @@ export default function Learner() {
     setShowCrossCab(true);
     clearCrossCabRatings();
     try {
-      const results: AnalyzedIR[] = [];
+      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
       for (const file of files) {
         const metrics = await analyzeAudioFile(file);
-        const features = computeTonalFeatures(metrics);
-        const rawEnergy = features.bandsRaw;
-        const bands = features.bandsPercent;
-        results.push({ filename: file.name, metrics, rawEnergy, bands, features });
+        analyzed.push({ filename: file.name, metrics });
       }
+      const normMap = await normalizeViaServer(analyzed);
+      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
+        const norm = normMap.get(filename);
+        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
+        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
+      });
       setCabBIRs(results);
     } catch (e) {
       console.error("Failed to analyze Cabinet B IRs:", e);
     }
     setIsLoadingCabB(false);
-  }, [clearCrossCabRatings]);
+  }, [clearCrossCabRatings, normalizeViaServer, buildFeaturesFromServer]);
 
   const currentRatio = BLEND_RATIOS[selectedRatio];
 

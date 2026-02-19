@@ -319,6 +319,47 @@ export type BatchAnalysisInput = z.infer<typeof batchAnalysisInputSchema>;
 export type BatchIRResult = z.infer<typeof batchIRResultSchema>;
 export type BatchAnalysisResponse = z.infer<typeof batchAnalysisResponseSchema>;
 
+export const normalizeBandsInputSchema = z.object({
+  irs: z.array(z.object({
+    filename: z.string(),
+    subBassEnergy: z.number(),
+    bassEnergy: z.number(),
+    lowMidEnergy: z.number(),
+    midEnergy6: z.number(),
+    highMidEnergy: z.number(),
+    presenceEnergy: z.number(),
+    ultraHighEnergy: z.number().optional(),
+    spectralCentroid: z.number().optional(),
+    spectralTilt: z.number().optional(),
+    rolloffFreq: z.number().optional(),
+    smoothScore: z.number().optional(),
+  })),
+});
+
+export const normalizedIRSchema = z.object({
+  filename: z.string(),
+  subBassPercent: z.number(),
+  bassPercent: z.number(),
+  lowMidPercent: z.number(),
+  midPercent: z.number(),
+  highMidPercent: z.number(),
+  presencePercent: z.number(),
+  airPercent: z.number(),
+  highMidMidRatio: z.number(),
+  spectralCentroidHz: z.number(),
+  spectralTiltDbPerOct: z.number(),
+  rolloffFreq: z.number(),
+  smoothScore: z.number(),
+});
+
+export const normalizeBandsResponseSchema = z.object({
+  results: z.array(normalizedIRSchema),
+});
+
+export type NormalizeBandsInput = z.infer<typeof normalizeBandsInputSchema>;
+export type NormalizedIR = z.infer<typeof normalizedIRSchema>;
+export type NormalizeBandsResponse = z.infer<typeof normalizeBandsResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -412,6 +453,18 @@ export const api = {
       input: batchAnalysisInputSchema,
       responses: {
         200: batchAnalysisResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+  },
+  normalizeBands: {
+    normalize: {
+      method: 'POST' as const,
+      path: '/api/normalize-bands',
+      input: normalizeBandsInputSchema,
+      responses: {
+        200: normalizeBandsResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },

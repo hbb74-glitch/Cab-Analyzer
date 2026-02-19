@@ -5001,6 +5001,38 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
     }
   });
 
+  // Lightweight band normalization endpoint (no AI calls)
+  // Used by the Learner module to get server-consistent band percentages
+  app.post(api.normalizeBands.normalize.path, async (req, res) => {
+    try {
+      const input = api.normalizeBands.normalize.input.parse(req.body);
+      const results = input.irs.map(ir => {
+        const total = (ir.subBassEnergy + ir.bassEnergy + ir.lowMidEnergy + ir.midEnergy6 + ir.highMidEnergy + ir.presenceEnergy + (ir.ultraHighEnergy || 0)) || 1;
+        return {
+          filename: ir.filename,
+          subBassPercent: Math.round((ir.subBassEnergy / total) * 1000) / 10,
+          bassPercent: Math.round((ir.bassEnergy / total) * 1000) / 10,
+          lowMidPercent: Math.round((ir.lowMidEnergy / total) * 1000) / 10,
+          midPercent: Math.round((ir.midEnergy6 / total) * 1000) / 10,
+          highMidPercent: Math.round((ir.highMidEnergy / total) * 1000) / 10,
+          presencePercent: Math.round((ir.presenceEnergy / total) * 1000) / 10,
+          airPercent: ir.ultraHighEnergy ? Math.round((ir.ultraHighEnergy / total) * 1000) / 10 : 0,
+          highMidMidRatio: ir.midEnergy6 > 0 ? Math.round((ir.highMidEnergy / ir.midEnergy6) * 100) / 100 : 0,
+          spectralCentroidHz: ir.spectralCentroid ?? 0,
+          spectralTiltDbPerOct: ir.spectralTilt ?? 0,
+          rolloffFreq: ir.rolloffFreq ?? 0,
+          smoothScore: ir.smoothScore ?? 0,
+        };
+      });
+      res.json({ results });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      res.status(500).json({ message: "Failed to normalize bands" });
+    }
+  });
+
   // Batch IR Analysis endpoint - uses shared single-IR scoring for consistency
   app.post(api.batchAnalysis.analyze.path, async (req, res) => {
     try {
