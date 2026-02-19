@@ -1453,11 +1453,10 @@ export function pickTasteCheckCandidates(
   intent?: "rhythm" | "lead" | "clean",
   irWinRecords?: Record<string, IRWinRecord>,
   eloRatings?: Record<string, EloEntry>
-): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
+): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
   const confidence = getTasteConfidence(learned);
-  const forceBinary = modeOverride === "tester";
 
   const sessionShown = extractSessionShownPairs(history);
   const sessionExposure = extractSessionIRExposure(history);
@@ -1671,10 +1670,7 @@ export function pickTasteCheckCandidates(
   let chosenAxis: typeof axisWithSpread[0];
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
-  const forceQuad = modeOverride === "acquisition";
-  const quadRounds = forceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
-
-  if (!forceBinary && round < quadRounds && workingPool.length >= 4) {
+  if (workingPool.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
@@ -1697,7 +1693,7 @@ export function pickTasteCheckCandidates(
 
       let diverse: ComboWithMeta[];
       if (isRefinementRound && plateauWinners.length >= pickCount) {
-        const swissPairs = pickSwissPairs(plateauWinners, activeEloRatings, pickCount);
+        const swissPairs = pickSwissPairs(plateauWinners, pickCount, activeEloRatings);
         diverse = swissPairs;
         console.log(`[REFINEMENT quad] Swiss-paired ${swissPairs.length} plateau winners for winner-vs-winner round`);
       } else {
@@ -1798,7 +1794,7 @@ export function pickTasteCheckCandidates(
 
     let diverse: ComboWithMeta[];
     if (isRefinementRound && plateauWinners.length >= 2) {
-      diverse = pickSwissPairs(plateauWinners, activeEloRatings, 2);
+      diverse = pickSwissPairs(plateauWinners, 2, activeEloRatings);
       console.log(`[REFINEMENT binary] Swiss-paired ${diverse.length} plateau winners`);
     } else {
       diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal, activeEloRatings, explorationRate);
