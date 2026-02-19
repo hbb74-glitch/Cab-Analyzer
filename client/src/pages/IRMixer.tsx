@@ -3106,7 +3106,7 @@ export default function IRMixer() {
             Foundation Finder
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
-            Drop all your IRs from a speaker set. The algorithm ranks them by Body score -- the highest-scoring Body IR makes the best base, giving you warmth and weight to blend from.
+            Drop all your IRs from a speaker set. The algorithm ranks them by warmth and weight -- the best Foundation IR makes an ideal base to blend from.
           </p>
           <DropZone
             label="Drop All IRs"
@@ -3117,7 +3117,7 @@ export default function IRMixer() {
 
           {showFoundation && foundationResults.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by Body score -- best base IRs ({foundationResults.length} IRs)</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by Foundation score -- best base IRs ({foundationResults.length} IRs)</p>
               <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                 {foundationResults.map((fr) => {
                   const ir = allIRs.find((a) => a.filename === fr.filename);
@@ -3151,10 +3151,10 @@ export default function IRMixer() {
                           </div>
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-[10px] font-mono text-amber-400">
-                              Body: {fr.bodyScore}
+                              Foundation: {fr.bodyScore}
                             </span>
                             <span className="text-[10px] font-mono text-muted-foreground">
-                              Featured: {fr.featuredScore}
+                              Cut/Presence: {fr.featuredScore}
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
@@ -3966,17 +3966,23 @@ export default function IRMixer() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-[10px] font-mono text-foreground truncate">
-                              {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
-                            </p>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <p className="text-[10px] font-mono text-foreground truncate">
+                                {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
+                              </p>
+                              <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                            </div>
                             <p className="text-[10px] text-muted-foreground">
                               + {pair.suggestedRatio
                                 ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
                                 : "50/50"}
                             </p>
-                            <p className="text-[10px] font-mono text-foreground truncate">
-                              {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
-                            </p>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <p className="text-[10px] font-mono text-foreground truncate">
+                                {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
+                              </p>
+                              <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                            </div>
                             <BandChart bands={pair.blendBands} height={10} compact />
                             <div className="flex items-center justify-between gap-1 flex-wrap">
                               <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
@@ -4079,9 +4085,15 @@ export default function IRMixer() {
                             )}
                             {ci === 0 && <span className="text-[9px] text-sky-400 font-medium">(suggested)</span>}
                           </div>
-                          <p className="text-xs font-mono text-foreground truncate">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <p className="text-xs font-mono text-foreground truncate">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                            <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                          </div>
                           <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
-                          <p className="text-xs font-mono text-foreground truncate">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <p className="text-xs font-mono text-foreground truncate">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
+                            <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                          </div>
                           <BandChart bands={cand.pair.blendBands} height={8} compact />
                         </button>
                       ))}
@@ -4096,8 +4108,10 @@ export default function IRMixer() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                         <span className="font-mono text-foreground">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                        <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
                         <span>+</span>
                         <span className="font-mono text-foreground">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                        <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         {(["a", "b"] as const).map((side) => {
@@ -4298,7 +4312,7 @@ export default function IRMixer() {
               </motion.div>
             ) : (
               <DropZone
-                label="Drop Base IR"
+                label="Drop Foundation IR"
                 description="The foundation tone for your blend"
                 onFilesAdded={handleBaseFile}
                 isLoading={isLoadingBase}
@@ -4308,9 +4322,9 @@ export default function IRMixer() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Feature IRs (blend candidates)</h3>
+            <h3 className="text-sm font-semibold text-foreground">Blend Candidate IRs</h3>
             <DropZone
-              label="Drop Feature IRs"
+              label="Drop Blend Candidates"
               description="One or more IRs to blend with the base"
               onFilesAdded={handleFeatureFiles}
               isLoading={isLoadingFeatures}
@@ -4393,7 +4407,7 @@ export default function IRMixer() {
                 <span className="text-muted-foreground font-normal">({featureIRs.length} combinations, sorted by match)</span>
               </h3>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground">Base/Feature:</span>
+                <span className="text-xs text-muted-foreground">Blend Ratio:</span>
                 {BLEND_RATIOS.map((r, idx) => (
                   <Button
                     key={r.label}
