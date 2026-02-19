@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { roleBadgeClass, classifyMusicalRole, computeSpeakerStats, inferSpeakerIdFromFilename, type SpeakerStats, type MusicalRole } from "@/lib/musical-roles";
+import { roleBadgeClass, classifyIR, computeSpeakerStats, inferSpeakerIdFromFilename, type SpeakerStats, type MusicalRole } from "@/lib/musical-roles";
 import type { TonalFeatures } from "@/lib/tonal-engine";
 
 export function MusicalRoleBadge({ role, className }: { role: string; className?: string }) {
@@ -28,7 +28,7 @@ export function MusicalRoleBadgeFromFeatures({
   if (!features) return null;
   const spk = inferSpeakerIdFromFilename(filename);
   const st = speakerStatsMap?.get(spk);
-  const role = classifyMusicalRole(features, st);
+  const role = classifyIR(features, filename, st);
   return <MusicalRoleBadge role={role} className={className} />;
 }
 

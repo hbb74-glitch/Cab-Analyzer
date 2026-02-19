@@ -6834,7 +6834,8 @@ export default function Analyzer() {
                       const tf = computeTonalFeatures(metrics);
                       const fn = String((metrics as any)?.filename ?? (metrics as any)?.name ?? "");
                       const st = speakerStatsRef.current.get(inferSpeakerIdFromFilename(fn));
-                      const role = classifyMusicalRole(tf, st);
+                      const base = classifyMusicalRole(tf, st);
+                      const role = applyContextBias(base, tf, fn, st);
                       return (
                         <span
                           className={cn("px-2 py-1 text-xs font-mono rounded", roleBadgeClass(role))}
