@@ -25,12 +25,119 @@ type StoreState = {
 };
 
 const STORAGE_KEY = "irscope.taste.v1";
+const SANDBOX_STORAGE_KEY = "irscope.taste.sandbox";
 
 const DEFAULT_STATE: StoreState = {
   version: 2,
   models: {},
   complements: {},
 };
+
+let _sandboxMode = false;
+
+export function setSandboxMode(on: boolean): void {
+  _sandboxMode = on;
+}
+
+export function isSandboxMode(): boolean {
+  return _sandboxMode;
+}
+
+function activeStorageKey(): string {
+  return _sandboxMode ? SANDBOX_STORAGE_KEY : STORAGE_KEY;
+}
+
+export function promoteSandboxToLive(): boolean {
+  try {
+    const sandboxRaw = localStorage.getItem(SANDBOX_STORAGE_KEY);
+    if (!sandboxRaw) return false;
+    const sandbox = JSON.parse(sandboxRaw) as StoreState;
+    if (!sandbox || sandbox.version !== 2) return false;
+
+    const live = loadStateFrom(STORAGE_KEY);
+
+    for (const [key, model] of Object.entries(sandbox.models)) {
+      if (!live.models[key]) {
+        live.models[key] = model;
+      } else {
+        const existing = live.models[key];
+        const dim = Math.min(existing.w.length, model.w.length);
+        for (let i = 0; i < dim; i++) {
+          existing.w[i] += model.w[i];
+        }
+        existing.nVotes += model.nVotes;
+      }
+    }
+
+    for (const [key, comps] of Object.entries(sandbox.complements ?? {})) {
+      if (!live.complements[key]) live.complements[key] = {};
+      for (const [pk, val] of Object.entries(comps)) {
+        live.complements[key][pk] = (live.complements[key][pk] ?? 0) + val;
+      }
+    }
+
+    if (sandbox.irWins) {
+      if (!live.irWins) live.irWins = {};
+      for (const [key, recs] of Object.entries(sandbox.irWins)) {
+        if (!live.irWins[key]) live.irWins[key] = {};
+        for (const [fn, rec] of Object.entries(recs)) {
+          if (!live.irWins[key][fn]) live.irWins[key][fn] = { wins: 0, losses: 0, bothCount: 0 };
+          live.irWins[key][fn].wins += rec.wins;
+          live.irWins[key][fn].losses += rec.losses;
+          live.irWins[key][fn].bothCount += rec.bothCount;
+        }
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(live));
+    localStorage.removeItem(SANDBOX_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function clearSandbox(): void {
+  localStorage.removeItem(SANDBOX_STORAGE_KEY);
+}
+
+export function resetAllTaste(): void {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SANDBOX_STORAGE_KEY);
+}
+
+export function persistTrainingMode(on: boolean): void {
+  try {
+    localStorage.setItem("irscope.trainingMode", on ? "1" : "0");
+  } catch {}
+}
+
+export function loadPersistedTrainingMode(): boolean {
+  try {
+    return localStorage.getItem("irscope.trainingMode") === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function hasSandboxData(): boolean {
+  return getSandboxStatus().nVotes > 0;
+}
+
+export function getSandboxStatus(): { nVotes: number } {
+  try {
+    const raw = localStorage.getItem(SANDBOX_STORAGE_KEY);
+    if (!raw) return { nVotes: 0 };
+    const parsed = JSON.parse(raw) as StoreState;
+    let total = 0;
+    for (const m of Object.values(parsed.models ?? {})) {
+      total += m.nVotes ?? 0;
+    }
+    return { nVotes: total };
+  } catch {
+    return { nVotes: 0 };
+  }
+}
 
 function safeNumber(v: any, fallback = 0): number {
   const n = typeof v === "number" ? v : Number(v);
@@ -50,12 +157,12 @@ function makeGlobalTasteKey(ctx: TasteContext): string {
   return `${ctx.speakerPrefix}__${ctx.mode}__global`;
 }
 
-export function loadState(): StoreState {
+function loadStateFrom(key: string): StoreState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE;
+    const raw = localStorage.getItem(key);
+    if (!raw) return { ...DEFAULT_STATE, models: {}, complements: {} };
     const parsed = JSON.parse(raw);
-    if (!parsed) return DEFAULT_STATE;
+    if (!parsed) return { ...DEFAULT_STATE, models: {}, complements: {} };
 
     if (parsed.version === 1) {
       const migrated: StoreState = {
@@ -66,17 +173,21 @@ export function loadState(): StoreState {
       return migrated;
     }
 
-    if (parsed.version !== 2) return DEFAULT_STATE;
+    if (parsed.version !== 2) return { ...DEFAULT_STATE, models: {}, complements: {} };
     if (!parsed.complements) parsed.complements = {};
     return parsed as StoreState;
   } catch {
-    return DEFAULT_STATE;
+    return { ...DEFAULT_STATE, models: {}, complements: {} };
   }
+}
+
+export function loadState(): StoreState {
+  return loadStateFrom(activeStorageKey());
 }
 
 function saveState(state: StoreState) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(activeStorageKey(), JSON.stringify(state));
   } catch {
   }
 }

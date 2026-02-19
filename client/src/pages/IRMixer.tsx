@@ -6,7 +6,7 @@ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -713,6 +713,13 @@ export default function IRMixer() {
   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
   const [tasteVersion, setTasteVersion] = useState(0);
   const [debugVisible, setDebugVisible] = useState(false);
+  const [trainingMode, setTrainingMode] = useState(() => {
+    const persisted = loadPersistedTrainingMode();
+    if (persisted) setSandboxMode(true);
+    return persisted;
+  });
+  const [resetAllConfirm, setResetAllConfirm] = useState(false);
+  const [promoteConfirm, setPromoteConfirm] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
   const [singleIrPage, setSingleIrPage] = useState(0);
@@ -2248,69 +2255,240 @@ export default function IRMixer() {
     }
   };
 
+  const sandboxVotes = useMemo(() => getSandboxStatus().nVotes, [tasteVersion, trainingMode]);
+
   const TasteControlBar = (
-    <div className="flex items-center gap-2 text-xs opacity-90 mb-2" data-testid="taste-control-bar">
-      <button
-        className={cn(
-          "px-2 py-1 rounded border",
-          tasteEnabled ? "border-green-500" : "border-zinc-600"
-        )}
-        onClick={() => setTasteEnabled(v => !v)}
-        data-testid="button-taste-toggle"
-      >
-        Learning: {tasteEnabled ? "ON" : "OFF"}
-      </button>
+    <div className="flex flex-col gap-2 text-xs opacity-90 mb-2" data-testid="taste-control-bar">
+      {trainingMode && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-orange-500/50 bg-orange-500/10 text-orange-300" data-testid="training-mode-banner">
+          <span className="font-semibold tracking-wide">TRAINING MODE</span>
+          <span className="opacity-70">Votes go to sandbox ({sandboxVotes} votes) — live data is untouched</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            {sandboxVotes > 0 && (
+              <>
+                <button
+                  className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+                  onClick={() => setPromoteConfirm(true)}
+                  data-testid="button-promote-sandbox"
+                >
+                  Promote to Live
+                </button>
+                <button
+                  className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+                  onClick={() => {
+                    clearSandbox();
+                    setTasteVersion(v => v + 1);
+                  }}
+                  data-testid="button-discard-sandbox"
+                >
+                  Discard
+                </button>
+              </>
+            )}
+            <button
+              className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+              onClick={() => {
+                setTrainingMode(false);
+                setSandboxMode(false);
+                persistTrainingMode(false);
+                setTasteVersion(v => v + 1);
+              }}
+              data-testid="button-exit-training"
+            >
+              Exit Training
+            </button>
+          </div>
+        </div>
+      )}
 
-      <select
-        className="px-2 py-1 rounded border border-zinc-600 bg-transparent text-zinc-200"
-        value={tasteIntent}
-        onChange={(e) => setTasteIntent(e.target.value as any)}
-        data-testid="select-taste-intent"
-      >
-        <option value="rhythm">Rhythm</option>
-        <option value="lead">Lead</option>
-        <option value="clean">Clean</option>
-      </select>
+      {promoteConfirm && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-emerald-500/50 bg-emerald-500/10 text-emerald-300" data-testid="promote-confirm-banner">
+          <span>Merge {sandboxVotes} sandbox votes into your live learning data?</span>
+          <button
+            className="px-2 py-0.5 rounded border border-emerald-500/40 hover-elevate"
+            onClick={() => {
+              promoteSandboxToLive();
+              setTrainingMode(false);
+              setSandboxMode(false);
+              persistTrainingMode(false);
+              setPromoteConfirm(false);
+              setTasteVersion(v => v + 1);
+              toast({ title: "Sandbox promoted to live", description: `${sandboxVotes} votes merged into your live learning data.`, duration: 3000 });
+            }}
+            data-testid="button-promote-confirm"
+          >
+            Yes, merge
+          </button>
+          <button
+            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+            onClick={() => setPromoteConfirm(false)}
+            data-testid="button-promote-cancel"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
-      <button
-        className="px-2 py-1 rounded border border-zinc-600"
-        onClick={() => {
-          resetTaste(tasteContext);
-          setTasteVersion(v => v + 1);
-          setPairingRankings({});
-          setDismissedPairings(new Set());
-          setPairingFeedback({});
-          setPairingFeedbackText({});
-        }}
-        data-testid="button-taste-reset"
-      >
-        Reset
-      </button>
+      {resetAllConfirm && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-red-500/50 bg-red-500/10 text-red-300" data-testid="reset-all-confirm-banner">
+          <span>Reset ALL taste learning across all intents and modes? This cannot be undone.</span>
+          <button
+            className="px-2 py-0.5 rounded border border-red-500/40 hover-elevate"
+            onClick={() => {
+              resetAllTaste();
+              setTrainingMode(false);
+              setSandboxMode(false);
+              persistTrainingMode(false);
+              setTasteVersion(v => v + 1);
+              setPairingRankings({});
+              setDismissedPairings(new Set());
+              setPairingFeedback({});
+              setPairingFeedbackText({});
+              setSingleIrRatings({});
+              setSingleIrTags({});
+              setSingleIrNotes({});
+              setSingleIrPage(0);
+              setResetAllConfirm(false);
+              toast({ title: "All taste data reset", description: "Live and sandbox data cleared. Starting fresh.", duration: 3000 });
+            }}
+            data-testid="button-reset-all-confirm"
+          >
+            Yes, reset everything
+          </button>
+          <button
+            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+            onClick={() => setResetAllConfirm(false)}
+            data-testid="button-reset-all-cancel"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
-      <button
-        className="px-3 py-1 rounded border border-zinc-600"
-        onClick={() => {
-          resetTaste(singleIrTasteContext);
-          setTasteVersion(v => v + 1);
-          setSingleIrRatings({});
-          setSingleIrTags({});
-          setSingleIrNotes({});
-          setSingleIrPage(0);
-        }}
-        title="Reset Single-IR learning (separate from blend learning)"
-        data-testid="button-taste-reset-single"
-      >
-        Reset Single
-      </button>
+      {!trainingMode && sandboxVotes > 0 && (
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-amber-500/40 bg-amber-500/8 text-amber-300" data-testid="sandbox-orphan-banner">
+          <span>You have {sandboxVotes} sandbox votes from a previous training session.</span>
+          <button
+            className="px-2 py-0.5 rounded border border-amber-500/40 hover-elevate"
+            onClick={() => {
+              setTrainingMode(true);
+              setSandboxMode(true);
+              persistTrainingMode(true);
+              setTasteVersion(v => v + 1);
+            }}
+            data-testid="button-resume-training"
+          >
+            Resume Training
+          </button>
+          <button
+            className="px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-300 hover-elevate"
+            onClick={() => setPromoteConfirm(true)}
+            data-testid="button-promote-orphan"
+          >
+            Promote to Live
+          </button>
+          <button
+            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+            onClick={() => {
+              clearSandbox();
+              setTasteVersion(v => v + 1);
+            }}
+            data-testid="button-discard-orphan"
+          >
+            Discard
+          </button>
+        </div>
+      )}
 
-      <button
-        className="px-3 py-1 rounded border border-zinc-600"
-        onClick={() => setSingleIrLearnOpen(true)}
-        title="Rate 4 individual IRs (single-IR learning)"
-        data-testid="button-single-ir-learning"
-      >
-        Single IR Learning
-      </button>
+      <div className="flex items-center gap-2 flex-wrap" data-testid="taste-control-buttons">
+        <button
+          className={cn(
+            "px-2 py-1 rounded border",
+            trainingMode ? "border-orange-500 text-orange-300" : tasteEnabled ? "border-green-500" : "border-zinc-600"
+          )}
+          onClick={() => setTasteEnabled(v => !v)}
+          data-testid="button-taste-toggle"
+        >
+          Learning: {tasteEnabled ? "ON" : "OFF"}
+        </button>
+
+        <select
+          className="px-2 py-1 rounded border border-zinc-600 bg-transparent text-zinc-200"
+          value={tasteIntent}
+          onChange={(e) => setTasteIntent(e.target.value as any)}
+          data-testid="select-taste-intent"
+        >
+          <option value="rhythm">Rhythm</option>
+          <option value="lead">Lead</option>
+          <option value="clean">Clean</option>
+        </select>
+
+        <button
+          className={cn(
+            "px-2 py-1 rounded border",
+            trainingMode ? "border-orange-500 bg-orange-500/15 text-orange-300" : "border-zinc-600"
+          )}
+          onClick={() => {
+            const next = !trainingMode;
+            setTrainingMode(next);
+            setSandboxMode(next);
+            persistTrainingMode(next);
+            setTasteVersion(v => v + 1);
+          }}
+          title={trainingMode ? "Currently in Training Mode — votes are sandboxed" : "Enter Training Mode — votes won't affect live learning"}
+          data-testid="button-training-mode"
+        >
+          {trainingMode ? "Training" : "Training Mode"}
+        </button>
+
+        <button
+          className="px-2 py-1 rounded border border-zinc-600"
+          onClick={() => {
+            resetTaste(tasteContext);
+            setTasteVersion(v => v + 1);
+            setPairingRankings({});
+            setDismissedPairings(new Set());
+            setPairingFeedback({});
+            setPairingFeedbackText({});
+          }}
+          data-testid="button-taste-reset"
+        >
+          Reset Intent
+        </button>
+
+        <button
+          className="px-3 py-1 rounded border border-zinc-600"
+          onClick={() => {
+            resetTaste(singleIrTasteContext);
+            setTasteVersion(v => v + 1);
+            setSingleIrRatings({});
+            setSingleIrTags({});
+            setSingleIrNotes({});
+            setSingleIrPage(0);
+          }}
+          title="Reset Single-IR learning (separate from blend learning)"
+          data-testid="button-taste-reset-single"
+        >
+          Reset Single
+        </button>
+
+        <button
+          className="px-2 py-1 rounded border border-red-800/50 text-red-400/80"
+          onClick={() => setResetAllConfirm(true)}
+          title="Reset ALL taste learning across all intents and modes"
+          data-testid="button-taste-reset-all"
+        >
+          Reset All
+        </button>
+
+        <button
+          className="px-3 py-1 rounded border border-zinc-600"
+          onClick={() => setSingleIrLearnOpen(true)}
+          title="Rate 4 individual IRs (single-IR learning)"
+          data-testid="button-single-ir-learning"
+        >
+          Single IR Learning
+        </button>
 
       <button
         className="px-3 py-1 rounded border border-zinc-600"
@@ -2459,8 +2637,13 @@ export default function IRMixer() {
         <span className="ml-3 opacity-70">
           Single Votes: {singleIrTasteStatus.nVotes} (Conf {Math.round(singleIrTasteStatus.confidence * 100)}%)
         </span>
+        {trainingMode && (
+          <span className="ml-2 text-orange-400 font-semibold">
+            SANDBOX
+          </span>
+        )}
       </div>
-
+      </div>
     </div>
   );
 
