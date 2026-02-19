@@ -954,6 +954,60 @@ function extractSessionIRExposure(history?: TasteCheckRoundResult[]): Map<string
   return counts;
 }
 
+interface TasteSignal {
+  winnerFeatures: TonalFeatures[];
+  loserFeatures: TonalFeatures[];
+}
+
+function extractSessionTasteSignal(
+  history: TasteCheckRoundResult[] | undefined,
+  featureLookup: Map<string, TonalFeatures>
+): TasteSignal | null {
+  if (!history || history.length === 0) return null;
+  const signal: TasteSignal = { winnerFeatures: [], loserFeatures: [] };
+  for (const round of history) {
+    if (round.pickedIndex < 0 || round.pickedIndex >= round.options.length) continue;
+    const winner = round.options[round.pickedIndex];
+    const wBase = featureLookup.get(winner.baseFilename);
+    const wFeat = featureLookup.get(winner.featureFilename);
+    if (wBase && wFeat) {
+      signal.winnerFeatures.push(blendFeatures(wBase, wFeat, 0.5, 0.5));
+    }
+    for (let i = 0; i < round.options.length; i++) {
+      if (i === round.pickedIndex) continue;
+      const loser = round.options[i];
+      const lBase = featureLookup.get(loser.baseFilename);
+      const lFeat = featureLookup.get(loser.featureFilename);
+      if (lBase && lFeat) {
+        signal.loserFeatures.push(blendFeatures(lBase, lFeat, 0.5, 0.5));
+      }
+    }
+  }
+  return (signal.winnerFeatures.length > 0 || signal.loserFeatures.length > 0) ? signal : null;
+}
+
+function tasteFeedbackScore(features: TonalFeatures, signal: TasteSignal | null): number {
+  if (!signal) return 0;
+  let boost = 0;
+  if (signal.winnerFeatures.length > 0) {
+    let minDist = Infinity;
+    for (const wf of signal.winnerFeatures) {
+      const d = tonalDistance(features, wf);
+      if (d < minDist) minDist = d;
+    }
+    boost += Math.max(0, 8 - minDist * 0.4);
+  }
+  if (signal.loserFeatures.length > 0) {
+    let minDist = Infinity;
+    for (const lf of signal.loserFeatures) {
+      const d = tonalDistance(features, lf);
+      if (d < minDist) minDist = d;
+    }
+    boost -= Math.max(0, 3 - minDist * 0.2);
+  }
+  return boost;
+}
+
 function safeNum(v: any, fb = 0): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fb;
@@ -1069,7 +1123,8 @@ function computePoolIntentRankScores(
 function pickDiverseFromPool(
   pool: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string })[],
   count: number,
-  intent?: string
+  intent?: string,
+  signal?: TasteSignal | null
 ): typeof pool {
   if (pool.length <= count) return pool;
 
@@ -1082,7 +1137,8 @@ function pickDiverseFromPool(
 
   const scored = pool.map((c, idx) => {
     const tierBonus = preferredKeys.has(c._rolePairKey) ? 6 : (c._roleBonus > 0 ? 3 : 0);
-    return { c, intentScore: intentScores[idx] + tierBonus, idx };
+    const fb = tasteFeedbackScore(c._features, signal ?? null);
+    return { c, intentScore: intentScores[idx] + tierBonus + fb, idx };
   });
   scored.sort((a, b) => b.intentScore - a.intentScore);
 
@@ -1143,6 +1199,10 @@ export function pickTasteCheckCandidates(
   const maxSessionExposure = sessionExposure.size > 0
     ? Math.max(...Array.from(sessionExposure.values()), 1) : 0;
 
+  const featureLookup = new Map<string, TonalFeatures>();
+  for (const ir of irs) featureLookup.set(ir.filename, ir.features);
+  const tasteSignal = extractSessionTasteSignal(history, featureLookup);
+
   const spkStats = computeSpeakerStats(irs.map(ir => ({ filename: ir.filename, tf: ir.features })));
   const irRoles = new Map<string, MusicalRole>();
   for (const ir of irs) {
@@ -1162,7 +1222,6 @@ export function pickTasteCheckCandidates(
     for (let j = i + 1; j < irs.length; j++) {
       const ck = [irs[i].filename, irs[j].filename].sort().join("||");
       if (excludePairs && excludePairs.has(ck)) continue;
-      if (sessionShown.has(ck)) continue;
       const blended = blendFeatures(irs[i].features, irs[j].features, 0.5, 0.5);
       const result = learned
         ? scoreWithAvoidPenalty(blended, profiles, learned)
@@ -1172,13 +1231,17 @@ export function pickTasteCheckCandidates(
         : scoreBlendQuality(blended, profiles);
 
       let exposurePenalty = 0;
+      if (sessionShown.has(ck)) {
+        exposurePenalty += 15;
+      }
       if (maxSessionExposure > 0) {
         const baseExp = sessionExposure.get(irs[i].filename) ?? 0;
         const featExp = sessionExposure.get(irs[j].filename) ?? 0;
-        exposurePenalty = ((baseExp + featExp) / (maxSessionExposure * 2)) * 10;
+        exposurePenalty += ((baseExp + featExp) / (maxSessionExposure * 2)) * 12;
       }
 
       const prior = intentPriorScore(blended, intent as any);
+      const feedback = tasteFeedbackScore(blended, tasteSignal);
 
       const roleA = irRoles.get(irs[i].filename) || "Foundation";
       const roleB = irRoles.get(irs[j].filename) || "Foundation";
@@ -1192,7 +1255,7 @@ export function pickTasteCheckCandidates(
         bestMatch: result.best,
         blendScore: bq.blendScore,
         blendLabel: bq.blendLabel,
-        score: (bq.blendScore - exposurePenalty) + prior,
+        score: (bq.blendScore - exposurePenalty) + prior + feedback,
         rank: 0,
         _features: blended,
         _roleBonus: roleBonus,
@@ -1204,6 +1267,10 @@ export function pickTasteCheckCandidates(
   }
 
   if (allCombos.length < 2) return null;
+
+  if (tasteSignal) {
+    console.log(`[TASTE-FEEDBACK] round=${history?.length ?? 0} winners=${tasteSignal.winnerFeatures.length} losers=${tasteSignal.loserFeatures.length} sessionShown=${sessionShown.size} combosAvail=${allCombos.length}`);
+  }
 
   const round = history?.length ?? 0;
   const exploredAxes = new Set(history?.map((h) => h.axisName) ?? []);
@@ -1244,7 +1311,7 @@ export function pickTasteCheckCandidates(
       const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
       const candidatePool = roleFiltered.length >= 4 ? roleFiltered : allCombos;
 
-      const diverse = pickDiverseFromPool(candidatePool, 4, intent);
+      const diverse = pickDiverseFromPool(candidatePool, 4, intent, tasteSignal);
 
       console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length} roleFiltered=${roleFiltered.length}`);
       for (const d of diverse) {
@@ -1310,7 +1377,7 @@ export function pickTasteCheckCandidates(
     const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
     const binaryPool = roleFiltered.length >= 2 ? roleFiltered : allCombos;
 
-    const diverse = pickDiverseFromPool(binaryPool, 2, intent);
+    const diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal);
 
     console.log(`[INTENT-PICK binary] intent=${intent} roleFiltered=${roleFiltered.length} pool=${binaryPool.length}`);
     for (const d of diverse) {
