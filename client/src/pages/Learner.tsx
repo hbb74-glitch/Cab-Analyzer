@@ -848,7 +848,17 @@ export default function Learner() {
       if (!allLoaded.some((ir) => ir.filename === f.filename)) allLoaded.push(f);
     }
     if (allLoaded.length < 2) return new Map<string, import("@/lib/musical-roles").SpeakerStats>();
-    return computeSpeakerStats(allLoaded.map(ir => ({ filename: ir.filename, tf: ir.features })));
+    return computeSpeakerStats(allLoaded.map(ir => {
+      const bp = ir.features.bandsPercent;
+      const tf: any = {
+        bandsPercent: bp,
+        spectralCentroidHz: ir.features.spectralCentroidHz ?? 0,
+        tiltDbPerOct: ir.features.tiltDbPerOct ?? 0,
+        rolloffFreq: ir.features.rolloffFreq ?? 0,
+        smoothScore: ir.metrics?.smoothScore ?? ir.metrics?.frequencySmoothness ?? ir.features.smoothScore ?? 0,
+      };
+      return { filename: ir.filename, tf };
+    }));
   }, [allIRs, baseIR, featureIRs]);
 
   const foundationCandidateSet = useMemo(() => {
