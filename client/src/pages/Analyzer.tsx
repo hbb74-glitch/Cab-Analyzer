@@ -1768,9 +1768,6 @@ export default function Analyzer() {
     const filename = safe(r?.filename ?? r?.name ?? "");
     if (!filename) return "";
 
-    const stored = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
-    if (stored) return stored;
-
     const metricsForFile = batchMetricsByFilenameRef.current.get(filename);
     const bandsFromBatch = {
       subBass: ((Number(r.subBassPercent) || 0) / 100),
@@ -1780,6 +1777,7 @@ export default function Analyzer() {
       highMid: ((Number(r.highMidPercent) || 0) / 100),
       presence: ((Number(r.presencePercent) || 0) / 100),
       air: ((Number((r.airPercent ?? r.ultraHighPercent)) || 0) / 100),
+      fizz: ((Number((r as any).fizzPercent ?? 0)) / 100),
     };
 
     const featureSource: any = {
