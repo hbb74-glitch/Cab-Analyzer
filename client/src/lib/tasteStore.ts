@@ -127,14 +127,73 @@ export function getTasteBias(ctx: TasteContext, x: number[]): { bias: number; co
   const modelIntent = state.models[keyIntent];
   const modelGlobal = state.models[keyGlobal];
 
-  if (!modelIntent && !modelGlobal) return { bias: 0, confidence: 0 };
+  const intentPrior = intentPriorScore(ctx.intent, x);
 
-  let bias = 0;
+  if (!modelIntent && !modelGlobal) return { bias: intentPrior, confidence: 0 };
+
+  let bias = intentPrior;
   if (modelGlobal) bias += 0.35 * dot(modelGlobal.w, x);
   if (modelIntent) bias += dot(modelIntent.w, x);
 
   const confidence = clamp((modelIntent?.nVotes ?? 0) / 30, 0, 1);
   return { bias, confidence };
+}
+
+type PriorDelta = Partial<Record<BandKey | "Tilt" | "Smooth", number>>;
+
+const INTENT_PRIORS: Record<TasteIntent, PriorDelta> = {
+  rhythm: {
+    bass: +0.35,
+    lowMid: +0.10,
+    mid: +0.10,
+    highMid: +0.15,
+    presence: +0.10,
+    air: -0.25,
+    Smooth: +0.10,
+    Tilt: -0.05,
+  },
+  lead: {
+    mid: +0.15,
+    highMid: +0.20,
+    presence: +0.30,
+    air: +0.15,
+    lowMid: +0.05,
+    Smooth: +0.15,
+    Tilt: +0.05,
+  },
+  clean: {
+    bass: -0.10,
+    lowMid: -0.15,
+    mid: +0.05,
+    presence: +0.20,
+    air: +0.10,
+    Smooth: +0.25,
+    Tilt: +0.10,
+  },
+};
+
+function intentPriorScore(intent: TasteIntent, x: number[]): number {
+  const delta = INTENT_PRIORS[intent];
+  if (!delta) return 0;
+
+  const idxOf = (k: BandKey | "Tilt" | "Smooth"): number => {
+    const bandIndex = BAND_KEYS.indexOf(k as BandKey);
+    if (bandIndex >= 0) return bandIndex;
+    if (k === "Tilt") return BAND_KEYS.length;
+    return BAND_KEYS.length + 1;
+  };
+
+  let s = 0;
+  for (const [k, vRaw] of Object.entries(delta)) {
+    const key = k as BandKey | "Tilt" | "Smooth";
+    const i = idxOf(key);
+    if (i < 0 || i >= x.length) continue;
+
+    const v = key === "Smooth" ? (vRaw as number) : (vRaw as number) / 10.0;
+    s += v * x[i];
+  }
+
+  return 0.45 * s;
 }
 
 export function meanVector(vectors: number[][]): number[] {

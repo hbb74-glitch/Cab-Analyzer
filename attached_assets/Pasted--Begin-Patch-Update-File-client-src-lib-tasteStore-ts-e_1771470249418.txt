@@ -1,0 +1,94 @@
+*** Begin Patch
+*** Update File: client/src/lib/tasteStore.ts
+@@
+ export function getTasteBias(ctx: TasteContext, x: number[]): { bias: number; confidence: number } {
+   const state = loadState();
+   const keyIntent = makeTasteKey(ctx);
+   const keyGlobal = makeGlobalTasteKey(ctx);
+   const modelIntent = state.models[keyIntent];
+   const modelGlobal = state.models[keyGlobal];
+ 
+-  if (!modelIntent && !modelGlobal) return { bias: 0, confidence: 0 };
+-
+-  let bias = 0;
++  // Always apply an *intent prior* so Rhythm/Lead/Clean diverge even at 0 votes.
++  // This stays subtle and is meant to be overridden as the learner accumulates votes.
++  const intentPrior = intentPriorScore(ctx.intent, x);
++
++  if (!modelIntent && !modelGlobal) return { bias: intentPrior, confidence: 0 };
++
++  let bias = intentPrior;
+   if (modelGlobal) bias += 0.35 * dot(modelGlobal.w, x);
+   if (modelIntent) bias += dot(modelIntent.w, x);
+@@
+   const confidence = clamp((modelIntent?.nVotes ?? 0) / 30, 0, 1);
+   return { bias, confidence };
+ }
++
++type PriorDelta = Partial<Record<BandKey | "Tilt" | "Smooth", number>>;
++
++// Hand-tuned musical priors (in "shape dB" space) to make baseline intent selection sensible.
++// Values are deliberately small: learning should dominate after ~10–20 votes.
++const INTENT_PRIORS: Record<TasteIntent, PriorDelta> = {
++  // Chunky/tight rhythm: keep lows, reduce mud, enough presence to cut, avoid fizz.
++  rhythm: {
++    bass: +0.35,
++    lowMid: +0.10,
++    mid: +0.10,
++    highMid: +0.15,
++    presence: +0.10,
++    air: -0.25,
++    Smooth: +0.10,
++    Tilt: -0.05,
++  },
++  // Lead: more presence/air and upper mids for cut, but keep it smooth (less harsh).
++  lead: {
++    mid: +0.15,
++    highMid: +0.20,
++    presence: +0.30,
++    air: +0.15,
++    lowMid: +0.05,
++    Smooth: +0.15,
++    Tilt: +0.05,
++  },
++  // Clean: Fender-ish sparkle but controlled (smooth, low fizz, not boomy).
++  clean: {
++    bass: -0.10,
++    lowMid: -0.15,
++    mid: +0.05,
++    presence: +0.20,
++    air: +0.10,
++    Smooth: +0.25,
++    Tilt: +0.10,
++  },
++};
++
++function intentPriorScore(intent: TasteIntent, x: number[]): number {
++  const delta = INTENT_PRIORS[intent];
++  if (!delta) return 0;
++
++  // Convert deltas into a vector aligned with featurizeSingleIR/featurizeBlend.
++  // Feature vectors are normalized: bands are /10, tilt is /10, smooth is /100.
++  const idxOf = (k: BandKey | "Tilt" | "Smooth"): number => {
++    const bandIndex = BAND_KEYS.indexOf(k as BandKey);
++    if (bandIndex >= 0) return bandIndex;
++    if (k === "Tilt") return BAND_KEYS.length;
++    return BAND_KEYS.length + 1;
++  };
++
++  let s = 0;
++  for (const [k, vRaw] of Object.entries(delta)) {
++    const key = k as BandKey | "Tilt" | "Smooth";
++    const i = idxOf(key);
++    if (i < 0 || i >= x.length) continue;
++
++    // Scale to match x-space.
++    // NOTE: Smooth is already scaled in x (smooth/100), so we keep the prior in that same units.
++    const v = key === "Smooth" ? (vRaw as number) : (vRaw as number) / 10.0;
++    s += v * x[i];
++  }
++
++  // Keep prior subtle.
++  return 0.45 * s;
++}
+*** End Patch
