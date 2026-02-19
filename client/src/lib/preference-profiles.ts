@@ -964,36 +964,44 @@ function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
   const smooth = safeNum((f as any).smoothScore, 0);
   const ratio = hiMidMidRatioFromBands(f);
 
+  type BandWeights = {
+    sub?: number; bass?: number; lowMid?: number; mid?: number;
+    hiMid?: number; pres?: number; air?: number;
+    ratio?: number; tilt?: number; smooth?: number;
+  };
+
+  const INTENT_WEIGHTS: Record<string, BandWeights> = {
+    rhythm: {
+      sub: -0.5, bass: 2.0, lowMid: -2.5, mid: 1.0,
+      hiMid: 1.5, pres: 0.5, air: -3.0,
+      ratio: -1.5, tilt: -0.8, smooth: 0.03,
+    },
+    lead: {
+      sub: -0.3, bass: -0.5, lowMid: -1.5, mid: 0.8,
+      hiMid: 2.5, pres: 3.0, air: 1.5,
+      ratio: 2.0, tilt: 0.5, smooth: 0.04,
+    },
+    clean: {
+      sub: -0.8, bass: -1.5, lowMid: -2.0, mid: 0.3,
+      hiMid: 0.5, pres: 1.5, air: 3.0,
+      ratio: -0.5, tilt: 1.0, smooth: 0.05,
+    },
+  };
+
+  const w = INTENT_WEIGHTS[intent];
+  if (!w) return 0;
+
   let s = 0;
-
-  if (intent === "rhythm") {
-    s += smooth >= 86 ? 2.0 : -1.0;
-    s += (b.air <= 2.0) ? 2.5 : (b.air <= 3.5 ? 0 : -2.0);
-    s += (b.pres >= 12 && b.pres <= 24) ? 2.0 : -1.5;
-    s += (b.lowMid <= 14) ? 1.5 : -1.5;
-    s += (ratio >= 1.2 && ratio <= 2.2) ? 1.0 : -0.8;
-    s += (tilt <= -2.5 && tilt >= -5.8) ? 0.8 : -0.4;
-    s += (b.bass >= 1.0 && b.bass <= 6.0) ? 1.0 : -0.5;
-  }
-
-  if (intent === "lead") {
-    s += smooth >= 88 ? 2.5 : (smooth >= 84 ? 1.0 : -1.5);
-    s += (b.air >= 1.5 && b.air <= 5.0) ? 2.0 : -1.0;
-    s += (b.pres >= 16 && b.pres <= 30) ? 2.0 : -1.5;
-    s += (ratio >= 1.5 && ratio <= 3.0) ? 1.5 : -1.0;
-    s += (b.hiMid >= 25 && b.hiMid <= 55) ? 1.5 : -0.5;
-    s += (b.lowMid <= 16) ? 0.8 : -0.8;
-  }
-
-  if (intent === "clean") {
-    s += smooth >= 88 ? 2.0 : (smooth >= 84 ? 0.8 : -1.5);
-    s += (b.air >= 2.0 && b.air <= 6.0) ? 2.5 : -1.0;
-    s += (b.pres >= 12 && b.pres <= 26) ? 1.5 : -1.0;
-    s += (ratio >= 1.0 && ratio <= 2.4) ? 1.0 : -0.8;
-    s += (b.lowMid <= 18) ? 0.6 : -0.6;
-    s += (tilt <= -2.0 && tilt >= -6.0) ? 0.5 : -0.5;
-    s += (b.bass <= 4.0) ? 1.0 : -0.5;
-  }
+  s += (w.sub ?? 0) * b.sub;
+  s += (w.bass ?? 0) * b.bass;
+  s += (w.lowMid ?? 0) * b.lowMid;
+  s += (w.mid ?? 0) * b.mid;
+  s += (w.hiMid ?? 0) * b.hiMid;
+  s += (w.pres ?? 0) * b.pres;
+  s += (w.air ?? 0) * b.air;
+  s += (w.ratio ?? 0) * ratio;
+  s += (w.tilt ?? 0) * tilt;
+  s += (w.smooth ?? 0) * smooth;
 
   return s;
 }
