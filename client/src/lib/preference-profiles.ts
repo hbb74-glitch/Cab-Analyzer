@@ -999,7 +999,7 @@ function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
   return s;
 }
 
-function computePoolZScoreIntentScores(
+function computePoolIntentRankScores(
   combos: { _features: TonalFeatures }[],
   intent: string
 ): number[] {
@@ -1007,22 +1007,23 @@ function computePoolZScoreIntentScores(
   if (!w || combos.length < 2) return combos.map(() => 0);
 
   const vectors = combos.map(c => extractBandVector(c._features));
+  const n = vectors.length;
 
-  const means: Record<string, number> = {};
-  const stds: Record<string, number> = {};
+  const ranks: Record<string, number[]> = {};
   for (const k of INTENT_BAND_KEYS) {
-    const vals = vectors.map(v => v[k]);
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const variance = vals.reduce((a, v) => a + (v - mean) ** 2, 0) / vals.length;
-    means[k] = mean;
-    stds[k] = Math.sqrt(variance) || 1;
+    const indexed = vectors.map((v, i) => ({ val: v[k], i }));
+    indexed.sort((a, b) => a.val - b.val);
+    const r = new Array<number>(n);
+    for (let pos = 0; pos < n; pos++) {
+      r[indexed[pos].i] = pos / (n - 1);
+    }
+    ranks[k] = r;
   }
 
-  return vectors.map(v => {
+  return vectors.map((_, idx) => {
     let s = 0;
     for (const k of INTENT_BAND_KEYS) {
-      const z = (v[k] - means[k]) / stds[k];
-      s += (w[k] ?? 0) * z;
+      s += (w[k] ?? 0) * (ranks[k][idx] - 0.5);
     }
     return s;
   });
@@ -1122,22 +1123,17 @@ export function pickTasteCheckCandidates(
     const axisCompute = chosenAxis.axis.compute;
 
     if (intent) {
-      const zScores = computePoolZScoreIntentScores(allCombos, intent);
-      const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
-      const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
-      const bqRange = Math.max(1, maxBQ - minBQ);
+      const rankScores = computePoolIntentRankScores(allCombos, intent);
 
       const intentScored = allCombos.map((c, idx) => {
-        const zIntent = zScores[idx];
-        const bqNorm = (c.blendScore - minBQ) / bqRange;
-        return { c, intentRank: zIntent * 3.0 + bqNorm * 1.0, zIntent, bqNorm };
+        return { c, intentRank: rankScores[idx], rk: rankScores[idx] };
       });
       intentScored.sort((a, b) => b.intentRank - a.intentRank);
 
       console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length}`);
       for (let di = 0; di < Math.min(8, intentScored.length); di++) {
         const d = intentScored[di];
-        console.log(`  #${di} rank=${d.intentRank.toFixed(2)} z=${d.zIntent.toFixed(2)} bqN=${d.bqNorm.toFixed(2)} ${d.c.baseFilename} + ${d.c.featureFilename}`);
+        console.log(`  #${di} rk=${d.rk.toFixed(3)} ${d.c.baseFilename} + ${d.c.featureFilename}`);
       }
 
       const seen = new Set<string>();
@@ -1206,15 +1202,10 @@ export function pickTasteCheckCandidates(
   const axisCompute = chosenAxis.axis.compute;
 
   if (intent && allCombos.length >= 2) {
-    const zScores = computePoolZScoreIntentScores(allCombos, intent);
-    const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
-    const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
-    const bqRange = Math.max(1, maxBQ - minBQ);
+    const rankScores = computePoolIntentRankScores(allCombos, intent);
 
     const intentScored = allCombos.map((c, idx) => {
-      const zIntent = zScores[idx];
-      const bqNorm = (c.blendScore - minBQ) / bqRange;
-      return { c, intentRank: zIntent * 3.0 + bqNorm * 1.0 };
+      return { c, intentRank: rankScores[idx] };
     });
     intentScored.sort((a, b) => b.intentRank - a.intentRank);
 
