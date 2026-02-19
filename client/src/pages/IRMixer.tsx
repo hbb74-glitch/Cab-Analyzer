@@ -1542,7 +1542,8 @@ export default function IRMixer() {
       const tastePick = pickTasteCheckCandidates(
         pairingPool, activeProfiles, learnedProfile || undefined,
         evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
-        undefined, tasteCheckMode as "acquisition" | "tester" | "learning"
+        undefined, tasteCheckMode as "acquisition" | "tester" | "learning",
+        tasteIntent as "rhythm" | "lead" | "clean"
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1640,7 +1641,8 @@ export default function IRMixer() {
         learnedProfile || undefined,
         undefined,
         newHistory,
-        tasteCheckMode === "ratio" ? "learning" : tasteCheckMode
+        tasteCheckMode === "ratio" ? "learning" : tasteCheckMode,
+        tasteIntent as "rhythm" | "lead" | "clean"
       );
 
       if (!nextPick) {
@@ -1877,7 +1879,15 @@ export default function IRMixer() {
         const shouldTasteCheck = (tasteCheckMode !== "learning") || !tasteCheckPassed || hasUnseenIRs;
 
         if (shouldTasteCheck) {
-          const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode as "acquisition" | "tester" | "learning");
+          const tastePick = pickTasteCheckCandidates(
+            pairingPool,
+            activeProfiles,
+            learnedProfile || undefined,
+            newEvaluated.size > 0 ? newEvaluated : undefined,
+            undefined,
+            tasteCheckMode as "acquisition" | "tester" | "learning",
+            tasteIntent as "rhythm" | "lead" | "clean",
+          );
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
             setTasteCheckPhase({

@@ -937,7 +937,8 @@ export function pickTasteCheckCandidates(
   learned?: LearnedProfileData,
   excludePairs?: Set<string>,
   history?: TasteCheckRoundResult[],
-  modeOverride?: "acquisition" | "tester" | "learning"
+  modeOverride?: "acquisition" | "tester" | "learning",
+  intent?: "rhythm" | "lead" | "clean"
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
@@ -994,7 +995,22 @@ export function pickTasteCheckCandidates(
     const min = Math.min(...values);
     const max = Math.max(...values);
     return { axis, spread: max - min, min, max };
-  }).sort((a, b) => b.spread - a.spread);
+  }).sort((a, b) => {
+    const bonus = (name: string) => {
+      if (!intent) return 0;
+      const pref: Record<string, string[]> = {
+        rhythm: ["Tightness", "Body", "Mid Focus", "Aggression", "Balance"],
+        lead: ["Presence", "Aggression", "Air", "Brightness", "Balance"],
+        clean: ["Balance", "Air", "Warmth", "Body", "Brightness"],
+      };
+      const list = pref[intent] ?? [];
+      const idx = list.indexOf(name);
+      return idx === -1 ? 0 : (list.length - idx) * 0.0005;
+    };
+    const aScore = a.spread + bonus(a.axis.name);
+    const bScore = b.spread + bonus(b.axis.name);
+    return bScore - aScore;
+  });
 
   let chosenAxis: typeof axisWithSpread[0];
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
