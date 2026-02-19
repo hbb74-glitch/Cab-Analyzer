@@ -3,6 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, type TasteContext } from "@/lib/tasteStore";
@@ -822,6 +823,16 @@ export default function IRMixer() {
     }
     if (allLoaded.length < 3) return DEFAULT_PROFILES;
     return computeSpeakerRelativeProfiles(allLoaded);
+  }, [allIRs, baseIR, featureIRs]);
+
+  const speakerStatsMap = useMemo(() => {
+    const allLoaded = [...allIRs];
+    if (baseIR && !allLoaded.some((ir) => ir.filename === baseIR.filename)) allLoaded.push(baseIR);
+    for (const f of featureIRs) {
+      if (!allLoaded.some((ir) => ir.filename === f.filename)) allLoaded.push(f);
+    }
+    if (allLoaded.length < 2) return new Map<string, import("@/lib/musical-roles").SpeakerStats>();
+    return computeSpeakerStats(allLoaded.map(ir => ({ filename: ir.filename, tf: ir.features })));
   }, [allIRs, baseIR, featureIRs]);
 
   const activeProfiles = useMemo(() => {
