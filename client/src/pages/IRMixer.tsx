@@ -5,7 +5,7 @@ import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, S
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1608,6 +1608,11 @@ export default function IRMixer() {
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
           recordOutcome(tasteContext, xW, xL, "a", { source });
+          recordIROutcome(
+            tasteContext,
+            [winner.baseFilename, winner.featureFilename],
+            [loser.baseFilename, loser.featureFilename]
+          );
         }
         setTasteVersion(v => v + 1);
       }
@@ -1685,6 +1690,11 @@ export default function IRMixer() {
       const xA = featurizeBlend(aB, aF, aR);
       const xB = featurizeBlend(bB, bF, bR);
       recordOutcome(tasteContext, xA, xB, "tie", { source: "ab" });
+      recordIROutcome(
+        tasteContext,
+        [a.baseFilename, a.featureFilename, b.baseFilename, b.featureFilename],
+        []
+      );
       setTasteVersion(v => v + 1);
     } catch {}
   }, [tasteCheckPhase, featuresByFilename, tasteContext]);
@@ -1706,6 +1716,12 @@ export default function IRMixer() {
       const xB = featurizeBlend(bB, bF, bR);
       const pairKey = `${a.baseFilename}__${a.featureFilename}__${b.baseFilename}__${b.featureFilename}`;
       recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ab" });
+      recordIROutcome(
+        tasteContext,
+        [a.baseFilename, a.featureFilename, b.baseFilename, b.featureFilename],
+        [],
+        true
+      );
       setTasteVersion(v => v + 1);
     } catch {}
   }, [tasteCheckPhase, featuresByFilename, tasteContext]);

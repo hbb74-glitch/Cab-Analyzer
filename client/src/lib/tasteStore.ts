@@ -16,10 +16,17 @@ type ModelState = {
   nVotes: number;
 };
 
+type IRWinRecord = {
+  wins: number;
+  losses: number;
+  bothCount: number;
+};
+
 type StoreState = {
   version: 2;
   models: Record<string, ModelState>;
   complements: Record<string, Record<string, number>>;
+  irWins?: Record<string, Record<string, IRWinRecord>>;
 };
 
 const STORAGE_KEY = "irscope.taste.v1";
@@ -394,6 +401,51 @@ export function recordOutcome(
   }
 }
 
+function irWinKey(ctx: TasteContext): string {
+  return `${ctx.speakerPrefix}__${ctx.intent}`;
+}
+
+function ensureIRWins(state: StoreState, key: string, filename: string): IRWinRecord {
+  if (!state.irWins) state.irWins = {};
+  if (!state.irWins[key]) state.irWins[key] = {};
+  if (!state.irWins[key][filename]) state.irWins[key][filename] = { wins: 0, losses: 0, bothCount: 0 };
+  return state.irWins[key][filename];
+}
+
+export function recordIROutcome(
+  ctx: TasteContext,
+  winnerFiles: string[],
+  loserFiles: string[],
+  isBoth?: boolean
+): void {
+  const state = loadState();
+  const key = irWinKey(ctx);
+
+  if (isBoth) {
+    for (const f of [...winnerFiles, ...loserFiles]) {
+      const rec = ensureIRWins(state, key, f);
+      rec.bothCount += 1;
+    }
+  } else {
+    for (const f of winnerFiles) {
+      const rec = ensureIRWins(state, key, f);
+      rec.wins += 1;
+    }
+    for (const f of loserFiles) {
+      const rec = ensureIRWins(state, key, f);
+      rec.losses += 1;
+    }
+  }
+
+  saveState(state);
+}
+
+export function getIRWinRecords(ctx: TasteContext): Record<string, IRWinRecord> {
+  const state = loadState();
+  const key = irWinKey(ctx);
+  return state.irWins?.[key] ?? {};
+}
+
 export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
   const state = loadState();
   const key = makeTasteKey(ctx);
@@ -408,8 +460,10 @@ export function resetTaste(ctx?: TasteContext) {
     return;
   }
   const keyIntent = makeTasteKey(ctx);
+  const irKey = irWinKey(ctx);
   delete state.models[keyIntent];
   delete state.complements[keyIntent];
+  if (state.irWins) delete state.irWins[irKey];
   saveState(state);
 }
 
