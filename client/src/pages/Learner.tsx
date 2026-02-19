@@ -3143,17 +3143,15 @@ export default function Learner() {
               <h1 className="text-2xl font-bold tracking-tight" data-testid="text-page-title">Learner</h1>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              {(votingLog.length > 0 || totalRoundsCompleted > 0 || Object.keys(singleIrRatings).length > 0) && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={copyVotingResults}
-                  data-testid="button-copy-voting-log-top"
-                >
-                  <Copy className="w-3 h-3 mr-1" />
-                  Export Session
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={copyVotingResults}
+                data-testid="button-copy-voting-log-top"
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                Export Session
+              </Button>
               <div className="flex items-center gap-1 rounded-lg border border-teal-500/30 bg-teal-500/5 p-1" data-testid="taste-mode-selector">
                 <button
                   onClick={() => {
