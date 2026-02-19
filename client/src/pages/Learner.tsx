@@ -875,6 +875,75 @@ export default function Learner() {
     return new Set(map.values());
   }, [allIRs, speakerStatsMap]);
 
+  const copyIRSummaryTSV = useCallback(() => {
+    if (!allIRs.length) return;
+    const fmt = (v: any, digits = 1) => {
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n.toFixed(digits) : "";
+    };
+    const inferFizzLabel = (tf: any): string => {
+      const smooth = Number(tf?.smoothScore ?? 0);
+      const tilt = Number(tf?.tiltDbPerOct ?? 0);
+      const ext = Number(tf?.rolloffFreq ?? 0);
+      const centroid = Number(tf?.spectralCentroidHz ?? 0);
+      if (smooth >= 88 && tilt <= -4.8 && ext > 0 && ext <= 4500) return "Low fizz (tamed)";
+      if (smooth <= 80 && ext > 0 && ext >= 5200 && centroid >= 3100) return "Higher fizz risk";
+      if (ext > 0 && ext >= 5200 && smooth >= 86) return "Polished top (not fizzy)";
+      if (tilt <= -5.8 || (ext > 0 && ext <= 3900)) return "Dark / rolled-off";
+      return "Neutral";
+    };
+    const header = [
+      "filename", "score",
+      "musical_role", "raw_role", "role_source",
+      "centroid_exported_hz", "centroid_computed_hz",
+      "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
+      "smooth_score", "hiMidMid_ratio",
+      "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
+      "fizz_label", "notes",
+    ].join("\t");
+    const rows = allIRs.map(ir => {
+      const tf = ir.features;
+      const bp = tf.bandsPercent;
+      const spk = inferSpeakerIdFromFilename(ir.filename);
+      const stats = speakerStatsMap.get(spk);
+      const role = classifyIR(tf, ir.filename, stats);
+      const centroid = fmt(tf.spectralCentroidHz ?? 0, 0);
+      const tilt = fmt(tf.tiltDbPerOct ?? 0);
+      const rolloff = fmt(tf.rolloffFreq ?? 0, 1);
+      const smooth = fmt(tf.smoothScore ?? 0, 0);
+      const hiMidVal = bp.highMid ?? 0;
+      const midVal = bp.mid ?? 0;
+      const hiMidMid = midVal > 0 ? fmt(hiMidVal / midVal, 2) : "";
+      const scale = (bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + (bp.air ?? 0) + (bp.fizz ?? 0)) < 2 ? 100 : 1;
+      return [
+        ir.filename,
+        "",
+        role,
+        "",
+        "computed",
+        centroid,
+        centroid,
+        tilt,
+        rolloff,
+        smooth,
+        hiMidMid,
+        fmt((bp.subBass ?? 0) * scale, 1),
+        fmt((bp.bass ?? 0) * scale, 1),
+        fmt((bp.lowMid ?? 0) * scale, 1),
+        fmt((bp.mid ?? 0) * scale, 1),
+        fmt((bp.highMid ?? 0) * scale, 1),
+        fmt((bp.presence ?? 0) * scale, 1),
+        fmt((bp.air ?? 0) * scale, 2),
+        inferFizzLabel(tf),
+        "",
+      ].join("\t");
+    });
+    const tsv = [header, ...rows].join("\n");
+    navigator.clipboard.writeText(tsv).then(() => {
+      toast({ title: "Copied", description: `${allIRs.length} IR summary rows copied to clipboard` });
+    });
+  }, [allIRs, speakerStatsMap, toast]);
+
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
     return applyLearnedAdjustments(speakerRelativeProfiles, learnedProfile);
@@ -3146,6 +3215,17 @@ export default function Learner() {
                 <summary className="text-xs text-muted-foreground uppercase tracking-wider mb-2 cursor-pointer select-none">
                   Loaded IRs — Role Summary ({allIRs.length})
                 </summary>
+                <div className="flex justify-end mb-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={copyIRSummaryTSV}
+                    data-testid="button-copy-ir-summary"
+                  >
+                    <Copy className="w-3 h-3 mr-1" />
+                    Copy Summary
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2 max-h-[300px] overflow-y-auto pr-1">
                   {allIRs.map((ir) => (
                     <div key={ir.filename} className={cn("flex items-center gap-1.5 py-0.5 px-2 rounded", foundationCandidateSet.has(ir.filename) ? "bg-amber-500/[0.06] ring-1 ring-amber-500/20" : "bg-white/[0.02]")} data-testid={`ir-role-summary-${ir.filename}`}>
