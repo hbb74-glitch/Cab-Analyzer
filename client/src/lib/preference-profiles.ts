@@ -14,6 +14,7 @@ import {
   zeroBands,
 } from "./tonal-engine";
 import { classifyIR, scoreRolePairForIntent, INTENT_ROLE_PREFERENCES, computeSpeakerStats, findFoundationCandidates, softenRolesFromLearning, inferSpeakerIdFromFilename, type MusicalRole, type Intent, type IRWinRecord } from "./musical-roles";
+import type { EloEntry } from "./tasteStore";
 
 export type { TonalBands, TonalFeatures, BandKey };
 
@@ -1008,6 +1009,50 @@ function tasteFeedbackScore(features: TonalFeatures, signal: TasteSignal | null)
   return boost;
 }
 
+const UCB_EXPLORATION = 1.5;
+const ELO_BASE_RATING = 1500;
+
+function ucbScore(elo: EloEntry | undefined, totalRounds: number): number {
+  if (!elo || elo.matchCount === 0) {
+    return 0.5 + UCB_EXPLORATION * 1.0;
+  }
+  const normalized = (elo.rating - ELO_BASE_RATING) / 200;
+  const exploration = UCB_EXPLORATION * elo.uncertainty;
+  return normalized + exploration;
+}
+
+function identifyBoundaryCandidates(
+  combos: { _features: TonalFeatures; baseFilename: string; featureFilename: string; score: number; _ucb?: number; _uncertainty?: number }[],
+  count: number
+): Set<number> {
+  const boundary = new Set<number>();
+  if (combos.length < 4) return boundary;
+
+  const sorted = combos
+    .map((c, i) => ({ idx: i, ucb: c._ucb ?? c.score }))
+    .sort((a, b) => b.ucb - a.ucb);
+
+  for (let i = 0; i < sorted.length - 1 && boundary.size < count; i++) {
+    const gap = Math.abs(sorted[i].ucb - sorted[i + 1].ucb);
+    if (gap < 1.5) {
+      boundary.add(sorted[i].idx);
+      boundary.add(sorted[i + 1].idx);
+    }
+  }
+
+  const highUncertainty = combos
+    .map((c, i) => ({ idx: i, unc: c._uncertainty ?? 1.0 }))
+    .sort((a, b) => b.unc - a.unc);
+
+  highUncertainty.forEach(hu => {
+    if (boundary.size < count) {
+      boundary.add(hu.idx);
+    }
+  });
+
+  return boundary;
+}
+
 function safeNum(v: any, fb = 0): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : fb;
@@ -1121,7 +1166,7 @@ function computePoolIntentRankScores(
 }
 
 function pickDiverseFromPool(
-  pool: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string })[],
+  pool: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string; _ucb: number; _uncertainty: number; _isBoundary: boolean })[],
   count: number,
   intent?: string,
   signal?: TasteSignal | null
@@ -1138,7 +1183,8 @@ function pickDiverseFromPool(
   const scored = pool.map((c, idx) => {
     const tierBonus = preferredKeys.has(c._rolePairKey) ? 6 : (c._roleBonus > 0 ? 3 : 0);
     const fb = tasteFeedbackScore(c._features, signal ?? null);
-    return { c, intentScore: intentScores[idx] + tierBonus + fb, idx };
+    const eloBonus = c._ucb * 2;
+    return { c, intentScore: intentScores[idx] + tierBonus + fb + eloBonus, idx };
   });
   scored.sort((a, b) => b.intentScore - a.intentScore);
 
@@ -1146,14 +1192,21 @@ function pickDiverseFromPool(
   const picked: typeof pool = [seed];
   const usedRolePairs = new Set<string>([seed._rolePairKey]);
   const pickedKeys = new Set<string>([[seed.baseFilename, seed.featureFilename].sort().join("||")]);
+  let hasBoundary = seed._isBoundary;
+
+  const boundarySlot = count >= 4 ? count - 1 : -1;
 
   while (picked.length < count && picked.length < scored.length) {
+    const needBoundary = !hasBoundary && picked.length === boundarySlot;
+
     let bestIdx = -1;
     let bestScore = -Infinity;
     for (let i = 0; i < scored.length; i++) {
       const { c, intentScore } = scored[i];
       const k = [c.baseFilename, c.featureFilename].sort().join("||");
       if (pickedKeys.has(k)) continue;
+
+      if (needBoundary && !c._isBoundary) continue;
 
       let dist = 0;
       for (const p of picked) {
@@ -1162,18 +1215,35 @@ function pickDiverseFromPool(
       dist /= picked.length;
 
       const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
-      const score = dist * 0.5 + intentScore + roleDiversityBonus;
+      const boundaryBonus = c._isBoundary ? 2 : 0;
+      const score = dist * 0.5 + intentScore + roleDiversityBonus + boundaryBonus;
 
       if (score > bestScore) {
         bestScore = score;
         bestIdx = i;
       }
     }
+
+    if (bestIdx === -1 && needBoundary) {
+      for (let i = 0; i < scored.length; i++) {
+        const { c, intentScore } = scored[i];
+        const k = [c.baseFilename, c.featureFilename].sort().join("||");
+        if (pickedKeys.has(k)) continue;
+        let dist = 0;
+        for (const p of picked) dist += tonalDistance(c._features, p._features);
+        dist /= picked.length;
+        const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
+        const score = dist * 0.5 + intentScore + roleDiversityBonus;
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+      }
+    }
+
     if (bestIdx === -1) break;
     const chosen = scored[bestIdx].c;
     picked.push(chosen);
     usedRolePairs.add(chosen._rolePairKey);
     pickedKeys.add([chosen.baseFilename, chosen.featureFilename].sort().join("||"));
+    if (chosen._isBoundary) hasBoundary = true;
   }
 
   return picked;
@@ -1187,7 +1257,8 @@ export function pickTasteCheckCandidates(
   history?: TasteCheckRoundResult[],
   modeOverride?: "acquisition" | "tester" | "learning",
   intent?: "rhythm" | "lead" | "clean",
-  irWinRecords?: Record<string, IRWinRecord>
+  irWinRecords?: Record<string, IRWinRecord>,
+  eloRatings?: Record<string, EloEntry>
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
@@ -1216,7 +1287,8 @@ export function pickTasteCheckCandidates(
     softenRolesFromLearning(irRoles, irWinRecords, intent as Intent);
   }
 
-  type ComboEntry = SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string };
+  const totalRounds = history?.length ?? 0;
+  type ComboEntry = SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string; _ucb: number; _uncertainty: number; _isBoundary: boolean };
   const allCombos: ComboEntry[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
@@ -1243,10 +1315,15 @@ export function pickTasteCheckCandidates(
       const prior = intentPriorScore(blended, intent as any);
       const feedback = tasteFeedbackScore(blended, tasteSignal);
 
+      const eloEntry = eloRatings?.[ck];
+      const ucb = ucbScore(eloEntry, totalRounds);
+
       const roleA = irRoles.get(irs[i].filename) || "Foundation";
       const roleB = irRoles.get(irs[j].filename) || "Foundation";
       const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
       const rolePairKey = [roleA, roleB].sort().join("+");
+
+      const baseScore = (bq.blendScore - exposurePenalty) + prior + feedback;
 
       allCombos.push({
         baseFilename: irs[i].filename,
@@ -1255,21 +1332,30 @@ export function pickTasteCheckCandidates(
         bestMatch: result.best,
         blendScore: bq.blendScore,
         blendLabel: bq.blendLabel,
-        score: (bq.blendScore - exposurePenalty) + prior + feedback,
+        score: baseScore + ucb * 3,
         rank: 0,
         _features: blended,
         _roleBonus: roleBonus,
         _roleA: roleA,
         _roleB: roleB,
         _rolePairKey: rolePairKey,
+        _ucb: ucb,
+        _uncertainty: eloEntry?.uncertainty ?? 1.0,
+        _isBoundary: false,
       });
     }
   }
 
   if (allCombos.length < 2) return null;
 
-  if (tasteSignal) {
-    console.log(`[TASTE-FEEDBACK] round=${history?.length ?? 0} winners=${tasteSignal.winnerFeatures.length} losers=${tasteSignal.loserFeatures.length} sessionShown=${sessionShown.size} combosAvail=${allCombos.length}`);
+  const boundarySet = identifyBoundaryCandidates(allCombos, Math.ceil(allCombos.length * 0.15));
+  boundarySet.forEach(idx => {
+    if (idx < allCombos.length) allCombos[idx]._isBoundary = true;
+  });
+
+  if (tasteSignal || eloRatings) {
+    const hasElo = eloRatings && Object.keys(eloRatings).length > 0;
+    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${allCombos.length}`);
   }
 
   const round = history?.length ?? 0;

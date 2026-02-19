@@ -7,7 +7,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1688,7 +1688,8 @@ export default function Learner() {
         evaluatedPairs.size > 0 ? evaluatedPairs : undefined,
         undefined, tasteCheckMode as "acquisition" | "tester" | "learning",
         tasteIntent as "rhythm" | "lead" | "clean",
-        getIRWinRecords(tasteContext)
+        getIRWinRecords(tasteContext),
+        getEloRatings(tasteContext)
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1744,6 +1745,7 @@ export default function Learner() {
       const wRatio = winner.suggestedRatio?.base ?? 0.5;
       if (wBase && wFeat) {
         const xW = featurizeBlend(wBase, wFeat, wRatio);
+        const loserPairs: [string, string][] = [];
         for (let i = 0; i < tasteCheckPhase.candidates.length; i++) {
           if (i === pickedIndex) continue;
           const loser = tasteCheckPhase.candidates[i];
@@ -1757,6 +1759,20 @@ export default function Learner() {
             tasteContext,
             [winner.baseFilename, winner.featureFilename],
             [loser.baseFilename, loser.featureFilename]
+          );
+          loserPairs.push([loser.baseFilename, loser.featureFilename]);
+        }
+        if (tasteCheckPhase.roundType === "quad" && loserPairs.length > 0) {
+          recordEloQuadOutcome(
+            tasteContext,
+            [winner.baseFilename, winner.featureFilename],
+            loserPairs
+          );
+        } else if (tasteCheckPhase.roundType === "binary" && loserPairs.length === 1) {
+          recordEloOutcome(
+            tasteContext,
+            [winner.baseFilename, winner.featureFilename],
+            loserPairs[0]
           );
         }
         setTasteVersion(v => v + 1);
@@ -1793,7 +1809,8 @@ export default function Learner() {
         newHistory,
         tasteCheckMode === "ratio" ? "learning" : tasteCheckMode,
         tasteIntent as "rhythm" | "lead" | "clean",
-        getIRWinRecords(tasteContext)
+        getIRWinRecords(tasteContext),
+        getEloRatings(tasteContext)
       );
 
       if (!nextPick) {
@@ -2058,7 +2075,8 @@ export default function Learner() {
             undefined,
             tasteCheckMode as "acquisition" | "tester" | "learning",
             tasteIntent as "rhythm" | "lead" | "clean",
-            getIRWinRecords(tasteContext)
+            getIRWinRecords(tasteContext),
+            getEloRatings(tasteContext)
           );
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);

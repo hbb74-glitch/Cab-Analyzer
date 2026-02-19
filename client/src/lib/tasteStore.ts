@@ -17,11 +17,18 @@ type ModelState = {
   nVotes: number;
 };
 
+export type EloEntry = {
+  rating: number;
+  matchCount: number;
+  uncertainty: number;
+};
+
 type StoreState = {
   version: 2;
   models: Record<string, ModelState>;
   complements: Record<string, Record<string, number>>;
   irWins?: Record<string, Record<string, IRWinRecord>>;
+  elo?: Record<string, Record<string, EloEntry>>;
 };
 
 const STORAGE_KEY = "irscope.taste.v1";
@@ -85,6 +92,26 @@ export function promoteSandboxToLive(): boolean {
           live.irWins[key][fn].wins += rec.wins;
           live.irWins[key][fn].losses += rec.losses;
           live.irWins[key][fn].bothCount += rec.bothCount;
+        }
+      }
+    }
+
+    if (sandbox.elo) {
+      if (!live.elo) live.elo = {};
+      for (const [key, entries] of Object.entries(sandbox.elo)) {
+        if (!live.elo[key]) live.elo[key] = {};
+        for (const [ck, entry] of Object.entries(entries)) {
+          if (!live.elo[key][ck]) {
+            live.elo[key][ck] = entry;
+          } else {
+            const existing = live.elo[key][ck];
+            const totalMatches = existing.matchCount + entry.matchCount;
+            if (totalMatches > 0) {
+              existing.rating = (existing.rating * existing.matchCount + entry.rating * entry.matchCount) / totalMatches;
+              existing.matchCount = totalMatches;
+              existing.uncertainty = 1 / Math.sqrt(totalMatches + 1);
+            }
+          }
         }
       }
     }
@@ -552,6 +579,88 @@ export function getIRWinRecords(ctx: TasteContext): Record<string, IRWinRecord> 
   return state.irWins?.[key] ?? {};
 }
 
+const ELO_BASE = 1500;
+const ELO_K_BASE = 32;
+const ELO_FLOOR = 1200;
+const ELO_CEILING = 1800;
+
+function eloKey(ctx: TasteContext): string {
+  return `${ctx.speakerPrefix}__${ctx.intent}`;
+}
+
+function comboKey(fileA: string, fileB: string): string {
+  return [fileA, fileB].sort().join("||");
+}
+
+function ensureEloEntry(state: StoreState, ctxKey: string, ck: string): EloEntry {
+  if (!state.elo) state.elo = {};
+  if (!state.elo[ctxKey]) state.elo[ctxKey] = {};
+  if (!state.elo[ctxKey][ck]) {
+    state.elo[ctxKey][ck] = { rating: ELO_BASE, matchCount: 0, uncertainty: 1.0 };
+  }
+  return state.elo[ctxKey][ck];
+}
+
+function eloExpected(rA: number, rB: number): number {
+  return 1 / (1 + Math.pow(10, (rB - rA) / 400));
+}
+
+export function recordEloOutcome(
+  ctx: TasteContext,
+  winnerFiles: [string, string],
+  loserFiles: [string, string],
+  isDraw = false
+): void {
+  const state = loadState();
+  const key = eloKey(ctx);
+  const wk = comboKey(winnerFiles[0], winnerFiles[1]);
+  const lk = comboKey(loserFiles[0], loserFiles[1]);
+  const w = ensureEloEntry(state, key, wk);
+  const l = ensureEloEntry(state, key, lk);
+
+  const kW = ELO_K_BASE * Math.max(0.5, w.uncertainty);
+  const kL = ELO_K_BASE * Math.max(0.5, l.uncertainty);
+  const expected = eloExpected(w.rating, l.rating);
+
+  if (isDraw) {
+    w.rating = clamp(w.rating + kW * (0.5 - expected), ELO_FLOOR, ELO_CEILING);
+    l.rating = clamp(l.rating + kL * (expected - 0.5), ELO_FLOOR, ELO_CEILING);
+  } else {
+    w.rating = clamp(w.rating + kW * (1 - expected), ELO_FLOOR, ELO_CEILING);
+    l.rating = clamp(l.rating + kL * (0 - (1 - expected)), ELO_FLOOR, ELO_CEILING);
+  }
+
+  w.matchCount += 1;
+  l.matchCount += 1;
+  w.uncertainty = 1 / Math.sqrt(w.matchCount + 1);
+  l.uncertainty = 1 / Math.sqrt(l.matchCount + 1);
+
+  saveState(state);
+}
+
+export function recordEloQuadOutcome(
+  ctx: TasteContext,
+  winner: [string, string],
+  losers: [string, string][]
+): void {
+  for (const loser of losers) {
+    recordEloOutcome(ctx, winner, loser);
+  }
+}
+
+export function getEloRatings(ctx: TasteContext): Record<string, EloEntry> {
+  const state = loadState();
+  const key = eloKey(ctx);
+  return state.elo?.[key] ?? {};
+}
+
+export function getEloForCombo(ctx: TasteContext, fileA: string, fileB: string): EloEntry {
+  const state = loadState();
+  const key = eloKey(ctx);
+  const ck = comboKey(fileA, fileB);
+  return state.elo?.[key]?.[ck] ?? { rating: ELO_BASE, matchCount: 0, uncertainty: 1.0 };
+}
+
 export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
   const state = loadState();
   const key = makeTasteKey(ctx);
@@ -567,9 +676,11 @@ export function resetTaste(ctx?: TasteContext) {
   }
   const keyIntent = makeTasteKey(ctx);
   const irKey = irWinKey(ctx);
+  const elK = eloKey(ctx);
   delete state.models[keyIntent];
   delete state.complements[keyIntent];
   if (state.irWins) delete state.irWins[irKey];
+  if (state.elo) delete state.elo[elK];
   saveState(state);
 }
 
