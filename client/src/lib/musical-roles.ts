@@ -338,9 +338,10 @@ export const INTENT_ROLE_PREFERENCES: Record<Intent, { preferred: [MusicalRole, 
       ["Cut Layer", "Lead Polish"],
       ["Cut Layer", "Mid Thickener"],
       ["Foundation", "Foundation"],
+      ["Cut Layer", "Fizz Tamer"],
     ],
     good: ["Cut Layer", "Lead Polish", "Foundation"],
-    avoid: ["Dark Specialty", "Fizz Tamer"],
+    avoid: ["Dark Specialty"],
   },
   clean: {
     preferred: [
