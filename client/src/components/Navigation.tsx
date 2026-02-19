@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Radio, BookOpen, Zap, Wrench, Blend, Mic2 } from "lucide-react";
+import { Activity, Radio, BookOpen, Zap, Wrench, Blend, Mic2, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function KnobNavIcon({ className }: { className?: string }) {
@@ -17,7 +17,7 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", label: "Analyzer", icon: Activity },
-    { href: "/learner", label: "Learner", icon: Blend },
+    { href: "/learner", label: "Learner", icon: Brain },
     { href: "/blend-builder", label: "Blend Builder", icon: Blend },
     { href: "/mic-shots-suggester", label: "Mic Shots Suggester", icon: Mic2 },
     { href: "/sic-tool", label: "SIC Tool", icon: Zap },
