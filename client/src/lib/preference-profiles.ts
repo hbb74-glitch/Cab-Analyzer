@@ -13,7 +13,7 @@ import {
   scoreToLabel,
   zeroBands,
 } from "./tonal-engine";
-import { classifyIR, scoreRolePairForIntent, computeSpeakerStats, findFoundationCandidates, softenRolesFromLearning, inferSpeakerIdFromFilename, type MusicalRole, type Intent, type IRWinRecord } from "./musical-roles";
+import { classifyIR, scoreRolePairForIntent, INTENT_ROLE_PREFERENCES, computeSpeakerStats, findFoundationCandidates, softenRolesFromLearning, inferSpeakerIdFromFilename, type MusicalRole, type Intent, type IRWinRecord } from "./musical-roles";
 
 export type { TonalBands, TonalFeatures, BandKey };
 
@@ -978,6 +978,21 @@ function hiMidMidRatioFromBands(f: TonalFeatures): number {
   return b.hiMid / mid;
 }
 
+function tonalDistance(a: TonalFeatures, b: TonalFeatures): number {
+  const ba = bandsPct(a);
+  const bb = bandsPct(b);
+  let sum = 0;
+  for (const k of ["sub", "bass", "lowMid", "mid", "hiMid", "pres", "air"] as const) {
+    const d = (ba as any)[k] - (bb as any)[k];
+    sum += d * d;
+  }
+  const ratioD = hiMidMidRatioFromBands(a) - hiMidMidRatioFromBands(b);
+  sum += (ratioD * 10) * (ratioD * 10);
+  const tiltD = (safeNum((a as any).tiltDbPerOct, 0) - safeNum((b as any).tiltDbPerOct, 0));
+  sum += tiltD * tiltD;
+  return Math.sqrt(sum);
+}
+
 const INTENT_BAND_KEYS = ["sub", "bass", "lowMid", "mid", "hiMid", "pres", "air", "ratio", "tilt", "smooth"] as const;
 type BandWeights = Partial<Record<typeof INTENT_BAND_KEYS[number], number>>;
 
@@ -1051,6 +1066,63 @@ function computePoolIntentRankScores(
   });
 }
 
+function pickDiverseFromPool(
+  pool: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string })[],
+  count: number,
+  intent?: string
+): typeof pool {
+  if (pool.length <= count) return pool;
+
+  const prefs = intent ? INTENT_ROLE_PREFERENCES[intent as Intent] : null;
+  const preferredKeys = new Set(
+    prefs?.preferred.map(p => [...p].sort().join("+")) ?? []
+  );
+
+  const intentScores = intent ? computePoolIntentRankScores(pool, intent) : pool.map(() => 0);
+
+  const scored = pool.map((c, idx) => {
+    const tierBonus = preferredKeys.has(c._rolePairKey) ? 6 : (c._roleBonus > 0 ? 3 : 0);
+    return { c, intentScore: intentScores[idx] + tierBonus, idx };
+  });
+  scored.sort((a, b) => b.intentScore - a.intentScore);
+
+  const seed = scored[0].c;
+  const picked: typeof pool = [seed];
+  const usedRolePairs = new Set<string>([seed._rolePairKey]);
+  const pickedKeys = new Set<string>([[seed.baseFilename, seed.featureFilename].sort().join("||")]);
+
+  while (picked.length < count && picked.length < scored.length) {
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+    for (let i = 0; i < scored.length; i++) {
+      const { c, intentScore } = scored[i];
+      const k = [c.baseFilename, c.featureFilename].sort().join("||");
+      if (pickedKeys.has(k)) continue;
+
+      let dist = 0;
+      for (const p of picked) {
+        dist += tonalDistance(c._features, p._features);
+      }
+      dist /= picked.length;
+
+      const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
+      const score = dist * 0.5 + intentScore + roleDiversityBonus;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx === -1) break;
+    const chosen = scored[bestIdx].c;
+    picked.push(chosen);
+    usedRolePairs.add(chosen._rolePairKey);
+    pickedKeys.add([chosen.baseFilename, chosen.featureFilename].sort().join("||"));
+  }
+
+  return picked;
+}
+
 export function pickTasteCheckCandidates(
   irs: { filename: string; features: TonalFeatures }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
@@ -1084,7 +1156,8 @@ export function pickTasteCheckCandidates(
     softenRolesFromLearning(irRoles, irWinRecords, intent as Intent);
   }
 
-  const allCombos: (SuggestedPairing & { _features: TonalFeatures; _roleBonus: number })[] = [];
+  type ComboEntry = SuggestedPairing & { _features: TonalFeatures; _roleBonus: number; _roleA: MusicalRole; _roleB: MusicalRole; _rolePairKey: string };
+  const allCombos: ComboEntry[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
       const ck = [irs[i].filename, irs[j].filename].sort().join("||");
@@ -1110,6 +1183,7 @@ export function pickTasteCheckCandidates(
       const roleA = irRoles.get(irs[i].filename) || "Foundation";
       const roleB = irRoles.get(irs[j].filename) || "Foundation";
       const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
+      const rolePairKey = [roleA, roleB].sort().join("+");
 
       allCombos.push({
         baseFilename: irs[i].filename,
@@ -1122,6 +1196,9 @@ export function pickTasteCheckCandidates(
         rank: 0,
         _features: blended,
         _roleBonus: roleBonus,
+        _roleA: roleA,
+        _roleB: roleB,
+        _rolePairKey: rolePairKey,
       });
     }
   }
@@ -1164,34 +1241,19 @@ export function pickTasteCheckCandidates(
     const axisCompute = chosenAxis.axis.compute;
 
     if (intent) {
-      const rankScores = computePoolIntentRankScores(allCombos, intent);
+      const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
+      const candidatePool = roleFiltered.length >= 4 ? roleFiltered : allCombos;
 
-      const intentScored = allCombos.map((c, idx) => {
-        return { c, intentRank: rankScores[idx], rk: rankScores[idx] };
-      });
-      intentScored.sort((a, b) => b.intentRank - a.intentRank);
+      const diverse = pickDiverseFromPool(candidatePool, 4, intent);
 
-      console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length}`);
-      for (let di = 0; di < Math.min(8, intentScored.length); di++) {
-        const d = intentScored[di];
-        const rA = irRoles.get(d.c.baseFilename) ?? "?";
-        const rB = irRoles.get(d.c.featureFilename) ?? "?";
-        console.log(`  #${di} rk=${d.rk.toFixed(3)} [${rA}+${rB} rb=${d.c._roleBonus.toFixed(1)}] ${d.c.baseFilename} + ${d.c.featureFilename}`);
+      console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length} roleFiltered=${roleFiltered.length}`);
+      for (const d of diverse) {
+        console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)}] ${d.baseFilename} + ${d.featureFilename}`);
       }
 
-      const seen = new Set<string>();
-      const top: SuggestedPairing[] = [];
-      for (const { c } of intentScored) {
-        const k = [c.baseFilename, c.featureFilename].sort().join("||");
-        if (seen.has(k)) continue;
-        seen.add(k);
-        top.push(c as SuggestedPairing);
-        if (top.length >= 4) break;
-      }
-      console.log(`[INTENT-PICK quad] selected: ${top.map(t => `${t.baseFilename}+${t.featureFilename}`).join(' | ')}`);
-      if (top.length >= 4) {
+      if (diverse.length >= 4) {
         return {
-          candidates: top,
+          candidates: diverse as SuggestedPairing[],
           axisName: chosenAxis.axis.name,
           roundType: "quad" as const,
           axisLabels: [...chosenAxis.axis.label] as [string, string],
@@ -1245,25 +1307,19 @@ export function pickTasteCheckCandidates(
   const axisCompute = chosenAxis.axis.compute;
 
   if (intent && allCombos.length >= 2) {
-    const rankScores = computePoolIntentRankScores(allCombos, intent);
+    const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
+    const binaryPool = roleFiltered.length >= 2 ? roleFiltered : allCombos;
 
-    const intentScored = allCombos.map((c, idx) => {
-      return { c, intentRank: rankScores[idx] };
-    });
-    intentScored.sort((a, b) => b.intentRank - a.intentRank);
+    const diverse = pickDiverseFromPool(binaryPool, 2, intent);
 
-    const seen = new Set<string>();
-    const topTwo: SuggestedPairing[] = [];
-    for (const { c } of intentScored) {
-      const k = [c.baseFilename, c.featureFilename].sort().join("||");
-      if (seen.has(k)) continue;
-      seen.add(k);
-      topTwo.push(c as SuggestedPairing);
-      if (topTwo.length >= 2) break;
+    console.log(`[INTENT-PICK binary] intent=${intent} roleFiltered=${roleFiltered.length} pool=${binaryPool.length}`);
+    for (const d of diverse) {
+      console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)}] ${d.baseFilename} + ${d.featureFilename}`);
     }
-    if (topTwo.length >= 2) {
+
+    if (diverse.length >= 2) {
       return {
-        candidates: topTwo,
+        candidates: diverse as SuggestedPairing[],
         axisName: chosenAxis.axis.name,
         roundType: "binary" as const,
         axisLabels: [...chosenAxis.axis.label] as [string, string],
