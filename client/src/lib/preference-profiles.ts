@@ -967,29 +967,32 @@ function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
   let s = 0;
 
   if (intent === "rhythm") {
-    s += smooth >= 86 ? 1.0 : 0;
-    s += (b.air <= 2.0) ? 1.0 : -0.5;
-    s += (b.pres >= 12 && b.pres <= 24) ? 1.0 : -0.5;
-    s += (b.lowMid <= 14) ? 0.8 : -0.8;
-    s += (ratio >= 1.2 && ratio <= 2.2) ? 0.6 : -0.4;
-    s += (tilt <= -2.5 && tilt >= -5.8) ? 0.4 : -0.2;
+    s += smooth >= 86 ? 2.0 : -1.0;
+    s += (b.air <= 2.0) ? 2.5 : (b.air <= 3.5 ? 0 : -2.0);
+    s += (b.pres >= 12 && b.pres <= 24) ? 2.0 : -1.5;
+    s += (b.lowMid <= 14) ? 1.5 : -1.5;
+    s += (ratio >= 1.2 && ratio <= 2.2) ? 1.0 : -0.8;
+    s += (tilt <= -2.5 && tilt >= -5.8) ? 0.8 : -0.4;
+    s += (b.bass >= 1.0 && b.bass <= 6.0) ? 1.0 : -0.5;
   }
 
   if (intent === "lead") {
-    s += smooth >= 88 ? 1.2 : (smooth >= 84 ? 0.6 : -0.4);
-    s += (b.air >= 1.5 && b.air <= 5.0) ? 1.0 : -0.3;
-    s += (b.pres >= 16 && b.pres <= 30) ? 0.9 : -0.4;
-    s += (ratio >= 1.5 && ratio <= 3.0) ? 0.6 : -0.4;
-    s += (b.lowMid <= 16) ? 0.4 : -0.4;
+    s += smooth >= 88 ? 2.5 : (smooth >= 84 ? 1.0 : -1.5);
+    s += (b.air >= 1.5 && b.air <= 5.0) ? 2.0 : -1.0;
+    s += (b.pres >= 16 && b.pres <= 30) ? 2.0 : -1.5;
+    s += (ratio >= 1.5 && ratio <= 3.0) ? 1.5 : -1.0;
+    s += (b.highMid >= 25 && b.highMid <= 55) ? 1.5 : -0.5;
+    s += (b.lowMid <= 16) ? 0.8 : -0.8;
   }
 
   if (intent === "clean") {
-    s += smooth >= 88 ? 1.0 : (smooth >= 84 ? 0.5 : -0.5);
-    s += (b.air >= 2.0 && b.air <= 6.0) ? 1.0 : -0.4;
-    s += (b.pres >= 12 && b.pres <= 26) ? 0.6 : -0.4;
-    s += (ratio >= 1.0 && ratio <= 2.4) ? 0.6 : -0.4;
-    s += (b.lowMid <= 18) ? 0.3 : -0.3;
-    s += (tilt <= -2.0 && tilt >= -6.0) ? 0.2 : -0.2;
+    s += smooth >= 88 ? 2.0 : (smooth >= 84 ? 0.8 : -1.5);
+    s += (b.air >= 2.0 && b.air <= 6.0) ? 2.5 : -1.0;
+    s += (b.pres >= 12 && b.pres <= 26) ? 1.5 : -1.0;
+    s += (ratio >= 1.0 && ratio <= 2.4) ? 1.0 : -0.8;
+    s += (b.lowMid <= 18) ? 0.6 : -0.6;
+    s += (tilt <= -2.0 && tilt >= -6.0) ? 0.5 : -0.5;
+    s += (b.bass <= 4.0) ? 1.0 : -0.5;
   }
 
   return s;
@@ -1071,7 +1074,7 @@ export function pickTasteCheckCandidates(
       };
       const list = pref[intent] ?? [];
       const idx = list.indexOf(name);
-      return idx === -1 ? 0 : (list.length - idx) * 0.0005;
+      return idx === -1 ? 0 : (list.length - idx) * 0.15;
     };
     const aScore = a.spread + bonus(a.axis.name);
     const bScore = b.spread + bonus(b.axis.name);
@@ -1087,9 +1090,18 @@ export function pickTasteCheckCandidates(
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
-    const scored = allCombos.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features) }));
+    const scored = allCombos.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
     scored.sort((a, b) => a.axisVal - b.axisVal);
-    const candidates = pickSpreadCandidates(scored, 4, round);
+
+    const bestQ = scored.reduce((mx, s) => Math.max(mx, s.quality), -Infinity);
+    const qThresh = Math.max(
+      scored[Math.floor(scored.length * 0.3)]?.quality ?? -Infinity,
+      bestQ - 25,
+    );
+    const qFiltered = scored.filter((s) => s.quality >= qThresh);
+    const pool = qFiltered.length >= 4 ? qFiltered : scored;
+
+    const candidates = pickSpreadCandidates(pool, 4, round);
     return {
       candidates: candidates.map((c) => c.pairing),
       axisName: chosenAxis.axis.name,
@@ -1196,7 +1208,7 @@ function getPreferredDirection(
 }
 
 function pickSpreadCandidates(
-  sorted: { pairing: SuggestedPairing; axisVal: number }[],
+  sorted: { pairing: SuggestedPairing; axisVal: number; quality?: number }[],
   count: number,
   roundIndex: number
 ): { pairing: SuggestedPairing; axisVal: number }[] {
@@ -1227,13 +1239,17 @@ function pickSpreadCandidates(
   if (count === 4 && sorted.length >= 4) {
     const segments = 4;
     const segSize = sorted.length / segments;
+    const hasQuality = sorted.some((s) => s.quality != null);
     const result: typeof sorted = [];
     for (let s = 0; s < segments; s++) {
       const segStart = Math.floor(s * segSize);
       const segEnd = Math.min(sorted.length, Math.floor((s + 1) * segSize));
-      const segPool = sorted.slice(segStart, segEnd);
+      let segPool = sorted.slice(segStart, segEnd);
       if (segPool.length === 0) continue;
-      const idx = roundIndex % segPool.length;
+      if (hasQuality) {
+        segPool = [...segPool].sort((a, b) => (b.quality ?? 0) - (a.quality ?? 0));
+      }
+      const idx = hasQuality ? 0 : roundIndex % segPool.length;
       const pick = segPool[idx];
       if (!result.some((r) => pairKeyFromPairing(r.pairing) === pairKeyFromPairing(pick.pairing))) {
         result.push(pick);
