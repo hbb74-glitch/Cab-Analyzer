@@ -1574,7 +1574,7 @@ export default function IRMixer() {
       setTasteCheckPhase(null);
       if (tasteCheckMode === "learning") setTasteCheckPassed(true);
     }
-  }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase, proceedToRatioRefine]);
+  }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase, proceedToRatioRefine, tasteIntent]);
 
   const handleTasteCheckPick = useCallback((pickedIndex: number) => {
     if (!tasteCheckPhase) return;

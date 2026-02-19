@@ -957,53 +957,75 @@ function hiMidMidRatioFromBands(f: TonalFeatures): number {
   return b.hiMid / mid;
 }
 
+const INTENT_BAND_KEYS = ["sub", "bass", "lowMid", "mid", "hiMid", "pres", "air", "ratio", "tilt", "smooth"] as const;
+type BandWeights = Partial<Record<typeof INTENT_BAND_KEYS[number], number>>;
+
+const INTENT_WEIGHTS: Record<string, BandWeights> = {
+  rhythm: {
+    sub: -0.5, bass: 2.0, lowMid: -2.5, mid: 1.0,
+    hiMid: 1.5, pres: 0.5, air: -3.0,
+    ratio: -1.5, tilt: -0.8, smooth: 0.3,
+  },
+  lead: {
+    sub: -0.3, bass: -0.5, lowMid: -1.5, mid: 0.8,
+    hiMid: 2.5, pres: 3.0, air: 1.5,
+    ratio: 2.0, tilt: 0.5, smooth: 0.4,
+  },
+  clean: {
+    sub: -0.8, bass: -1.5, lowMid: -2.0, mid: 0.3,
+    hiMid: 0.5, pres: 1.5, air: 3.0,
+    ratio: -0.5, tilt: 1.0, smooth: 0.5,
+  },
+};
+
+function extractBandVector(f: TonalFeatures): Record<typeof INTENT_BAND_KEYS[number], number> {
+  const b = bandsPct(f);
+  return {
+    sub: b.sub, bass: b.bass, lowMid: b.lowMid, mid: b.mid,
+    hiMid: b.hiMid, pres: b.pres, air: b.air,
+    ratio: hiMidMidRatioFromBands(f),
+    tilt: safeNum((f as any).tiltDbPerOct, 0),
+    smooth: safeNum((f as any).smoothScore, 0),
+  };
+}
+
 function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
   if (!intent) return 0;
-  const b = bandsPct(f);
-  const tilt = safeNum((f as any).tiltDbPerOct, 0);
-  const smooth = safeNum((f as any).smoothScore, 0);
-  const ratio = hiMidMidRatioFromBands(f);
-
-  type BandWeights = {
-    sub?: number; bass?: number; lowMid?: number; mid?: number;
-    hiMid?: number; pres?: number; air?: number;
-    ratio?: number; tilt?: number; smooth?: number;
-  };
-
-  const INTENT_WEIGHTS: Record<string, BandWeights> = {
-    rhythm: {
-      sub: -0.5, bass: 2.0, lowMid: -2.5, mid: 1.0,
-      hiMid: 1.5, pres: 0.5, air: -3.0,
-      ratio: -1.5, tilt: -0.8, smooth: 0.03,
-    },
-    lead: {
-      sub: -0.3, bass: -0.5, lowMid: -1.5, mid: 0.8,
-      hiMid: 2.5, pres: 3.0, air: 1.5,
-      ratio: 2.0, tilt: 0.5, smooth: 0.04,
-    },
-    clean: {
-      sub: -0.8, bass: -1.5, lowMid: -2.0, mid: 0.3,
-      hiMid: 0.5, pres: 1.5, air: 3.0,
-      ratio: -0.5, tilt: 1.0, smooth: 0.05,
-    },
-  };
-
+  const v = extractBandVector(f);
   const w = INTENT_WEIGHTS[intent];
   if (!w) return 0;
-
   let s = 0;
-  s += (w.sub ?? 0) * b.sub;
-  s += (w.bass ?? 0) * b.bass;
-  s += (w.lowMid ?? 0) * b.lowMid;
-  s += (w.mid ?? 0) * b.mid;
-  s += (w.hiMid ?? 0) * b.hiMid;
-  s += (w.pres ?? 0) * b.pres;
-  s += (w.air ?? 0) * b.air;
-  s += (w.ratio ?? 0) * ratio;
-  s += (w.tilt ?? 0) * tilt;
-  s += (w.smooth ?? 0) * smooth;
-
+  for (const k of INTENT_BAND_KEYS) s += (w[k] ?? 0) * v[k];
   return s;
+}
+
+function computePoolZScoreIntentScores(
+  combos: { _features: TonalFeatures }[],
+  intent: string
+): number[] {
+  const w = INTENT_WEIGHTS[intent];
+  if (!w || combos.length < 2) return combos.map(() => 0);
+
+  const vectors = combos.map(c => extractBandVector(c._features));
+
+  const means: Record<string, number> = {};
+  const stds: Record<string, number> = {};
+  for (const k of INTENT_BAND_KEYS) {
+    const vals = vectors.map(v => v[k]);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const variance = vals.reduce((a, v) => a + (v - mean) ** 2, 0) / vals.length;
+    means[k] = mean;
+    stds[k] = Math.sqrt(variance) || 1;
+  }
+
+  return vectors.map(v => {
+    let s = 0;
+    for (const k of INTENT_BAND_KEYS) {
+      const z = (v[k] - means[k]) / stds[k];
+      s += (w[k] ?? 0) * z;
+    }
+    return s;
+  });
 }
 
 export function pickTasteCheckCandidates(
@@ -1100,16 +1122,23 @@ export function pickTasteCheckCandidates(
     const axisCompute = chosenAxis.axis.compute;
 
     if (intent) {
+      const zScores = computePoolZScoreIntentScores(allCombos, intent);
       const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
       const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
       const bqRange = Math.max(1, maxBQ - minBQ);
 
-      const intentScored = allCombos.map((c) => {
-        const prior = intentPriorScore(c._features, intent as any);
+      const intentScored = allCombos.map((c, idx) => {
+        const zIntent = zScores[idx];
         const bqNorm = (c.blendScore - minBQ) / bqRange;
-        return { c, intentRank: prior * 3.0 + bqNorm * 1.0 };
+        return { c, intentRank: zIntent * 3.0 + bqNorm * 1.0, zIntent, bqNorm };
       });
       intentScored.sort((a, b) => b.intentRank - a.intentRank);
+
+      console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length}`);
+      for (let di = 0; di < Math.min(8, intentScored.length); di++) {
+        const d = intentScored[di];
+        console.log(`  #${di} rank=${d.intentRank.toFixed(2)} z=${d.zIntent.toFixed(2)} bqN=${d.bqNorm.toFixed(2)} ${d.c.baseFilename} + ${d.c.featureFilename}`);
+      }
 
       const seen = new Set<string>();
       const top: SuggestedPairing[] = [];
@@ -1120,6 +1149,7 @@ export function pickTasteCheckCandidates(
         top.push(c as SuggestedPairing);
         if (top.length >= 4) break;
       }
+      console.log(`[INTENT-PICK quad] selected: ${top.map(t => `${t.baseFilename}+${t.featureFilename}`).join(' | ')}`);
       if (top.length >= 4) {
         return {
           candidates: top,
@@ -1176,14 +1206,15 @@ export function pickTasteCheckCandidates(
   const axisCompute = chosenAxis.axis.compute;
 
   if (intent && allCombos.length >= 2) {
+    const zScores = computePoolZScoreIntentScores(allCombos, intent);
     const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
     const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
     const bqRange = Math.max(1, maxBQ - minBQ);
 
-    const intentScored = allCombos.map((c) => {
-      const prior = intentPriorScore(c._features, intent as any);
+    const intentScored = allCombos.map((c, idx) => {
+      const zIntent = zScores[idx];
       const bqNorm = (c.blendScore - minBQ) / bqRange;
-      return { c, intentRank: prior * 3.0 + bqNorm * 1.0 };
+      return { c, intentRank: zIntent * 3.0 + bqNorm * 1.0 };
     });
     intentScored.sort((a, b) => b.intentRank - a.intentRank);
 
