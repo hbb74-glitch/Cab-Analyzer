@@ -322,12 +322,13 @@ export const INTENT_ROLE_PREFERENCES: Record<Intent, { preferred: [MusicalRole, 
   rhythm: {
     preferred: [
       ["Foundation", "Mid Thickener"],
+      ["Foundation", "Cut Layer"],
       ["Foundation", "Fizz Tamer"],
       ["Foundation", "Foundation"],
+      ["Mid Thickener", "Cut Layer"],
       ["Mid Thickener", "Fizz Tamer"],
-      ["Foundation", "Dark Specialty"],
     ],
-    good: ["Foundation", "Mid Thickener", "Fizz Tamer"],
+    good: ["Foundation", "Mid Thickener", "Fizz Tamer", "Cut Layer"],
     avoid: ["Lead Polish"],
   },
   lead: {
