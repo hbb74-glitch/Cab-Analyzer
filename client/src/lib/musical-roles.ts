@@ -462,6 +462,108 @@ export function findFoundationCandidates(
   return result;
 }
 
+export interface FoundationCandidateInput {
+  filename: string;
+  role: string;
+  centroid: number;
+  tilt: number;
+  ext: number;
+  lowMidPct: number;
+  presencePct: number;
+  airPct: number;
+  smooth: number;
+}
+
+export function pickFoundationCandidates(
+  items: FoundationCandidateInput[]
+): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!items.length) return map;
+
+  const bySpk = new Map<string, FoundationCandidateInput[]>();
+  for (const item of items) {
+    const spk = inferSpeakerIdFromFilename(item.filename);
+    if (!bySpk.has(spk)) bySpk.set(spk, []);
+    bySpk.get(spk)!.push(item);
+  }
+
+  const hasFoundationBySpk = new Map<string, boolean>();
+  bySpk.forEach((list, spk) => {
+    hasFoundationBySpk.set(spk, list.some(r => r.role === "Foundation"));
+  });
+
+  const roleBias = (role: string): number => {
+    switch (role) {
+      case "Foundation": return -0.40;
+      case "Lead Polish": return -0.10;
+      case "Mid Thickener": return +0.10;
+      case "Cut Layer": return +0.15;
+      case "Fizz Tamer": return +0.25;
+      case "Dark Specialty": return +0.45;
+      default: return 0;
+    }
+  };
+
+  const meanStd = (arr: number[]): [number, number] => {
+    if (!arr.length) return [0, 1];
+    const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const v = arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length;
+    return [m, Math.sqrt(v) || 1];
+  };
+
+  type SpkStats = { mC: number; sC: number; mT: number; sT: number; mE: number; sE: number };
+  const spkStats = new Map<string, SpkStats>();
+  bySpk.forEach((list, spk) => {
+    const [mC, sC] = meanStd(list.map(r => r.centroid));
+    const [mT, sT] = meanStd(list.map(r => r.tilt));
+    const [mE, sE] = meanStd(list.map(r => r.ext));
+    spkStats.set(spk, { mC, sC, mT, sT, mE, sE });
+  });
+
+  type Cand = { fn: string; score: number };
+  const bestOverallBySpeaker = new Map<string, Cand>();
+  const bestFoundationBySpeaker = new Map<string, Cand>();
+
+  for (const item of items) {
+    const spk = inferSpeakerIdFromFilename(item.filename);
+    const st = spkStats.get(spk);
+    if (!st) continue;
+
+    const zC = (item.centroid - st.mC) / st.sC;
+    const zT = (item.tilt - st.mT) / st.sT;
+    const zE = (item.ext - st.mE) / st.sE;
+
+    let s = 0;
+    s += Math.abs(zC) + Math.abs(zT) + Math.abs(zE);
+    s += (item.smooth ? (90 - item.smooth) / 10 : 0);
+    s += Math.max(0, (item.presencePct - 22) / 30);
+    s += Math.max(0, (item.lowMidPct - 12) / 25);
+    s += Math.max(0, (item.airPct - 6) / 10);
+    s += roleBias(item.role);
+
+    const prevAll = bestOverallBySpeaker.get(spk);
+    if (!prevAll || s < prevAll.score) bestOverallBySpeaker.set(spk, { fn: item.filename, score: s });
+
+    if (item.role === "Foundation") {
+      const prevF = bestFoundationBySpeaker.get(spk);
+      if (!prevF || s < prevF.score) bestFoundationBySpeaker.set(spk, { fn: item.filename, score: s });
+    }
+  }
+
+  const MARGIN = 0.20;
+  bestOverallBySpeaker.forEach((bestAll, spk) => {
+    const hasF = hasFoundationBySpk.get(spk);
+    const bestF = bestFoundationBySpeaker.get(spk);
+    if (hasF && bestF) {
+      if (bestAll.score + MARGIN < bestF.score) map.set(spk, bestAll.fn);
+      else map.set(spk, bestF.fn);
+    } else {
+      map.set(spk, bestAll.fn);
+    }
+  });
+  return map;
+}
+
 export function roleBadgeClass(role: string): string {
   switch (role) {
     case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";

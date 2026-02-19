@@ -22,7 +22,7 @@ import { scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfi
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
-import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, type SpeakerStats } from "@/lib/musical-roles";
+import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, pickFoundationCandidates, type SpeakerStats } from "@/lib/musical-roles";
 
 // Validation schema for the form
 const formSchema = z.object({
@@ -2040,132 +2040,27 @@ export default function Analyzer() {
   // the batchIRs-based speakerStatsMap hasn't populated (common path: stats come from
   // analysis results, not pre-upload data).
   const foundationCandidateBySpeaker = useMemo(() => {
-    const map = new Map<string, string>();
     const results = batchResult?.results as any[] | undefined;
-    if (!results?.length) return map;
+    if (!results?.length) return new Map<string, string>();
 
-    // -- 1. Extract per-result tonal values --
-    type RowData = {
-      fn: string;
-      spk: string;
-      centroid: number;
-      tilt: number;
-      ext: number;
-      lowMidPct: number;
-      presencePct: number;
-      airPct: number;
-      smooth: number;
-      role: string;
-    };
-    const rows: RowData[] = [];
+    const items: import("@/lib/musical-roles").FoundationCandidateInput[] = [];
     for (const r of results) {
       const fn = String(r?.filename ?? r?.name ?? "");
       if (!fn) continue;
-      const spk = inferSpeakerIdFromFilename(fn);
-      const centroid = Number(r?.spectralCentroidHz ?? r?.spectralCentroid ?? r?.centroid_computed_hz ?? 0);
-      const tilt = Number(r?.spectralTilt ?? r?.tiltDbPerOct ?? r?.spectral_tilt_db_per_oct ?? 0);
-      const ext = Number(r?.highExtensionHz ?? r?.rolloffFreq ?? r?.rolloff_or_high_extension_hz ?? 0);
-      const lowMidPct = Number(r?.lowMidPercent ?? r?.lowMid_pct ?? 0);
-      const presencePct = Number(r?.presencePercent ?? r?.presence_pct ?? 0);
-      const airPct = Number(r?.airPercent ?? r?.air_pct ?? 0);
-      const smooth = Number(r?.smoothScore ?? r?.smooth_score ?? r?.frequencySmoothness ?? 0);
-      const role = String(r?.musicalRole ?? r?.musical_role ?? "");
-      rows.push({ fn, spk, centroid, tilt, ext, lowMidPct, presencePct, airPct, smooth, role });
+      items.push({
+        filename: fn,
+        role: getMusicalRoleForRow(r) || String(r?.musicalRole ?? r?.musical_role ?? ""),
+        centroid: Number(r?.spectralCentroidHz ?? r?.spectralCentroid ?? r?.centroid_computed_hz ?? 0),
+        tilt: Number(r?.spectralTilt ?? r?.tiltDbPerOct ?? r?.spectral_tilt_db_per_oct ?? 0),
+        ext: Number(r?.highExtensionHz ?? r?.rolloffFreq ?? r?.rolloff_or_high_extension_hz ?? 0),
+        lowMidPct: Number(r?.lowMidPercent ?? r?.lowMid_pct ?? 0),
+        presencePct: Number(r?.presencePercent ?? r?.presence_pct ?? 0),
+        airPct: Number(r?.airPercent ?? r?.air_pct ?? 0),
+        smooth: Number(r?.smoothScore ?? r?.smooth_score ?? r?.frequencySmoothness ?? 0),
+      });
     }
-    if (!rows.length) return map;
-
-    // -- 2. Compute per-speaker mean/std inline so we don't depend on speakerStatsMap --
-    const bySpk = new Map<string, RowData[]>();
-    for (const rd of rows) {
-      if (!bySpk.has(rd.spk)) bySpk.set(rd.spk, []);
-      bySpk.get(rd.spk)!.push(rd);
-    }
-
-    // If a speaker batch contains any explicit Foundation-role IRs, choose the
-    // foundation candidate ONLY from those Foundations. If none exist, fall back to all.
-    const hasFoundationBySpk = new Map<string, boolean>();
-    bySpk.forEach((list, spk) => {
-      hasFoundationBySpk.set(spk, list.some(r => r.role === "Foundation"));
-    });
-
-    // Weighted blend policy (Option C):
-    // - Prefer Foundation if present (bias), but allow a non-Foundation to win if it is clearly more "start-here neutral".
-    // - Apply gentle penalties to utility/specialty roles to avoid confusing picks.
-    const roleBias = (role: string): number => {
-      switch (role) {
-        case "Foundation": return -0.40;
-        case "Lead Polish": return -0.10;
-        case "Mid Thickener": return +0.10;
-        case "Cut Layer": return +0.15;
-        case "Fizz Tamer": return +0.25;
-        case "Dark Specialty": return +0.45;
-        default: return 0;
-      }
-    };
-
-    const meanStd = (arr: number[]): [number, number] => {
-      if (!arr.length) return [0, 1];
-      const m = arr.reduce((a, b) => a + b, 0) / arr.length;
-      const v = arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length;
-      return [m, Math.sqrt(v) || 1];
-    };
-
-    type SpkStats = { mC: number; sC: number; mT: number; sT: number; mE: number; sE: number };
-    const spkStats = new Map<string, SpkStats>();
-    bySpk.forEach((list, spk) => {
-      const [mC, sC] = meanStd(list.map(r => r.centroid));
-      const [mT, sT] = meanStd(list.map(r => r.tilt));
-      const [mE, sE] = meanStd(list.map(r => r.ext));
-      spkStats.set(spk, { mC, sC, mT, sT, mE, sE });
-    });
-
-    // -- 3. Score each IR --
-    type Cand = { fn: string; score: number };
-    const bestOverallBySpeaker = new Map<string, Cand>();
-    const bestFoundationBySpeaker = new Map<string, Cand>();
-
-    for (const rd of rows) {
-      const st = spkStats.get(rd.spk);
-      if (!st) continue;
-
-      const zC = (rd.centroid - st.mC) / st.sC;
-      const zT = (rd.tilt - st.mT) / st.sT;
-      const zE = (rd.ext - st.mE) / st.sE;
-
-      let s = 0;
-      s += Math.abs(zC) + Math.abs(zT) + Math.abs(zE);
-      s += (rd.smooth ? (90 - rd.smooth) / 10 : 0);
-      s += Math.max(0, (rd.presencePct - 22) / 30);
-      s += Math.max(0, (rd.lowMidPct - 12) / 25);
-      s += Math.max(0, (rd.airPct - 6) / 10);
-
-      // Role-aware bias (Option C)
-      s += roleBias(rd.role);
-
-      const prevAll = bestOverallBySpeaker.get(rd.spk);
-      if (!prevAll || s < prevAll.score) bestOverallBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
-
-      if (rd.role === "Foundation") {
-        const prevF = bestFoundationBySpeaker.get(rd.spk);
-        if (!prevF || s < prevF.score) bestFoundationBySpeaker.set(rd.spk, { fn: rd.fn, score: s });
-      }
-    }
-
-    // If Foundations exist, choose Foundation unless the best overall is clearly better.
-    // Margin prevents swapping away from Foundation for tiny score differences.
-    const MARGIN = 0.20;
-    bestOverallBySpeaker.forEach((bestAll, spk) => {
-      const hasF = hasFoundationBySpk.get(spk);
-      const bestF = bestFoundationBySpeaker.get(spk);
-      if (hasF && bestF) {
-        if (bestAll.score + MARGIN < bestF.score) map.set(spk, bestAll.fn);
-        else map.set(spk, bestF.fn);
-      } else {
-        map.set(spk, bestAll.fn);
-      }
-    });
-    return map;
-  }, [batchResult]);
+    return pickFoundationCandidates(items);
+  }, [batchResult, getMusicalRoleForRow]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;

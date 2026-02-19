@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
+import { classifyIR, pickFoundationCandidates, inferSpeakerIdFromFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
@@ -849,6 +850,30 @@ export default function IRMixer() {
     if (allLoaded.length < 2) return new Map<string, import("@/lib/musical-roles").SpeakerStats>();
     return computeSpeakerStats(allLoaded.map(ir => ({ filename: ir.filename, tf: ir.features })));
   }, [allIRs, baseIR, featureIRs]);
+
+  const foundationCandidateSet = useMemo(() => {
+    if (!allIRs.length || speakerStatsMap.size === 0) return new Set<string>();
+    const items = allIRs.map(ir => {
+      const spk = inferSpeakerIdFromFilename(ir.filename);
+      const stats = speakerStatsMap.get(spk);
+      const role = classifyIR(ir.features, ir.filename, stats);
+      const bp = ir.features.bandsPercent;
+      const scale = (bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + (bp.air ?? 0) + (bp.fizz ?? 0)) < 2 ? 100 : 1;
+      return {
+        filename: ir.filename,
+        role,
+        centroid: ir.features.spectralCentroidHz ?? 0,
+        tilt: ir.features.tiltDbPerOct ?? 0,
+        ext: ir.features.rolloffFreq ?? 0,
+        lowMidPct: (bp.lowMid ?? 0) * scale,
+        presencePct: (bp.presence ?? 0) * scale,
+        airPct: (bp.air ?? 0) * scale,
+        smooth: ir.features.smoothScore ?? 0,
+      };
+    });
+    const map = pickFoundationCandidates(items);
+    return new Set(map.values());
+  }, [allIRs, speakerStatsMap]);
 
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
@@ -3123,7 +3148,10 @@ export default function IRMixer() {
                 </summary>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2 max-h-[300px] overflow-y-auto pr-1">
                   {allIRs.map((ir) => (
-                    <div key={ir.filename} className="flex items-center gap-1.5 py-0.5 px-2 rounded bg-white/[0.02]" data-testid={`ir-role-summary-${ir.filename}`}>
+                    <div key={ir.filename} className={cn("flex items-center gap-1.5 py-0.5 px-2 rounded", foundationCandidateSet.has(ir.filename) ? "bg-amber-500/[0.06] ring-1 ring-amber-500/20" : "bg-white/[0.02]")} data-testid={`ir-role-summary-${ir.filename}`}>
+                      {foundationCandidateSet.has(ir.filename) && (
+                        <Crown className="w-3 h-3 text-amber-400 shrink-0" />
+                      )}
                       <span className="text-[10px] font-mono text-foreground truncate flex-1 min-w-0">
                         {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                       </span>
