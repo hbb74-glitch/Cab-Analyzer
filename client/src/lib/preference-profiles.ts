@@ -1092,10 +1092,20 @@ export function pickTasteCheckCandidates(
     const axisCompute = chosenAxis.axis.compute;
 
     if (intent) {
-      const byIntent = [...allCombos].sort((a, b) => b.score - a.score);
+      const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
+      const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
+      const bqRange = Math.max(1, maxBQ - minBQ);
+
+      const intentScored = allCombos.map((c) => {
+        const prior = intentPriorScore(c._features, intent as any);
+        const bqNorm = (c.blendScore - minBQ) / bqRange;
+        return { c, intentRank: prior * 3.0 + bqNorm * 1.0 };
+      });
+      intentScored.sort((a, b) => b.intentRank - a.intentRank);
+
       const seen = new Set<string>();
       const top: SuggestedPairing[] = [];
-      for (const c of byIntent) {
+      for (const { c } of intentScored) {
         const k = [c.baseFilename, c.featureFilename].sort().join("||");
         if (seen.has(k)) continue;
         seen.add(k);
@@ -1158,10 +1168,20 @@ export function pickTasteCheckCandidates(
   const axisCompute = chosenAxis.axis.compute;
 
   if (intent && allCombos.length >= 2) {
-    const byIntent = [...allCombos].sort((a, b) => b.score - a.score);
+    const minBQ = allCombos.reduce((mn, c) => Math.min(mn, c.blendScore), Infinity);
+    const maxBQ = allCombos.reduce((mx, c) => Math.max(mx, c.blendScore), -Infinity);
+    const bqRange = Math.max(1, maxBQ - minBQ);
+
+    const intentScored = allCombos.map((c) => {
+      const prior = intentPriorScore(c._features, intent as any);
+      const bqNorm = (c.blendScore - minBQ) / bqRange;
+      return { c, intentRank: prior * 3.0 + bqNorm * 1.0 };
+    });
+    intentScored.sort((a, b) => b.intentRank - a.intentRank);
+
     const seen = new Set<string>();
     const topTwo: SuggestedPairing[] = [];
-    for (const c of byIntent) {
+    for (const { c } of intentScored) {
       const k = [c.baseFilename, c.featureFilename].sort().join("||");
       if (seen.has(k)) continue;
       seen.add(k);
