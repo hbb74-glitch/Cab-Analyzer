@@ -1184,20 +1184,25 @@ function pickDiverseFromPool(
     const tierBonus = preferredKeys.has(c._rolePairKey) ? 6 : (c._roleBonus > 0 ? 3 : 0);
     const fb = tasteFeedbackScore(c._features, signal ?? null);
     const eloBonus = c._ucb * 2;
-    return { c, intentScore: intentScores[idx] + tierBonus + fb + eloBonus, idx };
+    const explorationBonus = c._uncertainty >= 0.6 ? 5 : (c._uncertainty >= 0.4 ? 2 : 0);
+    return { c, intentScore: intentScores[idx] + tierBonus + fb + eloBonus + explorationBonus, idx };
   });
   scored.sort((a, b) => b.intentScore - a.intentScore);
 
   const seed = scored[0].c;
   const picked: typeof pool = [seed];
   const usedRolePairs = new Set<string>([seed._rolePairKey]);
+  const usedIRs = new Set<string>([seed.baseFilename, seed.featureFilename]);
   const pickedKeys = new Set<string>([[seed.baseFilename, seed.featureFilename].sort().join("||")]);
   let hasBoundary = seed._isBoundary;
+  let hasExploration = seed._uncertainty >= 0.5;
 
+  const explorationSlot = count >= 4 ? 1 : -1;
   const boundarySlot = count >= 4 ? count - 1 : -1;
 
   while (picked.length < count && picked.length < scored.length) {
     const needBoundary = !hasBoundary && picked.length === boundarySlot;
+    const needExploration = !hasExploration && picked.length === explorationSlot;
 
     let bestIdx = -1;
     let bestScore = -Infinity;
@@ -1207,6 +1212,7 @@ function pickDiverseFromPool(
       if (pickedKeys.has(k)) continue;
 
       if (needBoundary && !c._isBoundary) continue;
+      if (needExploration && c._uncertainty < 0.5) continue;
 
       let dist = 0;
       for (const p of picked) {
@@ -1215,8 +1221,10 @@ function pickDiverseFromPool(
       dist /= picked.length;
 
       const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
+      const irNoveltyBonus = (!usedIRs.has(c.baseFilename) && !usedIRs.has(c.featureFilename)) ? 3 : 0;
       const boundaryBonus = c._isBoundary ? 2 : 0;
-      const score = dist * 0.5 + intentScore + roleDiversityBonus + boundaryBonus;
+      const uncBonus = c._uncertainty >= 0.6 ? 4 : (c._uncertainty >= 0.4 ? 1.5 : 0);
+      const score = dist * 0.5 + intentScore + roleDiversityBonus + irNoveltyBonus + boundaryBonus + uncBonus;
 
       if (score > bestScore) {
         bestScore = score;
@@ -1224,7 +1232,7 @@ function pickDiverseFromPool(
       }
     }
 
-    if (bestIdx === -1 && needBoundary) {
+    if (bestIdx === -1 && (needBoundary || needExploration)) {
       for (let i = 0; i < scored.length; i++) {
         const { c, intentScore } = scored[i];
         const k = [c.baseFilename, c.featureFilename].sort().join("||");
@@ -1233,7 +1241,8 @@ function pickDiverseFromPool(
         for (const p of picked) dist += tonalDistance(c._features, p._features);
         dist /= picked.length;
         const roleDiversityBonus = usedRolePairs.has(c._rolePairKey) ? 0 : 4;
-        const score = dist * 0.5 + intentScore + roleDiversityBonus;
+        const irNoveltyBonus = (!usedIRs.has(c.baseFilename) && !usedIRs.has(c.featureFilename)) ? 3 : 0;
+        const score = dist * 0.5 + intentScore + roleDiversityBonus + irNoveltyBonus;
         if (score > bestScore) { bestScore = score; bestIdx = i; }
       }
     }
@@ -1242,8 +1251,11 @@ function pickDiverseFromPool(
     const chosen = scored[bestIdx].c;
     picked.push(chosen);
     usedRolePairs.add(chosen._rolePairKey);
+    usedIRs.add(chosen.baseFilename);
+    usedIRs.add(chosen.featureFilename);
     pickedKeys.add([chosen.baseFilename, chosen.featureFilename].sort().join("||"));
     if (chosen._isBoundary) hasBoundary = true;
+    if (chosen._uncertainty >= 0.5) hasExploration = true;
   }
 
   return picked;
@@ -1348,14 +1360,35 @@ export function pickTasteCheckCandidates(
 
   if (allCombos.length < 2) return null;
 
-  const boundarySet = identifyBoundaryCandidates(allCombos, Math.ceil(allCombos.length * 0.15));
+  const settledLoserThreshold = ELO_BASE_RATING - 40;
+  const settledUncertaintyMax = 0.45;
+  const settledBefore = allCombos.length;
+  const tastePool = allCombos.filter(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const elo = eloRatings?.[ck];
+    if (elo && elo.rating < settledLoserThreshold && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= 4) {
+      return false;
+    }
+    return true;
+  });
+  const settledRemoved = settledBefore - tastePool.length;
+
+  const freshPool = tastePool.filter(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    return !sessionShown.has(ck);
+  });
+  const sessionDeduped = tastePool.length - freshPool.length;
+
+  const workingPool = freshPool.length >= 4 ? freshPool : tastePool;
+
+  const boundarySet = identifyBoundaryCandidates(workingPool, Math.ceil(workingPool.length * 0.15));
   boundarySet.forEach(idx => {
-    if (idx < allCombos.length) allCombos[idx]._isBoundary = true;
+    if (idx < workingPool.length) workingPool[idx]._isBoundary = true;
   });
 
   if (tasteSignal || eloRatings) {
     const hasElo = eloRatings && Object.keys(eloRatings).length > 0;
-    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${allCombos.length}`);
+    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled losers, ${sessionDeduped} session dupes)`);
   }
 
   const round = history?.length ?? 0;
@@ -1389,20 +1422,20 @@ export function pickTasteCheckCandidates(
   const forceQuad = modeOverride === "acquisition";
   const quadRounds = forceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
 
-  if (!forceBinary && round < quadRounds && allCombos.length >= 4) {
+  if (!forceBinary && round < quadRounds && workingPool.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
 
     if (intent) {
-      const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
-      const candidatePool = roleFiltered.length >= 4 ? roleFiltered : allCombos;
+      const roleFiltered = workingPool.filter(c => c._roleBonus > 0);
+      const candidatePool = roleFiltered.length >= 4 ? roleFiltered : workingPool;
 
       const diverse = pickDiverseFromPool(candidatePool, 4, intent, tasteSignal);
 
-      console.log(`[INTENT-PICK quad] intent=${intent} combos=${allCombos.length} roleFiltered=${roleFiltered.length}`);
+      console.log(`[INTENT-PICK quad] intent=${intent} combos=${workingPool.length} roleFiltered=${roleFiltered.length}`);
       for (const d of diverse) {
-        console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)}] ${d.baseFilename} + ${d.featureFilename}`);
+        console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
       }
 
       if (diverse.length >= 4) {
@@ -1416,7 +1449,7 @@ export function pickTasteCheckCandidates(
       }
     }
 
-    const scored = allCombos.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
+    const scored = workingPool.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
     scored.sort((a, b) => a.axisVal - b.axisVal);
 
     const bestQ = scored.reduce((mx, s) => Math.max(mx, s.quality), -Infinity);
@@ -1460,15 +1493,15 @@ export function pickTasteCheckCandidates(
 
   const axisCompute = chosenAxis.axis.compute;
 
-  if (intent && allCombos.length >= 2) {
-    const roleFiltered = allCombos.filter(c => c._roleBonus > 0);
-    const binaryPool = roleFiltered.length >= 2 ? roleFiltered : allCombos;
+  if (intent && workingPool.length >= 2) {
+    const roleFiltered = workingPool.filter(c => c._roleBonus > 0);
+    const binaryPool = roleFiltered.length >= 2 ? roleFiltered : workingPool;
 
     const diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal);
 
     console.log(`[INTENT-PICK binary] intent=${intent} roleFiltered=${roleFiltered.length} pool=${binaryPool.length}`);
     for (const d of diverse) {
-      console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)}] ${d.baseFilename} + ${d.featureFilename}`);
+      console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
     }
 
     if (diverse.length >= 2) {
@@ -1482,7 +1515,7 @@ export function pickTasteCheckCandidates(
     }
   }
 
-  const scoredWithQuality = allCombos
+  const scoredWithQuality = workingPool
     .map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }))
     .sort((a, b) => a.axisVal - b.axisVal);
 
