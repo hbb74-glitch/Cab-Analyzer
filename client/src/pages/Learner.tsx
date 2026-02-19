@@ -728,7 +728,6 @@ export default function Learner() {
   const [singleIrPage, setSingleIrPage] = useState(0);
   const [singleIrTags, setSingleIrTags] = useState<Record<string, string[]>>({});
   const [singleIrNotes, setSingleIrNotes] = useState<Record<string, string>>({});
-  const importTasteInputRef = useRef<HTMLInputElement | null>(null);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -2800,88 +2799,6 @@ export default function Learner() {
         >
           Single IR Learning
         </button>
-
-      <button
-        className="px-3 py-1 rounded border border-zinc-600"
-        onClick={() => {
-          try {
-            const raw = localStorage.getItem("irscope.taste.v1") ?? "";
-            const safe = raw && raw.trim().length ? raw : JSON.stringify({ version: 2, models: {}, complements: {} });
-            const dt = new Date();
-            const stamp = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}_${String(dt.getHours()).padStart(2,"0")}${String(dt.getMinutes()).padStart(2,"0")}`;
-            const filename = `irscope_taste_${stamp}.json`;
-
-            const blob = new Blob([safe], { type: "application/json" });
-
-            const navAny: any = navigator as any;
-            if (navAny?.canShare && navAny.canShare({ files: [new File([blob], filename, { type: "application/json" })] }) && navAny?.share) {
-              navAny.share({ files: [new File([blob], filename, { type: "application/json" })], title: filename });
-              return;
-            }
-
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            a.rel = "noopener";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-
-            setTimeout(() => {
-              try { window.open(url, "_blank", "noopener,noreferrer"); } catch {}
-              setTimeout(() => URL.revokeObjectURL(url), 15_000);
-            }, 250);
-          } catch {}
-        }}
-        title="Download a JSON backup of your taste models"
-        data-testid="button-taste-export"
-      >
-        Export
-      </button>
-
-      <button
-        className="px-3 py-1 rounded border border-zinc-600"
-        onClick={() => importTasteInputRef.current?.click()}
-        title="Restore taste models from a JSON backup"
-        data-testid="button-taste-import"
-      >
-        Import
-      </button>
-
-      <input
-        ref={importTasteInputRef}
-        type="file"
-        accept="application/json"
-        style={{ display: "none" }}
-        onChange={async (e) => {
-          try {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const text = await file.text();
-            const parsed = JSON.parse(text);
-
-            const version = parsed?.version;
-            let migrated: any = null;
-            if (version === 2) {
-              migrated = parsed;
-              if (!migrated.models) migrated.models = {};
-              if (!migrated.complements) migrated.complements = {};
-            } else if (version === 1) {
-              migrated = { version: 2, models: parsed.models ?? {}, complements: {} };
-            } else {
-              if (parsed?.models) migrated = { version: 2, models: parsed.models ?? {}, complements: parsed.complements ?? {} };
-            }
-            if (!migrated || typeof migrated !== "object") return;
-
-            localStorage.setItem("irscope.taste.v1", JSON.stringify(migrated));
-            setTasteVersion(v => v + 1);
-          } catch {
-          } finally {
-            if (importTasteInputRef.current) importTasteInputRef.current.value = "";
-          }
-        }}
-      />
 
       <button
         className="px-2 py-1 rounded border border-zinc-600"
