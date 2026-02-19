@@ -1362,16 +1362,68 @@ export function pickTasteCheckCandidates(
 
   const settledLoserThreshold = ELO_BASE_RATING - 40;
   const settledUncertaintyMax = 0.45;
+  const settledMinMatches = 4;
   const settledBefore = allCombos.length;
+
+  const settledLosers: typeof allCombos = [];
   const tastePool = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
     const elo = eloRatings?.[ck];
-    if (elo && elo.rating < settledLoserThreshold && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= 4) {
+    if (elo && elo.rating < settledLoserThreshold && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches) {
+      settledLosers.push(c);
       return false;
     }
     return true;
   });
   const settledRemoved = settledBefore - tastePool.length;
+
+  const settledWinners = allCombos.filter(c => {
+    const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+    const elo = eloRatings?.[ck];
+    return elo && elo.rating >= ELO_BASE_RATING + 20 && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches;
+  });
+
+  const totalUniqueCombos = allCombos.length;
+  const seenCombos = eloRatings ? Object.values(eloRatings).filter(e => e.matchCount > 0).length : 0;
+  const coverageRatio = totalUniqueCombos > 0 ? seenCombos / totalUniqueCombos : 0;
+
+  const CALIBRATION_COVERAGE_GATE = 0.55;
+  const CALIBRATION_INTERVAL = 5;
+  const isCalibrationRound = coverageRatio >= CALIBRATION_COVERAGE_GATE
+    && settledLosers.length > 0
+    && settledWinners.length > 0
+    && totalRounds > 0
+    && totalRounds % CALIBRATION_INTERVAL === 0;
+
+  let calibrationCombo: typeof allCombos[0] | null = null;
+  if (isCalibrationRound) {
+    const unseenSettled = settledLosers.filter(c => {
+      const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+      return !sessionShown.has(ck);
+    });
+    const calibrationCandidates = unseenSettled.length > 0 ? unseenSettled : settledLosers;
+
+    const bestSettledWinnerRating = Math.max(...settledWinners.map(c => {
+      const ck = [c.baseFilename, c.featureFilename].sort().join("||");
+      return eloRatings?.[ck]?.rating ?? ELO_BASE_RATING;
+    }));
+
+    calibrationCandidates.sort((a, b) => {
+      const ckA = [a.baseFilename, a.featureFilename].sort().join("||");
+      const ckB = [b.baseFilename, b.featureFilename].sort().join("||");
+      const eloA = eloRatings?.[ckA];
+      const eloB = eloRatings?.[ckB];
+      const ratingA = eloA?.rating ?? ELO_BASE_RATING;
+      const ratingB = eloB?.rating ?? ELO_BASE_RATING;
+      const gapA = Math.abs(ratingA - bestSettledWinnerRating);
+      const gapB = Math.abs(ratingB - bestSettledWinnerRating);
+      return gapA - gapB;
+    });
+    calibrationCombo = calibrationCandidates[0] ?? null;
+    if (calibrationCombo) {
+      console.log(`[CALIBRATION] round=${totalRounds} coverage=${(coverageRatio * 100).toFixed(0)}% reintroducing settled combo: ${calibrationCombo.baseFilename} + ${calibrationCombo.featureFilename} (Elo=${eloRatings?.[[calibrationCombo.baseFilename, calibrationCombo.featureFilename].sort().join("||")]?.rating.toFixed(0)})`);
+    }
+  }
 
   const freshPool = tastePool.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
@@ -1388,7 +1440,7 @@ export function pickTasteCheckCandidates(
 
   if (tasteSignal || eloRatings) {
     const hasElo = eloRatings && Object.keys(eloRatings).length > 0;
-    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled losers, ${sessionDeduped} session dupes)`);
+    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(eloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled, ${sessionDeduped} session dupes) coverage=${(coverageRatio * 100).toFixed(0)}% calibration=${isCalibrationRound}`);
   }
 
   const round = history?.length ?? 0;
@@ -1427,20 +1479,35 @@ export function pickTasteCheckCandidates(
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
 
+    const calibKey = calibrationCombo
+      ? [calibrationCombo.baseFilename, calibrationCombo.featureFilename].sort().join("||")
+      : null;
+    const excludeCalib = (pool: typeof workingPool) =>
+      calibKey ? pool.filter(c => [c.baseFilename, c.featureFilename].sort().join("||") !== calibKey) : pool;
+
+    const pickCount = calibrationCombo ? 3 : 4;
+
     if (intent) {
-      const roleFiltered = workingPool.filter(c => c._roleBonus > 0);
-      const candidatePool = roleFiltered.length >= 4 ? roleFiltered : workingPool;
+      const roleFiltered = excludeCalib(workingPool).filter(c => c._roleBonus > 0);
+      const candidatePool = roleFiltered.length >= pickCount
+        ? roleFiltered
+        : excludeCalib(workingPool).length >= pickCount
+          ? excludeCalib(workingPool)
+          : workingPool;
 
-      const diverse = pickDiverseFromPool(candidatePool, 4, intent, tasteSignal);
+      const diverse = pickDiverseFromPool(candidatePool, pickCount, intent, tasteSignal);
 
-      console.log(`[INTENT-PICK quad] intent=${intent} combos=${workingPool.length} roleFiltered=${roleFiltered.length}`);
-      for (const d of diverse) {
-        console.log(`  [${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
+      const finalCandidates = calibrationCombo ? [...diverse, calibrationCombo] : diverse;
+
+      console.log(`[INTENT-PICK quad] intent=${intent} combos=${workingPool.length} roleFiltered=${roleFiltered.length} calibration=${!!calibrationCombo}`);
+      for (const d of finalCandidates) {
+        const isCalib = calibKey && [d.baseFilename, d.featureFilename].sort().join("||") === calibKey;
+        console.log(`  ${isCalib ? "[CALIB] " : ""}[${d._roleA}+${d._roleB} rb=${d._roleBonus.toFixed(1)} unc=${d._uncertainty.toFixed(2)}] ${d.baseFilename} + ${d.featureFilename}`);
       }
 
-      if (diverse.length >= 4) {
+      if (finalCandidates.length >= 4) {
         return {
-          candidates: diverse as SuggestedPairing[],
+          candidates: finalCandidates as SuggestedPairing[],
           axisName: chosenAxis.axis.name,
           roundType: "quad" as const,
           axisLabels: [...chosenAxis.axis.label] as [string, string],
@@ -1449,7 +1516,8 @@ export function pickTasteCheckCandidates(
       }
     }
 
-    const scored = workingPool.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
+    const nonCalibPool = excludeCalib(workingPool);
+    const scored = nonCalibPool.map((c) => ({ pairing: c as SuggestedPairing, axisVal: axisCompute(c._features), quality: c.score }));
     scored.sort((a, b) => a.axisVal - b.axisVal);
 
     const bestQ = scored.reduce((mx, s) => Math.max(mx, s.quality), -Infinity);
@@ -1458,11 +1526,14 @@ export function pickTasteCheckCandidates(
       bestQ - 25,
     );
     const qFiltered = scored.filter((s) => s.quality >= qThresh);
-    const pool = qFiltered.length >= 4 ? qFiltered : scored;
+    const pool = qFiltered.length >= pickCount ? qFiltered : scored;
 
-    const candidates = pickSpreadCandidates(pool, 4, round);
+    const candidates = pickSpreadCandidates(pool, pickCount, round);
+    const finalSpread = calibrationCombo
+      ? [...candidates.map((c) => c.pairing), calibrationCombo as SuggestedPairing]
+      : candidates.map((c) => c.pairing);
     return {
-      candidates: candidates.map((c) => c.pairing),
+      candidates: finalSpread,
       axisName: chosenAxis.axis.name,
       roundType: "quad" as const,
       axisLabels: [...chosenAxis.axis.label] as [string, string],
@@ -1492,6 +1563,27 @@ export function pickTasteCheckCandidates(
   }
 
   const axisCompute = chosenAxis.axis.compute;
+
+  if (calibrationCombo && workingPool.length >= 1) {
+    const calibKeyBin = [calibrationCombo.baseFilename, calibrationCombo.featureFilename].sort().join("||");
+    const opponentPool = workingPool.filter(c =>
+      [c.baseFilename, c.featureFilename].sort().join("||") !== calibKeyBin
+    );
+    if (opponentPool.length >= 1) {
+      const opponent = pickDiverseFromPool(opponentPool, 1, intent ?? undefined, tasteSignal);
+      if (opponent.length >= 1) {
+        const pair = [opponent[0], calibrationCombo];
+        console.log(`[CALIBRATION binary] ${calibrationCombo.baseFilename}+${calibrationCombo.featureFilename} vs ${opponent[0].baseFilename}+${opponent[0].featureFilename}`);
+        return {
+          candidates: pair as SuggestedPairing[],
+          axisName: chosenAxis.axis.name,
+          roundType: "binary" as const,
+          axisLabels: [...chosenAxis.axis.label] as [string, string],
+          confidence,
+        };
+      }
+    }
+  }
 
   if (intent && workingPool.length >= 2) {
     const roleFiltered = workingPool.filter(c => c._roleBonus > 0);
