@@ -931,6 +931,70 @@ function extractSessionIRExposure(history?: TasteCheckRoundResult[]): Map<string
   return counts;
 }
 
+type Intent = "rhythm" | "lead" | "clean";
+
+function safeNum(v: any, fb = 0): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fb;
+}
+
+function bandsPct(f: TonalFeatures) {
+  const bp: any = (f as any).bandsPercent ?? {};
+  return {
+    sub: safeNum(bp.subBass) * 100,
+    bass: safeNum(bp.bass) * 100,
+    lowMid: safeNum(bp.lowMid) * 100,
+    mid: safeNum(bp.mid) * 100,
+    hiMid: safeNum(bp.highMid) * 100,
+    pres: safeNum(bp.presence) * 100,
+    air: safeNum(bp.air ?? (bp.ultraHigh ?? 0)) * 100,
+  };
+}
+
+function hiMidMidRatioFromBands(f: TonalFeatures): number {
+  const b = bandsPct(f);
+  const mid = Math.max(1e-6, b.mid);
+  return b.hiMid / mid;
+}
+
+function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
+  if (!intent) return 0;
+  const b = bandsPct(f);
+  const tilt = safeNum((f as any).tiltDbPerOct, 0);
+  const smooth = safeNum((f as any).smoothScore, 0);
+  const ratio = hiMidMidRatioFromBands(f);
+
+  let s = 0;
+
+  if (intent === "rhythm") {
+    s += smooth >= 86 ? 1.0 : 0;
+    s += (b.air <= 2.0) ? 1.0 : -0.5;
+    s += (b.pres >= 12 && b.pres <= 24) ? 1.0 : -0.5;
+    s += (b.lowMid <= 14) ? 0.8 : -0.8;
+    s += (ratio >= 1.2 && ratio <= 2.2) ? 0.6 : -0.4;
+    s += (tilt <= -2.5 && tilt >= -5.8) ? 0.4 : -0.2;
+  }
+
+  if (intent === "lead") {
+    s += smooth >= 88 ? 1.2 : (smooth >= 84 ? 0.6 : -0.4);
+    s += (b.air >= 1.5 && b.air <= 5.0) ? 1.0 : -0.3;
+    s += (b.pres >= 16 && b.pres <= 30) ? 0.9 : -0.4;
+    s += (ratio >= 1.5 && ratio <= 3.0) ? 0.6 : -0.4;
+    s += (b.lowMid <= 16) ? 0.4 : -0.4;
+  }
+
+  if (intent === "clean") {
+    s += smooth >= 88 ? 1.0 : (smooth >= 84 ? 0.5 : -0.5);
+    s += (b.air >= 2.0 && b.air <= 6.0) ? 1.0 : -0.4;
+    s += (b.pres >= 12 && b.pres <= 26) ? 0.6 : -0.4;
+    s += (ratio >= 1.0 && ratio <= 2.4) ? 0.6 : -0.4;
+    s += (b.lowMid <= 18) ? 0.3 : -0.3;
+    s += (tilt <= -2.0 && tilt >= -6.0) ? 0.2 : -0.2;
+  }
+
+  return s;
+}
+
 export function pickTasteCheckCandidates(
   irs: { filename: string; features: TonalFeatures }[],
   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
@@ -971,6 +1035,8 @@ export function pickTasteCheckCandidates(
         exposurePenalty = ((baseExp + featExp) / (maxSessionExposure * 2)) * 10;
       }
 
+      const prior = intentPriorScore(blended, intent as any);
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -978,7 +1044,7 @@ export function pickTasteCheckCandidates(
         bestMatch: result.best,
         blendScore: bq.blendScore,
         blendLabel: bq.blendLabel,
-        score: bq.blendScore - exposurePenalty,
+        score: (bq.blendScore - exposurePenalty) + prior,
         rank: 0,
         _features: blended,
       });
@@ -999,8 +1065,8 @@ export function pickTasteCheckCandidates(
     const bonus = (name: string) => {
       if (!intent) return 0;
       const pref: Record<string, string[]> = {
-        rhythm: ["Tightness", "Body", "Mid Focus", "Aggression", "Balance"],
-        lead: ["Presence", "Aggression", "Air", "Brightness", "Balance"],
+        rhythm: ["Tightness", "Body", "Balance", "Aggression", "Brightness"],
+        lead: ["Presence", "Aggression", "Brightness", "Air", "Balance"],
         clean: ["Balance", "Air", "Warmth", "Body", "Brightness"],
       };
       const list = pref[intent] ?? [];

@@ -1,0 +1,199 @@
+cd Cab-Analyzer-main
+git apply - <<'PATCH'
+diff --git a/client/src/lib/preference-profiles.ts b/client/src/lib/preference-profiles.ts
+index 8a5c2d1..1b7f6a4 100644
+--- a/client/src/lib/preference-profiles.ts
++++ b/client/src/lib/preference-profiles.ts
+@@ -927,6 +927,72 @@ function extractSessionIRExposure(history?: TasteCheckRoundResult[]): Map<string,
+   return exposure;
+ }
+ 
++// ------------------------------------------------------------
++// Intent priors (baseline divergence)
++// Small deterministic biases so Rhythm/Lead/Clean are different
++// even before any learning votes exist.
++// These are NOT speaker-specific. They’re “mix reality” priors.
++// ------------------------------------------------------------
++type Intent = "rhythm" | "lead" | "clean";
++
++function safeNum(v: any, fb = 0): number {
++  const n = typeof v === "number" ? v : Number(v);
++  return Number.isFinite(n) ? n : fb;
++}
++
++function bandsPct(f: TonalFeatures) {
++  const bp: any = (f as any).bandsPercent ?? {};
++  return {
++    sub: safeNum(bp.subBass) * 100,
++    bass: safeNum(bp.bass) * 100,
++    lowMid: safeNum(bp.lowMid) * 100,
++    mid: safeNum(bp.mid) * 100,
++    hiMid: safeNum(bp.highMid) * 100,
++    pres: safeNum(bp.presence) * 100,
++    air: safeNum(bp.air ?? (bp.ultraHigh ?? 0)) * 100,
++  };
++}
++
++function hiMidMidRatioFromBands(f: TonalFeatures): number {
++  const b = bandsPct(f);
++  const mid = Math.max(1e-6, b.mid);
++  return b.hiMid / mid;
++}
++
++function intentPriorScore(f: TonalFeatures, intent?: Intent): number {
++  if (!intent) return 0;
++  const b = bandsPct(f);
++  const tilt = safeNum((f as any).tiltDbPerOct, 0);
++  const smooth = safeNum((f as any).smoothScore, 0);
++  const ratio = hiMidMidRatioFromBands(f);
++
++  // Score is added to candidate quality score. Higher is better.
++  // Keep magnitudes small so your existing quality/diversity logic dominates.
++  let s = 0;
++
++  if (intent === "rhythm") {
++    // Tight, controlled, less fizz: favor moderate presence, lower air, avoid low-mid mud.
++    s += smooth >= 86 ? 1.0 : 0;
++    s += (b.air <= 2.0) ? 1.0 : -0.5;                // avoid too much sparkle/fizz
++    s += (b.pres >= 12 && b.pres <= 24) ? 1.0 : -0.5; // controlled presence
++    s += (b.lowMid <= 14) ? 0.8 : -0.8;              // avoid mud
++    s += (ratio >= 1.2 && ratio <= 2.2) ? 0.6 : -0.4; // bite without icepick
++    s += (tilt <= -2.5 && tilt >= -5.8) ? 0.4 : -0.2; // avoid extreme tilt
++  }
++
++  if (intent === "lead") {
++    // Presence + smooth + a little air (not fizz): favor smoothness and a bit more bite.
++    s += smooth >= 88 ? 1.2 : (smooth >= 84 ? 0.6 : -0.4);
++    s += (b.air >= 1.5 && b.air <= 5.0) ? 1.0 : -0.3;      // tasteful air
++    s += (b.pres >= 16 && b.pres <= 30) ? 0.9 : -0.4;      // lead cut
++    s += (ratio >= 1.5 && ratio <= 3.0) ? 0.6 : -0.4;      // vocal bite
++    s += (b.lowMid <= 16) ? 0.4 : -0.4;                    // avoid wool
++  }
++
++  if (intent === "clean") {
++    // Fenderish sparkle → Plexi warmer cleans: open + smooth with controlled bite.
++    // More air than rhythm, less aggression than lead.
++    s += smooth >= 88 ? 1.0 : (smooth >= 84 ? 0.5 : -0.5);
++    s += (b.air >= 2.0 && b.air <= 6.0) ? 1.0 : -0.4;       // sparkle window
++    s += (b.pres >= 12 && b.pres <= 26) ? 0.6 : -0.4;       // avoid harsh
++    s += (ratio >= 1.0 && ratio <= 2.4) ? 0.6 : -0.4;       // less aggressive
++    s += (b.lowMid <= 18) ? 0.3 : -0.3;                     // keep clean clear
++    s += (tilt <= -2.0 && tilt >= -6.0) ? 0.2 : -0.2;
++  }
++
++  return s;
++}
++
+ export function pickTasteCheckCandidates(
+   irs: { filename: string; features: TonalFeatures }[],
+   profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+   learned?: LearnedProfileData,
+   excludePairs?: Set<string>,
+   history?: TasteCheckRoundResult[],
+-  modeOverride?: "acquisition" | "tester" | "learning"
++  modeOverride?: "acquisition" | "tester" | "learning",
++  intent?: "rhythm" | "lead" | "clean"
+ ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
+   if (irs.length < 2) return null;
+@@ -970,7 +1036,7 @@ export function pickTasteCheckCandidates(
+       const bq = learned
+         ? scoreBlendWithAvoidPenalty(blended, profiles, learned)
+         : scoreBlendQuality(blended, profiles);
+@@ -985,7 +1051,15 @@ export function pickTasteCheckCandidates(
+         exposurePenalty = ((baseExp + featExp) / (maxSessionExposure * 2)) * 10;
+       }
+ 
++      // Intent prior (baseline divergence)
++      // Small additive nudge so Rhythm/Lead/Clean produce different candidate sets
++      // even before any votes exist.
++      const prior = intentPriorScore(blended, intent as any);
++
+       allCombos.push({
+         baseFilename: irs[i].filename,
+         featureFilename: irs[j].filename,
+         blendBands: blended.bandsPercent,
+         bestMatch: result.best,
+         blendScore: bq.blendScore,
+         blendLabel: bq.blendLabel,
+-        score: bq.blendScore - exposurePenalty,
++        score: (bq.blendScore - exposurePenalty) + prior,
+         rank: 0,
+         _features: blended,
+       });
+     }
+   }
+@@ -1006,10 +1080,35 @@ export function pickTasteCheckCandidates(
+     const values = allCombos.map((c) => axis.compute(c._features));
+     const min = Math.min(...values);
+     const max = Math.max(...values);
+     return { axis, spread: max - min, min, max };
+-  }).sort((a, b) => b.spread - a.spread);
++  }).sort((a, b) => {
++    // Intent-biased axis preference (tiny): makes quad-round probing differ by intent at baseline.
++    const bonus = (name: string) => {
++      if (!intent) return 0;
++      const pref: Record<string, string[]> = {
++        rhythm: ["Tightness", "Body", "Balance", "Aggression", "Brightness"],
++        lead: ["Presence", "Aggression", "Brightness", "Air", "Balance"],
++        clean: ["Balance", "Air", "Warmth", "Body", "Brightness"],
++      };
++      const list = pref[intent] ?? [];
++      const idx = list.indexOf(name);
++      // earlier in list => slightly higher bonus (keep extremely small)
++      return idx === -1 ? 0 : (list.length - idx) * 0.0005;
++    };
++    const aScore = a.spread + bonus(a.axis.name);
++    const bScore = b.spread + bonus(b.axis.name);
++    return bScore - aScore;
++  });
+diff --git a/client/src/pages/IRMixer.tsx b/client/src/pages/IRMixer.tsx
+index c4f9e2b..f2d4c13 100644
+--- a/client/src/pages/IRMixer.tsx
++++ b/client/src/pages/IRMixer.tsx
+@@ -1539,6 +1539,7 @@ export default function IRMixer() {
+         const tastePick = pickTasteCheckCandidates(
+           pairingPool,
+           activeProfiles,
+           learnedProfile || undefined,
+           newEvaluated.size > 0 ? newEvaluated : undefined,
+           undefined,
+-          tasteCheckMode as "acquisition" | "tester" | "learning"
++          tasteCheckMode as "acquisition" | "tester" | "learning",
++          tasteIntent
+         );
+         if (!tastePick) return;
+@@ -1634,6 +1635,7 @@ export default function IRMixer() {
+       const nextPick = pickTasteCheckCandidates(
+         pairingPool,
+         activeProfiles,
+         learnedProfile || undefined,
+         newEvaluated.size > 0 ? newEvaluated : undefined,
+         history,
+-        tasteCheckMode as "acquisition" | "tester" | "learning"
++        tasteCheckMode as "acquisition" | "tester" | "learning",
++        tasteIntent
+       );
+       if (!nextPick) return;
+@@ -1877,7 +1879,16 @@ export default function IRMixer() {
+-          const tastePick = pickTasteCheckCandidates(pairingPool, activeProfiles, learnedProfile || undefined, newEvaluated.size > 0 ? newEvaluated : undefined, undefined, tasteCheckMode as "acquisition" | "tester" | "learning");
++          const tastePick = pickTasteCheckCandidates(
++            pairingPool,
++            activeProfiles,
++            learnedProfile || undefined,
++            newEvaluated.size > 0 ? newEvaluated : undefined,
++            undefined,
++            tasteCheckMode as "acquisition" | "tester" | "learning",
++            tasteIntent
++          );
+           if (tastePick) {
+             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+             setTasteCheckPhase({
+               candidates: rerankTasteCandidatesForContext(tastePick.candidates),
+               roundType: tastePick.roundType,
+               axisName: tastePick.axisName,
+               axisLabels: tastePick.axisLabels,
+               confidence: tastePick.confidence,
+               maxRounds,
+             });
+           }
+PATCH
