@@ -2156,38 +2156,42 @@ export default function Analyzer() {
   useEffect(() => {
     try {
       const rows: Array<{ filename: string; tf: TonalFeatures }> = [];
-      for (const ir of batchIRs) {
-        const filename = ir?.file?.name ?? "";
-        const rAny: any = (ir as any)?.batchRow ?? null;
-        const bandsFromBatch = rAny ? {
-          subBass: ((Number(rAny.subBassPercent) || 0) / 100),
-          bass: ((Number(rAny.bassPercent) || 0) / 100),
-          lowMid: ((Number(rAny.lowMidPercent) || 0) / 100),
-          mid: ((Number(rAny.midPercent) || 0) / 100),
-          highMid: ((Number(rAny.highMidPercent) || 0) / 100),
-          presence: ((Number(rAny.presencePercent) || 0) / 100),
-          air: ((Number(((rAny as any).airPercent ?? (rAny as any).ultraHighPercent)) || 0) / 100),
-        } : null;
-
-        const centroid =
-          (ir as any)?.metrics?.spectralCentroidHz ??
-          (ir as any)?.metrics?.spectralCentroid ??
-          0;
-
-        if (bandsFromBatch) {
+      const results = (batchResult as any)?.results as any[] | undefined;
+      if (results?.length) {
+        for (const r of results) {
+          const filename = String(r?.filename ?? r?.name ?? "");
+          if (!filename) continue;
+          const bandsFromBatch = {
+            subBass: ((Number(r.subBassPercent) || 0) / 100),
+            bass: ((Number(r.bassPercent) || 0) / 100),
+            lowMid: ((Number(r.lowMidPercent) || 0) / 100),
+            mid: ((Number(r.midPercent) || 0) / 100),
+            highMid: ((Number(r.highMidPercent) || 0) / 100),
+            presence: ((Number(r.presencePercent) || 0) / 100),
+            air: ((Number(r.airPercent ?? r.ultraHighPercent) || 0) / 100),
+          };
+          const irMatch = batchIRs.find(ir => ir?.file?.name === filename);
+          const centroid =
+            (irMatch as any)?.metrics?.spectralCentroidHz ??
+            (irMatch as any)?.metrics?.spectralCentroid ??
+            0;
           rows.push({
             filename,
-            tf: { bandsPercent: bandsFromBatch, spectralCentroidHz: centroid, tiltDbPerOct: (rAny?.spectralTiltDbPerOct ?? rAny?.spectralTilt ?? 0), rolloffFreq: (rAny?.rolloffFreq ?? rAny?.highExtensionHz ?? 0), smoothScore: (rAny?.smoothScore ?? 0) } as any
+            tf: {
+              bandsPercent: bandsFromBatch,
+              spectralCentroidHz: centroid,
+              tiltDbPerOct: (r?.spectralTiltDbPerOct ?? r?.spectralTilt ?? 0),
+              rolloffFreq: (r?.rolloffFreq ?? r?.highExtensionHz ?? 0),
+              smoothScore: (r?.smoothScore ?? 0),
+            } as any,
           });
         }
       }
       const computed = computeSpeakerStats(rows);
       speakerStatsRef.current = computed;
-      // Trigger rerender so Foundation Candidate memo recalculates
-      // (useMemo doesn't react to ref.current changes)
       setSpeakerStatsMap(computed);
     } catch {}
-  }, [batchIRs]);
+  }, [batchResult, batchIRs]);
 
   // Redundancy detection state - using groups instead of pairs for cleaner display
   // Threshold of 0.95 means highly similar (with normalized Pearson, this is ~90% raw correlation)
