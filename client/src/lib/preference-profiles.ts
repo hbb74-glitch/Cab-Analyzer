@@ -1590,10 +1590,11 @@ export function pickTasteCheckCandidates(
   });
   const settledRemoved = settledBefore - tastePool.length;
 
+  const rawEloRatings = eloRatings ?? activeEloRatings;
   const settledWinners = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-    const elo = activeEloRatings?.[ck];
-    return elo && elo.rating >= ELO_BASE_RATING + 15 && elo.uncertainty < 0.75 && elo.matchCount >= 2;
+    const raw = rawEloRatings?.[ck];
+    return raw && raw.rating >= ELO_BASE_RATING + 15 && raw.uncertainty < 0.75 && raw.matchCount >= 2;
   });
 
   const totalUniqueCombos = allCombos.length;
@@ -1657,7 +1658,7 @@ export function pickTasteCheckCandidates(
 
   const plateauWinners = detectPlateauWinners(
     [...workingPool, ...settledWinners],
-    activeEloRatings
+    rawEloRatings ?? activeEloRatings
   );
   const sessionRoundIndex = history?.length ?? 0;
   const isRefinementRound = !disableRefinement
