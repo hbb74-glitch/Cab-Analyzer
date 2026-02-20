@@ -76,6 +76,14 @@ export class DatabaseStorage implements IStorage {
       if (existing.length > 0) {
         const old = existing[0];
         const n = old.sampleCount;
+        const bands = ['subBass', 'bass', 'lowMid', 'mid', 'highMid', 'presence'] as const;
+        const isDuplicate = bands.every(b => Math.abs((old as any)[b] - (entry as any)[b]) < 1.5) &&
+          Math.abs(old.ratio - entry.ratio) < 0.15 &&
+          Math.abs(old.centroid - entry.centroid) < 80 &&
+          Math.abs(old.smoothness - entry.smoothness) < 3;
+        if (isDuplicate) {
+          continue;
+        }
         await db.update(tonalProfiles).set({
           subBass: (old.subBass * n + entry.subBass) / (n + 1),
           bass: (old.bass * n + entry.bass) / (n + 1),
