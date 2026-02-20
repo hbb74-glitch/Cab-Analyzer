@@ -348,7 +348,6 @@ export const INTENT_ROLE_PREFERENCES: Record<Intent, { preferred: [MusicalRole, 
     preferred: [
       ["Foundation", "Lead Polish"],
       ["Foundation", "Foundation"],
-      ["Lead Polish", "Lead Polish"],
       ["Foundation", "Cut Layer"],
       ["Lead Polish", "Mid Thickener"],
       ["Foundation", "Dark Specialty"],
@@ -359,6 +358,8 @@ export const INTENT_ROLE_PREFERENCES: Record<Intent, { preferred: [MusicalRole, 
   },
 };
 
+const BAD_SAME_ROLE_PAIRS = new Set<MusicalRole>(["Dark Specialty", "Cut Layer", "Fizz Tamer", "Mid Thickener", "Lead Polish"]);
+
 export function scoreRolePairForIntent(
   roleA: MusicalRole,
   roleB: MusicalRole,
@@ -368,6 +369,10 @@ export function scoreRolePairForIntent(
   if (!prefs) return 0;
 
   const pair: [MusicalRole, MusicalRole] = [roleA, roleB].sort() as [MusicalRole, MusicalRole];
+
+  if (roleA === roleB && BAD_SAME_ROLE_PAIRS.has(roleA)) {
+    return -4;
+  }
 
   for (let i = 0; i < prefs.preferred.length; i++) {
     const pref = [...prefs.preferred[i]].sort() as [MusicalRole, MusicalRole];
