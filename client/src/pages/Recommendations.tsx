@@ -498,11 +498,38 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
 
   const copyShotList = () => {
     if (!designResult?.shots) return;
-    const list = designResult.shots.map((s: any) =>
-      `${s.mic}@${s.position}_${s.distance}"`
-    ).join('\n');
-    navigator.clipboard.writeText(list);
+    const speakerLabel = speakers.find(s => s.value === designSpeaker)?.label || designSpeaker || 'Unknown';
+    const genreLabel = designGenre ? (genres.find(g => g.value === designGenre)?.label || designGenre) : 'Versatile';
+    const lines: string[] = [];
+    lines.push(`Shot Designer: ${speakerLabel} — ${genreLabel}`);
+    lines.push(`${designResult.shots.length} shots${designResult.requestedCount ? ` (requested ${designResult.requestedCount})` : ''}`);
+    lines.push("=".repeat(40));
+    lines.push("");
+    designResult.shots.forEach((s: any, i: number) => {
+      const role = s.musicalRole || '';
+      const kbRole = s.knowledgeBaseRole || '';
+      const roleStr = role && kbRole && role !== kbRole
+        ? `[${role} | KB: ${kbRole}]`
+        : role ? `[${role}]` : kbRole ? `[KB: ${kbRole}]` : '';
+      const intents: string[] = [];
+      if (s.primaryIntent) intents.push(s.primaryIntent);
+      if (s.secondaryIntents?.length) intents.push(...s.secondaryIntents);
+      const intentStr = intents.length > 0 ? ` (${intents.join(', ')})` : '';
+      const conf = s.confidence ? ` [${s.confidence}]` : '';
+      const dist = String(s.distance || '').replace(/"/g, '');
+      lines.push(`${i + 1}. ${s.mic}@${s.position}_${dist}"  ${roleStr}${intentStr}${conf}`);
+      if (s.whyIncluded) lines.push(`   → ${s.whyIncluded}`);
+    });
+    if (designResult.mixingPairs?.length) {
+      lines.push("");
+      lines.push("MIXING PAIRS:");
+      designResult.mixingPairs.forEach((p: any) => {
+        lines.push(`  ${p.shot1} + ${p.shot2}: ${p.blendResult} (${p.suggestedRatio})`);
+      });
+    }
+    navigator.clipboard.writeText(lines.join('\n'));
     setCopied(true);
+    toast({ title: "Shot list copied to clipboard" });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -980,6 +1007,11 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                 <BarChart3 className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium text-primary">
                   {designResult.shots.length} Shots Designed
+                  {designResult.requestedCount && designResult.shots.length !== designResult.requestedCount && (
+                    <span className="text-yellow-400 ml-1">
+                      (requested {designResult.requestedCount})
+                    </span>
+                  )}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">

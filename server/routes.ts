@@ -5742,7 +5742,7 @@ ${intentBudgetSection}
 === TARGET ===
 Speaker: ${input.speaker}
 ${input.genre ? `Genre/Tone: ${genreGuidance}` : 'Goal: Versatile mixing palette'}
-Target shot count: ${effectiveTargetCount}
+Target shot count: EXACTLY ${effectiveTargetCount} (no more, no less)
 ${hasIntentCounts ? `Intent breakdown: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean` : ''}
 ${existingDesc}
 
@@ -5837,6 +5837,29 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
             shot.knowledgeBaseConfidence = kbLookup.confidence;
           }
         }
+
+        if (designResult.shots.length > effectiveTargetCount) {
+          console.log(`[Shot Designer] Trimming ${designResult.shots.length} shots to requested ${effectiveTargetCount}`);
+          designResult.shots = designResult.shots.slice(0, effectiveTargetCount);
+          if (designResult.intentCoverage && hasIntentCounts) {
+            const coverage: Record<string, { shotCount: number; roles: Record<string, number>; complete: boolean }> = {};
+            for (const shot of designResult.shots) {
+              const allIntents = [shot.primaryIntent, ...(shot.secondaryIntents || [])].filter(Boolean);
+              for (const intent of allIntents) {
+                if (!coverage[intent]) coverage[intent] = { shotCount: 0, roles: {}, complete: false };
+                coverage[intent].shotCount++;
+                const role = shot.musicalRole || 'Unknown';
+                coverage[intent].roles[role] = (coverage[intent].roles[role] || 0) + 1;
+              }
+            }
+            if (intentAllocation.rhythm > 0 && coverage.rhythm) coverage.rhythm.complete = coverage.rhythm.shotCount >= intentAllocation.rhythm;
+            if (intentAllocation.lead > 0 && coverage.lead) coverage.lead.complete = coverage.lead.shotCount >= intentAllocation.lead;
+            if (intentAllocation.clean > 0 && coverage.clean) coverage.clean.complete = coverage.clean.shotCount >= intentAllocation.clean;
+            designResult.intentCoverage = coverage;
+          }
+        } else if (designResult.shots.length < effectiveTargetCount) {
+          console.log(`[Shot Designer] AI returned ${designResult.shots.length} shots, requested ${effectiveTargetCount}`);
+        }
       }
 
       res.json({
@@ -5846,6 +5869,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         dataSource: speakerProfiles.length > 0 ? 'speaker-specific' : 'cross-speaker',
         intentMode: !!hasIntentCounts,
         requestedIntents: hasIntentCounts ? intentAllocation : null,
+        requestedCount: effectiveTargetCount,
         roleBudgets: hasIntentCounts ? roleBudgets : null,
         extrapolatedCount: extrapolatedProfiles.length,
       });
