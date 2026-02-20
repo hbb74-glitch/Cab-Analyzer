@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check } from "lucide-react";
+import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3 } from "lucide-react";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
@@ -671,6 +671,7 @@ export default function Learner() {
   const [selectedRatio, setSelectedRatio] = useState(2);
   const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
   const [showFoundation, setShowFoundation] = useState(false);
+  const [showVoteHistory, setShowVoteHistory] = useState(false);
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string[]>>({});
   const [pairingFeedbackText, setPairingFeedbackText] = useState<Record<string, string>>({});
@@ -4450,6 +4451,94 @@ export default function Learner() {
             </Button>
           </div>
         )}
+
+        {(() => {
+          const eloData = getEloRatings(tasteContext);
+          const eloEntries = Object.entries(eloData).sort((a, b) => b[1].rating - a[1].rating);
+          if (eloEntries.length === 0) return null;
+          return (
+            <div className="mb-4" data-testid="vote-history-panel">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowVoteHistory(!showVoteHistory)}
+                className="flex items-center gap-2 text-xs text-muted-foreground w-full justify-start"
+                data-testid="button-toggle-vote-history"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-teal-400" />
+                <span className="font-medium">Vote History</span>
+                <Badge variant="outline" className="text-[10px] border-teal-500/30 text-teal-400 ml-1">
+                  {eloEntries.length} combos / {eloEntries.reduce((s, [, e]) => s + e.matchCount, 0)} matches
+                </Badge>
+                {showVoteHistory ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+              </Button>
+              <AnimatePresence>
+                {showVoteHistory && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 rounded-lg border border-white/10 overflow-hidden">
+                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 bg-white/[0.02] border-b border-white/5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        <span>Blend</span>
+                        <span className="text-right">Rating</span>
+                        <span className="text-right">Matches</span>
+                        <span className="text-right">Wins</span>
+                        <span className="text-right">Win%</span>
+                        <span className="text-right">Conf</span>
+                      </div>
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {eloEntries.map(([key, entry], i) => {
+                          const files = key.split("||");
+                          const cleanName = (f: string) => f.replace(/(_\d+)?\.wav$/i, "");
+                          const winPct = entry.matchCount > 0 ? Math.round(((entry.winCount ?? 0) / entry.matchCount) * 100) : 0;
+                          const ratingColor = entry.rating >= 1100 ? "text-emerald-400" : entry.rating >= 1000 ? "text-teal-400" : entry.rating >= 900 ? "text-amber-400" : "text-red-400";
+                          const conf = Math.round((1 - entry.uncertainty) * 100);
+                          const confColor = conf >= 70 ? "text-emerald-400" : conf >= 40 ? "text-amber-400" : "text-muted-foreground";
+                          return (
+                            <div
+                              key={key}
+                              className={cn(
+                                "grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-3 px-3 py-1.5 text-[10px]",
+                                i % 2 === 0 ? "bg-transparent" : "bg-white/[0.01]"
+                              )}
+                              data-testid={`vote-history-row-${i}`}
+                            >
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="font-mono text-foreground truncate">{cleanName(files[0])}</span>
+                                <span className="font-mono text-muted-foreground truncate">+ {cleanName(files[1] ?? "")}</span>
+                              </div>
+                              <span className={cn("text-right font-mono font-medium tabular-nums self-center", ratingColor)}>
+                                {Math.round(entry.rating)}
+                              </span>
+                              <span className="text-right font-mono text-muted-foreground tabular-nums self-center">
+                                {entry.matchCount}
+                              </span>
+                              <span className="text-right font-mono text-foreground tabular-nums self-center">
+                                {entry.winCount ?? 0}
+                              </span>
+                              <span className={cn(
+                                "text-right font-mono tabular-nums self-center",
+                                winPct >= 60 ? "text-emerald-400" : winPct >= 40 ? "text-muted-foreground" : "text-red-400"
+                              )}>
+                                {winPct}%
+                              </span>
+                              <span className={cn("text-right font-mono tabular-nums self-center", confColor)}>
+                                {conf}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })()}
 
         {(allIRs.length > 0 || baseIR || featureIRs.length > 0) && (
           <div className="flex items-center gap-2 mb-4" data-testid="view-mode-toggle">
