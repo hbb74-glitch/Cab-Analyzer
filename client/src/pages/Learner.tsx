@@ -2279,10 +2279,18 @@ export default function Learner() {
 
   const TasteControlBar = (
     <div className="flex flex-col gap-2 mb-4" data-testid="taste-control-bar">
+      {!trainingMode && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-sm" data-testid="live-learning-banner">
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-semibold text-emerald-300 tracking-wide">LIVE LEARNING</span>
+          <span className="text-emerald-300/70 text-xs">AI is actively learning from your votes</span>
+        </div>
+      )}
+
       {trainingMode && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-500/40 bg-orange-500/10 text-sm" data-testid="sandbox-mode-banner">
           <span className="font-semibold text-orange-300 tracking-wide">SANDBOX MODE</span>
-          <span className="text-orange-300/70 text-xs">Votes are sandboxed ({sandboxVotes} votes) — live learning is untouched</span>
+          <span className="text-orange-300/70 text-xs">Votes are sandboxed ({sandboxVotes} votes) — AI is not being trained</span>
           <div className="ml-auto flex items-center gap-1.5">
             {sandboxVotes > 0 && (
               <Button
