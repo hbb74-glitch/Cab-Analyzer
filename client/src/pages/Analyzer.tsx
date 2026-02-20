@@ -4876,7 +4876,7 @@ export default function Analyzer() {
                                   <div className="flex items-center gap-1 flex-wrap">
                                     {computedRole && (
                                       <span
-                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(computedRole))}
+                                        className={cn("px-1.5 py-0.5 text-[11px] rounded font-bold", roleBadgeClass(computedRole))}
                                         data-testid={`badge-batch-musical-role-${index}`}
                                         title="Role classified from actual audio analysis"
                                       >

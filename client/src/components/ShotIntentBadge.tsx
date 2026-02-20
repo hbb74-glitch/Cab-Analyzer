@@ -55,7 +55,7 @@ export function ShotIntentBadge({ filename, hideIntents, hideRole }: { filename:
   return (
     <span className="inline-flex items-center gap-1">
       {!hideRole && (
-        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium border border-dashed border-white/20", ROLE_COLORS[lookup.predictedRole] || "bg-white/10 text-muted-foreground")} title="Predicted role from knowledge base (mic+position rules)">
+        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium italic border border-dashed border-white/20", ROLE_COLORS[lookup.predictedRole] || "bg-white/10 text-muted-foreground")} title="Predicted role from knowledge base (mic+position rules)">
           {lookup.predictedRole}
         </span>
       )}
