@@ -1,0 +1,116 @@
+Mixed Speaker IR Pairing Recommendations
+Context: Versatile (all contexts)
+========================================
+
+1. Velvet Blade
+   G12-65_SM7b_Cap_Cone_Tr_3in.wav + G12M_PR30_CapEdge_2.5in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 71.6/100
+   Sound: SM7B adds warmth and body; PR30 adds bite and clarity.
+   Expected Tone: A tight, punchy low-end with a razor-sharp top-end for aggressive rhythm tones.
+   Best For: Thrash metal rhythm guitars, tight chugs, and galloping riffs.
+   Intent Fit: Excellent for versatile use, especially in aggressive genres.
+   Why: The SM7B provides a warm, full-bodied foundation with a strong midrange presence, while the PR30 adds a sharp, cutting edge with its high hi-mid and presence content. The spectral complementarity ensures clarity and punch without harshness.
+
+2. Surgical Strike
+   G12-65_SM7b_Cap_Cone_Tr_3in.wav + G12M_PR30_CapEdge_Br_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 65:35
+   Score: 71.6/100
+   Sound: SM7B provides warmth and weight; PR30 adds brightness and precision.
+   Expected Tone: A balanced tone with a strong low-mid punch and articulate highs.
+   Best For: Modern metal rhythm and lead tones requiring clarity and weight.
+   Intent Fit: Highly versatile, with a focus on aggressive yet clear tones.
+   Why: The SM7B delivers a thick, warm base, while the PR30 at the brighter cap-edge position enhances articulation and adds a polished high-end. This pairing avoids midrange congestion while maintaining clarity.
+
+3. Iron Clarity
+   G12-65_M160_Cone_Br_4in.wav + G12M_PR30_CapEdge_2.5in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 68.4/100
+   Sound: M160 adds smoothness and warmth; PR30 adds clarity and cut.
+   Expected Tone: Smooth mids with a crisp, cutting top-end for articulate playing.
+   Best For: Fusion leads, bluesy bends, and articulate rhythm work.
+   Intent Fit: Versatile for both rhythm and lead contexts.
+   Why: The M160 offers a smooth, rounded midrange with a touch of warmth, while the PR30 injects a sharp, cutting high-end. This pairing ensures a balanced tone with no harshness.
+
+4. Molten Edge
+   G12-65_Roswell_Cap_6in.wav + G12M_MD441_Presence_CapEdge_4.5in.wav
+   Roles: Lead Polish + Foundation
+   Mix Ratio: 40:60
+   Score: 67.2/100
+   Sound: Roswell adds polish and smoothness; MD441_PRESENCE adds articulation and weight.
+   Expected Tone: A polished lead tone with a solid, articulate foundation.
+   Best For: Singing lead tones, melodic solos, and expressive playing.
+   Intent Fit: Excellent for lead-focused applications with clarity and polish.
+   Why: The Roswell provides a smooth, polished high-end for lead tones, while the MD441_PRESENCE delivers a solid, articulate foundation with its strong presence and hi-mid content.
+
+5. Thunder Bite
+   G12-65_SM7b_Cone_Br_3in.wav + G12M_PR30_Cap_Cone_Tr_3in.wav
+   Roles: Mid Thickener + Cut Layer
+   Mix Ratio: 55:45
+   Score: 66.4/100
+   Sound: SM7B adds warmth and thickness; PR30 adds sharpness and cut.
+   Expected Tone: Thick, punchy mids with a sharp, aggressive top-end.
+   Best For: Heavy rhythm tones, modern metal, and tight chugs.
+   Intent Fit: Great for rhythm-focused applications with a need for clarity.
+   Why: The SM7B thickens the midrange with its warm, rounded tone, while the PR30 adds a sharp, cutting edge to the high-mids and presence range. This pairing ensures a full yet articulate tone.
+
+6. Steel Velvet
+   G12-65_SM57_Cap_Cone_Tr_2in.wav + G12M_PR30_CapEdge_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 66/100
+   Sound: SM57 adds punch and warmth; PR30 adds brightness and clarity.
+   Expected Tone: A punchy, mid-forward tone with a clear, bright top-end.
+   Best For: Classic rock, hard rock, and modern metal rhythm tones.
+   Intent Fit: Versatile for rhythm and lead contexts.
+   Why: The SM57 provides a solid, punchy foundation with a slight midrange emphasis, while the PR30 adds clarity and brightness to the high-end. This pairing avoids harshness while maintaining articulation.
+
+7. Glass Anvil
+   G12-65_SM7b_Cap_OffCenter_3in.wav + G12M_PR30_Cap_Cone_Tr_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 65:35
+   Score: 66/100
+   Sound: SM7B adds warmth and body; PR30 adds sharpness and clarity.
+   Expected Tone: A warm, full-bodied tone with a sharp, articulate top-end.
+   Best For: Versatile rhythm and lead tones, especially in modern rock and metal.
+   Intent Fit: Highly versatile for various playing contexts.
+   Why: The SM7B provides a warm, rounded foundation with a slight off-center character, while the PR30 adds a sharp, cutting high-end. This pairing ensures a balanced tone with no harshness.
+
+8. Satin Crunch
+   G12-65_SM7b_CapEdge_3in.wav + G12M_MD421_Cap_3.5in.wav
+   Roles: Mid Thickener + Cut Layer
+   Mix Ratio: 55:45
+   Score: 64.4/100
+   Sound: SM7B adds warmth and thickness; MD421 adds brightness and cut.
+   Expected Tone: Thick, punchy mids with a bright, cutting top-end.
+   Best For: Crunchy rhythm tones, blues, and classic rock.
+   Intent Fit: Great for rhythm-focused applications with a need for clarity.
+   Why: The SM7B thickens the midrange with its warm, rounded tone, while the MD421 adds a bright, cutting edge to the high-mids and presence range. This pairing ensures a full yet articulate tone.
+
+9. Molten Glass
+   G12-65_SM57_CapEdge_Br_2in.wav + G12M_Roswell_Cap_6in.wav
+   Roles: Foundation + Lead Polish
+   Mix Ratio: 60:40
+   Score: 63.9/100
+   Sound: SM57 adds punch and warmth; Roswell adds smoothness and polish.
+   Expected Tone: A punchy, mid-forward tone with a smooth, polished top-end.
+   Best For: Expressive lead tones, melodic solos, and bluesy bends.
+   Intent Fit: Excellent for lead-focused applications with clarity and polish.
+   Why: The SM57 provides a solid, punchy foundation with a slight midrange emphasis, while the Roswell adds a smooth, polished high-end for lead tones. This pairing avoids harshness while maintaining articulation.
+
+10. Iron Silk
+   G12-65_Roswell_Cap_5in.wav + G12M_SM57_R121_Balanced_B_6in.wav
+   Roles: Lead Polish + Cut Layer
+   Mix Ratio: 40:60
+   Score: 62.4/100
+   Sound: Roswell adds polish and smoothness; SM57_R121 blend adds balance and articulation.
+   Expected Tone: A polished lead tone with a balanced, articulate foundation.
+   Best For: Singing lead tones, melodic solos, and expressive playing.
+   Intent Fit: Great for lead-focused applications with clarity and polish.
+   Why: The Roswell provides a smooth, polished high-end for lead tones, while the SM57_R121 blend adds a balanced, cutting edge to the high-mids and presence range. This pairing ensures a full yet articulate tone.
+
+SPEAKER ROLE ANALYSIS:
+Foundation roles were dominated by warm, mid-focused IRs like the SM7B and SM57, while Cut/Color roles were filled by brighter, more articulate IRs like the PR30 and MD421.
