@@ -37,6 +37,13 @@ interface UploadedIR {
   error: string | null;
 }
 
+const INTENTS = [
+  { value: "versatile", label: "Versatile (all contexts)" },
+  { value: "rhythm", label: "Rhythm" },
+  { value: "lead", label: "Lead" },
+  { value: "clean", label: "Clean" },
+];
+
 export default function Pairing() {
   const [speaker1IRs, setSpeaker1IRs] = useState<UploadedIR[]>([]);
   const [speaker2IRs, setSpeaker2IRs] = useState<UploadedIR[]>([]);
@@ -44,6 +51,7 @@ export default function Pairing() {
   const [genre, setGenre] = useState("");
   const [customGenre, setCustomGenre] = useState("");
   const [tonePreferences, setTonePreferences] = useState("");
+  const [intent, setIntent] = useState<"rhythm" | "lead" | "clean" | "versatile">("versatile");
   const { toast } = useToast();
   const { pairingResult: result, setPairingResult: setResult } = useResults();
 
@@ -52,18 +60,30 @@ export default function Pairing() {
   const copyPairings = () => {
     if (!result) return;
     
+    const intentLabel = INTENTS.find(i => i.value === intent)?.label || 'Versatile';
     let text = isMixedMode ? "Mixed Speaker IR Pairing Recommendations\n" : "IR Pairing Recommendations\n";
+    text += `Context: ${intentLabel}\n`;
     text += "=".repeat(40) + "\n\n";
     
     result.pairings.forEach((pairing, i) => {
       text += `${i + 1}. ${pairing.title}\n`;
+      const roleStr = (pairing.ir1Role && pairing.ir2Role)
+        ? `   Roles: ${pairing.ir1Role} + ${pairing.ir2Role}\n`
+        : '';
       text += `   ${pairing.ir1} + ${pairing.ir2}\n`;
+      text += roleStr;
       text += `   Mix Ratio: ${pairing.mixRatio}\n`;
       text += `   Score: ${pairing.score}/100\n`;
+      if (pairing.psychoacousticSummary) text += `   Sound: ${pairing.psychoacousticSummary}\n`;
       text += `   Expected Tone: ${pairing.expectedTone}\n`;
       text += `   Best For: ${pairing.bestFor}\n`;
+      if (pairing.intentFit) text += `   Intent Fit: ${pairing.intentFit}\n`;
       text += `   Why: ${pairing.rationale}\n\n`;
     });
+    
+    if (result.speakerRoleAnalysis) {
+      text += `SPEAKER ROLE ANALYSIS:\n${result.speakerRoleAnalysis}\n`;
+    }
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -95,17 +115,19 @@ export default function Pairing() {
   };
 
   const { mutate: analyzePairings, isPending } = useMutation({
-    mutationFn: async ({ irs, irs2, tonePrefs, mixedMode }: { 
+    mutationFn: async ({ irs, irs2, tonePrefs, mixedMode, intent: intentVal }: { 
       irs: IRMetrics[], 
       irs2?: IRMetrics[], 
       tonePrefs?: string,
-      mixedMode?: boolean 
+      mixedMode?: boolean,
+      intent?: "rhythm" | "lead" | "clean" | "versatile"
     }) => {
       const validated = api.pairing.analyze.input.parse({ 
         irs, 
         irs2, 
         tonePreferences: tonePrefs,
-        mixedMode 
+        mixedMode,
+        intent: intentVal,
       });
       const res = await fetch(api.pairing.analyze.path, {
         method: "POST",
@@ -224,9 +246,15 @@ export default function Pairing() {
         lowEnergy: ir.metrics!.lowEnergy,
         midEnergy: ir.metrics!.midEnergy,
         highEnergy: ir.metrics!.highEnergy,
+        subBassEnergy: ir.metrics!.subBassEnergy,
+        bassEnergy: ir.metrics!.bassEnergy,
+        lowMidEnergy: ir.metrics!.lowMidEnergy,
+        midEnergy6: ir.metrics!.midEnergy6,
+        highMidEnergy: ir.metrics!.highMidEnergy,
+        presenceEnergy: ir.metrics!.presenceEnergy,
+        frequencySmoothness: ir.metrics!.frequencySmoothness,
       }));
 
-    // Combine genre and tone preferences for the API
     const effectiveGenre = genre === 'custom' ? customGenre.trim() : genre;
     const combinedTonePrefs = [effectiveGenre, tonePreferences.trim()].filter(Boolean).join('; ') || undefined;
 
@@ -235,12 +263,14 @@ export default function Pairing() {
         irs: toMetrics(valid1), 
         irs2: toMetrics(valid2), 
         tonePrefs: combinedTonePrefs,
-        mixedMode: true 
+        mixedMode: true,
+        intent,
       });
     } else {
       analyzePairings({ 
         irs: toMetrics(valid1), 
-        tonePrefs: combinedTonePrefs 
+        tonePrefs: combinedTonePrefs,
+        intent,
       });
     }
   };
@@ -491,6 +521,33 @@ export default function Pairing() {
               )}
             </div>
 
+            {/* Intent Selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Playing Context
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {INTENTS.map((i) => (
+                  <button
+                    key={i.value}
+                    onClick={() => setIntent(i.value as typeof intent)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-sm font-medium border transition-all",
+                      intent === i.value
+                        ? "bg-primary/20 border-primary text-primary"
+                        : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
+                    )}
+                    data-testid={`button-intent-${i.value}`}
+                  >
+                    {i.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                AI optimizes pairings for your playing context — role combos differ for rhythm vs lead vs clean
+              </p>
+            </div>
+
             {/* Tone Preferences */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">
@@ -518,6 +575,7 @@ export default function Pairing() {
                   setGenre("");
                   setCustomGenre("");
                   setTonePreferences("");
+                  setIntent("versatile");
                 }}
                 className="px-4 py-3 rounded-lg font-medium text-sm border border-white/10 hover:bg-white/5 transition-all flex items-center gap-2"
                 data-testid="button-clear-pairings"
@@ -643,7 +701,34 @@ export default function Pairing() {
                         </div>
                       </div>
 
+                      {(pairing.ir1Role || pairing.ir2Role) && (
+                        <div className="flex flex-wrap gap-2">
+                          {pairing.ir1Role && (
+                            <span className="px-2 py-0.5 bg-primary/10 border border-primary/30 text-primary text-xs font-medium rounded">
+                              {pairing.ir1Role}
+                            </span>
+                          )}
+                          <span className="text-muted-foreground text-xs self-center">+</span>
+                          {pairing.ir2Role && (
+                            <span className="px-2 py-0.5 bg-secondary/10 border border-secondary/30 text-secondary text-xs font-medium rounded">
+                              {pairing.ir2Role}
+                            </span>
+                          )}
+                          {pairing.intentFit && (
+                            <span className="px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs rounded ml-auto">
+                              {pairing.intentFit}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       <p className="text-sm text-foreground/80">{pairing.rationale}</p>
+
+                      {pairing.psychoacousticSummary && (
+                        <p className="text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-2">
+                          {pairing.psychoacousticSummary}
+                        </p>
+                      )}
 
                       <div className="grid sm:grid-cols-2 gap-3 text-sm">
                         <div className="p-2 rounded bg-white/5">
@@ -658,6 +743,13 @@ export default function Pairing() {
                     </motion.div>
                   ))}
                 </div>
+
+                {result.speakerRoleAnalysis && (
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10 mt-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Speaker Role Analysis</p>
+                    <p className="text-sm text-foreground/80">{result.speakerRoleAnalysis}</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

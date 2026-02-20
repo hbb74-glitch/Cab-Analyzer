@@ -140,29 +140,42 @@ export const irMetricsSchema = z.object({
   lowEnergy: z.number(),
   midEnergy: z.number(),
   highEnergy: z.number(),
+  subBassEnergy: z.number().optional(),
+  bassEnergy: z.number().optional(),
+  lowMidEnergy: z.number().optional(),
+  midEnergy6: z.number().optional(),
+  highMidEnergy: z.number().optional(),
+  presenceEnergy: z.number().optional(),
+  frequencySmoothness: z.number().optional(),
 });
 
 export const pairingInputSchema = z.object({
   irs: z.array(irMetricsSchema).min(1, "Need at least 1 IR"),
-  irs2: z.array(irMetricsSchema).optional(), // Second speaker set for mixed pairing
-  tonePreferences: z.string().optional(), // Free-text tone goals: edgy, bright, thick, dark, aggressive, etc.
-  mixedMode: z.boolean().optional(), // True when pairing across two different speakers
+  irs2: z.array(irMetricsSchema).optional(),
+  tonePreferences: z.string().optional(),
+  mixedMode: z.boolean().optional(),
+  intent: z.enum(["rhythm", "lead", "clean", "versatile"]).optional(),
 });
 
 export const pairingResultSchema = z.object({
   title: z.string(),
   ir1: z.string(),
   ir2: z.string(),
+  ir1Role: z.string().optional(),
+  ir2Role: z.string().optional(),
   mixRatio: z.string(),
   score: z.number(),
   rationale: z.string(),
   expectedTone: z.string(),
   bestFor: z.string(),
+  intentFit: z.string().optional(),
+  psychoacousticSummary: z.string().optional(),
 });
 
 export const pairingResponseSchema = z.object({
   pairings: z.array(pairingResultSchema),
   summary: z.string(),
+  speakerRoleAnalysis: z.string().optional(),
 });
 
 export type IRMetrics = z.infer<typeof irMetricsSchema>;

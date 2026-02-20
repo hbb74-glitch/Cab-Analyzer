@@ -4571,152 +4571,178 @@ Output JSON:
     }
   });
 
-  // IR Pairing endpoint - analyze multiple IRs for best pairings with mix ratios
+  // IR Pairing endpoint - role-aware, intent-driven, psychoacoustically informed
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {
       const input = api.pairing.analyze.input.parse(req.body);
       const { irs, irs2, tonePreferences, mixedMode } = input;
+      const intent = input.intent || 'versatile';
 
-      // Determine if this is mixed speaker pairing (two separate speaker sets)
       const isMixedPairing = mixedMode && irs2 && irs2.length > 0;
 
-      const basePrompt = `You are an expert audio engineer specializing in guitar cabinet impulse responses (IRs).
-      
-      Understanding IR Mixing:
-      - Mixing two IRs blends their frequency characteristics
-      - Complementary IRs cover different frequency ranges (e.g., bright + warm)
-      - All IRs being analyzed are minimum phase transformed (MPT) - phase cancellation is NOT a concern
-      - Similar IRs reinforce each other and can add subtle thickness
-      - The mix ratio determines how much of each IR contributes to the final sound
-      
-      Mix Ratio Guidelines:
-      - 50:50: Equal blend, best when both IRs are equally important
-      - 60:40: Slight emphasis on the first IR while retaining character of second
-      - 65:35: First IR dominates but second adds color/depth
-      - 70:30: First IR is primary, second adds subtle enhancement
-      - 75:25: First IR is main character, second adds just a hint of color
-      
-      Pairing Criteria (what makes a good pair):
-      - Complementary frequency balance (one brighter, one warmer)
-      - Different spectral centroids (indicates different tonal focus)
-      - Combined coverage across low/mid/high energy ranges
-      - Similar IRs can work well together for subtle reinforcement (no phase issues with MPT)
-      
-      Analysis approach:
-      - Look at spectral centroid: higher = brighter, lower = warmer
-      - Look at energy distribution: lowEnergy, midEnergy, highEnergy
-      - Consider how each IR's characteristics complement or conflict`;
+      const profiles = await storage.getTonalProfiles();
+      let learnedPrefsSection = '';
+      if (profiles.length > 0) {
+        const avgBands: Record<string, number[]> = {};
+        for (const p of profiles) {
+          const key = `${p.mic}_${p.position}`;
+          if (!avgBands[key]) avgBands[key] = [];
+          avgBands[key].push(p.ratio ?? 0);
+        }
+        const summaries = Object.entries(avgBands).slice(0, 15).map(([k, ratios]) => {
+          const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+          return `  ${k}: avg ratio=${avgRatio.toFixed(2)} (${ratios.length} samples)`;
+        });
+        learnedPrefsSection = `\n=== LEARNED TONAL PREFERENCES (from ${profiles.length} analyzed IRs) ===\n${summaries.join('\n')}\nUse these to understand the user's existing tonal palette and suggest pairings that complement or extend it.\n`;
+      }
 
-      let systemPrompt: string;
+      const describeIR = (ir: typeof irs[0], setLabel?: string): string => {
+        const parsed = parseFilenameForExpectations(ir.filename);
+        const kbLookup = lookupMicRole(parsed.mic, parsed.position, undefined);
+        const has6Band = ir.subBassEnergy != null && ir.bassEnergy != null && ir.lowMidEnergy != null && ir.midEnergy6 != null && ir.highMidEnergy != null && ir.presenceEnergy != null;
+
+        let desc = `${setLabel ? `  ${setLabel} ` : ''}IR: "${ir.filename}"\n`;
+        desc += `    Mic: ${parsed.mic.toUpperCase()} | Position: ${parsed.position} | Speaker: ${parsed.speaker}\n`;
+        desc += `    Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz | Smoothness: ${(ir.frequencySmoothness ?? 0).toFixed(1)}\n`;
+
+        if (has6Band) {
+          desc += `    6-Band Energy: SubBass=${(ir.subBassEnergy! * 100).toFixed(1)}% Bass=${(ir.bassEnergy! * 100).toFixed(1)}% LowMid=${(ir.lowMidEnergy! * 100).toFixed(1)}% Mid=${(ir.midEnergy6! * 100).toFixed(1)}% HiMid=${(ir.highMidEnergy! * 100).toFixed(1)}% Presence=${(ir.presenceEnergy! * 100).toFixed(1)}%\n`;
+          const hmRatio = ir.highMidEnergy! / Math.max(ir.midEnergy6!, 0.001);
+          desc += `    HiMid/Mid Ratio: ${hmRatio.toFixed(2)} (>1.5 = bright/aggressive, <1.0 = warm/dark)\n`;
+        } else {
+          desc += `    Energy: Low=${(ir.lowEnergy * 100).toFixed(1)}% Mid=${(ir.midEnergy * 100).toFixed(1)}% High=${(ir.highEnergy * 100).toFixed(1)}%\n`;
+        }
+
+        const psycho: string[] = [];
+        if (ir.spectralCentroid > 2800) psycho.push('bright, forward');
+        else if (ir.spectralCentroid > 2200) psycho.push('balanced-bright');
+        else if (ir.spectralCentroid > 1600) psycho.push('warm, mid-focused');
+        else psycho.push('dark, heavy');
+
+        if (has6Band) {
+          if (ir.subBassEnergy! > 0.15) psycho.push('heavy rumble');
+          if (ir.bassEnergy! > 0.22) psycho.push('thick body');
+          if (ir.lowMidEnergy! > 0.20) psycho.push('warm mud zone');
+          if (ir.highMidEnergy! > 0.22) psycho.push('biting attack');
+          if (ir.presenceEnergy! > 0.18) psycho.push('sizzle/fizz');
+          if ((ir.frequencySmoothness ?? 0) > 80) psycho.push('smooth response');
+          else if ((ir.frequencySmoothness ?? 0) < 40) psycho.push('raw/uneven response');
+        }
+        desc += `    Psychoacoustic Character: ${psycho.join(', ')}\n`;
+
+        if (kbLookup) {
+          desc += `    KB Predicted Role: ${kbLookup.predictedRole} (${kbLookup.confidence} confidence)\n`;
+          desc += `    Best For Intents: ${kbLookup.bestForIntents.join(', ')}\n`;
+        }
+
+        return desc;
+      }
+
+      const intentGuide = intent && intent !== 'versatile' ? {
+        rhythm: `RHYTHM CONTEXT: Prioritize Foundation + Cut Layer pairings for punch and clarity. Ideal: one IR with solid mid body (Foundation/Mid Thickener) paired with one that adds bite and articulation (Cut Layer). Avoid excessive brightness or fizz. The blend should sit well in a dense mix, support palm mutes, and maintain note definition under gain.`,
+        lead: `LEAD CONTEXT: Prioritize Foundation + Lead Polish or Cut Layer + Lead Polish pairings for singing sustain and presence. The blend should have smooth upper harmonics, detailed highs without harshness, and enough mid presence to cut through without being abrasive. Sustain and note bloom matter more than tightness.`,
+        clean: `CLEAN CONTEXT: Prioritize Foundation + Fizz Tamer or Foundation + Lead Polish for shimmer and warmth without brittleness. Clean tones need smooth, even response with sparkle in the highs and warmth in the lows. Avoid anything harsh, buzzy, or overly aggressive. The blend should respond well to dynamics and have a polished, hi-fi quality.`,
+      }[intent] : 'VERSATILE CONTEXT: Design pairings that work across rhythm, lead, and clean playing. Prioritize complementary roles — one warm/full IR with one bright/detailed IR.';
+
+      const roleDefinitions = `=== MUSICAL ROLES (assign one per IR) ===
+- Foundation: Balanced, neutral base layer — punchy, sits well in any mix
+- Cut Layer: Forward, bright, aggressive — adds attack, bite, presence
+- Mid Thickener: Warm, thick mids, rolled-off highs — body and warmth
+- Fizz Tamer: Smooth, dark, rolled-off top — controls fizz and harshness
+- Lead Polish: Refined, hi-fi detail with extended highs — polished, singing quality
+- Dark Specialty: Very dark, deep — for ambient, doom, specialty tones
+
+=== ROLE PAIRING GUIDELINES (psychoacoustically sound combos) ===
+EXCELLENT pairs: Foundation + Cut Layer (classic punch+bite), Foundation + Lead Polish (body+detail), Mid Thickener + Cut Layer (warm+articulate)
+GOOD pairs: Foundation + Fizz Tamer (smooth fullness), Cut Layer + Lead Polish (bright+refined), Mid Thickener + Lead Polish (warm+polished)
+SPECIALTY pairs: Foundation + Dark Specialty (heavy/doom), Fizz Tamer + Lead Polish (ultra-smooth)
+AVOID: Cut Layer + Cut Layer (too harsh), Dark Specialty + Fizz Tamer (too dark/muddy)`;
+
+      const mixerSection = `=== PSYCHOACOUSTIC MIX PRINCIPLES ===
+- Complementary spectral centroids create wider perceived tonal range
+- HiMid/Mid ratio difference >0.3 between paired IRs = complementary attack characteristics
+- Mix ratio follows the "dominant character" rule: the IR providing the desired base tone gets 55-70%, the color IR gets 30-45%
+- For rhythm: emphasize the tighter, punchier IR. For lead: emphasize the smoother, more detailed IR.
+- Similar smoothness values reinforce each other well; different smoothness creates texture contrast
+
+Mix Ratio Guidelines:
+- 50:50: Equal blend — both contribute equally (best for similar-quality IRs)
+- 55:45 to 60:40: Slight emphasis — main character + supporting color
+- 65:35 to 70:30: Clear lead IR + accent color from second
+- 75:25: Primary tone with subtle enhancement hint`;
+
+      const outputFormat = `{
+  "pairings": [
+    {
+      "title": "Short evocative name (e.g. 'Punch & Silk', 'Warm Crunch', 'Lead Machine')",
+      "ir1": "exact filename of first IR",
+      "ir2": "exact filename of second IR",
+      "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
+      "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
+      "mixRatio": "e.g. '60:40' (ir1:ir2)",
+      "score": 0-100,
+      "rationale": "Why these roles complement each other and how the blend works psychoacoustically",
+      "expectedTone": "Psychoacoustic description of the blended sound using real descriptors (punch, warmth, shimmer, bite, etc.)",
+      "bestFor": "Playing contexts and styles this blend excels at",
+      "intentFit": "How well this pairing fits the ${intent || 'versatile'} context",
+      "psychoacousticSummary": "1-sentence: what each IR contributes perceptually (e.g., 'IR1 provides mid punch and low-end weight, IR2 adds upper-mid articulation and presence sparkle')"
+    }
+  ],
+  "summary": "Overview of the set and pairing recommendations",
+  "speakerRoleAnalysis": "${isMixedPairing ? 'Analysis of which speaker naturally fits which role (Foundation vs Cut vs Lead Polish) based on their spectral characteristics. Explain which speaker should typically be the base layer and which provides color/detail.' : ''}"
+}`;
+
+      let systemPrompt = `You are an expert audio engineer and psychoacoustician specializing in guitar cabinet IR blending.
+You understand musical roles, spectral complementarity, and how different mic positions create distinct tonal characters.
+All IRs are minimum phase transformed (MPT) — phase cancellation is NOT a concern when blending.
+
+${roleDefinitions}
+
+${mixerSection}
+
+${intentGuide}
+${learnedPrefsSection}`;
+
       let userMessage: string;
 
       if (isMixedPairing) {
-        // Mixed speaker mode - pair IRs across two different speaker sets
-        systemPrompt = basePrompt + `
-      
-      MIXED SPEAKER PAIRING MODE:
-      You are analyzing IRs from TWO DIFFERENT speaker cabinets/speakers.
-      Your task is to find the best cross-speaker pairings - always pair one IR from Speaker Set 1 with one IR from Speaker Set 2.
-      This creates unique blended tones that combine the characteristics of both speakers.
-      
-      Benefits of mixed speaker pairing:
-      - Combines the attack/clarity of one speaker with the warmth/body of another
-      - Creates unique hybrid tones not achievable with a single speaker
-      - Allows fine-tuning the blend ratio to taste
-      
-      Output the TOP 3-5 best cross-speaker pairings.
-      Each pairing MUST include one IR from Set 1 and one IR from Set 2.
-      Score each pairing from 0-100 based on how well they complement each other.
-      
-      Output JSON format:
-      {
-        "pairings": [
-          {
-            "title": "Short catchy name for this pairing (e.g. 'The Clarity Punch', 'Warm Modern Crunch', 'Vintage Thickness')",
-            "ir1": "filename from Speaker Set 1",
-            "ir2": "filename from Speaker Set 2",
-            "mixRatio": "e.g. '60:40' (set1:set2)",
-            "score": number (0-100, how well they pair),
-            "rationale": "Why these two speakers/positions work well together",
-            "expectedTone": "Description of the blended cross-speaker sound",
-            "bestFor": "What styles/sounds this blend is ideal for"
-          }
-        ],
-        "summary": "Brief overall summary of the cross-speaker pairing recommendations"
-      }`;
+        systemPrompt += `\n\nMIXED SPEAKER PAIRING MODE:
+You are analyzing IRs from TWO DIFFERENT speakers. Every pairing MUST cross speakers (one from Set 1, one from Set 2).
+Determine which speaker naturally serves which role (e.g., Speaker 1 = Foundation provider, Speaker 2 = Cut Layer provider).
+Use the spectral data, KB role predictions, and psychoacoustic character to make this determination.
+For each pairing, assign the optimal role to each IR and explain the speaker role dynamics.
 
-        const set1Descriptions = irs.map((ir, i) => 
-          `  IR 1.${i + 1}: "${ir.filename}"
-           - Duration: ${ir.duration.toFixed(1)}ms
-           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
-           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
-           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
-           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
-        ).join('\n\n');
+Output the TOP 3-5 best cross-speaker pairings.
+Output JSON format:
+${outputFormat}`;
 
-        const set2Descriptions = irs2!.map((ir, i) => 
-          `  IR 2.${i + 1}: "${ir.filename}"
-           - Duration: ${ir.duration.toFixed(1)}ms
-           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
-           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
-           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
-           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
-        ).join('\n\n');
+        const set1Desc = irs.map((ir, i) => describeIR(ir, `1.${i + 1}`)).join('\n');
+        const set2Desc = irs2!.map((ir, i) => describeIR(ir, `2.${i + 1}`)).join('\n');
 
-        userMessage = `Analyze these IRs from TWO DIFFERENT SPEAKERS and recommend the best cross-speaker pairings:
+        userMessage = `Analyze these IRs from TWO DIFFERENT SPEAKERS and find the best role-complementary cross-speaker pairings:
 
 SPEAKER SET 1 (${irs.length} IRs):
-${set1Descriptions}
+${set1Desc}
 
 SPEAKER SET 2 (${irs2!.length} IRs):
-${set2Descriptions}
+${set2Desc}
 
-Find the best pairings that combine one IR from Set 1 with one IR from Set 2.`;
+Determine optimal roles and speaker role assignments. Each pairing must cross speakers.`;
 
       } else {
-        // Single speaker mode - original behavior
-        systemPrompt = basePrompt + `
-      
-      Your task is to analyze a set of IRs and determine which ones pair well together when mixed.
-      
-      Output the TOP 3-5 best pairings from the provided IRs.
-      Score each pairing from 0-100 based on how well they complement each other.
-      
-      Output JSON format:
-      {
-        "pairings": [
-          {
-            "title": "Short catchy name for this pairing (e.g. 'The Clarity Punch', 'Warm Modern Crunch', 'Vintage Thickness')",
-            "ir1": "filename of first IR",
-            "ir2": "filename of second IR",
-            "mixRatio": "e.g. '60:40' (first:second)",
-            "score": number (0-100, how well they pair),
-            "rationale": "Why these two work well together",
-            "expectedTone": "Description of the blended sound",
-            "bestFor": "What styles/sounds this blend is ideal for"
-          }
-        ],
-        "summary": "Brief overall summary of the IR set and pairing recommendations"
-      }`;
+        systemPrompt += `\n\nSINGLE SPEAKER MODE:
+Analyze the set and find the best role-complementary pairings within the same speaker.
+Output the TOP 3-5 best pairings.
+Output JSON format:
+${outputFormat}`;
 
-        const irDescriptions = irs.map((ir, i) => 
-          `IR ${i + 1}: "${ir.filename}"
-           - Duration: ${ir.duration.toFixed(1)}ms
-           - Peak Level: ${ir.peakLevel.toFixed(1)}dB
-           - Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz
-           - Low Energy: ${(ir.lowEnergy * 100).toFixed(1)}%
-           - Mid Energy: ${(ir.midEnergy * 100).toFixed(1)}%
-           - High Energy: ${(ir.highEnergy * 100).toFixed(1)}%`
-        ).join('\n\n');
-
-        userMessage = `Analyze these ${irs.length} IRs and recommend the best pairings with optimal mix ratios:\n\n${irDescriptions}`;
+        const irDesc = irs.map((ir, i) => describeIR(ir)).join('\n');
+        userMessage = `Analyze these ${irs.length} IRs and recommend the best role-aware pairings with optimal mix ratios:\n\n${irDesc}`;
       }
-      
+
       if (tonePreferences && tonePreferences.trim()) {
-        userMessage += `\n\nIMPORTANT - User's desired tone characteristics: "${tonePreferences.trim()}"
-Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recommendations to best deliver this sound.`;
+        userMessage += `\n\nUSER'S TONAL GOALS: "${tonePreferences.trim()}"
+Prioritize pairings that achieve these psychoacoustic goals. Adjust role assignments and mix ratios to best deliver this sound.`;
       }
 
       const response = await openai.chat.completions.create({
@@ -4726,8 +4752,8 @@ Prioritize pairings that achieve these tonal goals. Adjust mix ratios and recomm
           { role: "user", content: userMessage }
         ],
         response_format: { type: "json_object" },
-        temperature: 0, // Deterministic results for consistent recommendations
-        seed: 42, // Fixed seed for reproducibility
+        temperature: 0.15,
+        max_tokens: 8192,
       });
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
