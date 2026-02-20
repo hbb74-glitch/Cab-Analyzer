@@ -8,7 +8,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -647,7 +647,6 @@ export default function Learner() {
     return persisted;
   });
   const [resetAllConfirm, setResetAllConfirm] = useState(false);
-  const [promoteConfirm, setPromoteConfirm] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
   const [singleIrPage, setSingleIrPage] = useState(0);
@@ -1273,7 +1272,7 @@ export default function Learner() {
     const lines: string[] = [];
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
     lines.push(`=== Voting Results Export — ${ts} ===`);
-    lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | Training: ${trainingMode ? "yes (sandbox)" : "no (live)"}`);
+    lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | ${trainingMode ? "Sandbox" : "Live"}`);
     lines.push(`Pairing rounds completed: ${totalRoundsCompleted}`);
     const allTimeVotes = getTasteVoteCount(tasteContext);
     const currentSessionVotes = tasteCheckPhase?.history?.length ?? 0;
@@ -2281,34 +2280,23 @@ export default function Learner() {
   const TasteControlBar = (
     <div className="flex flex-col gap-2 mb-4" data-testid="taste-control-bar">
       {trainingMode && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-500/40 bg-orange-500/10 text-sm" data-testid="training-mode-banner">
-          <span className="font-semibold text-orange-300 tracking-wide">TRAINING MODE</span>
-          <span className="text-orange-300/70 text-xs">Votes go to sandbox ({sandboxVotes} votes) — live data is untouched</span>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-500/40 bg-orange-500/10 text-sm" data-testid="sandbox-mode-banner">
+          <span className="font-semibold text-orange-300 tracking-wide">SANDBOX MODE</span>
+          <span className="text-orange-300/70 text-xs">Votes are sandboxed ({sandboxVotes} votes) — live learning is untouched</span>
           <div className="ml-auto flex items-center gap-1.5">
             {sandboxVotes > 0 && (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs text-emerald-400 h-7"
-                  onClick={() => setPromoteConfirm(true)}
-                  data-testid="button-promote-sandbox"
-                >
-                  Promote to Live
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="text-xs text-orange-300 h-7"
-                  onClick={() => {
-                    clearSandbox();
-                    setTasteVersion(v => v + 1);
-                  }}
-                  data-testid="button-discard-sandbox"
-                >
-                  Discard
-                </Button>
-              </>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-orange-300 h-7"
+                onClick={() => {
+                  clearSandbox();
+                  setTasteVersion(v => v + 1);
+                }}
+                data-testid="button-discard-sandbox"
+              >
+                Discard
+              </Button>
             )}
             <Button
               size="sm"
@@ -2320,43 +2308,11 @@ export default function Learner() {
                 persistTrainingMode(false);
                 setTasteVersion(v => v + 1);
               }}
-              data-testid="button-exit-training"
+              data-testid="button-exit-sandbox"
             >
-              Exit Training
+              Exit Sandbox
             </Button>
           </div>
-        </div>
-      )}
-
-      {promoteConfirm && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-sm text-emerald-300" data-testid="promote-confirm-banner">
-          <span className="text-xs">Merge {sandboxVotes} sandbox votes into your live learning data?</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-xs text-emerald-400 h-7"
-            onClick={() => {
-              promoteSandboxToLive();
-              setTrainingMode(false);
-              setSandboxMode(false);
-              persistTrainingMode(false);
-              setPromoteConfirm(false);
-              setTasteVersion(v => v + 1);
-              toast({ title: "Sandbox promoted to live", description: `${sandboxVotes} votes merged into your live learning data.`, duration: 3000 });
-            }}
-            data-testid="button-promote-confirm"
-          >
-            Yes, merge
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-xs h-7"
-            onClick={() => setPromoteConfirm(false)}
-            data-testid="button-promote-cancel"
-          >
-            Cancel
-          </Button>
         </div>
       )}
 
@@ -2402,7 +2358,7 @@ export default function Learner() {
 
       {!trainingMode && sandboxVotes > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300" data-testid="sandbox-orphan-banner">
-          <span>You have {sandboxVotes} sandbox votes from a previous training session.</span>
+          <span>You have {sandboxVotes} sandbox votes from a previous session.</span>
           <Button
             size="sm"
             variant="ghost"
@@ -2413,18 +2369,9 @@ export default function Learner() {
               persistTrainingMode(true);
               setTasteVersion(v => v + 1);
             }}
-            data-testid="button-resume-training"
+            data-testid="button-resume-sandbox"
           >
-            Resume Training
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-xs text-emerald-300 h-7"
-            onClick={() => setPromoteConfirm(true)}
-            data-testid="button-promote-orphan"
-          >
-            Promote to Live
+            Resume Sandbox
           </Button>
           <Button
             size="sm"
@@ -2474,10 +2421,10 @@ export default function Learner() {
             persistTrainingMode(next);
             setTasteVersion(v => v + 1);
           }}
-          title={trainingMode ? "Currently in Training Mode — votes are sandboxed" : "Enter Training Mode — votes won't affect live learning"}
-          data-testid="button-training-mode"
+          title={trainingMode ? "Currently in Sandbox Mode — votes won't affect live learning" : "Enter Sandbox Mode — experiment without affecting live learning"}
+          data-testid="button-sandbox-mode"
         >
-          {trainingMode ? "Training" : "Training Mode"}
+          {trainingMode ? "Sandbox" : "Sandbox Mode"}
         </Button>
 
         <Button
