@@ -712,13 +712,24 @@ export default function Pairing() {
                             <p className="text-2xl font-bold text-primary">{pairing.mixRatio}</p>
                             <p className="text-xs text-muted-foreground">mix ratio</p>
                           </div>
-                          <div className={cn(
-                            "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg",
-                            pairing.score >= 85 ? "bg-primary/20 text-primary" :
-                            pairing.score >= 70 ? "bg-yellow-500/20 text-yellow-500" :
-                            "bg-orange-500/20 text-orange-500"
-                          )}>
-                            {pairing.score}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className={cn(
+                              "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg",
+                              pairing.score >= 90 ? "bg-emerald-500/20 text-emerald-400" :
+                              pairing.score >= 80 ? "bg-primary/20 text-primary" :
+                              pairing.score >= 70 ? "bg-yellow-500/20 text-yellow-400" :
+                              pairing.score >= 60 ? "bg-orange-500/20 text-orange-400" :
+                              "bg-red-500/20 text-red-400"
+                            )}>
+                              {pairing.score}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground leading-none">
+                              {pairing.score >= 90 ? "excellent" :
+                               pairing.score >= 80 ? "great" :
+                               pairing.score >= 70 ? "good" :
+                               pairing.score >= 60 ? "decent" :
+                               "weak"}
+                            </p>
                           </div>
                         </div>
                       </div>
