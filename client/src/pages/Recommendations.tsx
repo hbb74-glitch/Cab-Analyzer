@@ -54,16 +54,16 @@ const BLEND_MIC_VALUES = BLEND_MICS.map(m => m.value);
 type MicRecipeEntry = { mic: string; label: string; count: number; singleDistance: boolean; singlePosition: boolean };
 
 const SPEAKERS = [
-  { value: "g12m25", label: "G12M (Greenback)" },
-  { value: "v30-china", label: "V30" },
-  { value: "v30-blackcat", label: "V30BC (Black Cat)" },
+  { value: "greenback", label: "G12M (Greenback)" },
+  { value: "v30", label: "V30" },
+  { value: "v30bc", label: "V30BC (Black Cat)" },
   { value: "k100", label: "K100" },
   { value: "g12t75", label: "G12T75" },
   { value: "g12-65", label: "G12-65 Heritage" },
-  { value: "g12h30-anniversary", label: "G12H Anniversary" },
-  { value: "celestion-cream", label: "Cream" },
+  { value: "g12h", label: "G12H Anniversary" },
+  { value: "cream", label: "Cream" },
   { value: "ga12-sc64", label: "GA12-SC64" },
-  { value: "g10-sc64", label: "GA10-SC64" },
+  { value: "ga10-sc64", label: "GA10-SC64" },
   { value: "karnivore", label: "Karnivore" },
 ];
 
@@ -1359,13 +1359,19 @@ export default function Recommendations() {
   // Shorthand mappings for speakers
   const SPEAKER_SHORTHAND: Record<string, string> = {
     "celestion-cream": "Cream",
+    "cream": "Cream",
     "v30-china": "V30",
+    "v30": "V30",
     "v30-blackcat": "V30BC",
+    "v30bc": "V30BC",
     "g12m25": "G12M",
+    "greenback": "Greenback",
     "g12h30-anniversary": "G12H",
+    "g12h": "G12H",
     "g12-65": "G12-65",
     "ga12-sc64": "GA12-SC64",
-    "g10-sc64": "GA10-SC64",  // G10-SC64 speaker -> GA10-SC64 shorthand
+    "ga10-sc64": "GA10-SC64",
+    "g10-sc64": "GA10-SC64",
     "k100": "K100",
     "g12t75": "G12T75",
     "karnivore": "Karnivore",
