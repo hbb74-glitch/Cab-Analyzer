@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List } from "lucide-react";
@@ -9,6 +9,9 @@ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
+import { computeTonalFeatures } from "@/lib/tonal-engine";
+import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
+import { DEFAULT_PROFILES } from "@/lib/preference-profiles";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
 
 const GENRES = [
@@ -36,6 +39,8 @@ interface UploadedIR {
   metrics: AudioMetrics | null;
   analyzing: boolean;
   error: string | null;
+  features: import("@/lib/preference-profiles").TonalFeatures | null;
+  bands: import("@/lib/preference-profiles").TonalBands | null;
 }
 
 const INTENTS = [
@@ -161,6 +166,8 @@ export default function Pairing() {
       metrics: null,
       analyzing: true,
       error: null,
+      features: null,
+      bands: null,
     }));
 
     setIRs(newIRs);
@@ -170,9 +177,10 @@ export default function Pairing() {
       const file = wavFiles[i];
       try {
         const metrics = await analyzeAudioFile(file);
+        const features = computeTonalFeatures(metrics);
         setIRs(prev => prev.map(ir => 
           ir.file.name === file.name && ir.file.size === file.size
-            ? { ...ir, metrics, analyzing: false }
+            ? { ...ir, metrics, analyzing: false, features, bands: features.bandsPercent }
             : ir
         ));
       } catch (err) {
@@ -298,6 +306,18 @@ export default function Pairing() {
   const canAnalyze = isMixedMode 
     ? (valid1Count >= 1 && valid2Count >= 1 && totalAnalyzing === 0)
     : (valid1Count >= 2 && totalAnalyzing === 0);
+
+  const irFeaturesMap = useMemo(() => {
+    const map = new Map<string, BlendPreviewIR>();
+    for (const ir of [...speaker1IRs, ...speaker2IRs]) {
+      if (ir.features && ir.bands) {
+        map.set(ir.file.name, { filename: ir.file.name, features: ir.features, bands: ir.bands });
+        const nameNoExt = ir.file.name.replace(/\.wav$/i, "");
+        map.set(nameNoExt, { filename: ir.file.name, features: ir.features, bands: ir.bands });
+      }
+    }
+    return map;
+  }, [speaker1IRs, speaker2IRs]);
 
   const IRList = ({ 
     irs, 
@@ -773,6 +793,22 @@ export default function Pairing() {
                           <p className="text-foreground/90">{pairing.bestFor}</p>
                         </div>
                       </div>
+
+                      {(() => {
+                        const ir1Data = irFeaturesMap.get(pairing.ir1) || irFeaturesMap.get(pairing.ir1.replace(/\.wav$/i, ""));
+                        const ir2Data = irFeaturesMap.get(pairing.ir2) || irFeaturesMap.get(pairing.ir2.replace(/\.wav$/i, ""));
+                        if (ir1Data && ir2Data) {
+                          return (
+                            <PairingBlendPreview
+                              ir1={ir1Data}
+                              ir2={ir2Data}
+                              profiles={DEFAULT_PROFILES}
+                              defaultRatioLabel={pairing.mixRatio}
+                            />
+                          );
+                        }
+                        return null;
+                      })()}
                     </motion.div>
                   ))}
                 </div>

@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, Layers, X, Blend, ChevronDown, ChevronUp, Crown, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3 } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3 } from "lucide-react";
+import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
@@ -25,8 +26,6 @@ import {
   type TasteConfidence,
   scoreAgainstAllProfiles,
   scoreBlendQuality,
-  findFoundationIR,
-  rankBlendPartners,
   suggestPairings,
   pickTasteCheckCandidates,
   getTasteConfidence,
@@ -44,76 +43,6 @@ interface AnalyzedIR {
   rawEnergy: TonalBands;
   bands: TonalBands;
   features: TonalFeatures;
-}
-
-const BAND_COLORS = [
-  { label: "SubBass", key: "subBass" as const, color: "bg-purple-500" },
-  { label: "Bass", key: "bass" as const, color: "bg-blue-500" },
-  { label: "LowMid", key: "lowMid" as const, color: "bg-cyan-500" },
-  { label: "Mid", key: "mid" as const, color: "bg-green-500" },
-  { label: "HiMid", key: "highMid" as const, color: "bg-yellow-500" },
-  { label: "Presence", key: "presence" as const, color: "bg-orange-500" },
-  { label: "Air", key: "air" as const, color: "bg-rose-400" },
-  { label: "Fizz", key: "fizz" as const, color: "bg-red-500" },
-];
-
-const BLEND_RATIOS = [
-  { label: "70/30", base: 0.7, feature: 0.3 },
-  { label: "60/40", base: 0.6, feature: 0.4 },
-  { label: "50/50", base: 0.5, feature: 0.5 },
-  { label: "40/60", base: 0.4, feature: 0.6 },
-  { label: "30/70", base: 0.3, feature: 0.7 },
-];
-
-function MatchBadge({ match }: { match: MatchResult }) {
-  const colorMap = {
-    strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
-    partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    miss: "bg-white/5 text-muted-foreground border-white/10",
-  };
-  const iconMap = {
-    strong: Target,
-    close: Target,
-    partial: Zap,
-    miss: Zap,
-  };
-  const Icon = iconMap[match.label];
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[match.label])} data-testid={`badge-match-${match.profile.toLowerCase()}`}>
-      <Icon className="w-2.5 h-2.5" />
-      {match.profile} {match.score}
-    </span>
-  );
-}
-
-function BlendQualityBadge({ score, label }: { score: number; label: MatchResult["label"] }) {
-  const colorMap = {
-    strong: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    close: "bg-sky-500/20 text-sky-400 border-sky-500/30",
-    partial: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    miss: "bg-white/5 text-muted-foreground border-white/10",
-  };
-  const qualityLabel = label === "strong" ? "Great" : label === "close" ? "Good" : label === "partial" ? "OK" : "Weak";
-  const Icon = label === "strong" || label === "close" ? Blend : Zap;
-  return (
-    <span className={cn("inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border", colorMap[label])} data-testid="badge-blend-quality">
-      <Icon className="w-2.5 h-2.5" />
-      {qualityLabel} {score}
-    </span>
-  );
-}
-
-
-function ProfileScores({ features, profiles }: { features: TonalFeatures; profiles?: import("@/lib/preference-profiles").PreferenceProfile[] }) {
-  const { results } = scoreAgainstAllProfiles(features, profiles);
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {results.map((r) => (
-        <MatchBadge key={r.profile} match={r} />
-      ))}
-    </div>
-  );
 }
 
 function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centroid?: number }) {
@@ -143,41 +72,6 @@ function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centr
           Centroid: {Math.round(centroid)} Hz
         </span>
       )}
-    </div>
-  );
-}
-
-function BandChart({ bands, features, height = 20, compact = false, showScores = false, profiles, centroid }: { bands: TonalBands; features?: TonalFeatures; height?: number; compact?: boolean; showScores?: boolean; profiles?: import("@/lib/preference-profiles").PreferenceProfile[]; centroid?: number }) {
-  const hiMidMidRatio = bands.mid > 0 ? Math.round((bands.highMid / bands.mid) * 100) / 100 : 0;
-  return (
-    <div className="space-y-1">
-      <div className={cn("grid grid-cols-6 gap-1", compact ? "text-[9px]" : "text-xs")}>
-        {BAND_COLORS.map((band) => (
-          <div key={band.key} className="flex flex-col items-center">
-            <div className={cn("w-full bg-white/5 rounded overflow-hidden flex flex-col-reverse")} style={{ height: `${height * 4}px` }}>
-              <div
-                className={cn(band.color, "w-full transition-all")}
-                style={{ height: `${Math.min(bands[band.key], 100)}%` }}
-              />
-            </div>
-            <span className="text-muted-foreground mt-0.5">{compact ? band.label.slice(0, 3) : band.label}</span>
-            <span className="text-foreground font-mono">{bands[band.key].toFixed(1)}%</span>
-          </div>
-        ))}
-      </div>
-      <div className="flex flex-col items-center gap-1">
-        <span className={cn(
-          "text-xs font-mono px-2 py-0.5 rounded",
-          hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-          hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-          "bg-amber-500/20 text-amber-400"
-        )}>
-          HiMid/Mid: {hiMidMidRatio.toFixed(2)}
-          {hiMidMidRatio < 1.0 ? " (dark)" : hiMidMidRatio > 2.0 ? " (bright)" : ""}
-        </span>
-        <TonalReadouts features={features} centroid={centroid} />
-        {showScores && features && <ProfileScores features={features} profiles={profiles} />}
-      </div>
     </div>
   );
 }
@@ -711,16 +605,8 @@ function DropZone({
 
 export default function Learner() {
   const { toast } = useToast();
-  const [baseIR, setBaseIR] = useState<AnalyzedIR | null>(null);
-  const [featureIRs, setFeatureIRs] = useState<AnalyzedIR[]>([]);
   const [allIRs, setAllIRs] = useState<AnalyzedIR[]>([]);
-  const [viewMode, setViewMode] = useState<"blend" | "individual">("blend");
-  const [isLoadingBase, setIsLoadingBase] = useState(false);
-  const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const [isLoadingAll, setIsLoadingAll] = useState(false);
-  const [selectedRatio, setSelectedRatio] = useState(2);
-  const [expandedBlend, setExpandedBlend] = useState<string | null>(null);
-  const [showFoundation, setShowFoundation] = useState(false);
   const [showVoteHistory, setShowVoteHistory] = useState(false);
   const [pairingRankings, setPairingRankings] = useState<Record<string, number>>({});
   const [pairingFeedback, setPairingFeedback] = useState<Record<string, string[]>>({});
@@ -735,17 +621,6 @@ export default function Learner() {
   const [doneRefining, setDoneRefining] = useState(false);
   const [noMorePairs, setNoMorePairs] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  const [cabAIRs, setCabAIRs] = useState<AnalyzedIR[]>([]);
-  const [cabBIRs, setCabBIRs] = useState<AnalyzedIR[]>([]);
-  const [isLoadingCabA, setIsLoadingCabA] = useState(false);
-  const [isLoadingCabB, setIsLoadingCabB] = useState(false);
-  const [showCrossCab, setShowCrossCab] = useState(false);
-  const [expandedCrossCab, setExpandedCrossCab] = useState<string | null>(null);
-  const [crossCabRatio, setCrossCabRatio] = useState(2);
-  const [crossCabRankings, setCrossCabRankings] = useState<Record<string, number>>({});
-  const [crossCabFeedback, setCrossCabFeedback] = useState<Record<string, string[]>>({});
-  const [crossCabFeedbackText, setCrossCabFeedbackText] = useState<Record<string, string>>({});
-  const [crossCabDismissed, setCrossCabDismissed] = useState<Set<string>>(new Set());
 
   const [tasteCheckPhase, setTasteCheckPhase] = useState<{
     candidates: SuggestedPairing[];
@@ -806,7 +681,6 @@ export default function Learner() {
   } | null>(null);
 
   const ratioRefineRef = useRef<HTMLDivElement>(null);
-  const foundationRef = useRef<HTMLDivElement>(null);
   const pairingSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -814,13 +688,6 @@ export default function Learner() {
       ratioRefineRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [ratioRefinePhase?.stage]);
-
-  const clearCrossCabRatings = useCallback(() => {
-    setCrossCabRankings({});
-    setCrossCabFeedback({});
-    setCrossCabFeedbackText({});
-    setCrossCabDismissed(new Set());
-  }, []);
 
   const { data: learnedProfile } = useQuery<LearnedProfileData>({
     queryKey: ["/api/preferences/learned"],
@@ -884,23 +751,13 @@ export default function Learner() {
   });
 
   const speakerRelativeProfiles = useMemo(() => {
-    const allLoaded = [...allIRs];
-    if (baseIR && !allLoaded.some((ir) => ir.filename === baseIR.filename)) allLoaded.push(baseIR);
-    for (const f of featureIRs) {
-      if (!allLoaded.some((ir) => ir.filename === f.filename)) allLoaded.push(f);
-    }
-    if (allLoaded.length < 3) return DEFAULT_PROFILES;
-    return computeSpeakerRelativeProfiles(allLoaded);
-  }, [allIRs, baseIR, featureIRs]);
+    if (allIRs.length < 3) return DEFAULT_PROFILES;
+    return computeSpeakerRelativeProfiles(allIRs);
+  }, [allIRs]);
 
   const speakerStatsMap = useMemo(() => {
-    const allLoaded = [...allIRs];
-    if (baseIR && !allLoaded.some((ir) => ir.filename === baseIR.filename)) allLoaded.push(baseIR);
-    for (const f of featureIRs) {
-      if (!allLoaded.some((ir) => ir.filename === f.filename)) allLoaded.push(f);
-    }
-    if (allLoaded.length < 2) return new Map<string, import("@/lib/musical-roles").SpeakerStats>();
-    return computeSpeakerStats(allLoaded.map(ir => {
+    if (allIRs.length < 2) return new Map<string, import("@/lib/musical-roles").SpeakerStats>();
+    return computeSpeakerStats(allIRs.map(ir => {
       const bp = ir.features.bandsPercent;
       const tf: any = {
         bandsPercent: bp,
@@ -911,7 +768,7 @@ export default function Learner() {
       };
       return { filename: ir.filename, tf };
     }));
-  }, [allIRs, baseIR, featureIRs]);
+  }, [allIRs]);
 
   const copyIRSummaryTSV = useCallback(() => {
     if (!allIRs.length) return;
@@ -1071,51 +928,9 @@ export default function Learner() {
     return computeTonalFeatures(featureSource);
   }, []);
 
-  const handleBaseFile = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    setIsLoadingBase(true);
-    try {
-      const file = files[0];
-      const metrics = await analyzeAudioFile(file);
-      const normMap = await normalizeViaServer([{ filename: file.name, metrics }]);
-      const norm = normMap.get(file.name);
-      const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
-      const rawEnergy = features.bandsRaw;
-      const bands = features.bandsPercent;
-      setBaseIR({ filename: file.name, metrics, rawEnergy, bands, features });
-      resetPairingState();
-    } catch (e) {
-      console.error("Failed to analyze base IR:", e);
-    }
-    setIsLoadingBase(false);
-  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
-
-  const handleFeatureFiles = useCallback(async (files: File[]) => {
-    setIsLoadingFeatures(true);
-    try {
-      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
-      for (const file of files) {
-        const metrics = await analyzeAudioFile(file);
-        analyzed.push({ filename: file.name, metrics });
-      }
-      const normMap = await normalizeViaServer(analyzed);
-      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
-        const norm = normMap.get(filename);
-        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
-        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
-      });
-      setFeatureIRs((prev) => [...prev, ...results]);
-      resetPairingState();
-    } catch (e) {
-      console.error("Failed to analyze feature IRs:", e);
-    }
-    setIsLoadingFeatures(false);
-  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
-
   const handleAllFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingAll(true);
-    setShowFoundation(true);
     resetPairingState();
     try {
       const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
@@ -1142,93 +957,24 @@ export default function Learner() {
     setIsLoadingAll(false);
   }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
 
-  const removeFeature = useCallback((idx: number) => {
-    setFeatureIRs((prev) => prev.filter((_, i) => i !== idx));
-    resetPairingState();
-  }, [resetPairingState]);
-
-  const handleCabAFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    setIsLoadingCabA(true);
-    setShowCrossCab(true);
-    clearCrossCabRatings();
-    try {
-      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
-      for (const file of files) {
-        const metrics = await analyzeAudioFile(file);
-        analyzed.push({ filename: file.name, metrics });
-      }
-      const normMap = await normalizeViaServer(analyzed);
-      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
-        const norm = normMap.get(filename);
-        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
-        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
-      });
-      setCabAIRs(results);
-    } catch (e) {
-      console.error("Failed to analyze Cabinet A IRs:", e);
-    }
-    setIsLoadingCabA(false);
-  }, [clearCrossCabRatings, normalizeViaServer, buildFeaturesFromServer]);
-
-  const handleCabBFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-    setIsLoadingCabB(true);
-    setShowCrossCab(true);
-    clearCrossCabRatings();
-    try {
-      const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
-      for (const file of files) {
-        const metrics = await analyzeAudioFile(file);
-        analyzed.push({ filename: file.name, metrics });
-      }
-      const normMap = await normalizeViaServer(analyzed);
-      const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
-        const norm = normMap.get(filename);
-        const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
-        return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
-      });
-      setCabBIRs(results);
-    } catch (e) {
-      console.error("Failed to analyze Cabinet B IRs:", e);
-    }
-    setIsLoadingCabB(false);
-  }, [clearCrossCabRatings, normalizeViaServer, buildFeaturesFromServer]);
-
-  const currentRatio = BLEND_RATIOS[selectedRatio];
-
-  const foundationResults = useMemo(() => {
-    if (allIRs.length === 0) return [];
-    return findFoundationIR(allIRs, activeProfiles);
-  }, [allIRs, activeProfiles]);
-
-  const blendPartnerResults = useMemo(() => {
-    if (!baseIR || featureIRs.length === 0) return [];
-    return rankBlendPartners(baseIR, featureIRs, BLEND_RATIOS, activeProfiles, learnedProfile || undefined);
-  }, [baseIR, featureIRs, activeProfiles, learnedProfile]);
 
   const pairingPool = useMemo(() => {
     if (allIRs.length >= 2) return allIRs;
-    const pool: AnalyzedIR[] = [];
-    if (baseIR) pool.push(baseIR);
-    for (const f of featureIRs) {
-      if (!pool.some((p) => p.filename === f.filename)) pool.push(f);
-    }
-    return pool.length >= 2 ? pool : [];
-  }, [allIRs, baseIR, featureIRs]);
+    return [];
+  }, [allIRs]);
 
   const tasteContext: TasteContext = useMemo(() => {
-    const speakerPrefix = (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+    const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
     return { speakerPrefix, mode: "blend", intent: tasteIntent };
-  }, [baseIR?.filename, pairingPool, tasteIntent]);
+  }, [pairingPool, tasteIntent]);
 
   const tasteStatus = useMemo(() => getTasteStatus(tasteContext), [tasteContext, tasteEnabled, tasteVersion]);
 
   const singleIrTasteContext: TasteContext = useMemo(() => {
     const speakerPrefix =
-      (baseIR?.filename ?? pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+      (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
     return { speakerPrefix, mode: "singleIR", intent: tasteIntent };
-  }, [baseIR?.filename, pairingPool, tasteIntent]);
+  }, [pairingPool, tasteIntent]);
 
   const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteEnabled, tasteVersion]);
 
@@ -1792,64 +1538,6 @@ export default function Learner() {
     });
   }, []);
 
-  const assignCrossCabRank = useCallback((key: string, rank: number) => {
-    setCrossCabRankings((prev) => {
-      const next = { ...prev };
-      if (next[key] === rank) {
-        delete next[key];
-        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
-        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
-      } else {
-        next[key] = rank;
-        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
-        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
-      }
-      return next;
-    });
-    setCrossCabDismissed((prev) => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-  }, []);
-
-  const assignCrossCabFeedback = useCallback((key: string, tag: string) => {
-    setCrossCabFeedback((prev) => {
-      const current = prev[key] || [];
-      if (current.includes(tag)) {
-        const updated = current.filter((t) => t !== tag);
-        if (updated.length === 0) {
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        }
-        return { ...prev, [key]: updated };
-      }
-      return { ...prev, [key]: [...current, tag] };
-    });
-  }, []);
-
-  const dismissCrossCab = useCallback((key: string) => {
-    setCrossCabDismissed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-        setCrossCabFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
-        setCrossCabFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
-      }
-      return next;
-    });
-    setCrossCabRankings((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }, []);
-
-  const crossCabHasRatings = Object.keys(crossCabRankings).length > 0 || crossCabDismissed.size > 0;
-
   const hasAnyRank = Object.keys(pairingRankings).length > 0;
   const hasLoveOrLike = Object.values(pairingRankings).some((r) => r === 1 || r === 2);
   const activePairings = suggestedPairs.filter((p) => !dismissedPairings.has(pairKey(p)));
@@ -1875,24 +1563,7 @@ export default function Learner() {
       setPairingRankings((prev) => ({ ...prev, [downgradedPk]: 3 }));
     }
     if (loadTopPick) {
-      const sorted = Object.entries(pairingRankings)
-        .filter(([k]) => k !== downgradedPk)
-        .sort((a, b) => a[1] - b[1]);
-      const topKey = sorted[0]?.[0];
-      if (topKey) {
-        const pair = suggestedPairs.find((p) => pairKey(p) === topKey);
-        if (pair) {
-          const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
-          const baseIrData = pool.find((ir) => ir.filename === pair.baseFilename);
-          const featIrData = pool.find((ir) => ir.filename === pair.featureFilename);
-          if (baseIrData && featIrData) {
-            setBaseIR(baseIrData);
-            setFeatureIRs([featIrData]);
-            setShowFoundation(false);
-            setDoneRefining(true);
-          }
-        }
-      }
+      setDoneRefining(true);
     } else {
       setPairingRankings({});
       setPairingFeedback({});
@@ -1900,7 +1571,7 @@ export default function Learner() {
       setDismissedPairings(new Set());
       setPairingRound((prev) => prev + 1);
     }
-  }, [pairingRankings, suggestedPairs, allIRs, baseIR, featureIRs, pairKey]);
+  }, [pairingRankings, suggestedPairs, allIRs, pairKey]);
 
   const proceedToRatioRefine = useCallback((candidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[], loadTopPick: boolean) => {
     const init = buildInitialRatioState();
@@ -2191,7 +1862,7 @@ export default function Learner() {
     let roundNoped = 0;
     const newEvaluated = new Set(evaluatedPairs);
     const newExposure = new Map(exposureCounts);
-    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+    const pool = allIRs;
 
     const refineCandidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[] = [];
 
@@ -2400,7 +2071,7 @@ export default function Learner() {
     } else {
       finishRound(loadTopPick, null);
     }
-  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, baseIR, featureIRs, pairKey, buildInitialRatioState, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode, tasteContext, featuresByFilename]);
+  }, [suggestedPairs, pairingRankings, pairingFeedback, pairingFeedbackText, dismissedPairings, submitSignalsMutation, evaluatedPairs, exposureCounts, allIRs, pairKey, buildInitialRatioState, totalRoundsCompleted, tasteCheckPassed, pairingPool, activeProfiles, learnedProfile, proceedToRatioRefine, finishRound, tasteCheckMode, tasteContext, featuresByFilename]);
 
   const selectRefineCandidate = useCallback((idx: number) => {
     if (!ratioRefinePhase) return;
@@ -2424,7 +2095,7 @@ export default function Learner() {
 
   const manualRatioRefine = useCallback(() => {
     if (ratioRefinePhase || tasteCheckPhase) return;
-    const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+    const pool = allIRs;
     const candidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[] = [];
     for (const [pk, rank] of Object.entries(pairingRankings)) {
       if (rank !== 1 && rank !== 2) continue;
@@ -2440,38 +2111,7 @@ export default function Learner() {
     if (candidates.length === 0) return;
     candidates.sort((a, b) => a.rank - b.rank);
     proceedToRatioRefine(candidates, false);
-  }, [ratioRefinePhase, tasteCheckPhase, allIRs, baseIR, featureIRs, pairingRankings, dismissedPairings, suggestedPairs, pairKey, proceedToRatioRefine]);
-
-  const startDirectRatioRefine = useCallback((baseData: AnalyzedIR, featData: AnalyzedIR) => {
-    if (ratioRefinePhase || tasteCheckPhase) return;
-    const blended = blendFeatures(baseData.features, featData.features, 0.5, 0.5);
-    const match = scoreAgainstAllProfiles(blended, activeProfiles);
-    const bq = scoreBlendQuality(blended, activeProfiles);
-    const pair: SuggestedPairing = {
-      baseFilename: baseData.filename,
-      featureFilename: featData.filename,
-      blendBands: blended.bandsPercent,
-      score: bq.blendScore,
-      blendScore: bq.blendScore,
-      blendLabel: bq.blendLabel,
-      bestMatch: match.best,
-      rank: 0,
-    };
-    const candidates = [{ pair, rank: 2, baseFeatures: baseData.features, featFeatures: featData.features }];
-    const init = buildInitialRatioState();
-    setRatioRefinePhase({
-      stage: "refine",
-      candidates,
-      selectedIdx: 0,
-      step: 0,
-      matchups: init.matchups,
-      lowIdx: init.lowIdx,
-      highIdx: init.highIdx,
-      winner: null,
-      downgraded: false,
-      pendingLoadTopPick: false,
-    });
-  }, [ratioRefinePhase, tasteCheckPhase, activeProfiles, buildInitialRatioState]);
+  }, [ratioRefinePhase, tasteCheckPhase, allIRs, pairingRankings, dismissedPairings, suggestedPairs, pairKey, proceedToRatioRefine]);
 
   const completeRatioRefine = useCallback((ratio: number | null, downgraded: boolean) => {
     if (!ratioRefinePhase || ratioRefinePhase.selectedIdx === null) return;
@@ -2593,97 +2233,6 @@ export default function Learner() {
   const handleNoRatioHelps = useCallback(() => {
     completeRatioRefine(null, true);
   }, [completeRatioRefine]);
-
-  const useAsBase = useCallback((ir: AnalyzedIR) => {
-    setBaseIR(ir);
-    setFeatureIRs(allIRs.filter((a) => a.filename !== ir.filename));
-    setShowFoundation(false);
-    resetPairingState();
-  }, [allIRs, resetPairingState]);
-
-  const blendResults = useMemo(() => {
-    if (!baseIR || featureIRs.length === 0) return [];
-    return featureIRs.map((feature) => {
-      const allRatioBlends = BLEND_RATIOS.map((r) => {
-        const blended = blendFeatures(baseIR.features, feature.features, r.base, r.feature);
-        const match = scoreAgainstAllProfiles(blended, activeProfiles);
-        return { ratio: r, bands: blended.bandsPercent, bestMatch: match.best };
-      });
-      const currentBlended = blendFeatures(baseIR.features, feature.features, currentRatio.base, currentRatio.feature);
-      const currentMatch = scoreAgainstAllProfiles(currentBlended, activeProfiles);
-      return {
-        feature,
-        currentBlend: currentBlended.bandsPercent,
-        currentBlendFeatures: currentBlended,
-        currentMatch,
-        allRatioBlends,
-      };
-    });
-  }, [baseIR, featureIRs, currentRatio, activeProfiles]);
-
-  const sortedBlendResults = useMemo(() => {
-    return [...blendResults].sort((a, b) => b.currentMatch.best.score - a.currentMatch.best.score);
-  }, [blendResults]);
-
-  const crossCabCurrentRatio = BLEND_RATIOS[crossCabRatio];
-
-  const crossCabResults = useMemo(() => {
-    if (cabAIRs.length === 0 || cabBIRs.length === 0) return [];
-    const results: {
-      irA: AnalyzedIR;
-      irB: AnalyzedIR;
-      blend: TonalBands;
-      blendFeats: TonalFeatures;
-      match: ReturnType<typeof scoreAgainstAllProfiles>;
-    }[] = [];
-    for (const a of cabAIRs) {
-      for (const b of cabBIRs) {
-        const blended = blendFeatures(a.features, b.features, crossCabCurrentRatio.base, crossCabCurrentRatio.feature);
-        const match = scoreAgainstAllProfiles(blended, activeProfiles);
-        results.push({ irA: a, irB: b, blend: blended.bandsPercent, blendFeats: blended, match });
-      }
-    }
-    results.sort((a, b) => b.match.best.score - a.match.best.score);
-    return results;
-  }, [cabAIRs, cabBIRs, crossCabCurrentRatio, activeProfiles]);
-
-  const handleSubmitCrossCabRatings = useCallback(() => {
-    const signals: any[] = [];
-    for (const cr of crossCabResults) {
-      const bk = `${cr.irA.filename}||${cr.irB.filename}`;
-      const isDismissed = crossCabDismissed.has(bk);
-      const rank = crossCabRankings[bk];
-      if (!isDismissed && !rank) continue;
-      const r = cr.blend.mid > 0 ? cr.blend.highMid / cr.blend.mid : 0;
-      const actionLabel = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
-      const fbTags = crossCabFeedback[bk];
-      const fb = fbTags && fbTags.length > 0 ? fbTags.join(",") : null;
-      const fbText = crossCabFeedbackText[bk]?.trim() || null;
-      signals.push({
-        action: actionLabel,
-        feedback: fb,
-        feedbackText: fbText,
-        baseFilename: cr.irA.filename,
-        featureFilename: cr.irB.filename,
-        subBass: cr.blend.subBass,
-        bass: cr.blend.bass,
-        lowMid: cr.blend.lowMid,
-        mid: cr.blend.mid,
-        highMid: cr.blend.highMid,
-        presence: cr.blend.presence,
-        ratio: Math.round(r * 100) / 100,
-        score: Math.round(cr.match.best.score) || 0,
-        profileMatch: cr.match.best.profile,
-      });
-    }
-    if (signals.length > 0) {
-      submitSignalsMutation.mutate(signals);
-    }
-    setCrossCabRankings({});
-    setCrossCabFeedback({});
-    setCrossCabFeedbackText({});
-    setCrossCabDismissed(new Set());
-  }, [crossCabResults, crossCabRankings, crossCabFeedback, crossCabFeedbackText, crossCabDismissed, submitSignalsMutation]);
 
   const explainPairVsAnchor = (pair: any, anchor: any, meanVec: number[] | null): string[] => {
     if (!tasteEnabled) return [];
@@ -3323,10 +2872,9 @@ export default function Learner() {
                     }
 
                     if (!hasPairingPool) {
-                      toast({ title: "Load IRs first", description: "Drop your IR files in the Foundation Finder below to get started." });
-                      setTimeout(() => foundationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+                      toast({ title: "Load IRs first", description: "Drop your IR files in the Load IRs section below to get started." });
                     } else if (suggestedPairs.length > 0 && !ratioRefinePhase) {
-                      const pool = allIRs.length >= 2 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+                      const pool = allIRs;
                       const candidates = suggestedPairs.map((pair) => {
                         const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
                         const featData = pool.find((ir) => ir.filename === pair.featureFilename);
@@ -3358,7 +2906,7 @@ export default function Learner() {
             {tasteCheckMode === "ratio"
               ? hasPairingPool
                 ? "Ratio mode active — pick a pairing to start refining blend ratios directly. No taste checks."
-                : "Ratio mode — drop your IRs in the Foundation Finder below to get started."
+                : "Ratio mode — drop your IRs in the Load IRs section below to get started."
               : "Drop IRs to preview blend permutations scored against your tonal profiles."}
           </p>
           {learnedProfile && learnedProfile.signalCount > 0 && (
@@ -3510,22 +3058,22 @@ export default function Learner() {
           />
         )}
 
-        <div ref={foundationRef} className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+        <div className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Crown className="w-4 h-4 text-amber-400" />
-            Foundation Finder
+            <Upload className="w-4 h-4 text-amber-400" />
+            Load IRs
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
-            Drop all your IRs from a speaker set. The algorithm ranks them by warmth and weight -- the best Foundation IR makes an ideal base to blend from.
+            Drop all your IRs from a speaker set to start taste learning and evaluation.
           </p>
           <DropZone
             label="Drop All IRs"
-            description="Analyze a full set to find the best foundation IR"
+            description="Analyze a full set to begin taste learning"
             onFilesAdded={handleAllFiles}
             isLoading={isLoadingAll}
           />
 
-          {showFoundation && allIRs.length > 0 && (
+          {allIRs.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
               <details open>
                 <summary className="text-xs text-muted-foreground uppercase tracking-wider mb-2 cursor-pointer select-none">
@@ -3555,80 +3103,6 @@ export default function Learner() {
               </details>
             </motion.div>
           )}
-
-          {showFoundation && foundationResults.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 space-y-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Ranked by Foundation score -- best base IRs ({foundationResults.length} IRs)</p>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-                {foundationResults.map((fr) => {
-                  const ir = allIRs.find((a) => a.filename === fr.filename);
-                  if (!ir) return null;
-                  const rankLabel = fr.rank === 1 ? "Best Base" : fr.rank === 2 ? "#2 Base" : fr.rank === 3 ? "#3 Base" : `#${fr.rank}`;
-                  const rankColor = fr.rank === 1 ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-                    fr.rank <= 3 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
-                    "bg-white/5 text-muted-foreground border-white/10";
-                  return (
-                    <div
-                      key={fr.filename}
-                      className={cn(
-                        "p-3 rounded-lg border",
-                        fr.rank === 1 ? "bg-amber-500/10 border-amber-500/20" :
-                        fr.rank <= 3 ? "bg-sky-500/[0.03] border-sky-500/10" :
-                        "bg-white/[0.02] border-white/5"
-                      )}
-                      data-testid={`foundation-result-${fr.rank - 1}`}
-                    >
-                      <div className="flex items-start justify-between gap-3 flex-wrap">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <Badge variant="outline" className={cn("text-[10px]", rankColor)}>
-                              {rankLabel}
-                            </Badge>
-                            <span className="text-xs font-mono text-foreground truncate" data-testid={`text-foundation-name-${fr.rank - 1}`}>
-                              {fr.filename.replace(/(_\d{13})?\.wav$/, "")}
-                            </span>
-                            <MusicalRoleBadgeFromFeatures filename={fr.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
-                            <ShotIntentBadge filename={fr.filename} />
-                          </div>
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-[10px] font-mono text-amber-400">
-                              Score: {fr.bodyScore}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
-                            {fr.reasons.slice(0, 3).map((r, i) => (
-                              <span key={i} className="px-1.5 py-0.5 rounded bg-white/5">{r}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <div className="text-right text-[10px] font-mono">
-                            <span className="text-green-400">M {fr.bands.mid.toFixed(1)}</span>
-                            <span className="text-yellow-400 ml-1.5">HM {fr.bands.highMid.toFixed(1)}</span>
-                            <span className="text-orange-400 ml-1.5">P {fr.bands.presence.toFixed(1)}</span>
-                            <span className={cn(
-                              "ml-1.5",
-                              fr.ratio < 1.0 ? "text-blue-400" : fr.ratio <= 2.0 ? "text-green-400" : "text-amber-400"
-                            )}>
-                              {fr.ratio.toFixed(2)}
-                            </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => useAsBase(ir)}
-                            data-testid={`button-use-as-base-${fr.rank - 1}`}
-                          >
-                            Use as Base
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
         </div>
 
         {allIRs.length >= 1 && (
@@ -3638,366 +3112,6 @@ export default function Learner() {
         {allIRs.length >= 2 && (
           <FindTonePanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />
         )}
-
-        <div className="mb-8 p-4 rounded-xl bg-teal-500/5 border border-teal-500/20">
-          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <ArrowLeftRight className="w-4 h-4 text-teal-400" />
-            Cross-Cab Pairing
-          </h3>
-          <p className="text-xs text-muted-foreground mb-3">
-            Drop IRs from two different speaker cabinets. The algorithm blends every combination across cabinets and ranks them by tonal profile match.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="space-y-2">
-              <p className="text-[10px] text-teal-400 uppercase tracking-wider font-semibold">Cabinet A</p>
-              <DropZone
-                label="Drop Cabinet A IRs"
-                description="IRs from your first speaker"
-                onFilesAdded={handleCabAFiles}
-                isLoading={isLoadingCabA}
-              />
-              {cabAIRs.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-mono text-muted-foreground">{cabAIRs.length} IR{cabAIRs.length !== 1 ? "s" : ""} loaded</span>
-                  <Button size="sm" variant="ghost" onClick={() => { setCabAIRs([]); clearCrossCabRatings(); }} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-a">Clear</Button>
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <p className="text-[10px] text-teal-400 uppercase tracking-wider font-semibold">Cabinet B</p>
-              <DropZone
-                label="Drop Cabinet B IRs"
-                description="IRs from your second speaker"
-                onFilesAdded={handleCabBFiles}
-                isLoading={isLoadingCabB}
-              />
-              {cabBIRs.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-mono text-muted-foreground">{cabBIRs.length} IR{cabBIRs.length !== 1 ? "s" : ""} loaded</span>
-                  <Button size="sm" variant="ghost" onClick={() => { setCabBIRs([]); clearCrossCabRatings(); }} className="text-[10px] text-muted-foreground" data-testid="button-clear-cab-b">Clear</Button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {crossCabResults.length > 0 && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                  {crossCabResults.length} cross-cab blend{crossCabResults.length !== 1 ? "s" : ""} ranked by match
-                </p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">A/B ratio:</span>
-                  {BLEND_RATIOS.map((r, idx) => (
-                    <Button
-                      key={r.label}
-                      size="sm"
-                      variant={crossCabRatio === idx ? "default" : "ghost"}
-                      onClick={() => { setCrossCabRatio(idx); clearCrossCabRatings(); }}
-                      className={cn(
-                        "font-mono text-xs",
-                        crossCabRatio === idx && "bg-teal-500/20 text-teal-400 border border-teal-500/30"
-                      )}
-                      data-testid={`button-crosscab-ratio-${r.label}`}
-                    >
-                      {r.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-                {crossCabResults.map((cr, idx) => {
-                  const blendKey = `${cr.irA.filename}||${cr.irB.filename}`;
-                  const isExpanded = expandedCrossCab === blendKey;
-                  const hiMidMidRatio = cr.blend.mid > 0
-                    ? Math.round((cr.blend.highMid / cr.blend.mid) * 100) / 100
-                    : 0;
-                  const rankLabel = idx === 0 ? "Best" : idx === 1 ? "#2" : idx === 2 ? "#3" : `#${idx + 1}`;
-                  const rankColor = idx === 0 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                    idx <= 2 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
-                    "bg-white/5 text-muted-foreground border-white/10";
-                  return (
-                    <div
-                      key={blendKey}
-                      className={cn(
-                        "rounded-lg border",
-                        idx === 0 ? "bg-emerald-500/[0.03] border-emerald-500/20" :
-                        idx <= 2 ? "bg-teal-500/[0.02] border-teal-500/10" :
-                        "bg-white/[0.02] border-white/5"
-                      )}
-                      data-testid={`crosscab-result-${idx}`}
-                    >
-                      <Button
-                        variant="ghost"
-                        onClick={() => setExpandedCrossCab(isExpanded ? null : blendKey)}
-                        className="w-full flex items-center justify-between gap-3 p-3 h-auto text-left rounded-lg"
-                        data-testid={`button-expand-crosscab-${idx}`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                          <Badge variant="outline" className={cn("text-[9px] shrink-0", rankColor)}>
-                            {rankLabel}
-                          </Badge>
-                          <span className="text-xs font-mono text-teal-400 truncate">
-                            {cr.irA.filename.replace(/(_\d{13})?\.wav$/, "")}
-                          </span>
-                          <MusicalRoleBadgeFromFeatures filename={cr.irA.filename} features={cr.irA.features} speakerStatsMap={speakerStatsMap} />
-                          <ShotIntentBadge filename={cr.irA.filename} />
-                          <span className="text-[10px] text-muted-foreground shrink-0">+</span>
-                          <span className="text-xs font-mono text-teal-400 truncate">
-                            {cr.irB.filename.replace(/(_\d{13})?\.wav$/, "")}
-                          </span>
-                          <MusicalRoleBadgeFromFeatures filename={cr.irB.filename} features={cr.irB.features} speakerStatsMap={speakerStatsMap} />
-                          <ShotIntentBadge filename={cr.irB.filename} />
-                          <BlendQualityBadge score={Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length)} label={(() => { const avg = Math.round((cr.match.results.reduce((s: number, r: MatchResult) => s + r.score, 0)) / cr.match.results.length); return avg >= 80 ? "strong" as const : avg >= 60 ? "close" as const : avg >= 40 ? "partial" as const : "miss" as const; })()} />
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="hidden sm:flex items-center gap-1.5">
-                            <span className="text-[10px] text-muted-foreground">Mid</span>
-                            <span className="text-xs font-mono text-green-400">{cr.blend.mid.toFixed(1)}%</span>
-                            <span className="text-[10px] text-muted-foreground ml-1">Pres</span>
-                            <span className="text-xs font-mono text-orange-400">{cr.blend.presence.toFixed(1)}%</span>
-                            <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded ml-1",
-                              hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                              hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                              "bg-amber-500/20 text-amber-400"
-                            )}>
-                              {hiMidMidRatio.toFixed(2)}
-                            </span>
-                          </div>
-                          {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                        </div>
-                      </Button>
-
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-3 pb-3 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div className="space-y-1.5">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab A</p>
-                                  <BandChart bands={cr.irA.bands} features={cr.irA.features} height={12} compact showScores profiles={activeProfiles} />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <p className="text-[10px] text-teal-400 uppercase tracking-wider text-center font-semibold">
-                                    Blend ({crossCabCurrentRatio.label})
-                                  </p>
-                                  <BandChart bands={cr.blend} features={cr.blendFeats} height={12} compact showScores profiles={activeProfiles} />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center">Cab B</p>
-                                  <BandChart bands={cr.irB.bands} features={cr.irB.features} height={12} compact showScores profiles={activeProfiles} />
-                                </div>
-                              </div>
-                              {cr.match.best.deviations.length > 0 && (
-                                <div className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
-                                  <p className="text-[10px] text-muted-foreground mb-1">{cr.match.best.summary}</p>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {cr.match.best.deviations.map((d, i) => (
-                                      <span key={i} className={cn(
-                                        "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                                        d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
-                                      )}>
-                                        {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              <div className="border-t border-white/5 pt-2">
-                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">All Ratios</p>
-                                <div className="grid grid-cols-5 gap-2">
-                                  {BLEND_RATIOS.map((ratio) => {
-                                    const rbBlended = blendFeatures(cr.irA.features, cr.irB.features, ratio.base, ratio.feature);
-                                    const rb = rbBlended.bandsPercent;
-                                    const rbMatch = scoreAgainstAllProfiles(rbBlended, activeProfiles);
-                                    const r = rb.mid > 0 ? Math.round((rb.highMid / rb.mid) * 100) / 100 : 0;
-                                    return (
-                                      <div key={ratio.label} className={cn(
-                                        "p-2 rounded-lg text-center text-[10px] border",
-                                        ratio.label === crossCabCurrentRatio.label
-                                          ? "bg-teal-500/10 border-teal-500/20"
-                                          : "bg-white/[0.02] border-white/5"
-                                      )}>
-                                        <p className="font-mono text-foreground mb-1">{ratio.label}</p>
-                                        <p className="text-green-400">M {rb.mid.toFixed(1)}</p>
-                                        <p className="text-yellow-400">HM {rb.highMid.toFixed(1)}</p>
-                                        <p className="text-orange-400">P {rb.presence.toFixed(1)}</p>
-                                        <p className={cn(
-                                          "mt-0.5 font-mono",
-                                          r < 1.0 ? "text-blue-400" : r <= 2.0 ? "text-green-400" : "text-amber-400"
-                                        )}>
-                                          {r.toFixed(2)}
-                                        </p>
-                                        <div className="mt-1">
-                                          {(() => {
-                                            const avg = Math.round(rbMatch.results.reduce((s: number, r: MatchResult) => s + r.score, 0) / rbMatch.results.length);
-                                            const lbl = avg >= 80 ? "strong" : avg >= 60 ? "close" : avg >= 40 ? "partial" : "miss";
-                                            return (
-                                              <span className={cn(
-                                                "text-[9px] font-mono px-1 py-0.5 rounded",
-                                                lbl === "strong" ? "bg-emerald-500/20 text-emerald-400" :
-                                                lbl === "close" ? "bg-sky-500/20 text-sky-400" :
-                                                lbl === "partial" ? "bg-amber-500/20 text-amber-400" :
-                                                "bg-white/5 text-muted-foreground"
-                                              )}>
-                                                {avg >= 80 ? "Great" : avg >= 60 ? "Good" : avg >= 40 ? "OK" : "Weak"} {avg}
-                                              </span>
-                                            );
-                                          })()}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                              <div className="border-t border-white/5 pt-2 space-y-2">
-                                <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <div className="flex items-center gap-1.5">
-                                    {[
-                                      { rank: 1, label: "Love", color: "bg-amber-500/20 text-amber-400 border border-amber-500/30" },
-                                      { rank: 2, label: "Like", color: "bg-violet-500/20 text-violet-400 border border-violet-500/30" },
-                                      { rank: 3, label: "Meh", color: "bg-slate-400/20 text-slate-300 border border-slate-400/30" },
-                                    ].map(({ rank: r, label, color }) => (
-                                      <Button
-                                        key={r}
-                                        size="sm"
-                                        variant={crossCabRankings[blendKey] === r ? "default" : "ghost"}
-                                        onClick={() => assignCrossCabRank(blendKey, r)}
-                                        className={cn(
-                                          "text-xs",
-                                          crossCabRankings[blendKey] === r && color
-                                        )}
-                                        data-testid={`button-ccrank-${idx}-${r}`}
-                                      >
-                                        {label}
-                                      </Button>
-                                    ))}
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => dismissCrossCab(blendKey)}
-                                      className={cn(
-                                        "text-xs",
-                                        crossCabDismissed.has(blendKey) ? "text-muted-foreground" : "text-red-400"
-                                      )}
-                                      data-testid={`button-ccdismiss-${idx}`}
-                                    >
-                                      {crossCabDismissed.has(blendKey) ? "Undo" : "Nope"}
-                                    </Button>
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setBaseIR(cr.irA);
-                                      setFeatureIRs([cr.irB]);
-                                      setShowFoundation(false);
-                                      setShowCrossCab(false);
-                                      resetPairingState();
-                                    }}
-                                    className="text-[10px]"
-                                    data-testid={`button-load-crosscab-${idx}`}
-                                  >
-                                    Load into Mixer
-                                  </Button>
-                                </div>
-
-                                {crossCabRankings[blendKey] !== undefined && !crossCabDismissed.has(blendKey) && (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span className="text-[9px] text-muted-foreground mr-0.5">
-                                        {crossCabRankings[blendKey] === 1 ? "why?" : crossCabRankings[blendKey] === 2 ? "improve?" : "issue?"}
-                                      </span>
-                                      {(crossCabRankings[blendKey] === 1
-                                        ? [
-                                            { tag: "perfect", label: "Perfect" },
-                                            { tag: "balanced", label: "Balanced" },
-                                            { tag: "punchy", label: "Punchy" },
-                                            { tag: "warm", label: "Warm" },
-                                            { tag: "aggressive", label: "Aggressive" },
-                                          ]
-                                        : crossCabRankings[blendKey] === 2
-                                        ? [
-                                            { tag: "more_bottom", label: "More bottom" },
-                                            { tag: "less_harsh", label: "Less harsh" },
-                                            { tag: "more_bite", label: "More bite" },
-                                            { tag: "tighter", label: "Tighter" },
-                                            { tag: "more_air", label: "More air" },
-                                          ]
-                                        : [
-                                            { tag: "thin", label: "Thin" },
-                                            { tag: "muddy", label: "Muddy" },
-                                            { tag: "harsh", label: "Harsh" },
-                                            { tag: "dull", label: "Dull" },
-                                            { tag: "boomy", label: "Boomy" },
-                                            { tag: "fizzy", label: "Fizzy" },
-                                          ]
-                                      ).map(({ tag, label }) => (
-                                        <Button
-                                          key={tag}
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => assignCrossCabFeedback(blendKey, tag)}
-                                          className={cn(
-                                            "text-[10px] h-5 px-1.5 rounded-sm",
-                                            (crossCabFeedback[blendKey] || []).includes(tag)
-                                              ? crossCabRankings[blendKey] === 1 ? "bg-amber-500/20 text-amber-400"
-                                                : crossCabRankings[blendKey] === 2 ? "bg-violet-500/20 text-violet-400"
-                                                : "bg-slate-400/20 text-slate-300"
-                                              : "text-muted-foreground"
-                                          )}
-                                          data-testid={`button-ccfb-${idx}-${tag}`}
-                                        >
-                                          {label}
-                                        </Button>
-                                      ))}
-                                    </div>
-                                    <textarea
-                                      rows={2}
-                                      placeholder={crossCabRankings[blendKey] === 1 ? "What makes it great..." : crossCabRankings[blendKey] === 2 ? "What would make it better..." : "Describe the issue..."}
-                                      value={crossCabFeedbackText[blendKey] || ""}
-                                      onChange={(e) => setCrossCabFeedbackText((prev) => ({ ...prev, [blendKey]: e.target.value }))}
-                                      className="w-full text-[10px] bg-background border border-border/40 rounded-sm px-2 py-1 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring leading-snug resize-y whitespace-pre-wrap break-words"
-                                      data-testid={`input-ccfb-text-${idx}`}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {crossCabHasRatings && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between gap-3 flex-wrap pt-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Brain className="w-3.5 h-3.5 text-teal-400" />
-                    Submit ratings to refine your taste profile
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleSubmitCrossCabRatings}
-                    className="bg-teal-500/20 text-teal-400 border border-teal-500/30"
-                    data-testid="button-submit-crosscab-ratings"
-                  >
-                    Submit Ratings
-                  </Button>
-                </motion.div>
-              )}
-            </motion.div>
-          )}
-        </div>
 
         {hasPairingPool && (suggestedPairs.length > 0 || ratioRefinePhase || tasteCheckPhase || tasteCheckMode === "ratio") && !doneRefining && (
           <motion.div ref={pairingSectionRef} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20">
@@ -4611,7 +3725,7 @@ export default function Learner() {
             <div className="flex items-center gap-2">
               <Brain className="w-4 h-4 text-amber-400 shrink-0" />
               <p className="text-xs text-muted-foreground">
-                All pairings evaluated ({cumulativeSignals.liked} rated, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). {showFoundation ? "Pick a base from the ranked list above to continue in the mixer." : "Your preferences have been recorded."}
+                All pairings evaluated ({cumulativeSignals.liked} rated, {cumulativeSignals.noped} noped across {totalRoundsCompleted} rounds). Your preferences have been recorded.
               </p>
             </div>
           </motion.div>
@@ -4725,34 +3839,8 @@ export default function Learner() {
           );
         })()}
 
-        {(allIRs.length > 0 || baseIR || featureIRs.length > 0) && (
-          <div className="flex items-center gap-2 mb-4" data-testid="view-mode-toggle">
-            <span className="text-xs text-muted-foreground">View:</span>
-            <Button
-              size="sm"
-              variant={viewMode === "blend" ? "default" : "ghost"}
-              onClick={() => setViewMode("blend")}
-              className="text-xs toggle-elevate"
-              data-testid="button-view-blend"
-            >
-              <Layers className="w-3 h-3 mr-1" />
-              Blends
-            </Button>
-            <Button
-              size="sm"
-              variant={viewMode === "individual" ? "default" : "ghost"}
-              onClick={() => setViewMode("individual")}
-              className="text-xs toggle-elevate"
-              data-testid="button-view-individual"
-            >
-              <Target className="w-3 h-3 mr-1" />
-              Individual IRs
-            </Button>
-          </div>
-        )}
-
-        {viewMode === "individual" && (() => {
-          const pool = allIRs.length > 0 ? allIRs : [baseIR, ...featureIRs].filter(Boolean) as AnalyzedIR[];
+        {(() => {
+          const pool = allIRs;
           if (pool.length === 0) return null;
           const sorted = [...pool].sort((a, b) => {
             const aMatch = scoreAgainstAllProfiles(a.features, activeProfiles);
@@ -4802,330 +3890,6 @@ export default function Learner() {
             </div>
           );
         })()}
-
-        {viewMode === "blend" && (<>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Base IR (foundation tone)</h3>
-            {baseIR ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20"
-              >
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                    <span className="text-sm font-mono text-indigo-400 truncate" data-testid="text-base-filename">
-                      {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}
-                    </span>
-                    <MusicalRoleBadgeFromFeatures filename={baseIR.filename} features={baseIR.features} speakerStatsMap={speakerStatsMap} />
-                    <ShotIntentBadge filename={baseIR.filename} />
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => { setBaseIR(null); resetPairingState(); }}
-                    data-testid="button-remove-base"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <BandChart bands={baseIR.bands} features={baseIR.features} showScores profiles={activeProfiles} centroid={baseIR.metrics.spectralCentroid} />
-              </motion.div>
-            ) : (
-              <DropZone
-                label="Drop Foundation IR"
-                description="The foundation tone for your blend"
-                onFilesAdded={handleBaseFile}
-                isLoading={isLoadingBase}
-                multiple={false}
-              />
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Blend Candidate IRs</h3>
-            <DropZone
-              label="Drop Blend Candidates"
-              description="One or more IRs to blend with the base"
-              onFilesAdded={handleFeatureFiles}
-              isLoading={isLoadingFeatures}
-            />
-            {featureIRs.length > 0 && baseIR && blendPartnerResults.length > 0 ? (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Ranked by best blend with {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")}</p>
-                {blendPartnerResults.map((bp) => {
-                  const origIdx = featureIRs.findIndex((f) => f.filename === bp.filename);
-                  const rankLabel = bp.rank === 1 ? "Best Blend" : bp.rank === 2 ? "#2 Blend" : bp.rank === 3 ? "#3 Blend" : `#${bp.rank}`;
-                  const rankColor = bp.rank === 1 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                    bp.rank <= 3 ? "bg-sky-500/20 text-sky-400 border-sky-500/30" :
-                    "bg-white/5 text-muted-foreground border-white/10";
-                  return (
-                    <div key={bp.filename} className={cn(
-                      "flex items-center justify-between gap-2 p-2 rounded-lg border",
-                      bp.rank === 1 ? "bg-emerald-500/[0.03] border-emerald-500/10" : "bg-white/5 border-white/5"
-                    )}>
-                      <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                        <Badge variant="outline" className={cn("text-[9px] shrink-0", rankColor)}>
-                          {rankLabel}
-                        </Badge>
-                        <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${origIdx}`}>
-                          {bp.filename.replace(/(_\d{13})?\.wav$/, "")}
-                        </span>
-                        <MusicalRoleBadgeFromFeatures filename={bp.filename} features={featureIRs.find(f => f.filename === bp.filename)?.features} speakerStatsMap={speakerStatsMap} />
-                        <ShotIntentBadge filename={bp.filename} />
-                        <span className="text-[9px] font-mono text-muted-foreground shrink-0">
-                          best @ {bp.bestRatio.label} = {bp.bestBlendScore} ({bp.bestBlendProfile})
-                        </span>
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeFeature(origIdx)}
-                        data-testid={`button-remove-feature-${origIdx}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : featureIRs.length > 0 ? (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                {featureIRs.map((ir, idx) => {
-                  const { best } = scoreAgainstAllProfiles(ir.features, activeProfiles);
-                  return (
-                    <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5 border border-white/5">
-                      <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                        <span className="text-xs font-mono text-muted-foreground truncate" data-testid={`text-feature-filename-${idx}`}>
-                          {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
-                        </span>
-                        <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
-                        <ShotIntentBadge filename={ir.filename} />
-                        <MatchBadge match={best} />
-                      </div>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeFeature(idx)}
-                        data-testid={`button-remove-feature-${idx}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {baseIR && featureIRs.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Layers className="w-4 h-4 text-indigo-400" />
-                Blend Permutations
-                <span className="text-muted-foreground font-normal">({featureIRs.length} combinations, sorted by match)</span>
-              </h3>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground">Blend Ratio:</span>
-                {BLEND_RATIOS.map((r, idx) => (
-                  <Button
-                    key={r.label}
-                    size="sm"
-                    variant={selectedRatio === idx ? "default" : "ghost"}
-                    onClick={() => setSelectedRatio(idx)}
-                    className={cn(
-                      "font-mono text-xs",
-                      selectedRatio === idx && "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"
-                    )}
-                    data-testid={`button-ratio-${r.label}`}
-                  >
-                    {r.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <AnimatePresence>
-                {sortedBlendResults.map((result, idx) => {
-                  const blendKey = `${result.feature.filename}-${idx}`;
-                  const isExpanded = expandedBlend === result.feature.filename;
-                  const hiMidMidRatio = result.currentBlend.mid > 0
-                    ? Math.round((result.currentBlend.highMid / result.currentBlend.mid) * 100) / 100
-                    : 0;
-                  return (
-                    <motion.div
-                      key={blendKey}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className={cn(
-                        "rounded-xl border",
-                        result.currentMatch.best.label === "strong" ? "bg-emerald-500/[0.03] border-emerald-500/20" :
-                        result.currentMatch.best.label === "close" ? "bg-sky-500/[0.03] border-sky-500/20" :
-                        "bg-white/[0.02] border-white/5"
-                      )}
-                    >
-                      <Button
-                        variant="ghost"
-                        onClick={() => setExpandedBlend(isExpanded ? null : result.feature.filename)}
-                        className="w-full flex items-center justify-between gap-3 p-4 h-auto text-left rounded-xl"
-                        data-testid={`button-expand-blend-${idx}`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                          <span className="text-xs font-mono text-indigo-400 truncate" data-testid={`text-blend-name-${idx}`}>
-                            {baseIR.filename.replace(/(_\d{13})?\.wav$/, "")} + {result.feature.filename.replace(/(_\d{13})?\.wav$/, "")}
-                          </span>
-                          <MusicalRoleBadgeFromFeatures filename={result.feature.filename} features={result.feature.features} speakerStatsMap={speakerStatsMap} />
-                          <ShotIntentBadge filename={result.feature.filename} />
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            {currentRatio.label}
-                          </span>
-                          {(() => {
-                            const bq = scoreBlendQuality(result.currentBlendFeatures, activeProfiles);
-                            return <BlendQualityBadge score={bq.blendScore} label={bq.blendLabel} />;
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="hidden sm:flex items-center gap-1.5">
-                            {(() => {
-                              const t = result.currentBlendFeatures?.tiltDbPerOct ?? 0;
-                              const s = result.currentBlendFeatures?.smoothScore ?? 0;
-                              return (
-                                <>
-                                  <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded",
-                                    t > 0.5 ? "bg-amber-500/10 text-amber-400" : t < -0.5 ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-muted-foreground"
-                                  )}>
-                                    {t > 0 ? "+" : ""}{t.toFixed(1)}dB
-                                  </span>
-                                  <span className={cn("text-[10px] font-mono px-1.5 py-0.5 rounded",
-                                    s >= 70 ? "bg-emerald-500/10 text-emerald-400" : s >= 50 ? "bg-amber-500/10 text-amber-400" : "bg-red-500/10 text-red-400"
-                                  )}>
-                                    S:{Math.round(s)}
-                                  </span>
-                                </>
-                              );
-                            })()}
-                            <span className={cn(
-                              "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                              hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                              hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                              "bg-amber-500/20 text-amber-400"
-                            )}>
-                              {hiMidMidRatio.toFixed(2)}
-                            </span>
-                          </div>
-                          {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                        </div>
-                      </Button>
-
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-4 pb-4 space-y-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-base">Base</p>
-                                  <BandChart bands={baseIR.bands} features={baseIR.features} height={14} compact showScores profiles={activeProfiles} />
-                                </div>
-                                <div className="space-y-2">
-                                  <p className="text-[10px] text-indigo-400 uppercase tracking-wider text-center font-semibold" data-testid="text-label-blend">
-                                    Blend ({currentRatio.label})
-                                  </p>
-                                  <BandChart bands={result.currentBlend} features={result.currentBlendFeatures} height={14} compact showScores profiles={activeProfiles} />
-                                </div>
-                                <div className="space-y-2">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider text-center" data-testid="text-label-feature">Feature</p>
-                                  <BandChart bands={result.feature.bands} features={result.feature.features} height={14} compact showScores profiles={activeProfiles} />
-                                </div>
-                              </div>
-
-                              {result.currentMatch.best.deviations.length > 0 && (
-                                <div className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5">
-                                  <p className="text-[10px] text-muted-foreground mb-1">{result.currentMatch.best.summary}</p>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {result.currentMatch.best.deviations.map((d, i) => (
-                                      <span key={i} className={cn(
-                                        "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                                        d.direction === "high" ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"
-                                      )}>
-                                        {d.band} {d.direction === "high" ? "+" : "-"}{d.amount.toFixed(1)}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="border-t border-white/5 pt-3">
-                                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">All Ratios</p>
-                                  {!ratioRefinePhase && baseIR && (
-                                    <button
-                                      onClick={() => startDirectRatioRefine(baseIR, result.feature)}
-                                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md border border-sky-500/30 bg-sky-500/5 text-sky-400 hover-elevate transition-colors"
-                                      data-testid={`button-refine-ratio-blend-${idx}`}
-                                    >
-                                      <ArrowLeftRight className="w-3 h-3" />
-                                      A/B Refine
-                                    </button>
-                                  )}
-                                </div>
-                                <div className="grid grid-cols-5 gap-2">
-                                  {result.allRatioBlends.map((rb) => {
-                                    const r = rb.bands.mid > 0 ? Math.round((rb.bands.highMid / rb.bands.mid) * 100) / 100 : 0;
-                                    return (
-                                      <div key={rb.ratio.label} className={cn(
-                                        "p-2 rounded-lg text-center text-[10px] border",
-                                        rb.ratio.label === currentRatio.label
-                                          ? "bg-indigo-500/10 border-indigo-500/20"
-                                          : "bg-white/[0.02] border-white/5"
-                                      )} data-testid={`text-ratio-card-${rb.ratio.label}`}>
-                                        <p className="font-mono text-foreground mb-1">{rb.ratio.label}</p>
-                                        <p className="text-green-400">M {rb.bands.mid.toFixed(1)}</p>
-                                        <p className="text-yellow-400">HM {rb.bands.highMid.toFixed(1)}</p>
-                                        <p className="text-orange-400">P {rb.bands.presence.toFixed(1)}</p>
-                                        <p className={cn(
-                                          "mt-0.5 font-mono",
-                                          r < 1.0 ? "text-blue-400" : r <= 2.0 ? "text-green-400" : "text-amber-400"
-                                        )}>
-                                          {r.toFixed(2)}
-                                        </p>
-                                        <div className="mt-1">
-                                          <span className={cn(
-                                            "text-[9px] font-mono px-1 py-0.5 rounded",
-                                            rb.bestMatch.label === "strong" ? "bg-emerald-500/20 text-emerald-400" :
-                                            rb.bestMatch.label === "close" ? "bg-sky-500/20 text-sky-400" :
-                                            rb.bestMatch.label === "partial" ? "bg-amber-500/20 text-amber-400" :
-                                            "bg-white/5 text-muted-foreground"
-                                          )}>
-                                            {rb.bestMatch.profile[0]}{rb.bestMatch.score}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
 
         {ratioRefinePhase && !hasPairingPool && (
           <motion.div
@@ -5201,12 +3965,10 @@ export default function Learner() {
           </motion.div>
         )}
 
-        </>)}
-
-        {!baseIR && featureIRs.length === 0 && allIRs.length === 0 && (
+        {allIRs.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <Blend className="w-12 h-12 mx-auto mb-4 opacity-30" />
-            <p className="text-sm">Use the Foundation Finder above to auto-pick a base IR, or manually drop IRs below.</p>
+            <p className="text-sm">Drop your IR files above to start taste learning.</p>
           </div>
         )}
       </div>
