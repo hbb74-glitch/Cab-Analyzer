@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
@@ -526,23 +527,21 @@ export default function Pairing() {
               <label className="text-sm font-medium text-muted-foreground">
                 Playing Context
               </label>
-              <div className="flex flex-wrap gap-2">
-                {INTENTS.map((i) => (
-                  <button
-                    key={i.value}
-                    onClick={() => setIntent(i.value as typeof intent)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-sm font-medium border transition-all",
-                      intent === i.value
-                        ? "bg-primary/20 border-primary text-primary"
-                        : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
-                    )}
-                    data-testid={`button-intent-${i.value}`}
-                  >
-                    {i.label}
-                  </button>
-                ))}
-              </div>
+              <Select
+                value={intent}
+                onValueChange={(v) => setIntent(v as typeof intent)}
+              >
+                <SelectTrigger className="w-full" data-testid="select-intent">
+                  <SelectValue placeholder="Select playing context" />
+                </SelectTrigger>
+                <SelectContent>
+                  {INTENTS.map((i) => (
+                    <SelectItem key={i.value} value={i.value} data-testid={`option-intent-${i.value}`}>
+                      {i.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 AI optimizes pairings for your playing context — role combos differ for rhythm vs lead vs clean
               </p>
