@@ -4572,6 +4572,7 @@ Output JSON:
   });
 
   // IR Pairing endpoint - role-aware, intent-driven, psychoacoustically informed
+  // Server-side spectral complementarity scoring + AI finishing
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {
       const input = api.pairing.analyze.input.parse(req.body);
@@ -4581,170 +4582,364 @@ Output JSON:
 
       const isMixedPairing = mixedMode && irs2 && irs2.length > 0;
 
-      const profiles = await storage.getTonalProfiles();
-      let learnedPrefsSection = '';
-      if (profiles.length > 0) {
-        const avgBands: Record<string, number[]> = {};
-        for (const p of profiles) {
-          const key = `${p.mic}_${p.position}`;
-          if (!avgBands[key]) avgBands[key] = [];
-          avgBands[key].push(p.ratio ?? 0);
-        }
-        const summaries = Object.entries(avgBands).slice(0, 15).map(([k, ratios]) => {
-          const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
-          return `  ${k}: avg ratio=${avgRatio.toFixed(2)} (${ratios.length} samples)`;
-        });
-        learnedPrefsSection = `\n=== LEARNED TONAL PREFERENCES (from ${profiles.length} analyzed IRs) ===\n${summaries.join('\n')}\nUse these to understand the user's existing tonal palette and suggest pairings that complement or extend it.\n`;
-      }
+      // ─── Helper: classify IR into a tonal character bucket ───
+      type TonalBucket = 'bright' | 'balanced-bright' | 'balanced' | 'warm' | 'dark';
+      type RoleClass = 'Foundation' | 'Cut Layer' | 'Mid Thickener' | 'Fizz Tamer' | 'Lead Polish' | 'Dark Specialty';
 
-      const describeIR = (ir: typeof irs[0], setLabel?: string): string => {
+      const classifyBrightness = (ir: typeof irs[0]): TonalBucket => {
+        const c = ir.spectralCentroid;
+        if (c > 2800) return 'bright';
+        if (c > 2400) return 'balanced-bright';
+        if (c > 1900) return 'balanced';
+        if (c > 1400) return 'warm';
+        return 'dark';
+      };
+
+      const classifyRole = (ir: typeof irs[0]): RoleClass => {
         const parsed = parseFilenameForExpectations(ir.filename);
         const kbLookup = lookupMicRole(parsed.mic, parsed.position, undefined);
-        const has6Band = ir.subBassEnergy != null && ir.bassEnergy != null && ir.lowMidEnergy != null && ir.midEnergy6 != null && ir.highMidEnergy != null && ir.presenceEnergy != null;
-
-        let desc = `${setLabel ? `  ${setLabel} ` : ''}IR: "${ir.filename}"\n`;
-        desc += `    Mic: ${parsed.mic.toUpperCase()} | Position: ${parsed.position} | Speaker: ${parsed.speaker}\n`;
-        desc += `    Spectral Centroid: ${ir.spectralCentroid.toFixed(0)}Hz | Smoothness: ${(ir.frequencySmoothness ?? 0).toFixed(1)}\n`;
-
-        if (has6Band) {
-          desc += `    6-Band Energy: SubBass=${(ir.subBassEnergy! * 100).toFixed(1)}% Bass=${(ir.bassEnergy! * 100).toFixed(1)}% LowMid=${(ir.lowMidEnergy! * 100).toFixed(1)}% Mid=${(ir.midEnergy6! * 100).toFixed(1)}% HiMid=${(ir.highMidEnergy! * 100).toFixed(1)}% Presence=${(ir.presenceEnergy! * 100).toFixed(1)}%\n`;
-          const hmRatio = ir.highMidEnergy! / Math.max(ir.midEnergy6!, 0.001);
-          desc += `    HiMid/Mid Ratio: ${hmRatio.toFixed(2)} (>1.5 = bright/aggressive, <1.0 = warm/dark)\n`;
-        } else {
-          desc += `    Energy: Low=${(ir.lowEnergy * 100).toFixed(1)}% Mid=${(ir.midEnergy * 100).toFixed(1)}% High=${(ir.highEnergy * 100).toFixed(1)}%\n`;
-        }
-
-        const psycho: string[] = [];
-        if (ir.spectralCentroid > 2800) psycho.push('bright, forward');
-        else if (ir.spectralCentroid > 2200) psycho.push('balanced-bright');
-        else if (ir.spectralCentroid > 1600) psycho.push('warm, mid-focused');
-        else psycho.push('dark, heavy');
-
-        if (has6Band) {
-          if (ir.subBassEnergy! > 0.15) psycho.push('heavy rumble');
-          if (ir.bassEnergy! > 0.22) psycho.push('thick body');
-          if (ir.lowMidEnergy! > 0.20) psycho.push('warm mud zone');
-          if (ir.highMidEnergy! > 0.22) psycho.push('biting attack');
-          if (ir.presenceEnergy! > 0.18) psycho.push('sizzle/fizz');
-          if ((ir.frequencySmoothness ?? 0) > 80) psycho.push('smooth response');
-          else if ((ir.frequencySmoothness ?? 0) < 40) psycho.push('raw/uneven response');
-        }
-        desc += `    Psychoacoustic Character: ${psycho.join(', ')}\n`;
-
         if (kbLookup) {
-          desc += `    KB Predicted Role: ${kbLookup.predictedRole} (${kbLookup.confidence} confidence)\n`;
-          desc += `    Best For Intents: ${kbLookup.bestForIntents.join(', ')}\n`;
+          return kbLookup.predictedRole as RoleClass;
+        }
+        const c = ir.spectralCentroid;
+        const has6 = ir.subBassEnergy != null && ir.midEnergy6 != null && ir.highMidEnergy != null && ir.presenceEnergy != null;
+        const hmRatio = has6 ? (ir.highMidEnergy! / Math.max(ir.midEnergy6!, 0.001)) : (ir.highEnergy / Math.max(ir.midEnergy, 0.001));
+        const smoothness = ir.frequencySmoothness ?? 50;
+
+        if (c < 1400) return 'Dark Specialty';
+        if (c < 1700 && hmRatio < 0.8) return 'Fizz Tamer';
+        if (c > 2600 && hmRatio > 2.0) return 'Cut Layer';
+        if (c > 2400 && smoothness > 80 && hmRatio > 1.5) return 'Lead Polish';
+        const midVal = has6 ? (ir.midEnergy6! / 100) : ir.midEnergy;
+        if (hmRatio < 1.2 && midVal > 0.25) return 'Mid Thickener';
+        return 'Foundation';
+      };
+
+      // ─── Role pairing compatibility matrix ───
+      const ROLE_COMPAT: Record<string, number> = {
+        'Foundation+Cut Layer': 95, 'Foundation+Lead Polish': 90,
+        'Mid Thickener+Cut Layer': 88, 'Foundation+Fizz Tamer': 80,
+        'Cut Layer+Lead Polish': 78, 'Mid Thickener+Lead Polish': 82,
+        'Foundation+Mid Thickener': 70, 'Foundation+Dark Specialty': 65,
+        'Fizz Tamer+Lead Polish': 72, 'Fizz Tamer+Cut Layer': 60,
+        'Cut Layer+Cut Layer': 20, 'Dark Specialty+Fizz Tamer': 15,
+        'Dark Specialty+Dark Specialty': 10, 'Mid Thickener+Mid Thickener': 25,
+        'Mid Thickener+Fizz Tamer': 30, 'Foundation+Foundation': 35,
+        'Lead Polish+Lead Polish': 30, 'Fizz Tamer+Fizz Tamer': 15,
+        'Cut Layer+Dark Specialty': 45, 'Mid Thickener+Dark Specialty': 40,
+        'Lead Polish+Dark Specialty': 50,
+      };
+
+      const getRoleCompat = (r1: RoleClass, r2: RoleClass): number => {
+        const key1 = `${r1}+${r2}`;
+        const key2 = `${r2}+${r1}`;
+        return ROLE_COMPAT[key1] ?? ROLE_COMPAT[key2] ?? 50;
+      };
+
+      // ─── Intent multiplier for role combos ───
+      const getIntentBonus = (r1: RoleClass, r2: RoleClass, intent: string): number => {
+        const roles = new Set([r1, r2]);
+        switch (intent) {
+          case 'rhythm':
+            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.15;
+            if (roles.has('Mid Thickener') && roles.has('Cut Layer')) return 1.10;
+            if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.05;
+            if (roles.has('Lead Polish')) return 0.85;
+            if (roles.has('Dark Specialty')) return 0.80;
+            return 1.0;
+          case 'lead':
+            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.15;
+            if (roles.has('Cut Layer') && roles.has('Lead Polish')) return 1.10;
+            if (roles.has('Mid Thickener') && roles.has('Lead Polish')) return 1.05;
+            if (roles.has('Dark Specialty')) return 0.80;
+            if (roles.has('Fizz Tamer')) return 0.90;
+            return 1.0;
+          case 'clean':
+            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.12;
+            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.10;
+            if (roles.has('Cut Layer')) return 0.85;
+            if (roles.has('Dark Specialty')) return 0.80;
+            return 1.0;
+          default: return 1.0;
+        }
+      };
+
+      // ─── Compute spectral complementarity between two IRs ───
+      const computeComplementarity = (a: typeof irs[0], b: typeof irs[0]): number => {
+        let score = 0;
+
+        // 1. Centroid spread (0-25 pts) — different centroids = complementary
+        const centroidDiff = Math.abs(a.spectralCentroid - b.spectralCentroid);
+        score += Math.min(centroidDiff / 40, 25);
+
+        // 2. Brightness diversity (0-20 pts) — penalize same-bucket stacking
+        const bucketA = classifyBrightness(a);
+        const bucketB = classifyBrightness(b);
+        const bucketOrder: TonalBucket[] = ['dark', 'warm', 'balanced', 'balanced-bright', 'bright'];
+        const bucketDist = Math.abs(bucketOrder.indexOf(bucketA) - bucketOrder.indexOf(bucketB));
+        if (bucketDist === 0) score -= 10; // SAME bucket = penalty
+        else if (bucketDist === 1) score += 8;
+        else if (bucketDist >= 2) score += 15;
+        if (bucketDist >= 3) score += 5; // Extra for wide spread
+
+        // 3. HiMid/Mid ratio diversity (0-15 pts)
+        const has6a = a.subBassEnergy != null && a.midEnergy6 != null && a.highMidEnergy != null;
+        const has6b = b.subBassEnergy != null && b.midEnergy6 != null && b.highMidEnergy != null;
+        if (has6a && has6b) {
+          const ratioA = a.highMidEnergy! / Math.max(a.midEnergy6!, 0.001);
+          const ratioB = b.highMidEnergy! / Math.max(b.midEnergy6!, 0.001);
+          const ratioDiff = Math.abs(ratioA - ratioB);
+          if (ratioDiff > 0.5) score += 15;
+          else if (ratioDiff > 0.3) score += 10;
+          else if (ratioDiff > 0.15) score += 5;
+          else score -= 5; // Very similar = penalty
+
+          // 4. 6-band complementarity (0-15 pts) — bands should fill each other's gaps
+          const bands = ['subBassEnergy', 'bassEnergy', 'lowMidEnergy', 'midEnergy6', 'highMidEnergy', 'presenceEnergy'] as const;
+          let complementCount = 0;
+          for (const band of bands) {
+            const va = (a[band] ?? 0) as number;
+            const vb = (b[band] ?? 0) as number;
+            if ((va > 0.15 && vb < 0.10) || (vb > 0.15 && va < 0.10)) complementCount++;
+          }
+          score += Math.min(complementCount * 3, 15);
+
+          // 5. Anti-stacking: penalize both IRs having high presence or both high in same peak band
+          if (a.presenceEnergy! > 0.25 && b.presenceEnergy! > 0.25) score -= 12;
+          if (a.highMidEnergy! > 0.50 && b.highMidEnergy! > 0.50) score -= 8;
+          if (a.lowMidEnergy! > 0.15 && b.lowMidEnergy! > 0.15) score -= 5;
+        } else {
+          // 3-band fallback
+          const lowDiff = Math.abs(a.lowEnergy - b.lowEnergy);
+          const midDiff = Math.abs(a.midEnergy - b.midEnergy);
+          const highDiff = Math.abs(a.highEnergy - b.highEnergy);
+          score += Math.min((lowDiff + midDiff + highDiff) * 30, 15);
         }
 
-        return desc;
+        // 6. Smoothness compatibility (0-5 pts)
+        const smoothA = a.frequencySmoothness ?? 50;
+        const smoothB = b.frequencySmoothness ?? 50;
+        const smoothDiff = Math.abs(smoothA - smoothB);
+        if (smoothDiff < 10) score += 5; // Similar smoothness reinforces
+        else if (smoothDiff > 30) score -= 3; // Too different can clash
+
+        // 7. Position diversity bonus (0-5 pts) — different positions = different tonal capture
+        const parsedA = parseFilenameForExpectations(a.filename);
+        const parsedB = parseFilenameForExpectations(b.filename);
+        if (parsedA.position !== parsedB.position) score += 5;
+
+        // 8. Mic diversity bonus (0-5 pts) — different mics = different color
+        if (parsedA.mic !== parsedB.mic) score += 5;
+        else score -= 8; // Same mic = strong penalty
+
+        return score;
+      };
+
+      // ─── Fetch learned preferences for preference-aware scoring ───
+      const signals = await storage.getPreferenceSignals();
+      const learnedProfile = signals.length > 0 ? await computeLearnedProfile(signals) : null;
+
+      const computePreferenceAlignment = (a: typeof irs[0], b: typeof irs[0]): number => {
+        if (!learnedProfile) return 0;
+        let bonus = 0;
+
+        const has6a = a.midEnergy6 != null && a.highMidEnergy != null && a.presenceEnergy != null;
+        const has6b = b.midEnergy6 != null && b.highMidEnergy != null && b.presenceEnergy != null;
+
+        if (has6a && has6b) {
+          const blendMid = (a.midEnergy6! + b.midEnergy6!) / 2;
+          const blendHiMid = (a.highMidEnergy! + b.highMidEnergy!) / 2;
+          const blendPres = (a.presenceEnergy! + b.presenceEnergy!) / 2;
+          const blendRatio = blendHiMid / Math.max(blendMid, 0.1);
+
+          const adj = learnedProfile.learnedAdjustments;
+          if (adj) {
+            if (adj.mid && adj.mid.shift < 0 && blendMid < 28) bonus += 5;
+            if (adj.mid && adj.mid.shift > 0 && blendMid > 28) bonus += 5;
+            if (adj.presence && adj.presence.shift > 0 && blendPres > 25) bonus += 5;
+            if (adj.presence && adj.presence.shift < 0 && blendPres < 20) bonus += 5;
+            if (adj.ratio && adj.ratio.shift > 0 && blendRatio > 1.5) bonus += 5;
+            if (adj.ratio && adj.ratio.shift < 0 && blendRatio < 1.3) bonus += 5;
+          }
+
+          if (learnedProfile.avoidZones && learnedProfile.avoidZones.length > 0) {
+            for (const zone of learnedProfile.avoidZones) {
+              if (zone.band === 'mid' && zone.direction === 'high' && blendMid > zone.threshold) bonus -= 10;
+              if (zone.band === 'mid' && zone.direction === 'low' && blendMid < zone.threshold) bonus -= 10;
+              if (zone.band === 'presence' && zone.direction === 'high' && blendPres > zone.threshold) bonus -= 10;
+              if (zone.band === 'presence' && zone.direction === 'low' && blendPres < zone.threshold) bonus -= 10;
+              if (zone.band === 'ratio' && zone.direction === 'high' && blendRatio > zone.threshold) bonus -= 8;
+              if (zone.band === 'ratio' && zone.direction === 'low' && blendRatio < zone.threshold) bonus -= 8;
+            }
+          }
+        }
+
+        return bonus;
+      };
+
+      // ─── Score and rank all candidate pairs ───
+      interface ScoredPair {
+        ir1: typeof irs[0];
+        ir2: typeof irs[0];
+        role1: RoleClass;
+        role2: RoleClass;
+        complementarity: number;
+        roleCompat: number;
+        intentBonus: number;
+        prefAlignment: number;
+        totalScore: number;
+        set1Label?: string;
+        set2Label?: string;
       }
 
+      const scoredPairs: ScoredPair[] = [];
+
+      if (isMixedPairing) {
+        // Cross-speaker pairs only
+        for (let i = 0; i < irs.length; i++) {
+          for (let j = 0; j < irs2!.length; j++) {
+            const role1 = classifyRole(irs[i]);
+            const role2 = classifyRole(irs2![j]);
+            const complementarity = computeComplementarity(irs[i], irs2![j]);
+            const roleCompat = getRoleCompat(role1, role2);
+            const intentBonus = getIntentBonus(role1, role2, intent);
+            const prefAlignment = computePreferenceAlignment(irs[i], irs2![j]);
+
+            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment) * intentBonus;
+
+            scoredPairs.push({
+              ir1: irs[i], ir2: irs2![j],
+              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, totalScore,
+              set1Label: `Set1`, set2Label: `Set2`,
+            });
+          }
+        }
+      } else {
+        // All unique pairs within the same set
+        for (let i = 0; i < irs.length; i++) {
+          for (let j = i + 1; j < irs.length; j++) {
+            const role1 = classifyRole(irs[i]);
+            const role2 = classifyRole(irs[j]);
+            const complementarity = computeComplementarity(irs[i], irs[j]);
+            const roleCompat = getRoleCompat(role1, role2);
+            const intentBonus = getIntentBonus(role1, role2, intent);
+            const prefAlignment = computePreferenceAlignment(irs[i], irs[j]);
+
+            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment) * intentBonus;
+
+            scoredPairs.push({
+              ir1: irs[i], ir2: irs[j],
+              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, totalScore,
+            });
+          }
+        }
+      }
+
+      // Sort by total score descending
+      scoredPairs.sort((a, b) => b.totalScore - a.totalScore);
+
+      // Take top candidates (more than requested so AI has room to refine)
+      const candidateCount = Math.min(scoredPairs.length, pairingCount * 2);
+      const topCandidates = scoredPairs.slice(0, candidateCount);
+
+      // ─── Build learned preferences summary for AI ───
+      let learnedPrefsSection = '';
+      if (learnedProfile && learnedProfile.learnedAdjustments) {
+        const adj = learnedProfile.learnedAdjustments;
+        const parts: string[] = [];
+        if (adj.mid) parts.push(`mid shift: ${adj.mid.shift > 0 ? '+' : ''}${adj.mid.shift.toFixed(1)} (user ${adj.mid.shift < 0 ? 'prefers scooped/less mids' : 'prefers dense mids'})`);
+        if (adj.highMid) parts.push(`hiMid shift: ${adj.highMid.shift > 0 ? '+' : ''}${adj.highMid.shift.toFixed(1)} (user ${adj.highMid.shift > 0 ? 'likes bite/cut' : 'likes smooth highs'})`);
+        if (adj.presence) parts.push(`presence shift: ${adj.presence.shift > 0 ? '+' : ''}${adj.presence.shift.toFixed(1)} (user ${adj.presence.shift > 0 ? 'likes brightness/clarity' : 'prefers darker tones'})`);
+        if (adj.ratio) parts.push(`ratio shift: ${adj.ratio.shift > 0 ? '+' : ''}${adj.ratio.shift.toFixed(2)} (user ${adj.ratio.shift > 0 ? 'likes articulate/crisp' : 'likes warm/round'})`);
+        learnedPrefsSection = `\n=== LEARNED USER TONAL PREFERENCES (${learnedProfile.status}, ${learnedProfile.signalCount} ratings) ===
+${parts.join('\n')}
+${learnedProfile.avoidZones.length > 0 ? `Avoid zones: ${learnedProfile.avoidZones.map(z => `${z.band} ${z.direction} ${z.threshold}`).join(', ')}` : ''}
+${learnedProfile.courseCorrections.length > 0 ? `User corrections: ${learnedProfile.courseCorrections.join('; ')}` : ''}
+These preferences are ALREADY factored into the pre-scoring. Use them to inform your rationale and mix ratio recommendations.`;
+      }
+
+      // ─── Describe pre-scored candidates for AI ───
+      const describeScoredPair = (sp: ScoredPair, idx: number): string => {
+        const parsedA = parseFilenameForExpectations(sp.ir1.filename);
+        const parsedB = parseFilenameForExpectations(sp.ir2.filename);
+        const has6a = sp.ir1.subBassEnergy != null && sp.ir1.midEnergy6 != null && sp.ir1.highMidEnergy != null && sp.ir1.presenceEnergy != null;
+        const has6b = sp.ir2.subBassEnergy != null && sp.ir2.midEnergy6 != null && sp.ir2.highMidEnergy != null && sp.ir2.presenceEnergy != null;
+
+        let desc = `CANDIDATE #${idx + 1} (pre-score: ${sp.totalScore.toFixed(1)})\n`;
+        desc += `  IR1: "${sp.ir1.filename}" | ${parsedA.mic.toUpperCase()} @ ${parsedA.position} | Centroid: ${sp.ir1.spectralCentroid.toFixed(0)}Hz | Role: ${sp.role1}\n`;
+        if (has6a) {
+          desc += `    6-Band: Sub=${(sp.ir1.subBassEnergy! * 100).toFixed(1)}% Bass=${(sp.ir1.bassEnergy! * 100).toFixed(1)}% LowMid=${(sp.ir1.lowMidEnergy! * 100).toFixed(1)}% Mid=${(sp.ir1.midEnergy6! * 100).toFixed(1)}% HiMid=${(sp.ir1.highMidEnergy! * 100).toFixed(1)}% Pres=${(sp.ir1.presenceEnergy! * 100).toFixed(1)}%\n`;
+        }
+        desc += `  IR2: "${sp.ir2.filename}" | ${parsedB.mic.toUpperCase()} @ ${parsedB.position} | Centroid: ${sp.ir2.spectralCentroid.toFixed(0)}Hz | Role: ${sp.role2}\n`;
+        if (has6b) {
+          desc += `    6-Band: Sub=${(sp.ir2.subBassEnergy! * 100).toFixed(1)}% Bass=${(sp.ir2.bassEnergy! * 100).toFixed(1)}% LowMid=${(sp.ir2.lowMidEnergy! * 100).toFixed(1)}% Mid=${(sp.ir2.midEnergy6! * 100).toFixed(1)}% HiMid=${(sp.ir2.highMidEnergy! * 100).toFixed(1)}% Pres=${(sp.ir2.presenceEnergy! * 100).toFixed(1)}%\n`;
+        }
+        desc += `  Scoring: complementarity=${sp.complementarity.toFixed(1)} roleCompat=${sp.roleCompat} intentBonus=×${sp.intentBonus.toFixed(2)} prefAlign=${sp.prefAlignment.toFixed(1)}\n`;
+        return desc;
+      };
+
+      const candidateDescriptions = topCandidates.map((sp, i) => describeScoredPair(sp, i)).join('\n');
+
+      // ─── Build AI prompt with pre-scored candidates ───
       const intentGuide = intent && intent !== 'versatile' ? {
-        rhythm: `RHYTHM CONTEXT: Prioritize Foundation + Cut Layer pairings for punch and clarity. Ideal: one IR with solid mid body (Foundation/Mid Thickener) paired with one that adds bite and articulation (Cut Layer). Avoid excessive brightness or fizz. The blend should sit well in a dense mix, support palm mutes, and maintain note definition under gain.`,
-        lead: `LEAD CONTEXT: Prioritize Foundation + Lead Polish or Cut Layer + Lead Polish pairings for singing sustain and presence. The blend should have smooth upper harmonics, detailed highs without harshness, and enough mid presence to cut through without being abrasive. Sustain and note bloom matter more than tightness.`,
-        clean: `CLEAN CONTEXT: Prioritize Foundation + Fizz Tamer or Foundation + Lead Polish for shimmer and warmth without brittleness. Clean tones need smooth, even response with sparkle in the highs and warmth in the lows. Avoid anything harsh, buzzy, or overly aggressive. The blend should respond well to dynamics and have a polished, hi-fi quality.`,
-      }[intent] : 'VERSATILE CONTEXT: Design pairings that work across rhythm, lead, and clean playing. Prioritize complementary roles — one warm/full IR with one bright/detailed IR.';
+        rhythm: `RHYTHM CONTEXT: Prioritize Foundation + Cut Layer for punch and clarity. The blend should sit in a dense mix, support palm mutes, and maintain note definition under gain.`,
+        lead: `LEAD CONTEXT: Prioritize Foundation + Lead Polish or Cut Layer + Lead Polish for singing sustain and smooth presence. Sustain and note bloom matter more than tightness.`,
+        clean: `CLEAN CONTEXT: Prioritize Foundation + Lead Polish or Foundation + Fizz Tamer for shimmer and warmth. Avoid harshness. Smooth, polished, hi-fi quality.`,
+      }[intent] : 'VERSATILE CONTEXT: Pairings that work across rhythm, lead, and clean. One warm/full IR + one bright/detailed IR.';
 
-      const roleDefinitions = `=== MUSICAL ROLES (assign one per IR) ===
-- Foundation: Balanced, neutral base layer — punchy, sits well in any mix
-- Cut Layer: Forward, bright, aggressive — adds attack, bite, presence
-- Mid Thickener: Warm, thick mids, rolled-off highs — body and warmth
-- Fizz Tamer: Smooth, dark, rolled-off top — controls fizz and harshness
-- Lead Polish: Refined, hi-fi detail with extended highs — polished, singing quality
-- Dark Specialty: Very dark, deep — for ambient, doom, specialty tones
+      const systemPrompt = `You are an expert audio engineer selecting the BEST IR blend pairings from pre-scored candidates.
+All IRs are minimum phase transformed (MPT) — phase cancellation is NOT a concern.
 
-=== ROLE PAIRING GUIDELINES (psychoacoustically sound combos) ===
-EXCELLENT pairs: Foundation + Cut Layer (classic punch+bite), Foundation + Lead Polish (body+detail), Mid Thickener + Cut Layer (warm+articulate)
-GOOD pairs: Foundation + Fizz Tamer (smooth fullness), Cut Layer + Lead Polish (bright+refined), Mid Thickener + Lead Polish (warm+polished)
-SPECIALTY pairs: Foundation + Dark Specialty (heavy/doom), Fizz Tamer + Lead Polish (ultra-smooth)
-AVOID: Cut Layer + Cut Layer (too harsh), Dark Specialty + Fizz Tamer (too dark/muddy)`;
+The candidates below have ALREADY been scored server-side for:
+- Spectral complementarity (centroid spread, band diversity, anti-stacking)
+- Role compatibility (Foundation+Cut Layer=excellent, same-role=bad, etc.)
+- Intent fitness (${intent})
+- User preference alignment (learned from ${learnedProfile?.signalCount || 0} taste ratings)
 
-      const mixerSection = `=== PSYCHOACOUSTIC MIX PRINCIPLES ===
-- Complementary spectral centroids create wider perceived tonal range
-- HiMid/Mid ratio difference >0.3 between paired IRs = complementary attack characteristics
-- Mix ratio follows the "dominant character" rule: the IR providing the desired base tone gets 55-70%, the color IR gets 30-45%
-- For rhythm: emphasize the tighter, punchier IR. For lead: emphasize the smoother, more detailed IR.
-- Similar smoothness values reinforce each other well; different smoothness creates texture contrast
+Your job is to:
+1. Select the TOP ${pairingCount} from these pre-validated candidates
+2. Assign accurate mix ratios based on spectral data (NOT just 50:50 for everything)
+3. Provide psychoacoustically accurate descriptions of what each blend achieves
+4. NEVER select a pair where both IRs are spectrally similar (same brightness, same peak bands)
+5. The pre-score already penalizes bad combos — trust it. Higher pre-score = better pairing.
 
-Mix Ratio Guidelines:
-- 50:50: Equal blend — both contribute equally (best for similar-quality IRs)
-- 55:45 to 60:40: Slight emphasis — main character + supporting color
-- 65:35 to 70:30: Clear lead IR + accent color from second
-- 75:25: Primary tone with subtle enhancement hint`;
+CRITICAL RULES:
+- Each pairing MUST combine different tonal characters (one warm + one bright, one punchy + one smooth, etc.)
+- Two bright/forward mics together is NEVER a good pairing
+- Two dark/warm mics together is NEVER a good pairing
+- Same mic type on both sides is generally bad unless positions differ dramatically
+- Mix ratio must reflect the dominant role: Foundation/body IR gets 55-70%, color/accent IR gets 30-45%
 
-      const outputFormat = `{
+${intentGuide}
+${learnedPrefsSection}
+
+Output EXACTLY ${pairingCount} pairings as JSON:
+{
   "pairings": [
     {
-      "title": "Short evocative name (e.g. 'Punch & Silk', 'Warm Crunch', 'Lead Machine')",
+      "title": "Short evocative name",
       "ir1": "exact filename of first IR",
       "ir2": "exact filename of second IR",
       "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
       "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
-      "mixRatio": "e.g. '60:40' (ir1:ir2)",
+      "mixRatio": "e.g. '60:40' (ir1:ir2) — MUST reflect which role is dominant",
       "score": 0-100,
-      "rationale": "Why these roles complement each other and how the blend works psychoacoustically",
-      "expectedTone": "Psychoacoustic description of the blended sound using real descriptors (punch, warmth, shimmer, bite, etc.)",
+      "rationale": "Why these complement each other psychoacoustically — reference specific band differences",
+      "expectedTone": "Psychoacoustic description of the blend using real descriptors",
       "bestFor": "Playing contexts and styles this blend excels at",
-      "intentFit": "How well this pairing fits the ${intent || 'versatile'} context",
-      "psychoacousticSummary": "1-sentence: what each IR contributes perceptually (e.g., 'IR1 provides mid punch and low-end weight, IR2 adds upper-mid articulation and presence sparkle')"
+      "intentFit": "How well this pairing fits the ${intent} context",
+      "psychoacousticSummary": "1-sentence: what each IR contributes perceptually"
     }
   ],
-  "summary": "Overview of the set and pairing recommendations",
-  "speakerRoleAnalysis": "${isMixedPairing ? 'Analysis of which speaker naturally fits which role (Foundation vs Cut vs Lead Polish) based on their spectral characteristics. Explain which speaker should typically be the base layer and which provides color/detail.' : ''}"
+  "summary": "Overview of the recommendations",
+  "speakerRoleAnalysis": "${isMixedPairing ? 'Which speaker naturally fits Foundation vs Cut/Color role based on spectral data' : ''}"
 }`;
 
-      let systemPrompt = `You are an expert audio engineer and psychoacoustician specializing in guitar cabinet IR blending.
-You understand musical roles, spectral complementarity, and how different mic positions create distinct tonal characters.
-All IRs are minimum phase transformed (MPT) — phase cancellation is NOT a concern when blending.
+      const userMessage = `Here are ${topCandidates.length} pre-scored candidate pairings, ranked by spectral complementarity and role compatibility.
+Select the BEST ${pairingCount} and provide detailed analysis:
 
-${roleDefinitions}
-
-${mixerSection}
-
-${intentGuide}
-${learnedPrefsSection}`;
-
-      let userMessage: string;
-
-      if (isMixedPairing) {
-        systemPrompt += `\n\nMIXED SPEAKER PAIRING MODE:
-You are analyzing IRs from TWO DIFFERENT speakers. Every pairing MUST cross speakers (one from Set 1, one from Set 2).
-Determine which speaker naturally serves which role (e.g., Speaker 1 = Foundation provider, Speaker 2 = Cut Layer provider).
-Use the spectral data, KB role predictions, and psychoacoustic character to make this determination.
-For each pairing, assign the optimal role to each IR and explain the speaker role dynamics.
-
-Output EXACTLY ${pairingCount} pairings (not fewer, not more — the user specifically requested ${pairingCount}).
-Output JSON format:
-${outputFormat}`;
-
-        const set1Desc = irs.map((ir, i) => describeIR(ir, `1.${i + 1}`)).join('\n');
-        const set2Desc = irs2!.map((ir, i) => describeIR(ir, `2.${i + 1}`)).join('\n');
-
-        userMessage = `Analyze these IRs from TWO DIFFERENT SPEAKERS and find the best role-complementary cross-speaker pairings:
-
-SPEAKER SET 1 (${irs.length} IRs):
-${set1Desc}
-
-SPEAKER SET 2 (${irs2!.length} IRs):
-${set2Desc}
-
-Determine optimal roles and speaker role assignments. Each pairing must cross speakers.`;
-
-      } else {
-        systemPrompt += `\n\nSINGLE SPEAKER MODE:
-Analyze the set and find the best role-complementary pairings within the same speaker.
-Output EXACTLY ${pairingCount} pairings (not fewer, not more — the user specifically requested ${pairingCount}).
-Output JSON format:
-${outputFormat}`;
-
-        const irDesc = irs.map((ir, i) => describeIR(ir)).join('\n');
-        userMessage = `Analyze these ${irs.length} IRs and recommend the best role-aware pairings with optimal mix ratios:\n\n${irDesc}`;
-      }
-
-      if (tonePreferences && tonePreferences.trim()) {
-        userMessage += `\n\nUSER'S TONAL GOALS: "${tonePreferences.trim()}"
-Prioritize pairings that achieve these psychoacoustic goals. Adjust role assignments and mix ratios to best deliver this sound.`;
-      }
+${candidateDescriptions}
+${tonePreferences ? `\nUSER'S TONAL GOALS: "${tonePreferences.trim()}"` : ''}`;
 
       const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
         { role: "system", content: systemPrompt },
@@ -4759,7 +4954,7 @@ Prioritize pairings that achieve these psychoacoustic goals. Adjust role assignm
           model: "gpt-4o",
           messages,
           response_format: { type: "json_object" },
-          temperature: attempt === 0 ? 0.15 : 0.3,
+          temperature: attempt === 0 ? 0.1 : 0.2,
           max_tokens: 16384,
         });
 
@@ -4773,11 +4968,9 @@ Prioritize pairings that achieve these psychoacoustic goals. Adjust role assignm
         }
 
         if (attempt < maxAttempts - 1 && got < pairingCount) {
-          const existing = parsed.pairings || [];
-          const existingTitles = existing.map((p: any) => `${p.ir1} + ${p.ir2}`).join(', ');
           messages.push(
             { role: "assistant", content: response.choices[0].message.content || "" },
-            { role: "user", content: `You only provided ${got} pairings but I need EXACTLY ${pairingCount}. You still need ${pairingCount - got} more. Do NOT repeat these existing pairs: ${existingTitles}. Output a COMPLETE JSON with ALL ${pairingCount} pairings (include the ${got} you already gave plus ${pairingCount - got} new ones).` }
+            { role: "user", content: `You provided ${got} but I need EXACTLY ${pairingCount}. Output a complete JSON with all ${pairingCount} pairings.` }
           );
         } else {
           finalResult = parsed;
