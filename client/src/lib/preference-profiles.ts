@@ -1659,12 +1659,13 @@ export function pickTasteCheckCandidates(
     [...workingPool, ...settledWinners],
     activeEloRatings
   );
+  const sessionRoundIndex = history?.length ?? 0;
   const isRefinementRound = !disableRefinement
     && plateauWinners.length >= 2
     && settledWinners.length >= 2
     && !isCalibrationRound
     && totalRounds > 1
-    && totalRounds % 2 === 0;
+    && sessionRoundIndex % 2 === 1;
 
   if (tasteSignal || eloRatings) {
     const hasElo = activeEloRatings && Object.keys(activeEloRatings).length > 0;
@@ -1700,9 +1701,10 @@ export function pickTasteCheckCandidates(
   const lastAxisName = history && history.length > 0 ? history[history.length - 1].axisName : null;
 
   const forceQuad = modeOverride === "acquisition";
-  const quadRounds = forceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
+  const refinementForceBinary = isRefinementRound && plateauWinners.length >= 2;
+  const quadRounds = forceBinary || refinementForceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
 
-  if (!forceBinary && round < quadRounds && workingPool.length >= 4) {
+  if (!forceBinary && !refinementForceBinary && round < quadRounds && workingPool.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));
     chosenAxis = unexplored.length > 0 ? unexplored[0] : axisWithSpread[0];
     const axisCompute = chosenAxis.axis.compute;
