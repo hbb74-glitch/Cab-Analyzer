@@ -4577,6 +4577,7 @@ Output JSON:
       const input = api.pairing.analyze.input.parse(req.body);
       const { irs, irs2, tonePreferences, mixedMode } = input;
       const intent = input.intent || 'versatile';
+      const pairingCount = input.pairingCount || 5;
 
       const isMixedPairing = mixedMode && irs2 && irs2.length > 0;
 
@@ -4712,7 +4713,7 @@ Determine which speaker naturally serves which role (e.g., Speaker 1 = Foundatio
 Use the spectral data, KB role predictions, and psychoacoustic character to make this determination.
 For each pairing, assign the optimal role to each IR and explain the speaker role dynamics.
 
-Output the TOP 3-5 best cross-speaker pairings.
+Output EXACTLY ${pairingCount} best cross-speaker pairings.
 Output JSON format:
 ${outputFormat}`;
 
@@ -4732,7 +4733,7 @@ Determine optimal roles and speaker role assignments. Each pairing must cross sp
       } else {
         systemPrompt += `\n\nSINGLE SPEAKER MODE:
 Analyze the set and find the best role-complementary pairings within the same speaker.
-Output the TOP 3-5 best pairings.
+Output EXACTLY ${pairingCount} best pairings.
 Output JSON format:
 ${outputFormat}`;
 

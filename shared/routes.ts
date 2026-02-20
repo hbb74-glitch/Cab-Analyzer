@@ -155,6 +155,7 @@ export const pairingInputSchema = z.object({
   tonePreferences: z.string().optional(),
   mixedMode: z.boolean().optional(),
   intent: z.enum(["rhythm", "lead", "clean", "versatile"]).optional(),
+  pairingCount: z.number().min(1).max(20).optional(),
 });
 
 export const pairingResultSchema = z.object({

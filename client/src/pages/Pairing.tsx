@@ -53,6 +53,7 @@ export default function Pairing() {
   const [customGenre, setCustomGenre] = useState("");
   const [tonePreferences, setTonePreferences] = useState("");
   const [intent, setIntent] = useState<"rhythm" | "lead" | "clean" | "versatile">("versatile");
+  const [pairingCount, setPairingCount] = useState<number>(5);
   const { toast } = useToast();
   const { pairingResult: result, setPairingResult: setResult } = useResults();
 
@@ -96,32 +97,29 @@ export default function Pairing() {
   };
 
   const copySimpleList = () => {
-    // Get all unique IR names from both speaker groups, sorted alphabetically
-    const allIRs = [
-      ...speaker1IRs.filter(ir => ir.metrics && !ir.error).map(ir => ir.file.name.replace(/\.wav$/i, '')),
-      ...speaker2IRs.filter(ir => ir.metrics && !ir.error).map(ir => ir.file.name.replace(/\.wav$/i, '')),
-    ].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
-    
-    if (allIRs.length === 0) {
-      toast({ title: "No IRs", description: "Upload IRs first", variant: "destructive" });
+    if (!result || result.pairings.length === 0) {
+      toast({ title: "No pairings", description: "Run analysis first", variant: "destructive" });
       return;
     }
     
-    const text = allIRs.map((name, i) => `${i + 1}. ${name}`).join('\n');
+    const text = result.pairings.map((p, i) => 
+      `${i + 1}. ${p.title} — ${p.ir1} + ${p.ir2} (${p.mixRatio})`
+    ).join('\n');
     
     navigator.clipboard.writeText(text);
     setCopied(true);
-    toast({ title: "Copied to clipboard", description: "IR list copied." });
+    toast({ title: "Copied to clipboard", description: "Pairing shortlist copied." });
     setTimeout(() => setCopied(false), 2000);
   };
 
   const { mutate: analyzePairings, isPending } = useMutation({
-    mutationFn: async ({ irs, irs2, tonePrefs, mixedMode, intent: intentVal }: { 
+    mutationFn: async ({ irs, irs2, tonePrefs, mixedMode, intent: intentVal, count }: { 
       irs: IRMetrics[], 
       irs2?: IRMetrics[], 
       tonePrefs?: string,
       mixedMode?: boolean,
-      intent?: "rhythm" | "lead" | "clean" | "versatile"
+      intent?: "rhythm" | "lead" | "clean" | "versatile",
+      count?: number
     }) => {
       const validated = api.pairing.analyze.input.parse({ 
         irs, 
@@ -129,6 +127,7 @@ export default function Pairing() {
         tonePreferences: tonePrefs,
         mixedMode,
         intent: intentVal,
+        pairingCount: count,
       });
       const res = await fetch(api.pairing.analyze.path, {
         method: "POST",
@@ -266,12 +265,14 @@ export default function Pairing() {
         tonePrefs: combinedTonePrefs,
         mixedMode: true,
         intent,
+        count: pairingCount,
       });
     } else {
       analyzePairings({ 
         irs: toMetrics(valid1), 
         tonePrefs: combinedTonePrefs,
         intent,
+        count: pairingCount,
       });
     }
   };
@@ -545,6 +546,28 @@ export default function Pairing() {
               <p className="text-xs text-muted-foreground">
                 AI optimizes pairings for your playing context — role combos differ for rhythm vs lead vs clean
               </p>
+            </div>
+
+            {/* Number of Pairings */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Number of Pairings
+              </label>
+              <Select
+                value={String(pairingCount)}
+                onValueChange={(v) => setPairingCount(Number(v))}
+              >
+                <SelectTrigger className="w-full" data-testid="select-pairing-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[3, 5, 7, 10, 15, 20].map((n) => (
+                    <SelectItem key={n} value={String(n)} data-testid={`option-count-${n}`}>
+                      {n} pairings
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Tone Preferences */}
