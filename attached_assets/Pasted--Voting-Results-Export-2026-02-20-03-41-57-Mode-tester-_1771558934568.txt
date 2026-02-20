@@ -1,0 +1,48 @@
+=== Voting Results Export — 2026-02-20 03:41:57 ===
+Mode: tester | Intent: rhythm | Training: yes (sandbox)
+Pairing rounds completed: 0
+Taste check votes (all time): 16
+Profile status: mastered | Signals: 153 | Liked: 152 | Noped: 1
+
+--- Preference Corrections Applied ---
+1. tonal feedback applied: more_bite, less_harsh, aggressive
+
+--- Elo Ratings ---
+combo_key	rating	matches	uncertainty
+Cream_PR30_Cap_Cone_Tr_2.5in.wav + Cream_R121_Cap_4in.wav	1516	1	0.71
+Cream_M201_CapEdge_Br_3in.wav + Cream_SM7b_CapEdge_1.5in.wav	1516	1	0.71
+Cream_MD441_Presence_Cone_4in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1516	1	0.71
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1516	1	0.71
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1516	1	0.71
+Cream_PR30_CapEdge_2.5in.wav + Cream_e906_Presence_CapEdge_Dk_4in.wav	1516	1	0.71
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_PR30_Cone_2.5in.wav	1516	1	0.71
+Cream_M201_CapEdge_3in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1516	1	0.71
+Cream_PR30_Cap_Cone_Tr_2.5in.wav + Cream_SM7b_CapEdge_1.5in.wav	1516	1	0.71
+Cream_PR30_Cap_Cone_Tr_2.5in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1516	1	0.71
+Cream_M201_CapEdge_3in.wav + Cream_SM7b_CapEdge_1.5in.wav	1516	1	0.71
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_Cone_2.5in.wav	1516	1	0.71
+Cream_M201_CapEdge_Br_3in.wav + Cream_R92_Cap_6in.wav	1516	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_SM57_CapEdge_Br_2in.wav	1516	1	0.71
+Cream_M201_CapEdge_3in.wav + Cream_PR30_Cone_2.5in.wav	1516	1	0.71
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_R92_Cap_6in.wav	1516	1	0.71
+Cream_PR30_CapEdge_2.5in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1484	1	0.71
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_e906_Presence_CapEdge_Dk_4in.wav	1484	1	0.71
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_SM7b_CapEdge_1.5in.wav	1484	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_R121_Cap_4in.wav	1484	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_R92_Cap_6in.wav	1484	1	0.71
+Cream_PR30_Cone_2.5in.wav + Cream_R121_Cap_4in.wav	1484	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_SM7b_CapEdge_1.5in.wav	1484	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_Roswell_Cap_6in.wav	1484	1	0.71
+Cream_MD441_Presence_Cone_4in.wav + Cream_PR30_CapEdge_2.5in.wav	1484	1	0.71
+Cream_PR30_Cap_Cone_Tr_2.5in.wav + Cream_R92_Cap_6in.wav	1484	1	0.71
+Cream_PR30_CapEdge_2.5in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1484	1	0.71
+Cream_R121_Cap_4in.wav + Cream_R92_Cap_6in.wav	1484	1	0.71
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_CapEdge_2in.wav	1484	1	0.71
+Cream_PR30_Cap_Cone_Tr_2.5in.wav + Cream_PR30_Cone_2.5in.wav	1484	1	0.71
+Cream_MD441_Flat_Cap_Cone_Tr_4in.wav + Cream_SM57_R121_Smooth_5in.wav	1484	1	0.71
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_PR30_Cone_2.5in.wav	1484	1	0.71
+
+--- Taste Learning Summary ---
+Total votes: 16 | Confidence: 53%
+
+=== End of Voting Results ===

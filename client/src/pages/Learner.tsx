@@ -1538,7 +1538,9 @@ export default function Learner() {
     lines.push(`=== Voting Results Export — ${ts} ===`);
     lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | Training: ${trainingMode ? "yes (sandbox)" : "no (live)"}`);
     lines.push(`Pairing rounds completed: ${totalRoundsCompleted}`);
-    lines.push(`Taste check votes (all time): ${getTasteVoteCount(tasteContext)}`);
+    const allTimeVotes = getTasteVoteCount(tasteContext);
+    const currentSessionVotes = tasteCheckPhase?.history?.length ?? 0;
+    lines.push(`Taste check votes (all time): ${allTimeVotes}${currentSessionVotes > 0 ? ` (${currentSessionVotes} this session)` : ""}`);
     if (learnedProfile && learnedProfile.status !== "no_data") {
       lines.push(`Profile status: ${learnedProfile.status} | Signals: ${learnedProfile.signalCount} | Liked: ${learnedProfile.likedCount} | Noped: ${learnedProfile.nopedCount}`);
     }

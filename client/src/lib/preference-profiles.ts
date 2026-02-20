@@ -1496,10 +1496,8 @@ export function pickTasteCheckCandidates(
   }
 
   const sessionRounds = history?.length ?? 0;
-  const persistedRoundMax = persistedShownPairs && Object.keys(persistedShownPairs).length > 0
-    ? Math.max(...Object.values(persistedShownPairs).map(e => e.lastRound + 1))
-    : 0;
-  const totalRounds = Math.max(sessionRounds, persistedRoundMax);
+  const eloEntryCount = eloRatings ? Object.keys(eloRatings).length : 0;
+  const totalRounds = Math.max(sessionRounds, eloEntryCount);
   const allCombos: ComboWithMeta[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
