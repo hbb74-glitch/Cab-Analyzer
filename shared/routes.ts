@@ -585,6 +585,11 @@ export const api = {
         genre: z.string().optional(),
         existingShots: z.array(existingShotSchema).optional(),
         targetCount: z.number().min(1).max(30).optional(),
+        intentCounts: z.object({
+          rhythm: z.number().min(0).max(20).optional(),
+          lead: z.number().min(0).max(20).optional(),
+          clean: z.number().min(0).max(20).optional(),
+        }).optional(),
       }),
       responses: {
         200: z.any(),

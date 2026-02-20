@@ -419,6 +419,10 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
   const [designSpeaker, setDesignSpeaker] = useState("");
   const [designGenre, setDesignGenre] = useState("");
   const [targetCount, setTargetCount] = useState(10);
+  const [useIntentMode, setUseIntentMode] = useState(true);
+  const [rhythmCount, setRhythmCount] = useState(6);
+  const [leadCount, setLeadCount] = useState(3);
+  const [cleanCount, setCleanCount] = useState(2);
   const [designResult, setDesignResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -428,7 +432,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
   });
 
   const designMutation = useMutation({
-    mutationFn: async (input: { speaker: string; genre?: string; targetCount?: number }) => {
+    mutationFn: async (input: { speaker: string; genre?: string; targetCount?: number; intentCounts?: { rhythm?: number; lead?: number; clean?: number } }) => {
       const res = await apiRequest('POST', '/api/tonal-profiles/design-shots', input);
       return res.json();
     },
@@ -443,12 +447,19 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
   const handleDesign = (e: React.FormEvent) => {
     e.preventDefault();
     if (!designSpeaker) return;
-    designMutation.mutate({
+    const payload: any = {
       speaker: designSpeaker,
       genre: designGenre || undefined,
-      targetCount,
-    });
+    };
+    if (useIntentMode) {
+      payload.intentCounts = { rhythm: rhythmCount, lead: leadCount, clean: cleanCount };
+    } else {
+      payload.targetCount = targetCount;
+    }
+    designMutation.mutate(payload);
   };
+
+  const intentTotal = rhythmCount + leadCount + cleanCount;
 
   const profileCount = Array.isArray(profileData) ? profileData.length : 0;
   const speakerProfileCount = Array.isArray(profileData)
@@ -459,6 +470,27 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
     if (c === 'high') return 'text-green-400 bg-green-500/20';
     if (c === 'medium') return 'text-yellow-400 bg-yellow-500/20';
     return 'text-orange-400 bg-orange-500/20';
+  };
+
+  const roleBadgeColor = (role: string) => {
+    switch (role) {
+      case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";
+      case "Mid Thickener": return "bg-amber-500/15 text-amber-400";
+      case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
+      case "Lead Polish": return "bg-violet-500/15 text-violet-400";
+      case "Dark Specialty": return "bg-zinc-500/15 text-zinc-300";
+      case "Foundation": return "bg-emerald-500/15 text-emerald-400";
+      default: return "bg-white/10 text-muted-foreground";
+    }
+  };
+
+  const intentColor = (intent: string) => {
+    switch (intent) {
+      case "rhythm": return "bg-orange-500/15 text-orange-400 border-orange-500/20";
+      case "lead": return "bg-purple-500/15 text-purple-400 border-purple-500/20";
+      case "clean": return "bg-teal-500/15 text-teal-400 border-teal-500/20";
+      default: return "bg-white/10 text-muted-foreground";
+    }
   };
 
   const copyShotList = () => {
@@ -479,13 +511,13 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
             <BarChart3 className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Tonal Intelligence</h3>
+            <h3 className="text-sm font-semibold text-foreground">Role-Aware Collection Designer</h3>
             <p className="text-xs text-muted-foreground">
               {profilesLoading
                 ? 'Loading tonal data...'
                 : profileCount > 0
-                ? `${profileCount} mic/position profiles learned from your batch analyses`
-                : 'No tonal data yet -- run batch analysis to start learning'}
+                ? `${profileCount} mic/position profiles learned + knowledge base of ${40}+ mic/position role predictions`
+                : 'No tonal data yet -- run batch analysis to start learning (knowledge base still available)'}
             </p>
           </div>
         </div>
@@ -533,32 +565,131 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Target className="w-3 h-3" /> Target Shot Count: {targetCount}
-          </label>
-          <input
-            type="range"
-            min={3}
-            max={25}
-            value={targetCount}
-            onChange={(e) => setTargetCount(Number(e.target.value))}
-            className="w-full accent-primary"
-            data-testid="slider-target-count"
-          />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>3 (focused)</span>
-            <span>25 (comprehensive)</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setUseIntentMode(true)}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg border transition-all",
+                useIntentMode
+                  ? "bg-primary/20 text-primary border-primary/30"
+                  : "bg-white/5 text-muted-foreground border-white/10"
+              )}
+              data-testid="button-intent-mode"
+            >
+              <Target className="w-3 h-3 inline mr-1" /> By Playing Context
+            </button>
+            <button
+              type="button"
+              onClick={() => setUseIntentMode(false)}
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-lg border transition-all",
+                !useIntentMode
+                  ? "bg-primary/20 text-primary border-primary/30"
+                  : "bg-white/5 text-muted-foreground border-white/10"
+              )}
+              data-testid="button-count-mode"
+            >
+              <ListFilter className="w-3 h-3 inline mr-1" /> By Total Count
+            </button>
           </div>
+
+          {useIntentMode ? (
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Specify how many IRs you need for each playing context. The system will assign the right musical roles automatically.
+              </p>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-400" />
+                    <span className="text-orange-400">Rhythm</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={rhythmCount}
+                      onChange={(e) => setRhythmCount(Math.max(0, Math.min(20, Number(e.target.value))))}
+                      className="w-full bg-black/20 border border-orange-500/20 rounded-lg px-3 py-2 text-sm text-center focus:border-orange-400 focus:ring-1 focus:ring-orange-400 outline-none"
+                      data-testid="input-rhythm-count"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70">Foundation, Cut, Body, Fizz Tamer</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" />
+                    <span className="text-purple-400">Lead</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={leadCount}
+                      onChange={(e) => setLeadCount(Math.max(0, Math.min(20, Number(e.target.value))))}
+                      className="w-full bg-black/20 border border-purple-500/20 rounded-lg px-3 py-2 text-sm text-center focus:border-purple-400 focus:ring-1 focus:ring-purple-400 outline-none"
+                      data-testid="input-lead-count"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70">Foundation, Cut, Lead Polish</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium uppercase tracking-wider flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-teal-400" />
+                    <span className="text-teal-400">Clean</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={cleanCount}
+                      onChange={(e) => setCleanCount(Math.max(0, Math.min(20, Number(e.target.value))))}
+                      className="w-full bg-black/20 border border-teal-500/20 rounded-lg px-3 py-2 text-sm text-center focus:border-teal-400 focus:ring-1 focus:ring-teal-400 outline-none"
+                      data-testid="input-clean-count"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70">Foundation, Lead Polish, Smooth</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Total: <span className="text-foreground font-medium">{intentTotal} shots</span>
+                <span className="text-muted-foreground/50 ml-1">(shots may serve multiple intents)</span>
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Target className="w-3 h-3" /> Target Shot Count: {targetCount}
+              </label>
+              <input
+                type="range"
+                min={3}
+                max={25}
+                value={targetCount}
+                onChange={(e) => setTargetCount(Number(e.target.value))}
+                className="w-full accent-primary"
+                data-testid="slider-target-count"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>3 (focused)</span>
+                <span>25 (comprehensive)</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3">
           <button
             type="submit"
-            disabled={!designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0}
+            disabled={!designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0 || (useIntentMode && intentTotal === 0)}
             className={cn(
               "flex-1 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all duration-200 shadow-lg flex items-center justify-center gap-2",
-              !designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0
+              !designSpeaker || designMutation.isPending || profilesLoading || profileCount === 0 || (useIntentMode && intentTotal === 0)
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                 : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-primary/25 hover:-translate-y-0.5"
             )}
@@ -567,7 +698,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
             {designMutation.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Designing...</>
             ) : (
-              <><Lightbulb className="w-4 h-4" /> Design Shot List</>
+              <><Lightbulb className="w-4 h-4" /> Design Collection</>
             )}
           </button>
         </div>
@@ -587,7 +718,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                   {designResult.shots.length} Shots Designed
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className={cn(
                   "text-xs px-2 py-1 rounded",
                   designResult.dataSource === 'speaker-specific'
@@ -598,6 +729,11 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                     ? `${designResult.speakerProfileCount} speaker profiles`
                     : `${designResult.profileCount} cross-speaker profiles`}
                 </span>
+                {designResult.intentMode && (
+                  <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
+                    Intent-Aware
+                  </span>
+                )}
                 <button
                   onClick={copyShotList}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
@@ -611,6 +747,34 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
             <p className="text-sm text-muted-foreground italic">{designResult.summary}</p>
           </div>
 
+          {designResult.intentCoverage && (
+            <div className="glass-panel p-4 rounded-xl space-y-3">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Intent Coverage</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {Object.entries(designResult.intentCoverage).map(([intent, data]: [string, any]) => (
+                  <div key={intent} className={cn("p-3 rounded-lg border", intentColor(intent))}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase">{intent}</span>
+                      <span className="text-xs">
+                        {data.shotCount} shot{data.shotCount !== 1 ? 's' : ''}
+                        {data.complete && <CheckCircle className="w-3 h-3 inline ml-1" />}
+                      </span>
+                    </div>
+                    {data.roles && (
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(data.roles).map(([role, count]: [string, any]) => (
+                          <span key={role} className={cn("text-[10px] px-1.5 py-0.5 rounded", roleBadgeColor(role))}>
+                            {count}x {role}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-3">
             {designResult.shots.map((shot: any, i: number) => (
               <motion.div
@@ -621,18 +785,40 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                 className="glass-panel p-4 rounded-xl space-y-3"
                 data-testid={`card-shot-${i}`}
               >
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
                     {shot.mic}@{shot.position}_{shot.distance}"
                   </code>
-                  <ShotIntentBadgeFromGear mic={shot.mic} position={shot.position} />
+                  {shot.musicalRole && (
+                    <span className={cn("text-xs px-2 py-0.5 rounded font-medium", roleBadgeColor(shot.musicalRole))}>
+                      {shot.musicalRole}
+                    </span>
+                  )}
+                  {shot.primaryIntent && (
+                    <span className={cn("text-xs px-2 py-0.5 rounded border", intentColor(shot.primaryIntent))}>
+                      {shot.primaryIntent}
+                    </span>
+                  )}
+                  {shot.secondaryIntents && shot.secondaryIntents.length > 0 && shot.secondaryIntents.map((si: string) => (
+                    <span key={si} className={cn("text-[10px] px-1.5 py-0.5 rounded border opacity-60", intentColor(si))}>
+                      +{si}
+                    </span>
+                  ))}
                   <span className={cn(
                     "text-xs px-2 py-0.5 rounded font-medium",
                     confidenceColor(shot.confidence)
                   )}>
                     {shot.confidence}
                   </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground">{shot.mixingRole}</span>
+                  {shot.knowledgeBaseRole && (
+                    <span className="text-[10px] text-muted-foreground/60 italic">
+                      KB: {shot.knowledgeBaseRole} ({shot.knowledgeBaseConfidence})
+                    </span>
+                  )}
                 </div>
 
                 {shot.predictedTone && (
@@ -679,6 +865,11 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                       <code className="text-xs font-mono bg-primary/20 px-2 py-1 rounded text-primary">{pair.shot2}</code>
                       {pair.suggestedRatio && (
                         <span className="text-xs bg-white/5 px-2 py-1 rounded">{pair.suggestedRatio}</span>
+                      )}
+                      {pair.bestForIntent && (
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded border", intentColor(pair.bestForIntent))}>
+                          {pair.bestForIntent}
+                        </span>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">{pair.blendResult}</p>

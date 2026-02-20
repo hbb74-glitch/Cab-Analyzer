@@ -37,6 +37,7 @@ Preferred communication style: Simple, everyday language.
 - **Preference Profiles**: Uses "Featured" and "Body" tonal profiles with sentiment-based feedback (`Love/Like/Meh/Nope`) to adjust profile targets.
 - **Gear Insights**: Computes net sentiment and average tonal band values for individual gear pieces and combinations.
 - **Shot Intent System**: Classifies mic/position roles (e.g., "feature-intended" or "body-intended") based on a knowledge base, applying confidence-scaled bonuses to classification and pairing suggestions.
+- **Collection Designer** (`shared/knowledge/mic-role-map.ts`): AI-powered collection planner with hardcoded mic-role knowledge base (40+ mic/position rules). Maps each mic+position combo to a predicted musical role (Foundation, Cut Layer, Mid Thickener, Fizz Tamer, Lead Polish, Dark Specialty) and intent suitability (rhythm/lead/clean). Supports intent-based planning with per-context shot counts and automatic role budget computation. `ShotIntentBadge` component displays predicted roles from the knowledge base with consistent color coding. Server route cross-references knowledge base with learned tonal profiles for grounded AI prompting.
 - **Foundation Finder**: Ranks IRs by Body score to identify best base IRs.
 - **Iterative Suggested Pairings**: Multi-round refinement system for blend suggestions with sentiment ratings.
 - **Novelty-Aware Suggestions**: Boosts scores for under-exposed or new IRs.

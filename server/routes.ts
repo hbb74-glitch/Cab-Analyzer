@@ -10,6 +10,7 @@ import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from 
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
 import { getControlLayout } from "@shared/knowledge/amp-dial-in";
+import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
@@ -5673,16 +5674,63 @@ Classify and rank these IRs according to the query. Return as JSON.`
         ? `\nShots the user ALREADY has (do NOT duplicate these):\n${input.existingShots.map(s => `- ${s.filename}: [${s.subBass}|${s.bass}|${s.lowMid}|${s.mid}|${s.highMid}|${s.presence}] ratio=${s.ratio} centroid=${s.centroid}Hz`).join('\n')}`
         : '';
 
+      const knowledgeBaseSection = buildKnowledgeBasePromptSection();
+
+      const hasIntentCounts = input.intentCounts &&
+        ((input.intentCounts.rhythm ?? 0) > 0 || (input.intentCounts.lead ?? 0) > 0 || (input.intentCounts.clean ?? 0) > 0);
+
+      const intentAllocation: IntentAllocation = hasIntentCounts
+        ? {
+            rhythm: input.intentCounts!.rhythm ?? 0,
+            lead: input.intentCounts!.lead ?? 0,
+            clean: input.intentCounts!.clean ?? 0,
+          }
+        : { rhythm: 0, lead: 0, clean: 0 };
+
+      const totalFromIntents = intentAllocation.rhythm + intentAllocation.lead + intentAllocation.clean;
+      const effectiveTargetCount = hasIntentCounts ? totalFromIntents : (input.targetCount || 10);
+
+      const roleBudgets = hasIntentCounts ? computeRoleBudgets(intentAllocation) : [];
+      const intentBudgetSection = hasIntentCounts ? buildIntentBudgetPromptSection(roleBudgets) : '';
+
+      const roleDefinitions = `=== MUSICAL ROLES ===
+Each shot MUST be assigned exactly one musical role from this list:
+- Foundation: Balanced, neutral base layer that sits well in any mix. The workhorse.
+- Cut Layer: Forward, bright, aggressive — adds attack, presence, and bite for clarity.
+- Mid Thickener: Warm, thick mids with rolled-off highs — body and warmth.
+- Fizz Tamer: Smooth, dark, rolled-off top — controls fizz and harshness.
+- Lead Polish: Refined, hi-fi detail with extended highs — polished, singing quality.
+- Dark Specialty: Very dark, deep — for ambient, doom, or specialty tones.`;
+
+      const intentRoleMapping = hasIntentCounts ? `
+=== INTENT-ROLE MAPPING ===
+When assigning shots to intents, these role combinations work best:
+RHYTHM: Foundation + Cut Layer + Mid Thickener + Fizz Tamer (avoid Lead Polish)
+LEAD: Foundation + Cut Layer + Lead Polish (avoid Dark Specialty)
+CLEAN: Foundation + Lead Polish + Fizz Tamer (balanced, smooth, detailed)
+
+A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary intents.` : '';
+
       const designPrompt = `You are an expert audio engineer designing an IR capture session.
-You have REAL tonal data from previously analyzed IRs. Use this data to predict what each shot will sound like and design a set that covers the full tonal spectrum for mixing.
+You have REAL tonal data from previously analyzed IRs AND a knowledge base of mic/position role predictions.
+Use BOTH data sources to design an accurate, role-aware collection plan.
 
 === LEARNED TONAL DATA (from real IR analysis) ===
 ${profileSummary}
 
+${knowledgeBaseSection}
+
+${roleDefinitions}
+
+${intentRoleMapping}
+
+${intentBudgetSection}
+
 === TARGET ===
 Speaker: ${input.speaker}
 ${input.genre ? `Genre/Tone: ${genreGuidance}` : 'Goal: Versatile mixing palette'}
-Target shot count: ${input.targetCount || 10}
+Target shot count: ${effectiveTargetCount}
+${hasIntentCounts ? `Intent breakdown: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean` : ''}
 ${existingDesc}
 
 === TONAL BANDS ===
@@ -5695,12 +5743,12 @@ Presence (4k-8k): fizz, sizzle, air
 Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
 
 === DESIGN PRINCIPLES ===
-1. MIXING PICTURE: Each shot should serve a distinct mixing role (body layer, attack layer, brightness layer, blend glue)
-2. PREDICT from data: Use the learned tonal profiles to predict what each new shot will sound like
-3. COMPLEMENTARY: Shots should combine well - one bright + one warm = blendable pair
-4. NO REDUNDANCY: Don't suggest two shots that would sound nearly identical based on the data
-5. TONAL GAPS: If the learned data shows a gap (e.g., no smooth dark option), fill it
-6. CONFIDENCE: Indicate confidence level based on how much data backs each prediction
+1. ROLE-FIRST DESIGN: Assign each shot a musical role from the knowledge base. Use learned data to validate predictions.
+2. INTENT COVERAGE: ${hasIntentCounts ? 'Ensure each intent (rhythm/lead/clean) gets the right role distribution.' : 'Design a versatile palette covering all common use cases.'}
+3. PREDICT from data: Cross-reference the knowledge base predictions with learned tonal profiles for accuracy.
+4. COMPLEMENTARY: Shots should combine well — one bright + one warm = blendable pair.
+5. NO REDUNDANCY: Don't suggest two shots with the same role unless they serve different intents.
+6. CONFIDENCE: Rate confidence based on knowledge base match AND learned data support.
 
 === OUTPUT FORMAT (JSON) ===
 {
@@ -5709,41 +5757,58 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       "mic": "SM57",
       "position": "CapEdge",
       "distance": "1",
-      "mixingRole": "Attack/aggression layer",
+      "musicalRole": "Foundation",
+      "primaryIntent": "rhythm",
+      "secondaryIntents": ["clean"],
+      "mixingRole": "Balanced base layer for rhythm and clean tones",
       "predictedTone": {
-        "mid": 22, "highMid": 28, "presence": 18, "ratio": 1.6, "centroid": 2400,
-        "character": "Bright, punchy, forward mids with cutting presence"
+        "mid": 24, "highMid": 22, "presence": 14, "ratio": 1.0, "centroid": 2200,
+        "character": "Balanced, punchy, sits well in any mix"
       },
       "confidence": "high",
-      "confidenceReason": "12 samples of SM57@CapEdge in database",
-      "blendsWith": ["R121@CapEdge_1 (classic smooth+attack pair)"],
-      "whyIncluded": "Essential aggressive layer - combines with ribbon for the industry-standard blend"
+      "confidenceReason": "Knowledge base: Foundation@CapEdge (high), 12 learned samples confirm",
+      "blendsWith": ["R121@CapEdge_4 (classic smooth+punch pair)"],
+      "whyIncluded": "Essential foundation layer — versatile base for rhythm and clean blends"
     }
   ],
   "mixingPairs": [
     {
       "shot1": "SM57@CapEdge_1",
-      "shot2": "R121@CapEdge_6",
+      "shot2": "R121@CapEdge_4",
       "blendResult": "Balanced attack + warmth, the most common studio combo",
-      "suggestedRatio": "50/50 to 60/40 SM57-heavy"
+      "suggestedRatio": "50/50 to 60/40 SM57-heavy",
+      "bestForIntent": "rhythm"
     }
   ],
-  "tonalCoverage": {
-    "bright": true,
-    "warm": true,
-    "aggressive": true,
-    "smooth": true,
-    "body": true,
-    "detail": true
+  "intentCoverage": {
+    "rhythm": {
+      "shotCount": 6,
+      "roles": { "Foundation": 2, "Cut Layer": 2, "Mid Thickener": 1, "Fizz Tamer": 1 },
+      "complete": true
+    },
+    "lead": {
+      "shotCount": 3,
+      "roles": { "Foundation": 1, "Cut Layer": 1, "Lead Polish": 1 },
+      "complete": true
+    },
+    "clean": {
+      "shotCount": 2,
+      "roles": { "Foundation": 1, "Lead Polish": 1 },
+      "complete": true
+    }
   },
-  "summary": "This ${input.targetCount || 10}-shot set covers the full mixing spectrum..."
+  "tonalCoverage": {
+    "bright": true, "warm": true, "aggressive": true,
+    "smooth": true, "body": true, "detail": true
+  },
+  "summary": "This ${effectiveTargetCount}-shot set covers all ${hasIntentCounts ? 'requested intents' : 'mixing needs'}..."
 }`;
 
       const designResponse = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
           { role: "system", content: designPrompt },
-          { role: "user", content: `Design an optimal ${input.targetCount || 10}-shot IR capture plan for ${input.speaker} using the learned tonal data.` }
+          { role: "user", content: `Design an optimal ${effectiveTargetCount}-shot IR capture plan for ${input.speaker}.${hasIntentCounts ? ` Needs: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean shots.` : ''} Use both the knowledge base and learned tonal data.` }
         ],
         response_format: { type: "json_object" },
         temperature: 0.2,
@@ -5751,11 +5816,24 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
 
       const designResult = JSON.parse(designResponse.choices[0].message.content || "{}");
 
+      if (designResult.shots && Array.isArray(designResult.shots)) {
+        for (const shot of designResult.shots) {
+          const kbLookup = lookupMicRole(shot.mic || '', shot.position || '', shot.distance);
+          if (kbLookup) {
+            shot.knowledgeBaseRole = kbLookup.predictedRole;
+            shot.knowledgeBaseConfidence = kbLookup.confidence;
+          }
+        }
+      }
+
       res.json({
         ...designResult,
         profileCount: profiles.length,
         speakerProfileCount: speakerProfiles.length,
         dataSource: speakerProfiles.length > 0 ? 'speaker-specific' : 'cross-speaker',
+        intentMode: !!hasIntentCounts,
+        requestedIntents: hasIntentCounts ? intentAllocation : null,
+        roleBudgets: hasIntentCounts ? roleBudgets : null,
       });
     } catch (err) {
       console.error('Shot design error:', err);
