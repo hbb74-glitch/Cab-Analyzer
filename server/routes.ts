@@ -1479,7 +1479,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null };
   }
 
-  const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "correction");
+  const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "correction" || s.action === "taste_pick");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
@@ -1490,6 +1490,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     switch (action) {
       case "love": return 3;
       case "like": return 1.5;
+      case "taste_pick": return 2;
       case "correction": return 5;
       case "meh": return 0.5;
       default: return 1;
@@ -1515,7 +1516,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
 
   const confidence = Math.min(liked.length / 8, 1);
 
-  const strongSignals = liked.filter((s) => s.action === "love" || s.action === "like" || s.action === "ranked_1" || s.action === "ranked_2");
+  const strongSignals = liked.filter((s) => s.action === "love" || s.action === "like" || s.action === "ranked_1" || s.action === "ranked_2" || s.action === "taste_pick");
   const stdDev = (arr: number[]) => {
     if (arr.length < 2) return Infinity;
     const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -2030,13 +2031,15 @@ function buildTonalSummary(
   const loves = liked.filter(s => s.action === "love");
   const likes = liked.filter(s => s.action === "like");
   const mehs = liked.filter(s => s.action === "meh");
+  const tastePicks = liked.filter(s => s.action === "taste_pick");
+  const tastePickNote = tastePicks.length > 0 ? ` + ${tastePicks.length} taste check picks` : "";
 
   if (status === "learning") {
-    lines.push(`I'm still getting to know your taste (${loves.length + likes.length + mehs.length} rated so far). Here's what I'm picking up:`);
+    lines.push(`I'm still getting to know your taste (${loves.length + likes.length + mehs.length} rated${tastePickNote} so far). Here's what I'm picking up:`);
   } else if (status === "confident") {
-    lines.push(`Based on ${loves.length} loved, ${likes.length} liked, and ${noped.length} noped blends, here's what I believe about your tonal preferences:`);
+    lines.push(`Based on ${loves.length} loved, ${likes.length} liked, ${noped.length} noped${tastePickNote}, here's what I believe about your tonal preferences:`);
   } else if (status === "mastered") {
-    lines.push(`I'm confident in your tonal profile (${allSignals.length} ratings analyzed). Here's what I know:`);
+    lines.push(`I'm confident in your tonal profile (${allSignals.length} ratings analyzed${tastePickNote}). Here's what I know:`);
   }
 
   if (adjustments) {

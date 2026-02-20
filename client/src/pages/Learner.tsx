@@ -7,7 +7,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -481,7 +481,7 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
   );
 }
 
-function TonalInsightsPanel({ learnedProfile }: { learnedProfile: LearnedProfileData }) {
+function TonalInsightsPanel({ learnedProfile, eloRatings }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry> }) {
   const [expanded, setExpanded] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
   const { toast } = useToast();
@@ -552,6 +552,56 @@ function TonalInsightsPanel({ learnedProfile }: { learnedProfile: LearnedProfile
               <div className="rounded-lg bg-card/50 p-3 border border-border/50" data-testid="tonal-summary-text">
                 {renderFormattedSummary(learnedProfile.tonalSummary || "")}
               </div>
+
+              {eloRatings && Object.keys(eloRatings).length > 0 && (() => {
+                const sorted = Object.entries(eloRatings)
+                  .filter(([, e]) => e.matchCount > 0)
+                  .sort((a, b) => b[1].rating - a[1].rating);
+                const top = sorted.slice(0, 5);
+                const totalMatches = sorted.reduce((s, [, e]) => s + e.matchCount, 0);
+                if (top.length === 0) return null;
+                return (
+                  <div className="space-y-2" data-testid="elo-top-picks">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-medium text-foreground">Top Picks from Taste Voting</span>
+                      <span className="text-[10px] text-muted-foreground">({totalMatches} comparisons)</span>
+                    </div>
+                    <div className="rounded-lg bg-card/50 border border-border/50 divide-y divide-border/30">
+                      {top.map(([key, entry], i) => {
+                        const files = key.split("||");
+                        const cleanName = (f: string) => f.replace(/(_\d+)?\.wav$/i, "");
+                        const winPct = entry.matchCount > 0 ? Math.round(((entry.winCount ?? 0) / entry.matchCount) * 100) : 0;
+                        return (
+                          <div key={key} className="flex items-center gap-3 px-3 py-2" data-testid={`elo-top-${i}`}>
+                            <span className={cn(
+                              "text-xs font-bold tabular-nums w-5 text-center",
+                              i === 0 ? "text-amber-400" : i === 1 ? "text-zinc-300" : i === 2 ? "text-amber-600" : "text-muted-foreground"
+                            )}>
+                              {i + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-mono text-foreground truncate">{cleanName(files[0])}</p>
+                              <p className="text-[10px] font-mono text-muted-foreground truncate">+ {cleanName(files[1] ?? "")}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={cn(
+                                "text-[11px] font-mono font-medium tabular-nums",
+                                entry.rating >= 1100 ? "text-emerald-400" : entry.rating >= 1000 ? "text-teal-400" : "text-amber-400"
+                              )}>
+                                {Math.round(entry.rating)}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                                {winPct}% W
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
@@ -1831,7 +1881,7 @@ export default function Learner() {
       },
     ];
 
-    try {
+    if (pickedIndex >= 0 && pickedIndex < tasteCheckPhase.candidates.length) {
       const source = (tasteCheckPhase.roundType === "binary") ? "ab" as const : "pick4" as const;
       const winner = tasteCheckPhase.candidates[pickedIndex];
       const wBase = featuresByFilename.get(winner.baseFilename);
@@ -1869,9 +1919,35 @@ export default function Learner() {
             loserPairs[0]
           );
         }
+
+        const bands = winner.blendBands;
+        const hiMidMidRatio = bands.mid > 0 ? bands.highMid / bands.mid : 1.4;
+        const feats: TonalFeatures = {
+          bandsRaw: bands,
+          bandsPercent: bands,
+          bandsShapeDb: bands,
+          tiltDbPerOct: 0,
+        };
+        const { best: bestMatch } = scoreAgainstAllProfiles(feats, activeProfiles);
+        submitSignalsMutation.mutate([{
+          action: "taste_pick",
+          baseFilename: winner.baseFilename,
+          featureFilename: winner.featureFilename,
+          subBass: Math.round(bands.subBass),
+          bass: Math.round(bands.bass),
+          lowMid: Math.round(bands.lowMid),
+          mid: Math.round(bands.mid),
+          highMid: Math.round(bands.highMid),
+          presence: Math.round(bands.presence),
+          ratio: Math.round(hiMidMidRatio * 100) / 100,
+          score: Math.round(bestMatch.score),
+          profileMatch: bestMatch.profile,
+          blendRatio: wRatio,
+        }]);
+
         setTasteVersion(v => v + 1);
       }
-    } catch {}
+    }
 
     const nextRound = tasteCheckPhase.round + 1;
 
@@ -3322,6 +3398,7 @@ export default function Learner() {
         {learnedProfile && learnedProfile.tonalSummary && learnedProfile.status !== "no_data" && (
           <TonalInsightsPanel
             learnedProfile={learnedProfile}
+            eloRatings={getEloRatings(tasteContext)}
           />
         )}
 
