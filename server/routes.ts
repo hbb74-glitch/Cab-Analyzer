@@ -4838,9 +4838,50 @@ Output JSON:
       // Sort by total score descending
       scoredPairs.sort((a, b) => b.totalScore - a.totalScore);
 
-      // Take top candidates (more than requested so AI has room to refine)
-      const candidateCount = Math.min(scoredPairs.length, pairingCount * 2);
-      const topCandidates = scoredPairs.slice(0, candidateCount);
+      // ─── Diversity-aware candidate selection ───
+      // Prevents any single IR from dominating the results
+      // Each IR can appear at most ceil(pairingCount / totalUniqueIRs * 3) times
+      const targetCount = Math.min(scoredPairs.length, pairingCount * 2);
+      const allIRNames = new Set<string>();
+      for (const sp of scoredPairs) {
+        allIRNames.add(sp.ir1.filename);
+        allIRNames.add(sp.ir2.filename);
+      }
+      const uniqueIRCount = allIRNames.size;
+      // Max appearances: scale with requested pairings but cap so no IR hogs slots
+      // For 15 pairings with 20 IRs: max ~3 appearances each
+      // For 5 pairings with 10 IRs: max ~2 appearances each
+      const maxAppearances = Math.max(2, Math.ceil(pairingCount * 2.5 / Math.max(uniqueIRCount, 1)));
+
+      const topCandidates: ScoredPair[] = [];
+      const irAppearCount: Record<string, number> = {};
+
+      for (const sp of scoredPairs) {
+        if (topCandidates.length >= targetCount) break;
+
+        const count1 = irAppearCount[sp.ir1.filename] || 0;
+        const count2 = irAppearCount[sp.ir2.filename] || 0;
+
+        // Skip if either IR has already appeared too many times
+        if (count1 >= maxAppearances || count2 >= maxAppearances) continue;
+
+        topCandidates.push(sp);
+        irAppearCount[sp.ir1.filename] = count1 + 1;
+        irAppearCount[sp.ir2.filename] = count2 + 1;
+      }
+
+      // If diversity filtering was too aggressive, backfill from remaining scored pairs
+      if (topCandidates.length < pairingCount && scoredPairs.length > topCandidates.length) {
+        const selected = new Set(topCandidates.map(sp => `${sp.ir1.filename}||${sp.ir2.filename}`));
+        for (const sp of scoredPairs) {
+          if (topCandidates.length >= targetCount) break;
+          const key = `${sp.ir1.filename}||${sp.ir2.filename}`;
+          if (!selected.has(key)) {
+            topCandidates.push(sp);
+            selected.add(key);
+          }
+        }
+      }
 
       // ─── Build learned preferences summary for AI ───
       let learnedPrefsSection = '';
@@ -4909,6 +4950,12 @@ CRITICAL RULES:
 - Two dark/warm mics together is NEVER a good pairing
 - Same mic type on both sides is generally bad unless positions differ dramatically
 - Mix ratio must reflect the dominant role: Foundation/body IR gets 55-70%, color/accent IR gets 30-45%
+
+DIVERSITY RULES (MANDATORY):
+- No single IR filename should appear in more than 3 of your ${pairingCount} selected pairings
+- Spread selections across DIFFERENT mics, positions, and distances — showcase the breadth of the collection
+- If multiple candidates use the same IR, pick the BEST one and skip the rest
+- Titles must be distinct and evocative — avoid repetitive "Warm X + Bright Y" patterns. Use musical, descriptive language.
 
 ${intentGuide}
 ${learnedPrefsSection}
