@@ -639,6 +639,7 @@ export default function Learner() {
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
   const [tasteCheckMode, setTasteCheckMode] = useState<"learning" | "acquisition" | "tester" | "ratio">("learning");
+  const [refinementEnabled, setRefinementEnabled] = useState(true);
   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
   const [tasteVersion, setTasteVersion] = useState(0);
   const [trainingMode, setTrainingMode] = useState(() => {
@@ -1602,7 +1603,8 @@ export default function Learner() {
         tasteIntent as "rhythm" | "lead" | "clean",
         getIRWinRecords(tasteContext),
         getEloRatings(tasteContext),
-        getShownPairs(tasteContext)
+        getShownPairs(tasteContext),
+        !refinementEnabled
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1750,7 +1752,8 @@ export default function Learner() {
         tasteIntent as "rhythm" | "lead" | "clean",
         getIRWinRecords(tasteContext),
         getEloRatings(tasteContext),
-        getShownPairs(tasteContext)
+        getShownPairs(tasteContext),
+        !refinementEnabled
       );
 
       if (!nextPick) {
@@ -2034,7 +2037,8 @@ export default function Learner() {
             tasteIntent as "rhythm" | "lead" | "clean",
             getIRWinRecords(tasteContext),
             getEloRatings(tasteContext),
-            getShownPairs(tasteContext)
+            getShownPairs(tasteContext),
+            !refinementEnabled
           );
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -2771,6 +2775,19 @@ export default function Learner() {
                   Ratio
                 </button>
               </div>
+              <button
+                onClick={() => setRefinementEnabled(prev => !prev)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors rounded-md border",
+                  refinementEnabled
+                    ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
+                    : "border-zinc-600/40 bg-zinc-700/20 text-muted-foreground hover-elevate"
+                )}
+                data-testid="button-refinement-toggle"
+                title={refinementEnabled ? "Refinement ON — winners will be tested against each other" : "Refinement OFF — winners accumulate without head-to-head testing"}
+              >
+                {refinementEnabled ? "Refine ✓" : "Refine ✗"}
+              </button>
             </div>
           </div>
           <p className="text-muted-foreground text-sm">

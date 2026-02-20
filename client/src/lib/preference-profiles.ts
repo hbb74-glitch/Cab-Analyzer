@@ -1453,7 +1453,8 @@ export function pickTasteCheckCandidates(
   intent?: "rhythm" | "lead" | "clean",
   irWinRecords?: Record<string, IRWinRecord>,
   eloRatings?: Record<string, EloEntry>,
-  persistedShownPairs?: Record<string, { count: number; lastRound: number }>
+  persistedShownPairs?: Record<string, { count: number; lastRound: number }>,
+  disableRefinement?: boolean
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
@@ -1658,7 +1659,8 @@ export function pickTasteCheckCandidates(
     [...workingPool, ...settledWinners],
     activeEloRatings
   );
-  const isRefinementRound = plateauWinners.length >= 2
+  const isRefinementRound = !disableRefinement
+    && plateauWinners.length >= 2
     && settledWinners.length >= 2
     && !isCalibrationRound
     && totalRounds > 1
