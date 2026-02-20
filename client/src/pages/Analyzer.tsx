@@ -20,7 +20,8 @@ import type { TonalProfile as TonalProfileRow } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, featuresFromBands, type TonalBands, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
-import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { ShotIntentBadge, extractGearFromFilename } from "@/components/ShotIntentBadge";
+import { lookupMicRole } from "@shared/knowledge/mic-role-map";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, setClassifyDebugFilename, type SpeakerStats } from "@/lib/musical-roles";
 
@@ -1716,6 +1717,13 @@ export default function Analyzer() {
     const rawRole = safe(r?.musicalRole ?? r?.musical_role ?? r?.role ?? "").trim();
     const roleSource = rawRole ? "stored" : "computed";
 
+    const kbRole = (() => {
+      const { mic, position } = extractGearFromFilename(filename);
+      if (!mic) return "";
+      const lookup = lookupMicRole(mic, position || 'Cap');
+      return lookup?.predictedRole ?? "";
+    })();
+
     const score = fmt(r.score ?? r.qualityScore ?? r.rating ?? "");
 
     const centroid = centroidExported || centroidComputed;
@@ -1736,6 +1744,7 @@ export default function Analyzer() {
       filename,
       score,
       role,
+      kbRole,
       rawRole,
       roleSource,
 
@@ -1756,7 +1765,7 @@ export default function Analyzer() {
 
   const tsvHeader = [
     "filename", "score",
-    "musical_role", "raw_role", "role_source",
+    "musical_role", "kb_predicted_role", "raw_role", "role_source",
     "centroid_exported_hz", "centroid_computed_hz",
     "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
     "smooth_score", "hiMidMid_ratio",
@@ -3719,6 +3728,16 @@ export default function Analyzer() {
     batchResult.results.forEach((r, i) => {
       text += `${i + 1}. ${r.filename}\n`;
       text += `   Score: ${r.score}/100 ${r.isPerfect ? "(Perfect)" : ""}\n`;
+      const computedRole = getMusicalRoleForRow(r);
+      const { mic: gearMic, position: gearPos } = extractGearFromFilename(r.filename ?? "");
+      const kbLookup = gearMic ? lookupMicRole(gearMic, gearPos || 'Cap') : null;
+      const kbRoleLabel = kbLookup?.predictedRole ?? "";
+      if (computedRole || kbRoleLabel) {
+        const parts = [];
+        if (computedRole) parts.push(`Computed: ${computedRole}`);
+        if (kbRoleLabel) parts.push(`KB: ${kbRoleLabel}`);
+        text += `   Role: ${parts.join(" | ")}\n`;
+      }
       if (r.parsedInfo) {
         const info = [];
         if (r.parsedInfo.mic) info.push(`Mic: ${r.parsedInfo.mic}`);
@@ -3780,6 +3799,40 @@ export default function Analyzer() {
     navigator.clipboard.writeText(text);
     setCopied(true);
     toast({ title: "Copied to clipboard", description: "Shot list copied." });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyShortlist = () => {
+    if (!batchResult) return;
+
+    const speaker = batchResult.results[0]?.parsedInfo?.speaker || "Unknown Speaker";
+    const date = new Date().toLocaleDateString();
+
+    let text = `Shortlist: ${speaker} (${date})\n`;
+    text += "=".repeat(40) + "\n\n";
+
+    const lines = batchResult.results.map((r) => {
+      const name = (r.filename ?? "").replace(/\.wav$/i, '');
+      const computedRole = getMusicalRoleForRow(r);
+      const { mic, position } = extractGearFromFilename(r.filename ?? "");
+      const kbLookup = mic ? lookupMicRole(mic, position || 'Cap') : null;
+      const kbRoleLabel = kbLookup?.predictedRole ?? "";
+
+      const roleParts: string[] = [];
+      if (computedRole) roleParts.push(computedRole);
+      if (kbRoleLabel && kbRoleLabel !== computedRole) roleParts.push(`KB: ${kbRoleLabel}`);
+      else if (kbRoleLabel) roleParts.push("KB agrees");
+
+      const roleStr = roleParts.length > 0 ? ` [${roleParts.join(" | ")}]` : "";
+      return `${name}${roleStr}`;
+    });
+
+    lines.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    text += lines.map((l, i) => `${i + 1}. ${l}`).join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast({ title: "Copied to clipboard", description: "Shortlist with roles copied." });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -4376,6 +4429,14 @@ export default function Analyzer() {
                         {copied ? "Copied!" : "Copy List"}
                       </button>
                       <button
+                        onClick={copyShortlist}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
+                        data-testid="button-copy-shortlist"
+                      >
+                        {copied ? <Check className="w-3 h-3 text-green-400" /> : <List className="w-3 h-3" />}
+                        {copied ? "Copied!" : "Copy Shortlist"}
+                      </button>
+                      <button
                         onClick={copyBatchResults}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all"
                         data-testid="button-copy-batch-results"
@@ -4809,7 +4870,23 @@ export default function Analyzer() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-mono text-sm font-medium truncate">{r.filename}</p>
-                              <ShotIntentBadge filename={r.filename} />
+                              {(() => {
+                                const computedRole = getMusicalRoleForRow(r);
+                                return (
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {computedRole && (
+                                      <span
+                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(computedRole))}
+                                        data-testid={`badge-batch-musical-role-${index}`}
+                                        title="Role classified from actual audio analysis"
+                                      >
+                                        {computedRole}
+                                      </span>
+                                    )}
+                                    <ShotIntentBadge filename={r.filename} hideIntents />
+                                  </div>
+                                );
+                              })()}
                             </div>
                             {r.parsedInfo && (
                               <div className="flex flex-wrap gap-1 mt-1">
@@ -4838,38 +4915,9 @@ export default function Analyzer() {
                                     OffAx
                                   </span>
                                 )}
-
-                                {(() => {
-                                  const role = getMusicalRoleForRow(r);
-                                  if (!role) return null;
-                                  return (
-                                    <div className="flex items-center gap-1 flex-wrap">
-                                      <span
-                                        className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
-                                        data-testid={`badge-batch-musical-role-${index}`}
-                                      >
-                                        {role}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
+                                <ShotIntentBadge filename={r.filename} hideRole />
                               </div>
                             )}
-
-                            {!r.parsedInfo && (() => {
-                              const role = getMusicalRoleForRow(r);
-                              if (!role) return null;
-                              return (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  <span
-                                    className={cn("px-1.5 py-0.5 text-xs rounded font-mono", roleBadgeClass(role))}
-                                    data-testid={`badge-batch-musical-role-${index}`}
-                                  >
-                                    {role}
-                                  </span>
-                                </div>
-                              );
-                            })()}
                           </div>
                           <div className={cn(
                             "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg flex-shrink-0",

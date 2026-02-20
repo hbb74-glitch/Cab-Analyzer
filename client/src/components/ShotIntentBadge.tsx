@@ -16,7 +16,7 @@ const INTENT_COLORS: Record<string, string> = {
   "clean": "bg-teal-500/10 text-teal-400 border-teal-500/20",
 };
 
-function extractGearFromFilename(filename: string): { mic?: string; position?: string } {
+export function extractGearFromFilename(filename: string): { mic?: string; position?: string } {
   const lower = filename.toLowerCase();
   const mics: Record<string, string> = {
     'sm57': 'SM57', 'sm7b': 'SM7B', 'md421k': 'MD421K', 'md421': 'MD421',
@@ -42,21 +42,26 @@ function extractGearFromFilename(filename: string): { mic?: string; position?: s
   return { mic, position };
 }
 
-export function ShotIntentBadge({ filename }: { filename: string }) {
+export function ShotIntentBadge({ filename, hideIntents, hideRole }: { filename: string; hideIntents?: boolean; hideRole?: boolean }) {
   const { mic, position } = extractGearFromFilename(filename);
   if (!mic) return null;
 
   const lookup = lookupMicRole(mic, position || 'Cap');
   if (!lookup) return null;
 
+  const hasIntents = !hideIntents && lookup.bestForIntents && lookup.bestForIntents.length > 0;
+  if (hideRole && !hasIntents) return null;
+
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium", ROLE_COLORS[lookup.predictedRole] || "bg-white/10 text-muted-foreground")}>
-        {lookup.predictedRole}
-      </span>
-      {lookup.bestForIntents && lookup.bestForIntents.length > 0 && (
+      {!hideRole && (
+        <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium border border-dashed border-white/20", ROLE_COLORS[lookup.predictedRole] || "bg-white/10 text-muted-foreground")} title="Predicted role from knowledge base (mic+position rules)">
+          {lookup.predictedRole}
+        </span>
+      )}
+      {hasIntents && (
         <>
-          {lookup.bestForIntents.slice(0, 2).map(intent => (
+          {lookup.bestForIntents!.slice(0, 2).map(intent => (
             <span key={intent} className={cn("text-[9px] px-1 py-0 rounded border", INTENT_COLORS[intent] || "bg-white/5 text-muted-foreground")}>
               {intent}
             </span>
