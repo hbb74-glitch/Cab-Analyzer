@@ -10,7 +10,7 @@ import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from 
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
 import { getControlLayout } from "@shared/knowledge/amp-dial-in";
-import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, type IntentAllocation } from "@shared/knowledge/mic-role-map";
+import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
@@ -5742,8 +5742,9 @@ ${intentBudgetSection}
 === TARGET ===
 Speaker: ${input.speaker}
 ${input.genre ? `Genre/Tone: ${genreGuidance}` : 'Goal: Versatile mixing palette'}
-Target shot count: EXACTLY ${effectiveTargetCount} (no more, no less)
+Target shot count: EXACTLY ${effectiveTargetCount} (no more, no less — the "shots" array MUST contain ${effectiveTargetCount} entries)
 ${hasIntentCounts ? `Intent breakdown: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean` : ''}
+IMPORTANT: Do NOT default to 10 shots. The user wants ${effectiveTargetCount} unique mic/position/distance combinations. Use diverse mics, positions, and distances to fill all ${effectiveTargetCount} slots.
 ${existingDesc}
 
 === TONAL BANDS ===
@@ -5817,49 +5818,177 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
   "summary": "This ${effectiveTargetCount}-shot set covers all ${hasIntentCounts ? 'requested intents' : 'mixing needs'}..."
 }`;
 
-      const designResponse = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: designPrompt },
-          { role: "user", content: `Design an optimal ${effectiveTargetCount}-shot IR capture plan for ${input.speaker}.${hasIntentCounts ? ` Needs: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean shots.` : ''} Use both the knowledge base and learned tonal data.` }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-      });
+      const designMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+        { role: "system", content: designPrompt },
+        { role: "user", content: `Design an optimal ${effectiveTargetCount}-shot IR capture plan for ${input.speaker}.${hasIntentCounts ? ` Needs: ${intentAllocation.rhythm} rhythm, ${intentAllocation.lead} lead, ${intentAllocation.clean} clean shots.` : ''} Use both the knowledge base and learned tonal data. CRITICAL: You MUST return EXACTLY ${effectiveTargetCount} shots in the "shots" array. Do NOT stop at 10 — generate all ${effectiveTargetCount}.` }
+      ];
 
-      const designResult = JSON.parse(designResponse.choices[0].message.content || "{}");
+      let designResult: any = {};
+      let attempts = 0;
+      const maxAttempts = 2;
 
-      if (designResult.shots && Array.isArray(designResult.shots)) {
-        for (const shot of designResult.shots) {
-          const kbLookup = lookupMicRole(shot.mic || '', shot.position || '', shot.distance);
-          if (kbLookup) {
-            shot.knowledgeBaseRole = kbLookup.predictedRole;
-            shot.knowledgeBaseConfidence = kbLookup.confidence;
-          }
-        }
+      while (attempts < maxAttempts) {
+        attempts++;
+        const designResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: designMessages,
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+          max_tokens: 16384,
+        });
 
-        if (designResult.shots.length > effectiveTargetCount) {
-          console.log(`[Shot Designer] Trimming ${designResult.shots.length} shots to requested ${effectiveTargetCount}`);
-          designResult.shots = designResult.shots.slice(0, effectiveTargetCount);
-          if (designResult.intentCoverage && hasIntentCounts) {
-            const coverage: Record<string, { shotCount: number; roles: Record<string, number>; complete: boolean }> = {};
-            for (const shot of designResult.shots) {
-              const allIntents = [shot.primaryIntent, ...(shot.secondaryIntents || [])].filter(Boolean);
-              for (const intent of allIntents) {
-                if (!coverage[intent]) coverage[intent] = { shotCount: 0, roles: {}, complete: false };
-                coverage[intent].shotCount++;
-                const role = shot.musicalRole || 'Unknown';
-                coverage[intent].roles[role] = (coverage[intent].roles[role] || 0) + 1;
-              }
+        const rawContent = designResponse.choices[0].message.content || "{}";
+        try {
+          designResult = JSON.parse(rawContent);
+        } catch (parseErr) {
+          console.error(`[Shot Designer] JSON parse failed on attempt ${attempts}, trying to extract valid JSON`);
+          const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              designResult = JSON.parse(jsonMatch[0]);
+            } catch {
+              console.error(`[Shot Designer] JSON extraction also failed on attempt ${attempts}`);
+              designResult = { shots: [] };
             }
-            if (intentAllocation.rhythm > 0 && coverage.rhythm) coverage.rhythm.complete = coverage.rhythm.shotCount >= intentAllocation.rhythm;
-            if (intentAllocation.lead > 0 && coverage.lead) coverage.lead.complete = coverage.lead.shotCount >= intentAllocation.lead;
-            if (intentAllocation.clean > 0 && coverage.clean) coverage.clean.complete = coverage.clean.shotCount >= intentAllocation.clean;
-            designResult.intentCoverage = coverage;
+          } else {
+            designResult = { shots: [] };
           }
-        } else if (designResult.shots.length < effectiveTargetCount) {
-          console.log(`[Shot Designer] AI returned ${designResult.shots.length} shots, requested ${effectiveTargetCount}`);
         }
+        const shotCount = designResult.shots?.length || 0;
+
+        if (shotCount >= effectiveTargetCount) {
+          console.log(`[Shot Designer] Got ${shotCount} shots on attempt ${attempts}`);
+          break;
+        }
+
+        if (attempts < maxAttempts && shotCount < effectiveTargetCount) {
+          console.log(`[Shot Designer] Only got ${shotCount}/${effectiveTargetCount} shots on attempt ${attempts}, retrying...`);
+          designMessages.push(
+            { role: "assistant", content: designResponse.choices[0].message.content || "" },
+            { role: "user", content: `You only returned ${shotCount} shots but I need EXACTLY ${effectiveTargetCount}. You are missing ${effectiveTargetCount - shotCount} shots. Please regenerate the COMPLETE list with ALL ${effectiveTargetCount} shots. Use different mic/position/distance combinations for the additional shots. Each shot must have a unique mic+position+distance combo. Return the full JSON with all ${effectiveTargetCount} shots.` }
+          );
+        } else {
+          console.log(`[Shot Designer] Got ${shotCount}/${effectiveTargetCount} shots after ${attempts} attempts`);
+        }
+      }
+
+      if (!designResult.shots || !Array.isArray(designResult.shots)) {
+        designResult.shots = [];
+      }
+
+      if (designResult.shots.length < effectiveTargetCount) {
+        const existingKeys = new Set(designResult.shots.map((s: any) =>
+          `${(s.mic || '').toLowerCase()}_${(s.position || '').toLowerCase()}_${(s.distance || '1').replace(/"/g, '')}`
+        ));
+        const intentKeys = hasIntentCounts ? ['rhythm', 'lead', 'clean'] : ['rhythm'];
+        const fillShots: any[] = [];
+
+        for (const rule of MIC_ROLE_KB) {
+          if (designResult.shots.length + fillShots.length >= effectiveTargetCount) break;
+          if (!rule.distance) continue;
+          for (const dist of [rule.distance]) {
+            if (designResult.shots.length + fillShots.length >= effectiveTargetCount) break;
+            const key = `${rule.mic.toLowerCase()}_${rule.position.toLowerCase()}_${dist.replace(/"/g, '')}`;
+            if (existingKeys.has(key)) continue;
+            existingKeys.add(key);
+
+            const primaryIntent = rule.bestForIntents?.[0] || intentKeys[0];
+            const secondaryIntents = (rule.bestForIntents || []).filter((i: string) => i !== primaryIntent);
+            fillShots.push({
+              mic: rule.mic,
+              position: rule.position,
+              distance: dist,
+              musicalRole: rule.predictedRole,
+              primaryIntent,
+              secondaryIntents,
+              mixingRole: rule.tonalProfile.character,
+              predictedTone: {
+                mid: (rule.tonalProfile.expectedMid[0] + rule.tonalProfile.expectedMid[1]) / 2,
+                highMid: (rule.tonalProfile.expectedHighMid[0] + rule.tonalProfile.expectedHighMid[1]) / 2,
+                presence: (rule.tonalProfile.expectedPresence[0] + rule.tonalProfile.expectedPresence[1]) / 2,
+                ratio: (rule.tonalProfile.expectedRatio[0] + rule.tonalProfile.expectedRatio[1]) / 2,
+                centroid: (rule.tonalProfile.expectedCentroid[0] + rule.tonalProfile.expectedCentroid[1]) / 2,
+                character: rule.tonalProfile.character,
+              },
+              confidence: rule.confidence,
+              confidenceReason: `Knowledge base backfill: ${rule.predictedRole}@${rule.position} (${rule.confidence})`,
+              blendsWith: [],
+              whyIncluded: `KB backfill — ${rule.blendNotes}`,
+              _backfilled: true,
+            });
+          }
+        }
+
+        if (designResult.shots.length + fillShots.length < effectiveTargetCount) {
+          const commonDistances = ["1", "2", "4"];
+          for (const rule of MIC_ROLE_KB) {
+            if (designResult.shots.length + fillShots.length >= effectiveTargetCount) break;
+            if (rule.distance) continue;
+            for (const dist of commonDistances) {
+              if (designResult.shots.length + fillShots.length >= effectiveTargetCount) break;
+              const key = `${rule.mic.toLowerCase()}_${rule.position.toLowerCase()}_${dist}`;
+              if (existingKeys.has(key)) continue;
+              existingKeys.add(key);
+              const primaryIntent = rule.bestForIntents?.[0] || intentKeys[0];
+              const secondaryIntents = (rule.bestForIntents || []).filter((i: string) => i !== primaryIntent);
+              fillShots.push({
+                mic: rule.mic, position: rule.position, distance: dist,
+                musicalRole: rule.predictedRole, primaryIntent, secondaryIntents,
+                mixingRole: rule.tonalProfile.character,
+                predictedTone: {
+                  mid: (rule.tonalProfile.expectedMid[0] + rule.tonalProfile.expectedMid[1]) / 2,
+                  highMid: (rule.tonalProfile.expectedHighMid[0] + rule.tonalProfile.expectedHighMid[1]) / 2,
+                  presence: (rule.tonalProfile.expectedPresence[0] + rule.tonalProfile.expectedPresence[1]) / 2,
+                  ratio: (rule.tonalProfile.expectedRatio[0] + rule.tonalProfile.expectedRatio[1]) / 2,
+                  centroid: (rule.tonalProfile.expectedCentroid[0] + rule.tonalProfile.expectedCentroid[1]) / 2,
+                  character: rule.tonalProfile.character,
+                },
+                confidence: "low",
+                confidenceReason: `KB backfill (no defined distance): ${rule.predictedRole}@${rule.position}`,
+                blendsWith: [], whyIncluded: `KB backfill — ${rule.blendNotes}`, _backfilled: true,
+              });
+            }
+          }
+        }
+
+        if (fillShots.length > 0) {
+          console.log(`[Shot Designer] Backfilling ${fillShots.length} shots from knowledge base (had ${designResult.shots.length}/${effectiveTargetCount})`);
+          designResult.shots = [...designResult.shots, ...fillShots];
+        }
+
+        if (designResult.shots.length < effectiveTargetCount) {
+          console.warn(`[Shot Designer] Still short: ${designResult.shots.length}/${effectiveTargetCount} after KB backfill — KB exhausted`);
+        }
+      }
+
+      for (const shot of designResult.shots) {
+        const kbLookup = lookupMicRole(shot.mic || '', shot.position || '', shot.distance);
+        if (kbLookup) {
+          shot.knowledgeBaseRole = kbLookup.predictedRole;
+          shot.knowledgeBaseConfidence = kbLookup.confidence;
+        }
+      }
+
+      if (designResult.shots.length > effectiveTargetCount) {
+        console.log(`[Shot Designer] Trimming ${designResult.shots.length} shots to requested ${effectiveTargetCount}`);
+        designResult.shots = designResult.shots.slice(0, effectiveTargetCount);
+      }
+
+      if (hasIntentCounts) {
+        const coverage: Record<string, { shotCount: number; roles: Record<string, number>; complete: boolean }> = {};
+        for (const shot of designResult.shots) {
+          const allIntents = [shot.primaryIntent, ...(shot.secondaryIntents || [])].filter(Boolean);
+          for (const intent of allIntents) {
+            if (!coverage[intent]) coverage[intent] = { shotCount: 0, roles: {}, complete: false };
+            coverage[intent].shotCount++;
+            const role = shot.musicalRole || 'Unknown';
+            coverage[intent].roles[role] = (coverage[intent].roles[role] || 0) + 1;
+          }
+        }
+        if (intentAllocation.rhythm > 0 && coverage.rhythm) coverage.rhythm.complete = coverage.rhythm.shotCount >= intentAllocation.rhythm;
+        if (intentAllocation.lead > 0 && coverage.lead) coverage.lead.complete = coverage.lead.shotCount >= intentAllocation.lead;
+        if (intentAllocation.clean > 0 && coverage.clean) coverage.clean.complete = coverage.clean.shotCount >= intentAllocation.clean;
+        designResult.intentCoverage = coverage;
       }
 
       res.json({
