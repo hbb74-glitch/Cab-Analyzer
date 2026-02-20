@@ -4713,7 +4713,7 @@ Determine which speaker naturally serves which role (e.g., Speaker 1 = Foundatio
 Use the spectral data, KB role predictions, and psychoacoustic character to make this determination.
 For each pairing, assign the optimal role to each IR and explain the speaker role dynamics.
 
-Output EXACTLY ${pairingCount} best cross-speaker pairings.
+Output EXACTLY ${pairingCount} pairings (not fewer, not more — the user specifically requested ${pairingCount}).
 Output JSON format:
 ${outputFormat}`;
 
@@ -4733,7 +4733,7 @@ Determine optimal roles and speaker role assignments. Each pairing must cross sp
       } else {
         systemPrompt += `\n\nSINGLE SPEAKER MODE:
 Analyze the set and find the best role-complementary pairings within the same speaker.
-Output EXACTLY ${pairingCount} best pairings.
+Output EXACTLY ${pairingCount} pairings (not fewer, not more — the user specifically requested ${pairingCount}).
 Output JSON format:
 ${outputFormat}`;
 
@@ -4746,19 +4746,45 @@ ${outputFormat}`;
 Prioritize pairings that achieve these psychoacoustic goals. Adjust role assignments and mix ratios to best deliver this sound.`;
       }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.15,
-        max_tokens: 8192,
-      });
+      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ];
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
-      res.json(result);
+      let finalResult: any = null;
+      const maxAttempts = 3;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages,
+          response_format: { type: "json_object" },
+          temperature: attempt === 0 ? 0.15 : 0.3,
+          max_tokens: 16384,
+        });
+
+        const parsed = JSON.parse(response.choices[0].message.content || "{}");
+        const got = parsed.pairings?.length || 0;
+
+        if (got >= pairingCount) {
+          parsed.pairings = parsed.pairings.slice(0, pairingCount);
+          finalResult = parsed;
+          break;
+        }
+
+        if (attempt < maxAttempts - 1 && got < pairingCount) {
+          const existing = parsed.pairings || [];
+          const existingTitles = existing.map((p: any) => `${p.ir1} + ${p.ir2}`).join(', ');
+          messages.push(
+            { role: "assistant", content: response.choices[0].message.content || "" },
+            { role: "user", content: `You only provided ${got} pairings but I need EXACTLY ${pairingCount}. You still need ${pairingCount - got} more. Do NOT repeat these existing pairs: ${existingTitles}. Output a COMPLETE JSON with ALL ${pairingCount} pairings (include the ${got} you already gave plus ${pairingCount - got} new ones).` }
+          );
+        } else {
+          finalResult = parsed;
+        }
+      }
+
+      res.json(finalResult);
     } catch (err) {
       console.error('Pairing analysis error:', err);
       if (err instanceof z.ZodError) {
