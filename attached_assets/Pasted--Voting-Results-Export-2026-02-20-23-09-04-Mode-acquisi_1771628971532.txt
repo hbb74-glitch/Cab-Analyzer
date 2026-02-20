@@ -1,0 +1,121 @@
+=== Voting Results Export — 2026-02-20 23:09:04 ===
+Mode: acquisition | Intent: lead | Sandbox
+Pairing rounds completed: 0
+Taste check votes (all time): 8
+Profile status: mastered | Signals: 175 | Liked: 174 | Noped: 1
+
+--- Preference Corrections Applied ---
+1. tonal feedback applied: less_harsh, aggressive, more_bite
+
+--- Learning Evidence ---
+Combos rated: 32 | Winners: 8 | Losers: 24
+Settled winners (held for refinement): 8 | Settled losers (suppressed): 0
+
+--- IR Leaderboard (individual IR win tendency) ---
+ir	win_combos	lose_combos	total_appearances	avg_combo_rating	win_rate
+Cream_SM57_Fredman_2in.wav	1	0	1	1535	100%
+Cream_SM57_R121_Balanced_4in.wav	2	1	3	1518	67%
+Cream_SM57_CapEdge_Br_2in.wav	2	1	3	1518	67%
+Cream_SM57_R121_Thick_5in.wav	1	1	2	1510	50%
+Cream_SM57_CapEdge_2in.wav	1	1	2	1510	50%
+Cream_PR30_Cap_OffCenter_2.5in.wav	3	7	10	1500	30%
+Cream_Roswell_Cap_6in.wav	1	3	4	1497	25%
+Cream_R121_Cap_4in.wav	1	4	5	1495	20%
+Cream_M201_CapEdge_Br_3in.wav	1	4	5	1495	20%
+Cream_PR30_CapEdge_2.5in.wav	1	4	5	1495	20%
+Cream_R92_Cap_6in.wav	1	4	5	1495	20%
+Cream_M201_Cap_Cone_Tr_3in.wav	1	6	7	1492	14%
+Cream_SM7b_CapEdge_1.5in.wav	0	1	1	1485	0%
+Cream_PR30_Cone_2.5in.wav	0	2	2	1485	0%
+Cream_C414_Cap_5.5in.wav	0	2	2	1485	0%
+Cream_M201_CapEdge_3in.wav	0	3	3	1485	0%
+Cream_MD441_Presence_Cone_4in.wav	0	2	2	1485	0%
+Cream_PR30_Cap_Cone_Tr_2.5in.wav	0	2	2	1484	0%
+
+--- Emerging Favorites (settled winners) ---
+  Cream_M201_CapEdge_Br_3in.wav + Cream_M201_Cap_Cone_Tr_3in.wav — Elo 1535 (3 matches)
+  Cream_Roswell_Cap_6in.wav + Cream_SM57_R121_Balanced_4in.wav — Elo 1535 (3 matches)
+  Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_R121_Thick_5in.wav — Elo 1535 (3 matches)
+  Cream_PR30_CapEdge_2.5in.wav + Cream_SM57_CapEdge_2in.wav — Elo 1535 (3 matches)
+  Cream_R92_Cap_6in.wav + Cream_SM57_CapEdge_Br_2in.wav — Elo 1535 (3 matches)
+  Cream_R121_Cap_4in.wav + Cream_SM57_CapEdge_Br_2in.wav — Elo 1535 (3 matches)
+  Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_Fredman_2in.wav — Elo 1535 (3 matches)
+  Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_R121_Balanced_4in.wav — Elo 1535 (3 matches)
+
+--- Elo Ratings ---
+combo_key	rating	matches	uncertainty	status
+Cream_M201_CapEdge_Br_3in.wav + Cream_M201_Cap_Cone_Tr_3in.wav	1535	3	0.50	WINNER (held)
+Cream_Roswell_Cap_6in.wav + Cream_SM57_R121_Balanced_4in.wav	1535	3	0.50	WINNER (held)
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_R121_Thick_5in.wav	1535	3	0.50	WINNER (held)
+Cream_PR30_CapEdge_2.5in.wav + Cream_SM57_CapEdge_2in.wav	1535	3	0.50	WINNER (held)
+Cream_R92_Cap_6in.wav + Cream_SM57_CapEdge_Br_2in.wav	1535	3	0.50	WINNER (held)
+Cream_R121_Cap_4in.wav + Cream_SM57_CapEdge_Br_2in.wav	1535	3	0.50	WINNER (held)
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_Fredman_2in.wav	1535	3	0.50	WINNER (held)
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_R121_Balanced_4in.wav	1535	3	0.50	WINNER (held)
+Cream_R121_Cap_4in.wav + Cream_R92_Cap_6in.wav	1485	1	0.71	falling
+Cream_R121_Cap_4in.wav + Cream_SM7b_CapEdge_1.5in.wav	1485	1	0.71	falling
+Cream_C414_Cap_5.5in.wav + Cream_PR30_CapEdge_2.5in.wav	1485	1	0.71	falling
+Cream_R121_Cap_4in.wav + Cream_Roswell_Cap_6in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_3in.wav + Cream_M201_Cap_Cone_Tr_3in.wav	1485	1	0.71	falling
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_Roswell_Cap_6in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_Cone_2.5in.wav	1485	1	0.71	falling
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_PR30_Cone_2.5in.wav	1485	1	0.71	falling
+Cream_MD441_Presence_Cone_4in.wav + Cream_PR30_CapEdge_2.5in.wav	1485	1	0.71	falling
+Cream_MD441_Presence_Cone_4in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_3in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1485	1	0.71	falling
+Cream_C414_Cap_5.5in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_CapEdge_2.5in.wav	1485	1	0.71	falling
+Cream_R121_Cap_4in.wav + Cream_SM57_R121_Balanced_4in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_3in.wav + Cream_R92_Cap_6in.wav	1485	1	0.71	falling
+Cream_M201_CapEdge_Br_3in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1484	1	0.71	falling
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_PR30_Cap_OffCenter_2.5in.wav	1484	1	0.71	falling
+Cream_R92_Cap_6in.wav + Cream_Roswell_Cap_6in.wav	1484	1	0.71	falling
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_PR30_Cap_Cone_Tr_2.5in.wav	1484	1	0.71	falling
+Cream_PR30_CapEdge_2.5in.wav + Cream_SM57_R121_Thick_5in.wav	1484	1	0.71	falling
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_CapEdge_2in.wav	1484	1	0.71	falling
+Cream_M201_Cap_Cone_Tr_3in.wav + Cream_R92_Cap_6in.wav	1484	1	0.71	falling
+Cream_PR30_Cap_OffCenter_2.5in.wav + Cream_SM57_CapEdge_Br_2in.wav	1484	1	0.71	falling
+
+--- IR Win/Loss Records ---
+ir	wins	losses	both_count	net
+Cream_SM57_R121_Balanced_4in.wav	6	1	0	+5
+Cream_SM57_CapEdge_Br_2in.wav	6	1	0	+5
+Cream_SM57_Fredman_2in.wav	3	0	0	+3
+Cream_PR30_Cap_OffCenter_2.5in.wav	9	7	0	+2
+Cream_SM57_R121_Thick_5in.wav	3	1	0	+2
+Cream_SM57_CapEdge_2in.wav	3	1	0	+2
+Cream_Roswell_Cap_6in.wav	3	3	0	0
+Cream_M201_CapEdge_Br_3in.wav	3	4	0	-1
+Cream_PR30_CapEdge_2.5in.wav	3	4	0	-1
+Cream_R121_Cap_4in.wav	3	4	0	-1
+Cream_R92_Cap_6in.wav	3	4	0	-1
+Cream_SM7b_CapEdge_1.5in.wav	0	1	0	-1
+Cream_MD441_Presence_Cone_4in.wav	0	2	0	-2
+Cream_PR30_Cap_Cone_Tr_2.5in.wav	0	2	0	-2
+Cream_C414_Cap_5.5in.wav	0	2	0	-2
+Cream_PR30_Cone_2.5in.wav	0	2	0	-2
+Cream_M201_Cap_Cone_Tr_3in.wav	3	6	0	-3
+Cream_M201_CapEdge_3in.wav	0	3	0	-3
+
+--- Tonal Preferences (learned from votes) ---
+Model votes: 24 | Model confidence: 80%
+band	weight	direction	strength
+subBass	-0.043	avoids	mild
+bass	-0.042	avoids	mild
+highMid	-0.032	avoids	mild
+presence	0.025	favors	mild
+air	0.136	favors	mild
+tilt	0.024	favors	mild
+lowMid	0.015	neutral	neutral
+mid	0.006	neutral	neutral
+smoothness	-0.000	neutral	neutral
+
+--- Tonal Profile Summary ---
+Favors: air (mild), presence (mild), tilt (mild)
+Avoids: subBass (mild), bass (mild), highMid (mild)
+
+--- Taste Learning Summary ---
+Total votes: 24 | Confidence: 80%
+
+=== End of Voting Results ===
