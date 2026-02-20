@@ -7,7 +7,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1537,7 +1537,8 @@ export default function Learner() {
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
     lines.push(`=== Voting Results Export — ${ts} ===`);
     lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | Training: ${trainingMode ? "yes (sandbox)" : "no (live)"}`);
-    lines.push(`Rounds completed: ${totalRoundsCompleted}`);
+    lines.push(`Pairing rounds completed: ${totalRoundsCompleted}`);
+    lines.push(`Taste check votes (all time): ${getTasteVoteCount(tasteContext)}`);
     if (learnedProfile && learnedProfile.status !== "no_data") {
       lines.push(`Profile status: ${learnedProfile.status} | Signals: ${learnedProfile.signalCount} | Liked: ${learnedProfile.likedCount} | Noped: ${learnedProfile.nopedCount}`);
     }
@@ -1833,7 +1834,8 @@ export default function Learner() {
         undefined, tasteCheckMode as "acquisition" | "tester" | "learning",
         tasteIntent as "rhythm" | "lead" | "clean",
         getIRWinRecords(tasteContext),
-        getEloRatings(tasteContext)
+        getEloRatings(tasteContext),
+        getShownPairs(tasteContext)
       );
       if (tastePick) {
         const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
@@ -1920,6 +1922,12 @@ export default function Learner() {
           );
         }
 
+        const shownKeys = tasteCheckPhase.candidates.map(c =>
+          [c.baseFilename, c.featureFilename].sort().join("||")
+        );
+        recordShownPairs(tasteContext, shownKeys, tasteCheckPhase.round);
+        recordTasteVote(tasteContext);
+
         const bands = winner.blendBands;
         const hiMidMidRatio = bands.mid > 0 ? bands.highMid / bands.mid : 1.4;
         const feats: TonalFeatures = {
@@ -1980,7 +1988,8 @@ export default function Learner() {
         tasteCheckMode === "ratio" ? "learning" : tasteCheckMode,
         tasteIntent as "rhythm" | "lead" | "clean",
         getIRWinRecords(tasteContext),
-        getEloRatings(tasteContext)
+        getEloRatings(tasteContext),
+        getShownPairs(tasteContext)
       );
 
       if (!nextPick) {
@@ -2263,7 +2272,8 @@ export default function Learner() {
             tasteCheckMode as "acquisition" | "tester" | "learning",
             tasteIntent as "rhythm" | "lead" | "clean",
             getIRWinRecords(tasteContext),
-            getEloRatings(tasteContext)
+            getEloRatings(tasteContext),
+            getShownPairs(tasteContext)
           );
           if (tastePick) {
             const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);

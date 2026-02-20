@@ -25,12 +25,19 @@ export type EloEntry = {
   winCount?: number;
 };
 
+type ShownEntry = {
+  count: number;
+  lastRound: number;
+};
+
 type StoreState = {
   version: 2;
   models: Record<string, ModelState>;
   complements: Record<string, Record<string, number>>;
   irWins?: Record<string, Record<string, IRWinRecord>>;
   elo?: Record<string, Record<string, EloEntry>>;
+  shownPairs?: Record<string, Record<string, ShownEntry>>;
+  tasteVoteCounts?: Record<string, number>;
 };
 
 const STORAGE_KEY = "irscope.taste.v1";
@@ -710,6 +717,41 @@ export function getEloForCombo(ctx: TasteContext, fileA: string, fileB: string):
   return state.elo?.[key]?.[ck] ?? { rating: ELO_BASE, matchCount: 0, uncertainty: 1.0 };
 }
 
+export function recordShownPairs(ctx: TasteContext, comboKeys: string[], round: number): void {
+  const state = loadState();
+  const key = eloKey(ctx);
+  if (!state.shownPairs) state.shownPairs = {};
+  if (!state.shownPairs[key]) state.shownPairs[key] = {};
+  for (const ck of comboKeys) {
+    const existing = state.shownPairs[key][ck];
+    state.shownPairs[key][ck] = {
+      count: (existing?.count ?? 0) + 1,
+      lastRound: round,
+    };
+  }
+  saveState(state);
+}
+
+export function getShownPairs(ctx: TasteContext): Record<string, ShownEntry> {
+  const state = loadState();
+  const key = eloKey(ctx);
+  return state.shownPairs?.[key] ?? {};
+}
+
+export function recordTasteVote(ctx: TasteContext): void {
+  const state = loadState();
+  const key = eloKey(ctx);
+  if (!state.tasteVoteCounts) state.tasteVoteCounts = {};
+  state.tasteVoteCounts[key] = (state.tasteVoteCounts[key] ?? 0) + 1;
+  saveState(state);
+}
+
+export function getTasteVoteCount(ctx: TasteContext): number {
+  const state = loadState();
+  const key = eloKey(ctx);
+  return state.tasteVoteCounts?.[key] ?? 0;
+}
+
 export function getComplementBoost(ctx: TasteContext, pairKey: string): number {
   const state = loadState();
   const key = makeTasteKey(ctx);
@@ -730,6 +772,8 @@ export function resetTaste(ctx?: TasteContext) {
   delete state.complements[keyIntent];
   if (state.irWins) delete state.irWins[irKey];
   if (state.elo) delete state.elo[elK];
+  if (state.shownPairs) delete state.shownPairs[elK];
+  if (state.tasteVoteCounts) delete state.tasteVoteCounts[elK];
   saveState(state);
 }
 

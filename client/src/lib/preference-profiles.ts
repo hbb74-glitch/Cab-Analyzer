@@ -1181,18 +1181,18 @@ type ComboWithMeta = SuggestedPairing & {
 function detectPlateauWinners(
   combos: ComboWithMeta[],
   eloRatings: Record<string, EloEntry> | undefined,
-  plateauThreshold = 8,
-  minRating = ELO_BASE_RATING + 20
+  plateauThreshold = 15,
+  minRating = ELO_BASE_RATING + 10
 ): ComboWithMeta[] {
   if (!eloRatings) return [];
 
   const winners = combos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
     const elo = eloRatings[ck];
-    return elo && elo.rating >= minRating && elo.matchCount >= 2;
+    return elo && elo.rating >= minRating && elo.matchCount >= 1;
   });
 
-  if (winners.length < 3) return [];
+  if (winners.length < 2) return [];
 
   const ratings = winners.map(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
@@ -1452,7 +1452,8 @@ export function pickTasteCheckCandidates(
   modeOverride?: "acquisition" | "tester" | "learning",
   intent?: "rhythm" | "lead" | "clean",
   irWinRecords?: Record<string, IRWinRecord>,
-  eloRatings?: Record<string, EloEntry>
+  eloRatings?: Record<string, EloEntry>,
+  persistedShownPairs?: Record<string, { count: number; lastRound: number }>
 ): { candidates: SuggestedPairing[]; axisName: string; roundType: "quad" | "binary"; axisLabels: [string, string]; confidence: TasteConfidence } | null {
   if (irs.length < 2) return null;
 
@@ -1460,7 +1461,20 @@ export function pickTasteCheckCandidates(
   const forceBinary = modeOverride === "tester";
 
   const sessionShown = extractSessionShownPairs(history);
+  const allShown = new Set(sessionShown);
+  if (persistedShownPairs) {
+    for (const ck of Object.keys(persistedShownPairs)) allShown.add(ck);
+  }
   const sessionExposure = extractSessionIRExposure(history);
+  if (persistedShownPairs) {
+    for (const [ck, entry] of Object.entries(persistedShownPairs)) {
+      if (sessionShown.has(ck)) continue;
+      const parts = ck.split("||");
+      for (const p of parts) {
+        sessionExposure.set(p, (sessionExposure.get(p) ?? 0) + entry.count);
+      }
+    }
+  }
   const maxSessionExposure = sessionExposure.size > 0
     ? Math.max(...Array.from(sessionExposure.values()), 1) : 0;
 
@@ -1481,7 +1495,11 @@ export function pickTasteCheckCandidates(
     softenRolesFromLearning(irRoles, irWinRecords, intent as Intent);
   }
 
-  const totalRounds = history?.length ?? 0;
+  const sessionRounds = history?.length ?? 0;
+  const persistedRoundMax = persistedShownPairs && Object.keys(persistedShownPairs).length > 0
+    ? Math.max(...Object.values(persistedShownPairs).map(e => e.lastRound + 1))
+    : 0;
+  const totalRounds = Math.max(sessionRounds, persistedRoundMax);
   const allCombos: ComboWithMeta[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
@@ -1496,8 +1514,10 @@ export function pickTasteCheckCandidates(
         : scoreBlendQuality(blended, profiles);
 
       let exposurePenalty = 0;
-      if (sessionShown.has(ck)) {
-        exposurePenalty += 15;
+      const persistedEntry = persistedShownPairs?.[ck];
+      if (allShown.has(ck)) {
+        const timesShown = persistedEntry?.count ?? 1;
+        exposurePenalty += 10 + timesShown * 5;
       }
       if (maxSessionExposure > 0) {
         const baseExp = sessionExposure.get(irs[i].filename) ?? 0;
@@ -1554,9 +1574,9 @@ export function pickTasteCheckCandidates(
     }
   }
 
-  const settledLoserThreshold = ELO_BASE_RATING - 40;
-  const settledUncertaintyMax = 0.45;
-  const settledMinMatches = 4;
+  const settledLoserThreshold = ELO_BASE_RATING - 25;
+  const settledUncertaintyMax = 0.65;
+  const settledMinMatches = 2;
   const settledBefore = allCombos.length;
 
   const settledLosers: ComboWithMeta[] = [];
@@ -1574,7 +1594,7 @@ export function pickTasteCheckCandidates(
   const settledWinners = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
     const elo = activeEloRatings?.[ck];
-    return elo && elo.rating >= ELO_BASE_RATING + 20 && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches;
+    return elo && elo.rating >= ELO_BASE_RATING + 15 && elo.uncertainty < 0.75 && elo.matchCount >= 2;
   });
 
   const totalUniqueCombos = allCombos.length;
@@ -1618,9 +1638,14 @@ export function pickTasteCheckCandidates(
     }
   }
 
+  const settledWinnerKeys = new Set(settledWinners.map(c =>
+    [c.baseFilename, c.featureFilename].sort().join("||")
+  ));
+
   const freshPool = tastePool.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-    return !sessionShown.has(ck);
+    if (settledWinnerKeys.has(ck)) return false;
+    return !allShown.has(ck);
   });
   const sessionDeduped = tastePool.length - freshPool.length;
 
@@ -1631,16 +1656,19 @@ export function pickTasteCheckCandidates(
     if (idx < workingPool.length) workingPool[idx]._isBoundary = true;
   });
 
-  const plateauWinners = detectPlateauWinners(workingPool, activeEloRatings);
-  const isRefinementRound = plateauWinners.length >= 3
-    && coverageRatio >= 0.4
+  const plateauWinners = detectPlateauWinners(
+    [...workingPool, ...settledWinners],
+    activeEloRatings
+  );
+  const isRefinementRound = plateauWinners.length >= 2
+    && settledWinners.length >= 2
     && !isCalibrationRound
-    && totalRounds > 3
-    && totalRounds % 3 === 0;
+    && totalRounds > 1
+    && totalRounds % 2 === 0;
 
   if (tasteSignal || eloRatings) {
     const hasElo = activeEloRatings && Object.keys(activeEloRatings).length > 0;
-    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(activeEloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settled, ${sessionDeduped} session dupes) coverage=${(coverageRatio * 100).toFixed(0)}% explRate=${explorationRate.toFixed(2)} plateau=${plateauWinners.length} calibration=${isCalibrationRound} refinement=${isRefinementRound}`);
+    console.log(`[LEARNING] round=${totalRounds} winners=${tasteSignal?.winnerFeatures.length ?? 0} losers=${tasteSignal?.loserFeatures.length ?? 0} eloEntries=${hasElo ? Object.keys(activeEloRatings!).length : 0} boundary=${boundarySet.size} combos=${workingPool.length} (removed ${settledRemoved} settledLosers, ${settledWinners.length} settledWinners held back, ${sessionDeduped} deduped) coverage=${(coverageRatio * 100).toFixed(0)}% explRate=${explorationRate.toFixed(2)} plateau=${plateauWinners.length} calibration=${isCalibrationRound} refinement=${isRefinementRound}`);
   }
 
   const round = history?.length ?? 0;
