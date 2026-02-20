@@ -54,6 +54,17 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     blendNotes: "Great base layer - slightly more room than 1in version",
   },
   {
+    mic: "SM57", position: "CapEdge_Br", distance: "2",
+    predictedRole: "Foundation", confidence: "high",
+    tonalProfile: {
+      character: "Balanced with slight bright-side lean, punchy mids with more upper-mid presence than neutral CapEdge",
+      expectedMid: [21, 27], expectedHighMid: [21, 27], expectedPresence: [12, 18],
+      expectedRatio: [0.9, 1.35], expectedCentroid: [1800, 2600],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "Bright-side CapEdge — still Foundation character, slightly more articulate than neutral CapEdge",
+  },
+  {
     mic: "SM57", position: "Cone", distance: "1",
     predictedRole: "Mid Thickener", confidence: "high",
     tonalProfile: {
@@ -215,6 +226,17 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     bestForIntents: ["lead", "rhythm"],
     blendNotes: "More usable brightness - good solo cut layer option",
   },
+  {
+    mic: "PR30", position: "CapEdge_Br", distance: "3",
+    predictedRole: "Cut Layer", confidence: "medium",
+    tonalProfile: {
+      character: "Bright-side CapEdge at distance — controlled brightness with less proximity, forward upper-mids",
+      expectedMid: [19, 25], expectedHighMid: [22, 28], expectedPresence: [15, 21],
+      expectedRatio: [1.1, 1.6], expectedCentroid: [2200, 3000],
+    },
+    bestForIntents: ["lead", "rhythm"],
+    blendNotes: "PR30 bright-side CapEdge at distance — usable cut without harshness",
+  },
 
   // ── SM7B ──
   {
@@ -227,6 +249,39 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     },
     bestForIntents: ["lead", "clean"],
     blendNotes: "Warm, broadcast-quality smoothness - great for leads and creamy tones",
+  },
+  {
+    mic: "SM7B", position: "Cap_Cone_Tr", distance: "3",
+    predictedRole: "Foundation", confidence: "medium",
+    tonalProfile: {
+      character: "Warm, smooth transition zone — balanced body with controlled highs, less bright than cap",
+      expectedMid: [24, 30], expectedHighMid: [15, 21], expectedPresence: [7, 13],
+      expectedRatio: [0.55, 0.95], expectedCentroid: [1350, 2000],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "SM7B transition zone — warm foundation, pairs well with brighter cut layers",
+  },
+  {
+    mic: "SM7B", position: "Cone", distance: "3",
+    predictedRole: "Mid Thickener", confidence: "medium",
+    tonalProfile: {
+      character: "Very warm, thick mids, smooth rolled-off top — body-heavy foundation",
+      expectedMid: [27, 33], expectedHighMid: [12, 18], expectedPresence: [5, 11],
+      expectedRatio: [0.4, 0.75], expectedCentroid: [1100, 1700],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "SM7B cone — maximum warmth and body, needs bright partner for balance",
+  },
+  {
+    mic: "SM7B", position: "Cone_Br", distance: "3",
+    predictedRole: "Foundation", confidence: "medium",
+    tonalProfile: {
+      character: "Warm cone with slight bright-side lean — body-focused with more upper-mid than pure cone",
+      expectedMid: [25, 31], expectedHighMid: [14, 20], expectedPresence: [6, 12],
+      expectedRatio: [0.5, 0.85], expectedCentroid: [1250, 1850],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "SM7B bright-side cone — warmer than CapEdge but more articulate than pure cone",
   },
   {
     mic: "SM7B", position: "CapEdge", distance: "2",
@@ -405,6 +460,39 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   },
 
   // ── Roswell Cab Mic (Condenser) ──
+  {
+    mic: "Roswell", position: "Cap", distance: "3",
+    predictedRole: "Lead Polish", confidence: "high",
+    tonalProfile: {
+      character: "Detailed full-range condenser at close range, enhanced proximity bass, clear extended highs",
+      expectedMid: [20, 26], expectedHighMid: [22, 28], expectedPresence: [16, 22],
+      expectedRatio: [1.0, 1.5], expectedCentroid: [2100, 3100],
+    },
+    bestForIntents: ["lead", "clean"],
+    blendNotes: "Close condenser - detailed and full, more bass weight than distant positions",
+  },
+  {
+    mic: "Roswell", position: "Cap", distance: "5",
+    predictedRole: "Lead Polish", confidence: "high",
+    tonalProfile: {
+      character: "Balanced full-range condenser, extended highs and lows, true cab picture",
+      expectedMid: [20, 26], expectedHighMid: [20, 26], expectedPresence: [14, 20],
+      expectedRatio: [0.9, 1.4], expectedCentroid: [2000, 3000],
+    },
+    bestForIntents: ["lead", "clean"],
+    blendNotes: "True cab picture at medium distance - reveals speaker character faithfully",
+  },
+  {
+    mic: "Roswell", position: "Cap", distance: "6",
+    predictedRole: "Lead Polish", confidence: "high",
+    tonalProfile: {
+      character: "Full-range cab picture, extended highs and lows, detailed",
+      expectedMid: [20, 26], expectedHighMid: [20, 26], expectedPresence: [14, 20],
+      expectedRatio: [0.9, 1.4], expectedCentroid: [2000, 3000],
+    },
+    bestForIntents: ["lead", "clean"],
+    blendNotes: "True cab picture - reveals what dynamics/ribbons color over",
+  },
   {
     mic: "Roswell", position: "Global", distance: "6",
     predictedRole: "Lead Polish", confidence: "high",

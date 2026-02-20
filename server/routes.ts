@@ -4923,10 +4923,10 @@ These preferences are ALREADY factored into the pre-scoring. Use them to inform 
 
       // ─── Build AI prompt with pre-scored candidates ───
       const intentGuide = intent && intent !== 'versatile' ? {
-        rhythm: `RHYTHM CONTEXT: Prioritize Foundation + Cut Layer for punch and clarity. The blend should sit in a dense mix, support palm mutes, and maintain note definition under gain.`,
-        lead: `LEAD CONTEXT: Prioritize Foundation + Lead Polish or Cut Layer + Lead Polish for singing sustain and smooth presence. Sustain and note bloom matter more than tightness.`,
-        clean: `CLEAN CONTEXT: Prioritize Foundation + Lead Polish or Foundation + Fizz Tamer for shimmer and warmth. Avoid harshness. Smooth, polished, hi-fi quality.`,
-      }[intent] : 'VERSATILE CONTEXT: Pairings that work across rhythm, lead, and clean. One warm/full IR + one bright/detailed IR.';
+        rhythm: `RHYTHM CONTEXT: The blend should sit in a dense mix, support palm mutes, and maintain note definition under gain. Good role combos include Foundation + Cut Layer, Foundation + Mid Thickener, Mid Thickener + Cut Layer, or Foundation + Lead Polish. Use diverse role pairings — don't make every pairing Foundation + Cut Layer.`,
+        lead: `LEAD CONTEXT: Sustain and note bloom matter more than tightness. Good role combos include Foundation + Lead Polish, Cut Layer + Lead Polish, Foundation + Cut Layer, or Mid Thickener + Lead Polish. Use diverse role pairings.`,
+        clean: `CLEAN CONTEXT: Smooth, polished, hi-fi quality. Avoid harshness. Good role combos include Foundation + Lead Polish, Foundation + Fizz Tamer, Lead Polish + Mid Thickener, or Foundation + Foundation. Use diverse role pairings.`,
+      }[intent] : 'VERSATILE CONTEXT: Pairings that work across rhythm, lead, and clean. One warm/full IR + one bright/detailed IR. Use diverse role pairings.';
 
       const systemPrompt = `You are an expert audio engineer selecting the BEST IR blend pairings from pre-scored candidates.
 All IRs are minimum phase transformed (MPT) — phase cancellation is NOT a concern.
@@ -4950,6 +4950,7 @@ CRITICAL RULES:
 - Two dark/warm mics together is NEVER a good pairing
 - Same mic type on both sides is generally bad unless positions differ dramatically
 - Mix ratio must reflect the dominant role: Foundation/body IR gets 55-70%, color/accent IR gets 30-45%
+- ROLE ACCURACY: You MUST use the exact role shown in each candidate's "Role:" field for ir1Role and ir2Role. Do NOT reassign roles based on your own judgment — the roles come from a validated knowledge base and spectral analysis. If a mic is labeled Foundation, it IS Foundation. If labeled Lead Polish, it IS Lead Polish.
 
 DIVERSITY RULES (MANDATORY):
 - No single IR filename should appear in more than 3 of your ${pairingCount} selected pairings
@@ -4958,6 +4959,7 @@ DIVERSITY RULES (MANDATORY):
 - Titles must be CREATIVE and DISTINCT. BANNED patterns: "Warm X + Bright Y", "Smooth X + Crisp Y", "[adjective] Body + [adjective] Edge/Top/Detail".
   Instead use evocative musical language like: "Velvet Hammer", "Midnight Crunch", "Singing Steel", "Growl & Gloss", "Sunday Sermon", "The Negotiator", "Thick & Quick", "Honey Bite", "Satin Punch", "Glass Cannon".
   Each title should feel like a preset name a guitarist would actually save — memorable, personality-driven, referencing the FEEL or VIBE of the blend, not its technical properties.
+- GENRE DIVERSITY in "bestFor": Each pairing should suggest DIFFERENT playing contexts and styles. Do NOT repeat the same genre/style for every pairing. Consider: rhythm (tight chugs, gallop riffs, chord work), lead (singing sustain, shred, bluesy bends), cleans, crunch, rock, metal sub-genres, blues, fusion, etc. Match the genre to the actual tonal character of each blend.
 
 ${intentGuide}
 ${learnedPrefsSection}
