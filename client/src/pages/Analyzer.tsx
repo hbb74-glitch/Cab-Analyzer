@@ -3645,11 +3645,11 @@ export default function Analyzer() {
           fizz: 0,
         };
         const { results: matchResults, best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
-        const featured = matchResults.find((r) => r.profile === "Featured");
-        const body = matchResults.find((r) => r.profile === "Body");
+        const featured = matchResults.find((r) => r.profile === "Presence");
+        const body = matchResults.find((r) => r.profile === "Warmth");
         const fScore = featured?.score ?? 0;
         const bScore = body?.score ?? 0;
-        const bestProfile = fScore >= bScore ? "Featured" : "Body";
+        const bestProfile = fScore >= bScore ? "Presence" : "Warmth";
         const bestScore = Math.max(fScore, bScore);
         const avoidPenalty = bestScore - best.score;
         

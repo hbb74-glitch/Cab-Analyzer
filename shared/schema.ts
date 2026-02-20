@@ -77,7 +77,7 @@ export const preferenceSignals = pgTable("preference_signals", {
   presence: real("presence").notNull(),
   ratio: real("ratio").notNull(),
   score: integer("score").notNull(),
-  profileMatch: text("profile_match").notNull(), // "Featured", "Body"
+  profileMatch: text("profile_match").notNull(), // "Presence", "Warmth"
   blendRatio: real("blend_ratio"), // base portion of the blend (0.3-0.7), null means 50:50
   createdAt: timestamp("created_at").defaultNow(),
 });

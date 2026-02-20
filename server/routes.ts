@@ -1652,8 +1652,8 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
   };
 
   const profileBaseTargets: Record<string, { mid: number; hiMid: number; presence: number; ratio: number }> = {
-    Featured: { mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
-    Body: { mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
+    Presence: { mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
+    Warmth: { mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
   };
   const perProfileAdjustments: Record<string, ProfileAdjustment> = {};
   for (const [profileName, baseTargets] of Object.entries(profileBaseTargets)) {
@@ -1985,7 +1985,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     const ratioConfidence = Math.min(ratioSignals.length / 6, 1);
 
     const perProfileRatio: Record<string, { preferredRatio: number; confidence: number }> = {};
-    for (const profileName of ["Featured", "Body"]) {
+    for (const profileName of ["Presence", "Warmth"]) {
       const profileRatioSignals = ratioSignals.filter((s) => s.profileMatch === profileName);
       if (profileRatioSignals.length >= 2) {
         let pws = 0, pwt = 0;
@@ -2103,8 +2103,8 @@ function buildTonalSummary(
   }
 
   if (Object.keys(perProfileAdj).length > 0) {
-    const featAdj = perProfileAdj["Featured"];
-    const bodyAdj = perProfileAdj["Body"];
+    const featAdj = perProfileAdj["Presence"];
+    const bodyAdj = perProfileAdj["Warmth"];
     if (featAdj && bodyAdj) {
       const featPres = featAdj.presence.shift;
       const bodyPres = bodyAdj.presence.shift;
@@ -5722,7 +5722,7 @@ Use larger values than normal -- corrections should have strong impact since the
         presence: 23 + nudges.presence * nudges.strength,
         ratio: 1.4 + nudges.ratio * nudges.strength,
         score: 100,
-        profileMatch: "Featured",
+        profileMatch: "Presence",
         blendRatio: null,
       };
 

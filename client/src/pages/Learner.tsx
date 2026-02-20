@@ -2754,18 +2754,6 @@ export default function Learner() {
 
                     if (!hasPairingPool) {
                       toast({ title: "Load IRs first", description: "Drop your IR files in the Load IRs section below to get started." });
-                    } else if (suggestedPairs.length > 0 && !ratioRefinePhase) {
-                      const pool = allIRs;
-                      const candidates = suggestedPairs.map((pair) => {
-                        const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
-                        const featData = pool.find((ir) => ir.filename === pair.featureFilename);
-                        return baseData && featData
-                          ? { pair, rank: 2, baseFeatures: baseData.features, featFeatures: featData.features }
-                          : null;
-                      }).filter(Boolean) as { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[];
-                      if (candidates.length > 0) {
-                        proceedToRatioRefine(candidates, false);
-                      }
                     } else if (ratioRefinePhase) {
                       setTimeout(() => ratioRefineRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
                     }
@@ -3032,6 +3020,46 @@ export default function Learner() {
                 : "Fresh suggestions informed by your taste. Keep refining or load your top pick into the mixer."
               }
             </p>
+            )}
+            {!ratioRefinePhase && tasteCheckMode === "ratio" && !tasteCheckPhase && suggestedPairs.length > 0 && (
+              <div className="mb-4 space-y-2">
+                <p className="text-xs text-muted-foreground">Pick a pairing to refine its blend ratio:</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {suggestedPairs.map((pair, idx) => {
+                    const pool = allIRs;
+                    return (
+                      <Button
+                        key={`${pair.baseFilename}-${pair.featureFilename}`}
+                        variant="ghost"
+                        className="h-auto p-3 rounded-lg border border-sky-500/20 bg-sky-500/5 text-left flex flex-col items-start gap-1"
+                        onClick={() => {
+                          const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+                          const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+                          if (baseData && featData) {
+                            proceedToRatioRefine(
+                              [{ pair, rank: idx + 1, baseFeatures: baseData.features, featFeatures: featData.features }],
+                              false
+                            );
+                          }
+                        }}
+                        data-testid={`button-ratio-pick-${idx}`}
+                      >
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-mono text-foreground">{pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                          <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          + {pair.suggestedRatio ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}` : "50/50"}
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-mono text-foreground">{pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
+                          <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
             {!ratioRefinePhase && tasteCheckMode !== "ratio" && !tasteCheckPhase && suggestedPairs.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

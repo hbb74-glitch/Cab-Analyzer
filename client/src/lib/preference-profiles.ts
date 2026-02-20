@@ -59,7 +59,7 @@ export interface FoundationScore {
 }
 
 export const FEATURED_PROFILE: PreferenceProfile = {
-  name: "Featured",
+  name: "Presence",
   description: "Cut, air, articulation. For lead/featured parts.",
   targetShapeDb: {
     subBass: -18,
@@ -75,7 +75,7 @@ export const FEATURED_PROFILE: PreferenceProfile = {
 };
 
 export const BODY_PROFILE: PreferenceProfile = {
-  name: "Body",
+  name: "Warmth",
   description: "Weight, warmth, sit-in-the-mix. For rhythm/foundation parts.",
   targetShapeDb: {
     subBass: -14,
@@ -178,7 +178,7 @@ export function computeSpeakerRelativeProfiles(
 
   return [
     {
-      name: "Featured",
+      name: "Presence",
       description: FEATURED_PROFILE.description,
       targetShapeDb: {
         subBass: makeBandTarget("subBass", false),
@@ -193,7 +193,7 @@ export function computeSpeakerRelativeProfiles(
       targetTiltDbPerOct: Math.round(tiltP25 * 10) / 10,
     },
     {
-      name: "Body",
+      name: "Warmth",
       description: BODY_PROFILE.description,
       targetShapeDb: {
         subBass: makeBandTarget("subBass", true),
@@ -270,7 +270,7 @@ export function scoreWithIntent(
 
   const intentBonus = Math.round(8 * intent.confidence);
   const adjusted = results.map((r) => {
-    const profileRole = r.profile === "Featured" ? "featured" : r.profile === "Body" ? "body" : "neutral";
+    const profileRole = r.profile === "Presence" ? "featured" : r.profile === "Warmth" ? "body" : "neutral";
     if (profileRole === intent.role) {
       const boosted = Math.min(100, r.score + intentBonus);
       return { ...r, score: boosted, summary: r.summary + " (intended)" };
@@ -305,8 +305,8 @@ export function findFoundationIR(
 ): FoundationScore[] {
   if (irs.length === 0) return [];
 
-  const bodyProfile = profiles.find((p) => p.name === "Body") || profiles[1];
-  const featuredProfile = profiles.find((p) => p.name === "Featured") || profiles[0];
+  const bodyProfile = profiles.find((p) => p.name === "Warmth") || profiles[1];
+  const featuredProfile = profiles.find((p) => p.name === "Presence") || profiles[0];
 
   const scored = irs.map((ir) => {
     const bodyMatch = scoreAgainstProfile(ir.features, bodyProfile);
