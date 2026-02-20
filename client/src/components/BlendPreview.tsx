@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Blend, Zap, Gauge } from "lucide-react";
+import { ChevronDown, ChevronUp, Blend, Zap, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { blendFeatures } from "@/lib/tonal-engine";
 import {
@@ -101,14 +101,7 @@ function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centr
 }
 
 function ProfileScores({ features, profiles }: { features: TonalFeatures; profiles?: PreferenceProfile[] }) {
-  const { results } = scoreAgainstAllProfiles(features, profiles);
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {results.map((r) => (
-        <MatchBadge key={r.profile} match={r} />
-      ))}
-    </div>
-  );
+  return null;
 }
 
 export function BandChart({ bands, features, height = 20, compact = false, showScores = false, profiles, centroid }: { bands: TonalBands; features?: TonalFeatures; height?: number; compact?: boolean; showScores?: boolean; profiles?: PreferenceProfile[]; centroid?: number }) {

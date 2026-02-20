@@ -1651,14 +1651,18 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     ratio: { shift: Math.round(((likedRatio - baseRatio) * confidence + effectiveRatioNudge * feedbackScale) * 100) / 100, confidence },
   };
 
-  const profileBaseTargets: Record<string, { mid: number; hiMid: number; presence: number; ratio: number }> = {
-    Presence: { mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
-    Warmth: { mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
+  const WARM_ROLES = new Set(["Foundation", "Mid Thickener", "Dark Specialty"]);
+  const BRIGHT_ROLES = new Set(["Cut Layer", "Lead Polish", "Fizz Tamer"]);
+  const roleFamilyTargets: Record<string, { roles: Set<string>; mid: number; hiMid: number; presence: number; ratio: number }> = {
+    Warmth: { roles: WARM_ROLES, mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
+    Presence: { roles: BRIGHT_ROLES, mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
   };
   const perProfileAdjustments: Record<string, ProfileAdjustment> = {};
-  for (const [profileName, baseTargets] of Object.entries(profileBaseTargets)) {
-    const profileLiked = liked.filter((s) => s.profileMatch === profileName);
-    const profileSignals = signals.filter((s) => s.profileMatch === profileName);
+  for (const [familyName, familyConfig] of Object.entries(roleFamilyTargets)) {
+    const baseTargets = familyConfig;
+    const matchesFamily = (pm: string) => familyConfig.roles.has(pm) || pm === familyName;
+    const profileLiked = liked.filter((s) => matchesFamily(s.profileMatch));
+    const profileSignals = signals.filter((s) => matchesFamily(s.profileMatch));
     if (profileLiked.length < 2) continue;
     const pConf = Math.min(profileLiked.length / 8, 1);
     const pMid = weightedAvg(profileLiked, "mid");
@@ -1687,7 +1691,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     const pEffMid = pFeedback.mid + pFeedback.lowMid * 0.6;
     const pEffRatio = pFeedback.ratio - pFeedback.bass * 0.03;
 
-    perProfileAdjustments[profileName] = {
+    perProfileAdjustments[familyName] = {
       mid: { shift: Math.round(((pMid - baseTargets.mid) * pConf + pEffMid * pFeedbackScale) * 10) / 10, confidence: pConf },
       highMid: { shift: Math.round(((pHiMid - baseTargets.hiMid) * pConf + pFeedback.highMid * pFeedbackScale) * 10) / 10, confidence: pConf },
       presence: { shift: Math.round(((pPres - baseTargets.presence) * pConf + pFeedback.presence * pFeedbackScale) * 10) / 10, confidence: pConf },

@@ -141,9 +141,6 @@ function ProfileMatchSection({ tonalBalance, activeProfiles, learnedProfile, fil
         <span className="text-xs font-semibold text-indigo-400">Blend Guidance</span>
       </div>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        {results.map((r) => (
-          <ProfileMatchBadge key={r.profile} match={r} />
-        ))}
       </div>
       {best.deviations.length > 0 && (
         <div className="space-y-1">

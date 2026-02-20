@@ -768,6 +768,14 @@ export default function Learner() {
     }));
   }, [allIRs]);
 
+  const getRoleForFilename = useCallback((filename: string): string => {
+    const ir = allIRs.find(i => i.filename === filename);
+    if (!ir?.features) return "Foundation";
+    const spk = inferSpeakerIdFromFilename(filename);
+    const st = speakerStatsMap.get(spk);
+    return classifyIR(ir.features, filename, st);
+  }, [allIRs, speakerStatsMap]);
+
   const copyIRSummaryTSV = useCallback(() => {
     if (!allIRs.length) return;
     const fmt = (v: any, digits = 1) => {
@@ -1689,13 +1697,7 @@ export default function Learner() {
 
         const bands = winner.blendBands;
         const hiMidMidRatio = bands.mid > 0 ? bands.highMid / bands.mid : 1.4;
-        const feats: TonalFeatures = {
-          bandsRaw: bands,
-          bandsPercent: bands,
-          bandsShapeDb: bands,
-          tiltDbPerOct: 0,
-        };
-        const { best: bestMatch } = scoreAgainstAllProfiles(feats, activeProfiles);
+        const baseRole = getRoleForFilename(winner.baseFilename);
         submitSignalsMutation.mutate([{
           action: "taste_pick",
           baseFilename: winner.baseFilename,
@@ -1707,8 +1709,8 @@ export default function Learner() {
           highMid: Math.round(bands.highMid),
           presence: Math.round(bands.presence),
           ratio: Math.round(hiMidMidRatio * 100) / 100,
-          score: Math.round(bestMatch.score),
-          profileMatch: bestMatch.profile,
+          score: 0,
+          profileMatch: baseRole,
           blendRatio: wRatio,
         }]);
 
@@ -1887,7 +1889,7 @@ export default function Learner() {
         presence: pair.blendBands.presence,
         ratio: Math.round(r * 100) / 100,
         score: Math.round(pair.score) || 0,
-        profileMatch: pair.bestMatch.profile,
+        profileMatch: getRoleForFilename(pair.baseFilename),
       });
 
       if (isDismissed) roundNoped++;
@@ -2126,8 +2128,8 @@ export default function Learner() {
         highMid: blendBands.highMid,
         presence: blendBands.presence,
         ratio: Math.round(r * 100) / 100,
-        score: Math.round(scored.best.score) || 0,
-        profileMatch: scored.best.profile,
+        score: 0,
+        profileMatch: getRoleForFilename(cand.pair.baseFilename),
         blendRatio: ratio,
       }]);
     }
@@ -3786,9 +3788,6 @@ export default function Learner() {
                           </span>
                           <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={ir.filename} />
-                          {match.results.map((r) => (
-                            <MatchBadge key={r.profile} match={r} />
-                          ))}
                         </div>
                       </div>
                       <TonalReadouts features={ir.features} centroid={centroid} />
