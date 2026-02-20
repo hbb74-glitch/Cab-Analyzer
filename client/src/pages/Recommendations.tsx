@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2 } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2, ChevronDown, ChevronUp, Database, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,7 @@ import { useResults } from "@/context/ResultsContext";
 import { apiRequest } from "@/lib/queryClient";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
 import { analyzeAudioFile } from "@/hooks/use-analyses";
+import { MIC_ROLE_KB } from "@shared/knowledge/mic-role-map";
 
 // Ambiguous speaker patterns that need clarification
 const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: string }[]; question: string }> = {
@@ -425,6 +426,8 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
   const [cleanCount, setCleanCount] = useState(2);
   const [designResult, setDesignResult] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [showTrainingData, setShowTrainingData] = useState(false);
+  const [trainingDataCopied, setTrainingDataCopied] = useState(false);
   const { toast } = useToast();
 
   const { data: profileData, isLoading: profilesLoading } = useQuery({
@@ -503,6 +506,106 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const buildTrainingDataSummary = () => {
+    if (!Array.isArray(profileData) || profileData.length === 0) return null;
+
+    const profiles = profileData as any[];
+    const bySpeaker: Record<string, any[]> = {};
+    const allMics = new Set<string>();
+    const allPositions = new Set<string>();
+    let totalSamples = 0;
+
+    for (const p of profiles) {
+      const spk = p.speaker || 'unknown';
+      if (!bySpeaker[spk]) bySpeaker[spk] = [];
+      bySpeaker[spk].push(p);
+      allMics.add((p.mic || '').toLowerCase());
+      allPositions.add((p.position || '').toLowerCase());
+      totalSamples += p.sampleCount || 0;
+    }
+
+    const kbMics = new Set(MIC_ROLE_KB.map(r => r.mic.toLowerCase()));
+    const kbPositions = new Set(MIC_ROLE_KB.map(r => r.position.toLowerCase()));
+    const kbCombos = new Set(MIC_ROLE_KB.map(r => `${r.mic.toLowerCase()}|${r.position.toLowerCase()}`));
+
+    const learnedCombos = new Set(profiles.map((p: any) =>
+      `${(p.mic || '').toLowerCase()}|${(p.position || '').toLowerCase()}`
+    ));
+
+    const missingMics = Array.from(kbMics).filter(m => !allMics.has(m));
+    const missingCombos = Array.from(kbCombos).filter(c => !learnedCombos.has(c));
+
+    const lowSampleProfiles = profiles.filter((p: any) => (p.sampleCount || 0) < 3);
+    const singleSpeakerMics: string[] = [];
+    const micSpeakers: Record<string, Set<string>> = {};
+    for (const p of profiles) {
+      const mic = (p.mic || '').toLowerCase();
+      if (!micSpeakers[mic]) micSpeakers[mic] = new Set();
+      micSpeakers[mic].add(p.speaker || '');
+    }
+    for (const [mic, speakers] of Object.entries(micSpeakers)) {
+      if (speakers.size === 1) singleSpeakerMics.push(mic);
+    }
+
+    return { bySpeaker, allMics, allPositions, totalSamples, missingMics, missingCombos, lowSampleProfiles, singleSpeakerMics, kbMics, kbCombos, learnedCombos, micSpeakers };
+  };
+
+  const copyTrainingData = () => {
+    const data = buildTrainingDataSummary();
+    if (!data) return;
+
+    const lines: string[] = [];
+    lines.push("=== TRAINING DATA SUMMARY ===");
+    lines.push(`Total profiles: ${profileCount}`);
+    lines.push(`Total IR samples behind profiles: ${data.totalSamples}`);
+    lines.push(`Unique mics: ${data.allMics.size}`);
+    lines.push(`Unique positions: ${data.allPositions.size}`);
+    lines.push(`Speakers: ${Object.keys(data.bySpeaker).join(', ')}`);
+    lines.push("");
+
+    for (const [speaker, profiles] of Object.entries(data.bySpeaker).sort((a, b) => b[1].length - a[1].length)) {
+      lines.push(`── ${speaker.toUpperCase()} (${profiles.length} profiles) ──`);
+      const byMic: Record<string, any[]> = {};
+      for (const p of profiles) {
+        const mic = p.mic || 'unknown';
+        if (!byMic[mic]) byMic[mic] = [];
+        byMic[mic].push(p);
+      }
+      for (const [mic, mProfiles] of Object.entries(byMic).sort((a, b) => a[0].localeCompare(b[0]))) {
+        for (const p of mProfiles.sort((a: any, b: any) => (a.position || '').localeCompare(b.position || ''))) {
+          lines.push(`  ${mic} @ ${p.position} ${p.distance}"  [${p.subBass}|${p.bass}|${p.lowMid}|${p.mid}|${p.highMid}|${p.presence}]  ratio=${p.ratio}  centroid=${p.centroid}Hz  smooth=${p.smoothness}  (n=${p.sampleCount})`);
+        }
+      }
+      lines.push("");
+    }
+
+    lines.push("=== MISSING DATA / SUGGESTIONS ===");
+    if (data.missingMics.length > 0) {
+      lines.push(`Mics in knowledge base with NO learned data: ${data.missingMics.join(', ')}`);
+    }
+    if (data.missingCombos.length > 0) {
+      lines.push(`Mic/position combos in KB not yet learned (${data.missingCombos.length}):`);
+      for (const c of data.missingCombos) {
+        const [mic, pos] = c.split('|');
+        lines.push(`  - ${mic} @ ${pos}`);
+      }
+    }
+    if (data.lowSampleProfiles.length > 0) {
+      lines.push(`\nLow-confidence profiles (fewer than 3 samples): ${data.lowSampleProfiles.length}`);
+      for (const p of data.lowSampleProfiles) {
+        lines.push(`  - ${p.mic} @ ${p.position} ${p.distance}" on ${p.speaker} (n=${p.sampleCount})`);
+      }
+    }
+    if (data.singleSpeakerMics.length > 0) {
+      lines.push(`\nMics only heard on 1 speaker (limits extrapolation): ${data.singleSpeakerMics.join(', ')}`);
+    }
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    setTrainingDataCopied(true);
+    setTimeout(() => setTrainingDataCopied(false), 2000);
+    toast({ title: "Training data copied to clipboard" });
+  };
+
   return (
     <div className="space-y-6">
       <form onSubmit={handleDesign} className="glass-panel p-6 rounded-2xl space-y-6">
@@ -521,6 +624,167 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
             </p>
           </div>
         </div>
+
+        {profileCount > 0 && (
+          <div className="border border-white/10 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowTrainingData(!showTrainingData)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left"
+              data-testid="button-toggle-training-data"
+            >
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Training Data</span>
+                <span className="text-xs text-muted-foreground">({profileCount} profiles)</span>
+              </div>
+              {showTrainingData ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            <AnimatePresence>
+              {showTrainingData && (() => {
+                const data = buildTrainingDataSummary();
+                if (!data) return null;
+                return (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 py-4 space-y-4 border-t border-white/10 max-h-[500px] overflow-y-auto">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          <span><strong className="text-foreground">{profileCount}</strong> profiles</span>
+                          <span><strong className="text-foreground">{data.totalSamples}</strong> IR samples</span>
+                          <span><strong className="text-foreground">{data.allMics.size}</strong> mics</span>
+                          <span><strong className="text-foreground">{data.allPositions.size}</strong> positions</span>
+                          <span><strong className="text-foreground">{Object.keys(data.bySpeaker).length}</strong> speakers</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={copyTrainingData}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium transition-all shrink-0"
+                          data-testid="button-copy-training-data"
+                        >
+                          {trainingDataCopied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+                          {trainingDataCopied ? 'Copied' : 'Copy All'}
+                        </button>
+                      </div>
+
+                      {Object.entries(data.bySpeaker).sort((a, b) => b[1].length - a[1].length).map(([speaker, profiles]) => {
+                        const byMic: Record<string, any[]> = {};
+                        for (const p of profiles) {
+                          const mic = p.mic || 'unknown';
+                          if (!byMic[mic]) byMic[mic] = [];
+                          byMic[mic].push(p);
+                        }
+                        return (
+                          <div key={speaker} className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Speaker className="w-3 h-3 text-primary" />
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">{speaker}</h4>
+                              <span className="text-xs text-muted-foreground">({profiles.length} profiles)</span>
+                            </div>
+                            <div className="space-y-1 pl-5">
+                              {Object.entries(byMic).sort((a, b) => a[0].localeCompare(b[0])).map(([mic, mProfiles]) => (
+                                <div key={mic} className="space-y-0.5">
+                                  <div className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                                    <Mic2 className="w-3 h-3" />
+                                    {mic} <span className="text-muted-foreground/60">({mProfiles.length})</span>
+                                  </div>
+                                  {mProfiles.sort((a: any, b: any) => (a.position || '').localeCompare(b.position || '')).map((p: any, i: number) => (
+                                    <div key={i} className="text-[11px] text-muted-foreground pl-5 font-mono leading-relaxed flex flex-wrap gap-x-2">
+                                      <span className="text-foreground/80">{p.position} {p.distance}"</span>
+                                      <span className="text-blue-400/70">[{p.subBass}|{p.bass}|{p.lowMid}|{p.mid}|{p.highMid}|{p.presence}]</span>
+                                      <span>r={p.ratio}</span>
+                                      <span>c={p.centroid}Hz</span>
+                                      <span>s={p.smoothness}</span>
+                                      <span className={cn(
+                                        "px-1 rounded",
+                                        (p.sampleCount || 0) >= 5 ? "text-green-400/70" : (p.sampleCount || 0) >= 3 ? "text-yellow-400/70" : "text-orange-400/70"
+                                      )}>n={p.sampleCount}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {(data.missingMics.length > 0 || data.missingCombos.length > 0 || data.lowSampleProfiles.length > 0 || data.singleSpeakerMics.length > 0) && (
+                        <div className="space-y-3 pt-3 border-t border-white/10">
+                          <div className="flex items-center gap-2">
+                            <Info className="w-4 h-4 text-yellow-400" />
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-yellow-400">Suggestions to Improve Accuracy</h4>
+                          </div>
+
+                          {data.missingMics.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Mics in knowledge base with no learned data:</p>
+                              <div className="flex flex-wrap gap-1.5 pl-2">
+                                {data.missingMics.map(m => (
+                                  <span key={m} className="text-[11px] px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">{m}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {data.missingCombos.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Mic/position combos in KB not yet learned ({data.missingCombos.length}):</p>
+                              <div className="flex flex-wrap gap-1.5 pl-2">
+                                {data.missingCombos.slice(0, 20).map(c => {
+                                  const [mic, pos] = c.split('|');
+                                  return (
+                                    <span key={c} className="text-[11px] px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                                      {mic}@{pos}
+                                    </span>
+                                  );
+                                })}
+                                {data.missingCombos.length > 20 && (
+                                  <span className="text-[11px] text-muted-foreground">+{data.missingCombos.length - 20} more</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {data.lowSampleProfiles.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Low-confidence profiles (fewer than 3 samples): {data.lowSampleProfiles.length}</p>
+                              <div className="flex flex-wrap gap-1.5 pl-2">
+                                {data.lowSampleProfiles.slice(0, 15).map((p: any, i: number) => (
+                                  <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                                    {p.mic}@{p.position} {p.distance}" ({p.speaker}, n={p.sampleCount})
+                                  </span>
+                                ))}
+                                {data.lowSampleProfiles.length > 15 && (
+                                  <span className="text-[11px] text-muted-foreground">+{data.lowSampleProfiles.length - 15} more</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {data.singleSpeakerMics.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground">Mics only heard on 1 speaker (limits extrapolation):</p>
+                              <div className="flex flex-wrap gap-1.5 pl-2">
+                                {data.singleSpeakerMics.map(m => (
+                                  <span key={m} className="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">{m}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })()}
+            </AnimatePresence>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-2">
