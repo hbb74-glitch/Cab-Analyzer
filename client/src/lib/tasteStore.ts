@@ -778,10 +778,19 @@ export function resetTaste(ctx?: TasteContext) {
 }
 
 const WEIGHT_LABELS: string[] = [
-  ...BAND_KEYS,
+  "subBass",
+  "bass",
+  "lowMid",
+  "mid",
+  "highMid",
+  "presence",
+  "air",
+  "fizz",
   "tilt",
   "smoothness",
 ];
+
+const SKIP_BANDS = new Set(["fizz"]);
 
 export type TonalPreference = {
   band: string;
@@ -803,6 +812,8 @@ export function getTonalPreferences(ctx: TasteContext): { preferences: TonalPref
   const preferences: TonalPreference[] = [];
 
   for (let i = 0; i < Math.min(model.w.length, WEIGHT_LABELS.length); i++) {
+    const label = WEIGHT_LABELS[i];
+    if (SKIP_BANDS.has(label)) continue;
     const w = model.w[i];
     const absW = Math.abs(w);
     let direction: TonalPreference["direction"] = "neutral";
@@ -815,7 +826,7 @@ export function getTonalPreferences(ctx: TasteContext): { preferences: TonalPref
       else strength = "mild";
     }
 
-    preferences.push({ band: WEIGHT_LABELS[i], weight: w, direction, strength });
+    preferences.push({ band: label, weight: w, direction, strength });
   }
 
   return { preferences, nVotes, confidence };
