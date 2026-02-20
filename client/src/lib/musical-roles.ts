@@ -374,6 +374,14 @@ export function scoreRolePairForIntent(
     return -4;
   }
 
+  const BAD_CROSS_PAIRS: [MusicalRole, MusicalRole][] = [["Dark Specialty", "Fizz Tamer"]];
+  for (const bad of BAD_CROSS_PAIRS) {
+    const sorted = [...bad].sort() as [MusicalRole, MusicalRole];
+    if (pair[0] === sorted[0] && pair[1] === sorted[1]) {
+      return -4;
+    }
+  }
+
   for (let i = 0; i < prefs.preferred.length; i++) {
     const pref = [...prefs.preferred[i]].sort() as [MusicalRole, MusicalRole];
     if (pair[0] === pref[0] && pair[1] === pref[1]) {
