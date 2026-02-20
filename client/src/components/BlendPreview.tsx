@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Blend, Zap, Target } from "lucide-react";
+import { ChevronDown, ChevronUp, Blend, Zap, Gauge } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { blendFeatures } from "@/lib/tonal-engine";
 import {
