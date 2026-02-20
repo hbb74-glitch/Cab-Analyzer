@@ -3733,10 +3733,14 @@ export default function Analyzer() {
       const kbLookup = gearMic ? lookupMicRole(gearMic, gearPos || 'Cap') : null;
       const kbRoleLabel = kbLookup?.predictedRole ?? "";
       if (computedRole || kbRoleLabel) {
-        const parts = [];
-        if (computedRole) parts.push(`Computed: ${computedRole}`);
-        if (kbRoleLabel) parts.push(`KB: ${kbRoleLabel}`);
-        text += `   Role: ${parts.join(" | ")}\n`;
+        if (computedRole && kbRoleLabel && computedRole === kbRoleLabel) {
+          text += `   Role: ${computedRole}\n`;
+        } else {
+          const parts = [];
+          if (computedRole) parts.push(`Computed: ${computedRole}`);
+          if (kbRoleLabel) parts.push(`KB: ${kbRoleLabel}`);
+          text += `   Role: ${parts.join(" | ")}\n`;
+        }
       }
       if (r.parsedInfo) {
         const info = [];
@@ -3821,7 +3825,6 @@ export default function Analyzer() {
       const roleParts: string[] = [];
       if (computedRole) roleParts.push(computedRole);
       if (kbRoleLabel && kbRoleLabel !== computedRole) roleParts.push(`KB: ${kbRoleLabel}`);
-      else if (kbRoleLabel) roleParts.push("KB agrees");
 
       const roleStr = roleParts.length > 0 ? ` [${roleParts.join(" | ")}]` : "";
       return `${name}${roleStr}`;
@@ -4872,18 +4875,22 @@ export default function Analyzer() {
                               <p className="font-mono text-sm font-medium truncate">{r.filename}</p>
                               {(() => {
                                 const computedRole = getMusicalRoleForRow(r);
+                                const { mic: gMic, position: gPos } = extractGearFromFilename(r.filename ?? "");
+                                const kbLookup = gMic ? lookupMicRole(gMic, gPos || 'Cap') : null;
+                                const kbRole = kbLookup?.predictedRole ?? "";
+                                const rolesAgree = computedRole && kbRole && computedRole === kbRole;
                                 return (
                                   <div className="flex items-center gap-1 flex-wrap">
                                     {computedRole && (
                                       <span
                                         className={cn("px-1.5 py-0.5 text-[11px] rounded font-bold", roleBadgeClass(computedRole))}
                                         data-testid={`badge-batch-musical-role-${index}`}
-                                        title="Role classified from actual audio analysis"
+                                        title={rolesAgree ? "Role classified from audio analysis (KB agrees)" : "Role classified from actual audio analysis"}
                                       >
                                         {computedRole}
                                       </span>
                                     )}
-                                    <ShotIntentBadge filename={r.filename} hideIntents />
+                                    {!rolesAgree && <ShotIntentBadge filename={r.filename} hideIntents />}
                                   </div>
                                 );
                               })()}
