@@ -1,0 +1,61 @@
+IR Pairing Recommendations
+Context: Rhythm
+========================================
+
+1. Velvet Hammer
+   G12-65_SM7b_Cap_Cone_Tr_3in.wav + G12-65_SM57_CapEdge_Br_2in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 65:35
+   Score: 81/100
+   Sound: SM7B adds body and warmth; SM57 adds bite and clarity.
+   Expected Tone: A thick, punchy rhythm tone with smooth mids and aggressive upper-mid clarity that cuts through dense mixes.
+   Best For: Thrash-metal rhythm guitar, palm-muted riffs, and fast chord transitions.
+   Intent Fit: Excellent for rhythm context due to the strong foundation and articulate cut layer.
+   Why: The SM7B provides a warm, full-bodied foundation with strong midrange presence and smooth hi-mids, while the SM57 adds sharp, cutting clarity with its elevated hi-mid and presence bands. Together, they balance warmth and bite, avoiding harshness while maintaining definition.
+
+2. Singing Steel
+   G12-65_SM7b_Cap_Cone_Tr_3in.wav + G12-65_PR30_CapEdge_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 81/100
+   Sound: SM7B adds smooth mids and warmth; PR30 adds brightness and air.
+   Expected Tone: A balanced tone with smooth mids and shimmering highs, perfect for articulate rhythm playing.
+   Best For: Thrash-metal rhythm guitar with intricate picking and fast-paced riffs.
+   Intent Fit: Excellent for rhythm context, providing clarity and definition under gain.
+   Why: The SM7B delivers a smooth, mid-focused foundation with controlled highs, while the PR30 contributes a bright, airy top-end with extended presence and hi-mid detail. This pairing avoids muddiness and ensures clarity without sacrificing warmth.
+
+3. Midnight Crunch
+   G12-65_SM7b_Cone_Br_3in.wav + G12-65_PR30_CapEdge_Br_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 65:35
+   Score: 79.6/100
+   Sound: SM7B adds midrange crunch; PR30 adds sharp hi-mid and presence detail.
+   Expected Tone: A crunchy, aggressive tone with tight mids and sharp upper-mid definition.
+   Best For: Heavy rhythm guitar in thrash-metal, emphasizing palm-muted chugs and fast riffing.
+   Intent Fit: Excellent for rhythm context, delivering punch and clarity in a dense mix.
+   Why: The SM7B cone position emphasizes midrange crunch and warmth, while the PR30 capedge_br position adds sharp hi-mid and presence detail. This pairing creates a dynamic tone with a strong midrange punch and cutting clarity.
+
+4. Glass Cannon
+   G12-65_Roswell_Cap_5in.wav + G12-65_PR30_CapEdge_Br_3in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 79.6/100
+   Sound: Roswell adds smooth balance; PR30 adds aggressive hi-mid and presence detail.
+   Expected Tone: A smooth yet articulate tone with balanced mids and sharp upper-mid clarity.
+   Best For: Thrash-metal rhythm guitar with fast picking and complex chord transitions.
+   Intent Fit: Excellent for rhythm context, ensuring note definition under gain.
+   Why: The Roswell cap position provides a smooth, balanced foundation with slightly scooped mids and controlled highs, while the PR30 capedge_br position adds aggressive hi-mid and presence detail for cutting articulation. This pairing avoids harshness while maintaining clarity.
+
+5. Thick & Quick
+   G12-65_Roswell_Cap_6in.wav + G12-65_SM57_CapEdge_Br_2in.wav
+   Roles: Foundation + Cut Layer
+   Mix Ratio: 60:40
+   Score: 79.1/100
+   Sound: Roswell adds smooth warmth; SM57 adds sharp hi-mid and presence detail.
+   Expected Tone: A thick, smooth tone with sharp upper-mid definition for fast, articulate rhythm playing.
+   Best For: Thrash-metal rhythm guitar with palm-muted riffs and fast transitions.
+   Intent Fit: Excellent for rhythm context, providing a strong foundation and cutting clarity.
+   Why: The Roswell cap position at 6 inches provides a slightly darker, smoother foundation with controlled mids and highs, while the SM57 capedge_br position adds sharp hi-mid and presence detail for articulation. This pairing balances warmth and clarity effectively.
+
+SPEAKER ROLE ANALYSIS:
+Foundation IRs provide warmth, body, and midrange focus, while Cut Layer IRs contribute brightness, hi-mid detail, and presence for articulation. The selected pairings avoid spectral overlap and ensure tonal diversity across different mic types, positions, and distances.
