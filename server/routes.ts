@@ -4955,7 +4955,9 @@ DIVERSITY RULES (MANDATORY):
 - No single IR filename should appear in more than 3 of your ${pairingCount} selected pairings
 - Spread selections across DIFFERENT mics, positions, and distances — showcase the breadth of the collection
 - If multiple candidates use the same IR, pick the BEST one and skip the rest
-- Titles must be distinct and evocative — avoid repetitive "Warm X + Bright Y" patterns. Use musical, descriptive language.
+- Titles must be CREATIVE and DISTINCT. BANNED patterns: "Warm X + Bright Y", "Smooth X + Crisp Y", "[adjective] Body + [adjective] Edge/Top/Detail".
+  Instead use evocative musical language like: "Velvet Hammer", "Midnight Crunch", "Singing Steel", "Growl & Gloss", "Sunday Sermon", "The Negotiator", "Thick & Quick", "Honey Bite", "Satin Punch", "Glass Cannon".
+  Each title should feel like a preset name a guitarist would actually save — memorable, personality-driven, referencing the FEEL or VIBE of the blend, not its technical properties.
 
 ${intentGuide}
 ${learnedPrefsSection}
@@ -4964,7 +4966,7 @@ Output EXACTLY ${pairingCount} pairings as JSON:
 {
   "pairings": [
     {
-      "title": "Short evocative name",
+      "title": "Creative preset-style name (e.g. 'Velvet Hammer', 'Glass Cannon') — NO 'X + Y' format",
       "ir1": "exact filename of first IR",
       "ir2": "exact filename of second IR",
       "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
