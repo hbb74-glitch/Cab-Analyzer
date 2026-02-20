@@ -8,10 +8,11 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
@@ -638,10 +639,8 @@ export default function Learner() {
   } | null>(null);
   const [tasteCheckPassed, setTasteCheckPassed] = useState(false);
   const [tasteCheckMode, setTasteCheckMode] = useState<"learning" | "acquisition" | "tester" | "ratio">("learning");
-  const [tasteEnabled, setTasteEnabled] = useState(true);
   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
   const [tasteVersion, setTasteVersion] = useState(0);
-  const [debugVisible, setDebugVisible] = useState(false);
   const [trainingMode, setTrainingMode] = useState(() => {
     const persisted = loadPersistedTrainingMode();
     if (persisted) setSandboxMode(true);
@@ -968,7 +967,7 @@ export default function Learner() {
     return { speakerPrefix, mode: "blend", intent: tasteIntent };
   }, [pairingPool, tasteIntent]);
 
-  const tasteStatus = useMemo(() => getTasteStatus(tasteContext), [tasteContext, tasteEnabled, tasteVersion]);
+  const tasteStatus = useMemo(() => getTasteStatus(tasteContext), [tasteContext, tasteVersion]);
 
   const singleIrTasteContext: TasteContext = useMemo(() => {
     const speakerPrefix =
@@ -976,7 +975,7 @@ export default function Learner() {
     return { speakerPrefix, mode: "singleIR", intent: tasteIntent };
   }, [pairingPool, tasteIntent]);
 
-  const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteEnabled, tasteVersion]);
+  const singleIrTasteStatus = useMemo(() => getTasteStatus(singleIrTasteContext), [singleIrTasteContext, tasteVersion]);
 
   useEffect(() => {
     try {
@@ -1144,7 +1143,7 @@ export default function Learner() {
       const fF = featuresByFilename.get(p.featureFilename);
       const ratio = p.suggestedRatio?.base ?? 0.5;
 
-      if (!tasteEnabled || !bF || !fF) return { ...p, _tasteBoost: 0, _complementBoost: 0, _baseScore: p.score, _totalScore: p.score };
+      if (!bF || !fF) return { ...p, _tasteBoost: 0, _complementBoost: 0, _baseScore: p.score, _totalScore: p.score };
 
       const k = `${p.baseFilename}__${p.featureFilename}__${ratio}`;
       const xRaw = vecByKey.get(k) ?? featurizeBlend(bF, fF, ratio);
@@ -1267,17 +1266,9 @@ export default function Learner() {
 
     const top = selected.slice(0, 4).map((p, idx) => ({ ...p, rank: idx + 1 }));
     return { all: rescored, top };
-  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteEnabled, tasteVersion, tasteIntent]);
+  }, [pairingPool, activeProfiles, learnedProfile, evaluatedPairs, exposureCounts, featuresByFilename, tasteContext, tasteVersion, tasteIntent]);
 
   const suggestedPairs = suggestedPairsRaw.top;
-  const suggestedPairsDebug = suggestedPairsRaw.all.map((p: any) => ({
-    baseFilename: p.baseFilename,
-    featureFilename: p.featureFilename,
-    baseScore: p._baseScore ?? p.score,
-    tasteBoost: p._tasteBoost ?? 0,
-    totalScore: p._totalScore ?? p.score,
-  }));
-
   const copyVotingResults = useCallback(() => {
     const lines: string[] = [];
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -2235,7 +2226,6 @@ export default function Learner() {
   }, [completeRatioRefine]);
 
   const explainPairVsAnchor = (pair: any, anchor: any, meanVec: number[] | null): string[] => {
-    if (!tasteEnabled) return [];
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("irscope.taste.v1") : null;
       if (!raw) return [];
@@ -2289,23 +2279,27 @@ export default function Learner() {
   const sandboxVotes = useMemo(() => getSandboxStatus().nVotes, [tasteVersion, trainingMode]);
 
   const TasteControlBar = (
-    <div className="flex flex-col gap-2 text-xs opacity-90 mb-2" data-testid="taste-control-bar">
+    <div className="flex flex-col gap-2 mb-4" data-testid="taste-control-bar">
       {trainingMode && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-orange-500/50 bg-orange-500/10 text-orange-300" data-testid="training-mode-banner">
-          <span className="font-semibold tracking-wide">TRAINING MODE</span>
-          <span className="opacity-70">Votes go to sandbox ({sandboxVotes} votes) — live data is untouched</span>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-500/40 bg-orange-500/10 text-sm" data-testid="training-mode-banner">
+          <span className="font-semibold text-orange-300 tracking-wide">TRAINING MODE</span>
+          <span className="text-orange-300/70 text-xs">Votes go to sandbox ({sandboxVotes} votes) — live data is untouched</span>
           <div className="ml-auto flex items-center gap-1.5">
             {sandboxVotes > 0 && (
               <>
-                <button
-                  className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-emerald-400 h-7"
                   onClick={() => setPromoteConfirm(true)}
                   data-testid="button-promote-sandbox"
                 >
                   Promote to Live
-                </button>
-                <button
-                  className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-orange-300 h-7"
                   onClick={() => {
                     clearSandbox();
                     setTasteVersion(v => v + 1);
@@ -2313,11 +2307,13 @@ export default function Learner() {
                   data-testid="button-discard-sandbox"
                 >
                   Discard
-                </button>
+                </Button>
               </>
             )}
-            <button
-              className="px-2 py-0.5 rounded border border-orange-500/40 hover-elevate"
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs text-orange-300 h-7"
               onClick={() => {
                 setTrainingMode(false);
                 setSandboxMode(false);
@@ -2327,16 +2323,18 @@ export default function Learner() {
               data-testid="button-exit-training"
             >
               Exit Training
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {promoteConfirm && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-emerald-500/50 bg-emerald-500/10 text-emerald-300" data-testid="promote-confirm-banner">
-          <span>Merge {sandboxVotes} sandbox votes into your live learning data?</span>
-          <button
-            className="px-2 py-0.5 rounded border border-emerald-500/40 hover-elevate"
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-sm text-emerald-300" data-testid="promote-confirm-banner">
+          <span className="text-xs">Merge {sandboxVotes} sandbox votes into your live learning data?</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-emerald-400 h-7"
             onClick={() => {
               promoteSandboxToLive();
               setTrainingMode(false);
@@ -2349,22 +2347,26 @@ export default function Learner() {
             data-testid="button-promote-confirm"
           >
             Yes, merge
-          </button>
-          <button
-            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs h-7"
             onClick={() => setPromoteConfirm(false)}
             data-testid="button-promote-cancel"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 
       {resetAllConfirm && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-red-500/50 bg-red-500/10 text-red-300" data-testid="reset-all-confirm-banner">
-          <span>Reset ALL taste learning across all intents and modes? This cannot be undone.</span>
-          <button
-            className="px-2 py-0.5 rounded border border-red-500/40 hover-elevate"
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-300" data-testid="reset-all-confirm-banner">
+          <span className="text-xs">Reset ALL taste learning across all intents and modes? This cannot be undone.</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-red-400 h-7"
             onClick={() => {
               resetAllTaste();
               setTrainingMode(false);
@@ -2385,22 +2387,26 @@ export default function Learner() {
             data-testid="button-reset-all-confirm"
           >
             Yes, reset everything
-          </button>
-          <button
-            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs h-7"
             onClick={() => setResetAllConfirm(false)}
             data-testid="button-reset-all-cancel"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 
       {!trainingMode && sandboxVotes > 0 && (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded border border-amber-500/40 bg-amber-500/8 text-amber-300" data-testid="sandbox-orphan-banner">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300" data-testid="sandbox-orphan-banner">
           <span>You have {sandboxVotes} sandbox votes from a previous training session.</span>
-          <button
-            className="px-2 py-0.5 rounded border border-amber-500/40 hover-elevate"
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-amber-300 h-7"
             onClick={() => {
               setTrainingMode(true);
               setSandboxMode(true);
@@ -2410,16 +2416,20 @@ export default function Learner() {
             data-testid="button-resume-training"
           >
             Resume Training
-          </button>
-          <button
-            className="px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-300 hover-elevate"
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs text-emerald-300 h-7"
             onClick={() => setPromoteConfirm(true)}
             data-testid="button-promote-orphan"
           >
             Promote to Live
-          </button>
-          <button
-            className="px-2 py-0.5 rounded border border-zinc-600 hover-elevate"
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-xs h-7"
             onClick={() => {
               clearSandbox();
               setTasteVersion(v => v + 1);
@@ -2427,37 +2437,35 @@ export default function Learner() {
             data-testid="button-discard-orphan"
           >
             Discard
-          </button>
+          </Button>
         </div>
       )}
 
       <div className="flex items-center gap-2 flex-wrap" data-testid="taste-control-buttons">
-        <button
-          className={cn(
-            "px-2 py-1 rounded border",
-            trainingMode ? "border-orange-500 text-orange-300" : tasteEnabled ? "border-green-500" : "border-zinc-600"
-          )}
-          onClick={() => setTasteEnabled(v => !v)}
-          data-testid="button-taste-toggle"
-        >
-          Learning: {tasteEnabled ? "ON" : "OFF"}
-        </button>
+        <div className="flex items-center gap-0.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-0.5" data-testid="intent-selector">
+          {(["rhythm", "lead", "clean"] as const).map((intent) => (
+            <Button
+              key={intent}
+              size="sm"
+              variant={tasteIntent === intent ? "secondary" : "ghost"}
+              className={cn(
+                "text-xs h-7 capitalize",
+                tasteIntent === intent && "bg-indigo-500/25 text-indigo-300"
+              )}
+              onClick={() => setTasteIntent(intent)}
+              data-testid={`button-intent-${intent}`}
+            >
+              {intent}
+            </Button>
+          ))}
+        </div>
 
-        <select
-          className="px-2 py-1 rounded border border-zinc-600 bg-transparent text-zinc-200"
-          value={tasteIntent}
-          onChange={(e) => setTasteIntent(e.target.value as any)}
-          data-testid="select-taste-intent"
-        >
-          <option value="rhythm">Rhythm</option>
-          <option value="lead">Lead</option>
-          <option value="clean">Clean</option>
-        </select>
-
-        <button
+        <Button
+          size="sm"
+          variant={trainingMode ? "secondary" : "ghost"}
           className={cn(
-            "px-2 py-1 rounded border",
-            trainingMode ? "border-orange-500 bg-orange-500/15 text-orange-300" : "border-zinc-600"
+            "text-xs h-8",
+            trainingMode && "bg-orange-500/20 text-orange-300 border border-orange-500/30"
           )}
           onClick={() => {
             const next = !trainingMode;
@@ -2470,141 +2478,81 @@ export default function Learner() {
           data-testid="button-training-mode"
         >
           {trainingMode ? "Training" : "Training Mode"}
-        </button>
+        </Button>
 
-        <button
-          className="px-2 py-1 rounded border border-zinc-600"
-          onClick={() => {
-            resetTaste(tasteContext);
-            setTasteVersion(v => v + 1);
-            setPairingRankings({});
-            setDismissedPairings(new Set());
-            setPairingFeedback({});
-            setPairingFeedbackText({});
-          }}
-          data-testid="button-taste-reset"
-        >
-          Reset Intent
-        </button>
-
-        <button
-          className="px-3 py-1 rounded border border-zinc-600"
-          onClick={() => {
-            resetTaste(singleIrTasteContext);
-            setTasteVersion(v => v + 1);
-            setSingleIrRatings({});
-            setSingleIrTags({});
-            setSingleIrNotes({});
-            setSingleIrPage(0);
-          }}
-          title="Reset Single-IR learning (separate from blend learning)"
-          data-testid="button-taste-reset-single"
-        >
-          Reset Single
-        </button>
-
-        <button
-          className="px-2 py-1 rounded border border-orange-700/50 text-orange-400/80"
-          onClick={() => {
-            clearSandbox();
-            setTasteVersion(v => v + 1);
-            toast({ title: "Sandbox reset", description: "All sandbox/training data has been cleared.", duration: 3000 });
-          }}
-          title="Clear all sandbox/training data without affecting live learning"
-          data-testid="button-taste-reset-sandbox"
-        >
-          Reset Sandbox
-        </button>
-
-        <button
-          className="px-2 py-1 rounded border border-red-800/50 text-red-400/80"
-          onClick={() => setResetAllConfirm(true)}
-          title="Reset ALL taste learning across all intents and modes"
-          data-testid="button-taste-reset-all"
-        >
-          Reset All
-        </button>
-
-        <button
-          className="px-3 py-1 rounded border border-zinc-600"
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-xs h-8"
           onClick={() => setSingleIrLearnOpen(true)}
-          title="Rate 4 individual IRs (single-IR learning)"
+          title="Rate individual IRs"
           data-testid="button-single-ir-learning"
         >
-          Single IR Learning
-        </button>
+          Single IR Eval
+        </Button>
 
-      <button
-        className="px-2 py-1 rounded border border-zinc-600"
-        onClick={() => {
-          const vecs: number[][] = [];
-          for (const p of suggestedPairs.slice(0, 8)) {
-            const bF = featuresByFilename.get(p.baseFilename);
-            const fF = featuresByFilename.get(p.featureFilename);
-            const ratio = p.suggestedRatio?.base ?? 0.5;
-            if (bF && fF) vecs.push(featurizeBlend(bF, fF, ratio));
-          }
-          simulateVotes(tasteContext, vecs, 20);
-          setTasteVersion(v => v + 1);
-        }}
-        data-testid="button-taste-simulate"
-      >
-        Simulate 20 votes
-      </button>
-
-      <button
-        className="px-2 py-1 rounded border border-zinc-600"
-        onClick={() => {
-          const top = suggestedPairs?.[0];
-          if (!top) return;
-          const bF = featuresByFilename.get(top.baseFilename);
-          const fF = featuresByFilename.get(top.featureFilename);
-          const ratio = top.suggestedRatio?.base ?? 0.5;
-          if (!bF || !fF) return;
-          const xA = featurizeBlend(bF, fF, ratio);
-          const xB = xA;
-          const pairKey = `${top.baseFilename}__${top.featureFilename}`;
-          recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "pick4" });
-          recordIROutcome(tasteContext, [top.baseFilename, top.featureFilename], [], true);
-          setTasteVersion(v => v + 1);
-        }}
-        title="Mark the top suggestion as 'both useful' (complement) to boost it modestly"
-        data-testid="button-taste-both-useful"
-      >
-        Both useful
-      </button>
-
-      <button
-        className={cn(
-          "px-2 py-1 rounded border",
-          debugVisible ? "border-yellow-500" : "border-zinc-600"
-        )}
-        onClick={() => setDebugVisible(v => !v)}
-        data-testid="button-taste-debug-toggle"
-      >
-        Debug
-      </button>
-
-      <div className="ml-2" data-testid="text-taste-context">
-        Context:
-        <span className="opacity-80 ml-1">
-          {tasteContext.speakerPrefix}/{tasteContext.mode}/{tasteContext.intent}
-        </span>
-        <span className="ml-2 opacity-80">
-          Votes: {tasteStatus.nVotes}
-        </span>
-        <span className="ml-2 opacity-80">
-          Conf: {Math.round(tasteStatus.confidence * 100)}%
-        </span>
-        <span className="ml-3 opacity-70">
-          Single Votes: {singleIrTasteStatus.nVotes} (Conf {Math.round(singleIrTasteStatus.confidence * 100)}%)
-        </span>
-        {trainingMode && (
-          <span className="ml-2 text-orange-400 font-semibold">
-            SANDBOX
-          </span>
-        )}
-      </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs h-8"
+              data-testid="button-reset-menu"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Reset...
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[200px]">
+            <DropdownMenuItem
+              className="text-xs"
+              onClick={() => {
+                resetTaste(tasteContext);
+                setTasteVersion(v => v + 1);
+                setPairingRankings({});
+                setDismissedPairings(new Set());
+                setPairingFeedback({});
+                setPairingFeedbackText({});
+              }}
+              data-testid="button-taste-reset"
+            >
+              Reset Current Intent
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs"
+              onClick={() => {
+                resetTaste(singleIrTasteContext);
+                setTasteVersion(v => v + 1);
+                setSingleIrRatings({});
+                setSingleIrTags({});
+                setSingleIrNotes({});
+                setSingleIrPage(0);
+              }}
+              data-testid="button-taste-reset-single"
+            >
+              Reset Single IR Learning
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs text-orange-400"
+              onClick={() => {
+                clearSandbox();
+                setTasteVersion(v => v + 1);
+                toast({ title: "Sandbox reset", description: "All sandbox/training data has been cleared.", duration: 3000 });
+              }}
+              data-testid="button-taste-reset-sandbox"
+            >
+              Reset Sandbox
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-xs text-red-400"
+              onClick={() => setResetAllConfirm(true)}
+              data-testid="button-taste-reset-all"
+            >
+              Reset All Learning...
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
@@ -2762,28 +2710,6 @@ export default function Learner() {
           </div>
         )}
 
-        {debugVisible && suggestedPairsDebug.length > 0 && (
-          <div className="mt-3 text-xs border rounded p-2 opacity-90 max-h-80 overflow-auto" data-testid="taste-debug-panel">
-            <div className="font-semibold mb-2">Taste Debug (Top 20)</div>
-            <div className="space-y-2">
-              {suggestedPairsDebug.slice(0, 20).map((p: any, i: number) => (
-                <div key={i} className="border-b border-zinc-700 pb-1">
-                  <div className="opacity-70">
-                    {i + 1}.
-                  </div>
-                  <div className="break-words opacity-90">
-                    {p.baseFilename} + {p.featureFilename}
-                  </div>
-                  <div className="flex gap-4 opacity-80">
-                    <div>base: {p.baseScore.toFixed(1)}</div>
-                    <div>taste: {p.tasteBoost.toFixed(1)}</div>
-                    <div>total: {p.totalScore.toFixed(1)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
@@ -3219,7 +3145,7 @@ export default function Learner() {
                         <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={pair.featureFilename} />
                       </div>
-                      {tasteEnabled && tasteStatus.nVotes > 0 && (() => {
+                      {tasteStatus.nVotes > 0 && (() => {
                         const anchor = suggestedPairs?.[0];
                         const meanVec = (() => {
                           try {
