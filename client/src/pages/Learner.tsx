@@ -1605,11 +1605,81 @@ export default function Learner() {
     const eloData = getEloRatings(tasteContext);
     const eloEntries = Object.entries(eloData);
     if (eloEntries.length > 0) {
-      lines.push("--- Elo Ratings ---");
-      lines.push("combo_key\trating\tmatches\tuncertainty");
       const sorted = eloEntries.sort((a, b) => b[1].rating - a[1].rating);
+      const ELO_BASE = 1500;
+
+      const winners = sorted.filter(([, e]) => e.rating > ELO_BASE);
+      const losers = sorted.filter(([, e]) => e.rating < ELO_BASE);
+      const settledW = winners.filter(([, e]) => e.matchCount >= 2 && e.rating >= ELO_BASE + 15 && e.uncertainty < 0.75);
+      const settledL = losers.filter(([, e]) => e.matchCount >= 2 && e.rating <= ELO_BASE - 25 && e.uncertainty < 0.65);
+
+      lines.push("--- Learning Evidence ---");
+      lines.push(`Combos rated: ${eloEntries.length} | Winners: ${winners.length} | Losers: ${losers.length}`);
+      lines.push(`Settled winners (held for refinement): ${settledW.length} | Settled losers (suppressed): ${settledL.length}`);
+      lines.push("");
+
+      const irScores: Record<string, { wins: number; losses: number; totalRating: number; appearances: number }> = {};
+      for (const [key, entry] of eloEntries) {
+        const parts = key.split("||");
+        for (const ir of parts) {
+          if (!irScores[ir]) irScores[ir] = { wins: 0, losses: 0, totalRating: 0, appearances: 0 };
+          irScores[ir].appearances += 1;
+          irScores[ir].totalRating += entry.rating;
+          if (entry.rating > ELO_BASE) irScores[ir].wins += 1;
+          else if (entry.rating < ELO_BASE) irScores[ir].losses += 1;
+        }
+      }
+      const irLeaderboard = Object.entries(irScores)
+        .map(([ir, s]) => ({ ir, ...s, avgRating: s.totalRating / s.appearances, winRate: s.appearances > 0 ? s.wins / s.appearances : 0 }))
+        .sort((a, b) => b.avgRating - a.avgRating);
+
+      if (irLeaderboard.length > 0) {
+        lines.push("--- IR Leaderboard (individual IR win tendency) ---");
+        lines.push("ir\twin_combos\tlose_combos\ttotal_appearances\tavg_combo_rating\twin_rate");
+        for (const ir of irLeaderboard) {
+          lines.push(`${ir.ir}\t${ir.wins}\t${ir.losses}\t${ir.appearances}\t${Math.round(ir.avgRating)}\t${(ir.winRate * 100).toFixed(0)}%`);
+        }
+        lines.push("");
+      }
+
+      if (settledW.length > 0) {
+        lines.push("--- Emerging Favorites (settled winners) ---");
+        for (const [key, entry] of settledW) {
+          lines.push(`  ${key.replace("||", " + ")} — Elo ${Math.round(entry.rating)} (${entry.matchCount} matches)`);
+        }
+        lines.push("");
+      }
+
+      if (settledL.length > 0) {
+        lines.push("--- Suppressed Combos (settled losers) ---");
+        for (const [key, entry] of settledL) {
+          lines.push(`  ${key.replace("||", " + ")} — Elo ${Math.round(entry.rating)} (${entry.matchCount} matches)`);
+        }
+        lines.push("");
+      }
+
+      lines.push("--- Elo Ratings ---");
+      lines.push("combo_key\trating\tmatches\tuncertainty\tstatus");
       for (const [key, entry] of sorted) {
-        lines.push(`${key.replace("||", " + ")}\t${Math.round(entry.rating)}\t${entry.matchCount}\t${entry.uncertainty.toFixed(2)}`);
+        let status = "";
+        if (settledW.some(([k]) => k === key)) status = "WINNER (held)";
+        else if (settledL.some(([k]) => k === key)) status = "LOSER (suppressed)";
+        else if (entry.rating > ELO_BASE) status = "rising";
+        else if (entry.rating < ELO_BASE) status = "falling";
+        else status = "neutral";
+        lines.push(`${key.replace("||", " + ")}\t${Math.round(entry.rating)}\t${entry.matchCount}\t${entry.uncertainty.toFixed(2)}\t${status}`);
+      }
+      lines.push("");
+    }
+
+    const irWinRecords = getIRWinRecords(tasteContext);
+    const irWinEntries = Object.entries(irWinRecords);
+    if (irWinEntries.length > 0) {
+      lines.push("--- IR Win/Loss Records ---");
+      lines.push("ir\twins\tlosses\tboth_count\tnet");
+      const sortedIR = irWinEntries.sort((a, b) => (b[1].wins - b[1].losses) - (a[1].wins - a[1].losses));
+      for (const [ir, rec] of sortedIR) {
+        lines.push(`${ir}\t${rec.wins}\t${rec.losses}\t${rec.bothCount}\t${rec.wins - rec.losses > 0 ? "+" : ""}${rec.wins - rec.losses}`);
       }
       lines.push("");
     }
