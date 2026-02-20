@@ -729,6 +729,11 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                     ? `${designResult.speakerProfileCount} speaker profiles`
                     : `${designResult.profileCount} cross-speaker profiles`}
                 </span>
+                {designResult.extrapolatedCount > 0 && (
+                  <span className="text-xs px-2 py-1 rounded bg-purple-500/20 text-purple-400">
+                    +{designResult.extrapolatedCount} extrapolated
+                  </span>
+                )}
                 {designResult.intentMode && (
                   <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
                     Intent-Aware

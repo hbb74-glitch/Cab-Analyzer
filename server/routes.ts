@@ -11,6 +11,7 @@ import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScore
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
 import { getControlLayout } from "@shared/knowledge/amp-dial-in";
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, type IntentAllocation } from "@shared/knowledge/mic-role-map";
+import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
@@ -5676,6 +5677,18 @@ Classify and rank these IRs according to the query. Return as JSON.`
 
       const knowledgeBaseSection = buildKnowledgeBasePromptSection();
 
+      const extrapolatedProfiles = buildExtrapolatedProfiles(
+        profiles.map((p: any) => ({
+          mic: p.mic, position: p.position, distance: p.distance,
+          speaker: p.speaker, sampleCount: p.sampleCount,
+          subBass: p.subBass, bass: p.bass, lowMid: p.lowMid,
+          mid: p.mid, highMid: p.highMid, presence: p.presence,
+          ratio: p.ratio, centroid: p.centroid, smoothness: p.smoothness,
+        })),
+        input.speaker
+      );
+      const extrapolationSection = formatExtrapolatedProfilesForPrompt(extrapolatedProfiles);
+
       const hasIntentCounts = input.intentCounts &&
         ((input.intentCounts.rhythm ?? 0) > 0 || (input.intentCounts.lead ?? 0) > 0 || (input.intentCounts.clean ?? 0) > 0);
 
@@ -5717,7 +5730,7 @@ Use BOTH data sources to design an accurate, role-aware collection plan.
 
 === LEARNED TONAL DATA (from real IR analysis) ===
 ${profileSummary}
-
+${extrapolationSection}
 ${knowledgeBaseSection}
 
 ${roleDefinitions}
@@ -5834,6 +5847,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         intentMode: !!hasIntentCounts,
         requestedIntents: hasIntentCounts ? intentAllocation : null,
         roleBudgets: hasIntentCounts ? roleBudgets : null,
+        extrapolatedCount: extrapolatedProfiles.length,
       });
     } catch (err) {
       console.error('Shot design error:', err);
