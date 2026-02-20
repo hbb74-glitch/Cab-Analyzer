@@ -7,7 +7,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, simulateVotes, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, promoteSandboxToLive, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1682,6 +1682,32 @@ export default function Learner() {
         lines.push(`${ir}\t${rec.wins}\t${rec.losses}\t${rec.bothCount}\t${rec.wins - rec.losses > 0 ? "+" : ""}${rec.wins - rec.losses}`);
       }
       lines.push("");
+    }
+
+    const tonalPrefs = getTonalPreferences(tasteContext);
+    if (tonalPrefs.preferences.length > 0 && tonalPrefs.nVotes > 0) {
+      lines.push("--- Tonal Preferences (learned from votes) ---");
+      lines.push(`Model votes: ${tonalPrefs.nVotes} | Model confidence: ${(tonalPrefs.confidence * 100).toFixed(0)}%`);
+      lines.push("band\tweight\tdirection\tstrength");
+      const activeBands = tonalPrefs.preferences.filter(p => p.direction !== "neutral");
+      const neutralBands = tonalPrefs.preferences.filter(p => p.direction === "neutral");
+      for (const p of [...activeBands, ...neutralBands]) {
+        lines.push(`${p.band}\t${p.weight.toFixed(3)}\t${p.direction}\t${p.strength}`);
+      }
+      lines.push("");
+
+      const likes = activeBands.filter(p => p.direction === "favors").sort((a, b) => b.weight - a.weight);
+      const avoids = activeBands.filter(p => p.direction === "avoids").sort((a, b) => a.weight - b.weight);
+      if (likes.length > 0 || avoids.length > 0) {
+        lines.push("--- Tonal Profile Summary ---");
+        if (likes.length > 0) {
+          lines.push(`Favors: ${likes.map(p => `${p.band} (${p.strength})`).join(", ")}`);
+        }
+        if (avoids.length > 0) {
+          lines.push(`Avoids: ${avoids.map(p => `${p.band} (${p.strength})`).join(", ")}`);
+        }
+        lines.push("");
+      }
     }
 
     const tasteStatus = getTasteStatus(tasteContext);

@@ -777,6 +777,50 @@ export function resetTaste(ctx?: TasteContext) {
   saveState(state);
 }
 
+const WEIGHT_LABELS: string[] = [
+  ...BAND_KEYS,
+  "tilt",
+  "smoothness",
+];
+
+export type TonalPreference = {
+  band: string;
+  weight: number;
+  direction: "favors" | "avoids" | "neutral";
+  strength: "strong" | "moderate" | "mild" | "neutral";
+};
+
+export function getTonalPreferences(ctx: TasteContext): { preferences: TonalPreference[]; nVotes: number; confidence: number } {
+  const state = loadState();
+  const keyIntent = makeTasteKey(ctx);
+  const model = state.models[keyIntent];
+  if (!model || !model.w || model.w.length === 0) {
+    return { preferences: [], nVotes: 0, confidence: 0 };
+  }
+
+  const nVotes = model.nVotes ?? 0;
+  const confidence = clamp(nVotes / 30, 0, 1);
+  const preferences: TonalPreference[] = [];
+
+  for (let i = 0; i < Math.min(model.w.length, WEIGHT_LABELS.length); i++) {
+    const w = model.w[i];
+    const absW = Math.abs(w);
+    let direction: TonalPreference["direction"] = "neutral";
+    let strength: TonalPreference["strength"] = "neutral";
+
+    if (absW > 0.02) {
+      direction = w > 0 ? "favors" : "avoids";
+      if (absW > 0.5) strength = "strong";
+      else if (absW > 0.2) strength = "moderate";
+      else strength = "mild";
+    }
+
+    preferences.push({ band: WEIGHT_LABELS[i], weight: w, direction, strength });
+  }
+
+  return { preferences, nVotes, confidence };
+}
+
 export function getTasteStatus(ctx: TasteContext): { nVotes: number; confidence: number } {
   const state = loadState();
   const key = makeTasteKey(ctx);
