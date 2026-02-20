@@ -1651,11 +1651,13 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     ratio: { shift: Math.round(((likedRatio - baseRatio) * confidence + effectiveRatioNudge * feedbackScale) * 100) / 100, confidence },
   };
 
-  const WARM_ROLES = new Set(["Foundation", "Mid Thickener", "Dark Specialty"]);
-  const BRIGHT_ROLES = new Set(["Cut Layer", "Lead Polish", "Fizz Tamer"]);
+  const WARM_ROLES = new Set(["Mid Thickener", "Dark Specialty", "Fizz Tamer"]);
+  const BRIGHT_ROLES = new Set(["Cut Layer", "Lead Polish"]);
+  const NEUTRAL_ROLES = new Set(["Foundation"]);
   const roleFamilyTargets: Record<string, { roles: Set<string>; mid: number; hiMid: number; presence: number; ratio: number }> = {
     Warmth: { roles: WARM_ROLES, mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
     Presence: { roles: BRIGHT_ROLES, mid: 22, hiMid: 39, presence: 34, ratio: 1.65 },
+    Neutral: { roles: NEUTRAL_ROLES, mid: 28, hiMid: 38, presence: 22, ratio: 1.4 },
   };
   const perProfileAdjustments: Record<string, ProfileAdjustment> = {};
   for (const [familyName, familyConfig] of Object.entries(roleFamilyTargets)) {
