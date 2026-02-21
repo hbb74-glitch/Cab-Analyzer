@@ -783,17 +783,6 @@ export default function Learner() {
       const n = typeof v === "number" ? v : Number(v);
       return Number.isFinite(n) ? n.toFixed(digits) : "";
     };
-    const inferFizzLabel = (tf: any): string => {
-      const smooth = Number(tf?.smoothScore ?? 0);
-      const tilt = Number(tf?.tiltDbPerOct ?? 0);
-      const ext = Number(tf?.rolloffFreq ?? 0);
-      const centroid = Number(tf?.spectralCentroidHz ?? 0);
-      if (smooth >= 88 && tilt <= -4.8 && ext > 0 && ext <= 4500) return "Low fizz (tamed)";
-      if (smooth <= 80 && ext > 0 && ext >= 5200 && centroid >= 3100) return "Higher fizz risk";
-      if (ext > 0 && ext >= 5200 && smooth >= 86) return "Polished top (not fizzy)";
-      if (tilt <= -5.8 || (ext > 0 && ext <= 3900)) return "Dark / rolled-off";
-      return "Neutral";
-    };
     const header = [
       "filename", "score",
       "musical_role", "raw_role", "role_source",
@@ -801,7 +790,7 @@ export default function Learner() {
       "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
       "smooth_score", "hiMidMid_ratio",
       "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
-      "fizz_label", "notes",
+      "notes",
     ].join("\t");
     if (allIRs.length > 0) {
       const spk0 = inferSpeakerIdFromFilename(allIRs[0].filename);
@@ -828,7 +817,7 @@ export default function Learner() {
       const hiMidVal = bp.highMid ?? 0;
       const midVal = bp.mid ?? 0;
       const hiMidMid = midVal > 0 ? fmt(hiMidVal / midVal, 2) : "";
-      const scale = (bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + (bp.air ?? 0) + (bp.fizz ?? 0)) < 2 ? 100 : 1;
+      const scale = (bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + (bp.air ?? 0)) < 2 ? 100 : 1;
       return [
         ir.filename,
         "",

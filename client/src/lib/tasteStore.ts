@@ -785,12 +785,9 @@ const WEIGHT_LABELS: string[] = [
   "highMid",
   "presence",
   "air",
-  "fizz",
   "tilt",
   "smoothness",
 ];
-
-const SKIP_BANDS = new Set(["fizz"]);
 
 export type TonalPreference = {
   band: string;
@@ -813,7 +810,6 @@ export function getTonalPreferences(ctx: TasteContext): { preferences: TonalPref
 
   for (let i = 0; i < Math.min(model.w.length, WEIGHT_LABELS.length); i++) {
     const label = WEIGHT_LABELS[i];
-    if (SKIP_BANDS.has(label)) continue;
     const w = model.w[i];
     const absW = Math.abs(w);
     let direction: TonalPreference["direction"] = "neutral";
