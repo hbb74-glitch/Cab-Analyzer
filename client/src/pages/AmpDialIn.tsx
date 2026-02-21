@@ -29,19 +29,23 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { FRACTAL_AMP_MODELS } from "@shared/knowledge/amp-designer";
+import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS } from "@shared/knowledge/amp-designer";
 import {
   getDialInPresets,
   type DialInPreset,
   type DialInSettings,
   type AmpControlLayout,
 } from "@shared/knowledge/amp-dial-in";
+import { getDriveDialInPresets } from "@shared/knowledge/drive-dial-in";
 
 interface AIDialInResult {
   modelName: string;
   basedOn: string;
   settings: DialInSettings;
   controlLayout: AmpControlLayout;
+  driveSettings?: DialInSettings;
+  driveControlLayout?: AmpControlLayout;
+  driveInteraction?: string;
   expertTips: { parameter: string; suggestion: string; why: string }[];
   tips: string[];
   whatToListenFor: string[];
@@ -347,6 +351,38 @@ function AIResultDisplay({ result }: { result: AIDialInResult }) {
 
       <PresetDisplay preset={asPreset} controlLayout={result.controlLayout} isAI />
 
+      {result.driveSettings && result.driveControlLayout && (
+        <Card className="border-green-500/20" data-testid="card-ai-drive-settings">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2" data-testid="text-ai-drive-title">
+              <KnobIcon className="w-4 h-4 text-green-400" />
+              Drive Pedal Settings
+              <Badge variant="outline" className="text-xs gap-1 border-green-500/30 text-green-400">
+                <Sparkles className="w-3 h-3" />
+                AI
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <DynamicControlDisplay settings={result.driveSettings} controlLayout={result.driveControlLayout} />
+          </CardContent>
+        </Card>
+      )}
+
+      {result.driveInteraction && (
+        <Card className="border-green-500/20 bg-green-500/5" data-testid="card-drive-interaction">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-green-400 mb-1 uppercase tracking-wider" data-testid="text-drive-interaction-label">Drive + Amp Interaction</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line" data-testid="text-drive-interaction">{result.driveInteraction}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {result.famousUsers && (
         <Card>
           <CardContent className="p-4">
@@ -470,7 +506,12 @@ export default function AmpDialIn() {
   const [aiResult, setAiResult] = useState<AIDialInResult | null>(null);
   const [showAI, setShowAI] = useState(false);
 
+  const [selectedDriveId, setSelectedDriveId] = useState("");
+  const [driveSearchQuery, setDriveSearchQuery] = useState("");
+  const [selectedDrivePresetIdx, setSelectedDrivePresetIdx] = useState(0);
+
   const selectedModel = FRACTAL_AMP_MODELS.find((m) => m.id === selectedModelId);
+  const selectedDrive = FRACTAL_DRIVE_MODELS.find((m) => m.id === selectedDriveId);
 
   const filteredModels = useMemo(() => {
     if (!searchQuery) return FRACTAL_AMP_MODELS;
@@ -483,15 +524,32 @@ export default function AmpDialIn() {
     );
   }, [searchQuery]);
 
+  const filteredDrives = useMemo(() => {
+    if (!driveSearchQuery) return FRACTAL_DRIVE_MODELS;
+    const q = driveSearchQuery.toLowerCase();
+    return FRACTAL_DRIVE_MODELS.filter(
+      (m) =>
+        m.label.toLowerCase().includes(q) ||
+        m.basedOn.toLowerCase().includes(q) ||
+        m.characteristics.toLowerCase().includes(q)
+    );
+  }, [driveSearchQuery]);
+
   const staticPresets = useMemo(() => {
     if (!selectedModelId) return null;
     return getDialInPresets(selectedModelId, FRACTAL_AMP_MODELS);
   }, [selectedModelId]);
 
+  const drivePresets = useMemo(() => {
+    if (!selectedDriveId) return null;
+    return getDriveDialInPresets(selectedDriveId);
+  }, [selectedDriveId]);
+
   const currentPreset = staticPresets?.presets[selectedPresetIdx] || null;
+  const currentDrivePreset = drivePresets?.presets[selectedDrivePresetIdx] || null;
 
   const aiMutation = useMutation({
-    mutationFn: async (data: { modelId: string; style?: string }) => {
+    mutationFn: async (data: { modelId: string; driveId?: string; style?: string }) => {
       const res = await apiRequest("POST", "/api/amp-dial-in", data);
       return res.json() as Promise<AIDialInResult>;
     },
@@ -515,10 +573,18 @@ export default function AmpDialIn() {
     setShowAI(false);
   };
 
+  const handleDriveSelect = (driveId: string) => {
+    setSelectedDriveId(driveId === "none" ? "" : driveId);
+    setSelectedDrivePresetIdx(0);
+    setAiResult(null);
+    setShowAI(false);
+  };
+
   const handleAIGenerate = () => {
     if (!selectedModel) return;
     aiMutation.mutate({
       modelId: selectedModel.id,
+      driveId: selectedDriveId || undefined,
       style: customStyle || undefined,
     });
   };
@@ -536,11 +602,11 @@ export default function AmpDialIn() {
               <KnobIcon className="w-6 h-6 text-orange-400" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight">
-              Amp <span className="text-orange-400">Dial-In</span>
+              Amp & Drive <span className="text-orange-400">Dial-In</span>
             </h1>
           </div>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Amp-accurate starting settings for every Fractal Audio model. Real controls, real layouts.
+            Amp-accurate starting settings for every Fractal Audio model. Add an optional drive pedal for complete signal chain guidance.
           </p>
         </motion.div>
 
@@ -592,6 +658,63 @@ export default function AmpDialIn() {
                   <span className="font-medium text-foreground">{selectedModel.label}</span>
                   <span className="mx-1">—</span>
                   <span>{selectedModel.basedOn}</span>
+                </div>
+              </motion.div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-green-500/10" data-testid="card-drive-selector">
+          <CardContent className="p-4 sm:p-6 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <KnobIcon className="w-4 h-4 text-green-400" />
+              <span className="text-sm font-medium" data-testid="text-drive-label">Drive Pedal</span>
+              <Badge variant="secondary" className="text-xs" data-testid="badge-drive-optional">Optional</Badge>
+              <Badge variant="secondary" className="ml-auto text-xs font-mono">
+                {FRACTAL_DRIVE_MODELS.length} models
+              </Badge>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search drives by name, pedal, or tone..."
+                value={driveSearchQuery}
+                onChange={(e) => setDriveSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-drive"
+              />
+            </div>
+
+            <Select value={selectedDriveId || "none"} onValueChange={handleDriveSelect}>
+              <SelectTrigger data-testid="select-dial-in-drive">
+                <SelectValue placeholder="No drive pedal (optional)" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="none">No drive pedal</SelectItem>
+                {filteredDrives.map((drive) => (
+                  <SelectItem key={drive.id} value={drive.id}>
+                    <span className="font-mono text-xs">{drive.label}</span>
+                    <span className="text-muted-foreground text-xs ml-2 hidden sm:inline">
+                      ({drive.basedOn.split(",")[0]})
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {selectedDrive && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-start gap-2 text-sm text-muted-foreground bg-green-500/5 rounded-md p-3"
+                data-testid="text-drive-info"
+              >
+                <Info className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-400" />
+                <div>
+                  <span className="font-medium text-foreground" data-testid="text-drive-name">{selectedDrive.label}</span>
+                  <span className="mx-1">—</span>
+                  <span data-testid="text-drive-characteristics">{selectedDrive.characteristics}</span>
                 </div>
               </motion.div>
             )}
@@ -706,6 +829,62 @@ export default function AmpDialIn() {
                 </CardContent>
               </Card>
 
+              {selectedDrive && drivePresets && !showAI && (
+                <Card className="border-green-500/20" data-testid="card-drive-presets">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <CardTitle className="text-lg flex items-center gap-2" data-testid="text-drive-settings-title">
+                        <KnobIcon className="w-5 h-5 text-green-400" />
+                        Drive Settings — {selectedDrive.label}
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {drivePresets.presets.length > 1 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {drivePresets.presets.map((p, idx) => (
+                          <Button
+                            key={p.id}
+                            variant={idx === selectedDrivePresetIdx ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSelectedDrivePresetIdx(idx)}
+                            data-testid={`button-drive-preset-${idx}`}
+                          >
+                            {p.style}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+
+                    {currentDrivePreset && (
+                      <>
+                        <PresetDisplay preset={currentDrivePreset} controlLayout={drivePresets.controlLayout} />
+                        {currentDrivePreset.tips.length > 0 && (
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-sm flex items-center gap-2">
+                                <Lightbulb className="w-4 h-4 text-yellow-500" />
+                                Drive Tips
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <ul className="space-y-2">
+                                {currentDrivePreset.tips.map((tip, i) => (
+                                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                                    <span className="text-green-400 font-mono text-xs mt-0.5 flex-shrink-0">{i + 1}.</span>
+                                    {tip}
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardContent className="p-4 sm:p-6 space-y-4">
                   <div className="flex items-center gap-2 mb-1">
@@ -713,7 +892,9 @@ export default function AmpDialIn() {
                     <span className="text-sm font-medium">AI Dial-In Advisor</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Get personalized settings based on Fractal Wiki, Yek's Guide, and forum knowledge. Optionally describe your target tone.
+                    {selectedDrive
+                      ? "Get combined amp + drive settings with gain staging and EQ interaction guidance."
+                      : "Get personalized settings based on Fractal Wiki, Yek's Guide, and forum knowledge. Optionally describe your target tone."}
                   </p>
                   <Input
                     placeholder="e.g., 80s thrash rhythm, blues lead, worship clean, djent..."
@@ -735,7 +916,9 @@ export default function AmpDialIn() {
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Generate AI Settings for {selectedModel.label}
+                        {selectedDrive
+                          ? `Generate AI Settings for ${selectedModel.label} + ${selectedDrive.label}`
+                          : `Generate AI Settings for ${selectedModel.label}`}
                       </>
                     )}
                   </Button>

@@ -10,6 +10,7 @@ import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from 
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
 import { getControlLayout, getModelIntelligence } from "@shared/knowledge/amp-dial-in";
+import { getDriveControlLayout, getDriveIntelligence } from "@shared/knowledge/drive-dial-in";
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
@@ -6686,6 +6687,7 @@ Respond in JSON format:
     try {
       const input = z.object({
         modelId: z.string().min(1),
+        driveId: z.string().optional(),
         style: z.string().optional(),
         additionalNotes: z.string().optional(),
       }).parse(req.body);
@@ -6694,6 +6696,10 @@ Respond in JSON format:
       if (!model) {
         return res.status(400).json({ message: "Unknown amp model" });
       }
+
+      const driveModel = input.driveId ? FRACTAL_DRIVE_MODELS.find(m => m.id === input.driveId) : null;
+      const driveLayout = input.driveId ? getDriveControlLayout(input.driveId) : null;
+      const driveIntel = input.driveId ? getDriveIntelligence(input.driveId) : null;
 
       const controlLayout = getControlLayout(input.modelId, FRACTAL_AMP_MODELS);
       const modelIntel = getModelIntelligence(input.modelId);
@@ -6748,6 +6754,45 @@ Respond in JSON format:
         modelIntelSection = '\n\n' + parts.join('\n');
       }
 
+      let driveSection = '';
+      let driveSettingsSchema = '';
+      let driveControlDescription = '';
+      if (driveModel && driveLayout) {
+        const driveKnobsList = driveLayout.knobs.map(k => `"${k.id}": number (0-${k.max || 10}) // labeled "${k.label}"`).join(",\n    ");
+        const driveSwitchesList = driveLayout.switches.map(s => {
+          if (s.type === "toggle") return `"${s.id}": boolean // ${s.label} switch`;
+          return `"${s.id}": "${s.options?.join('" | "')}" // ${s.label} selector`;
+        }).join(",\n    ");
+        driveSettingsSchema = [driveKnobsList, driveSwitchesList].filter(Boolean).join(",\n    ");
+
+        driveControlDescription = [
+          `KNOBS: ${driveLayout.knobs.map(k => k.label).join(', ')}`,
+          driveLayout.switches.length > 0 ? `SWITCHES: ${driveLayout.switches.map(s => {
+            if (s.type === "toggle") return `${s.label} (on/off)`;
+            return `${s.label} (${s.options?.join('/')})`;
+          }).join(', ')}` : '',
+        ].filter(Boolean).join('\n');
+
+        const driveParts = [
+          `\n\nDRIVE PEDAL IN SIGNAL CHAIN:`,
+          `Drive model: ${driveModel.label}`,
+          `Based on: ${driveModel.basedOn}`,
+          `Characteristics: ${driveModel.characteristics}`,
+          `Drive controls: ${driveControlDescription}`,
+        ];
+        if (driveIntel) {
+          driveParts.push(`Category: ${driveIntel.category}`);
+          driveParts.push(`Gain range: ${driveIntel.gainRange[0]}-${driveIntel.gainRange[1]}`);
+          driveParts.push(`Intended use: ${driveIntel.intendedUse.join(', ')}`);
+          if (driveIntel.placement) driveParts.push(`Placement: ${driveIntel.placement}`);
+          if (driveIntel.stacksWith) driveParts.push(`Stacking: ${driveIntel.stacksWith}`);
+          if (driveIntel.warnings?.length) driveParts.push(`Warnings:\n${driveIntel.warnings.map(w => `  ⚠ ${w}`).join('\n')}`);
+          if (driveIntel.sweetSpot) driveParts.push(`Sweet spot: ${driveIntel.sweetSpot}`);
+          if (driveIntel.historicalContext) driveParts.push(`History: ${driveIntel.historicalContext}`);
+        }
+        driveSection = driveParts.join('\n');
+      }
+
       const systemPrompt = `You are an expert guitar amp tech and tone consultant with deep knowledge of the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 amp modeling platform, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, Yek's Guide to Fractal Audio Drive Models, and the Fractal Audio Forum extensively.
 
 You are deeply familiar with:
@@ -6757,6 +6802,7 @@ You are deeply familiar with:
 - Common EQ, gain staging, and dialing-in techniques from the Fractal community
 - Famous players associated with each amp and their typical settings
 - How the Cygnus engine interacts with different amp model types
+- How drive pedals interact with different amp types — gain staging, EQ stacking, tightening, boosting
 
 CRITICAL EXPERT BEHAVIOR — NUANCED MODEL GUIDANCE:
 You must act as a seasoned amp tech and tone consultant — the kind of expert who has spent decades working with real amps and knows them inside out. Your job is NOT to gatekeep — it's to help the user get the best possible tone from whatever amp they've chosen.
@@ -6788,9 +6834,18 @@ The amp model is: ${model.label}
 Based on: ${model.basedOn}
 Characteristics: ${model.characteristics}
 ${modelIntelSection}
+${driveSection}
 
 ${input.style ? `The user wants to achieve this style/tone: ${input.style}` : 'Provide a versatile starting point.'}
 ${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''}
+${driveModel ? `\nIMPORTANT — DRIVE + AMP INTERACTION:
+You are dialing in BOTH the amp AND the drive pedal as a combined signal chain. Your settings must account for how they interact:
+- The drive pedal goes BEFORE the amp in the signal chain
+- Consider how the drive's EQ curve affects the amp's input (e.g., TS mid-hump into a Recto tightens bass)
+- Adjust the amp's gain/drive LOWER than you normally would when a drive pedal is pushing it
+- Consider gain staging — total gain = drive gain + amp gain, so back off one or both
+- Note the drive pedal's controls and provide settings for BOTH the drive and the amp
+- Explain specifically how these two interact and what makes them a good (or challenging) combination` : ''}
 
 IMPORTANT:
 - Be specific about knob positions (use 0-10 scale)
@@ -6807,7 +6862,11 @@ Respond in JSON format:
   "basedOn": "What real amp it's based on",
   "settings": {
     ${settingsSchema}
+  },${driveModel && driveSettingsSchema ? `
+  "driveSettings": {
+    ${driveSettingsSchema}
   },
+  "driveInteraction": "Explain specifically how the drive pedal interacts with this amp — what the drive does to the amp's input signal, why this combination works (or requires adjustments), and how the settings account for the stacked gain/EQ. Reference famous examples of this combo if applicable.",` : ''}
   "expertTips": [
     {
       "parameter": "Expert or Advanced parameter name",
@@ -6817,7 +6876,7 @@ Respond in JSON format:
   ],
   "tips": ["Practical tip 1", "Practical tip 2", ...],
   "whatToListenFor": ["What to listen for 1", "What to listen for 2"],
-  "famousUsers": "Brief mention of famous players/tones associated with this amp",
+  "famousUsers": "Brief mention of famous players/tones associated with this amp${driveModel ? ' and drive combo' : ''}",
   "styleNotes": "How this setting works for the requested style",
   "quickTweak": "One key adjustment that makes the biggest difference on this model",
   "modelWarning": "Include ONLY when the style is unconventional for this amp. Frame it as helpful context: acknowledge the unconventional choice, explain what makes this amp's voicing different for that style, describe the specific adjustments you're making to compensate, reference any players who've used similar amps creatively, and mention 1-2 conventional alternatives in passing. For true physical limitations (e.g., 5W amp for metal), be honest about the ceiling. Omit this field entirely if the model is a natural fit."
@@ -6827,7 +6886,7 @@ Respond in JSON format:
         model: "gpt-4o",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `Give me detailed dial-in settings for the ${model.label} (${model.basedOn}).${input.style ? ` I want to achieve: ${input.style}` : ''} ${input.additionalNotes || ''}` }
+          { role: "user", content: `Give me detailed dial-in settings for the ${model.label} (${model.basedOn})${driveModel ? ` with a ${driveModel.label} (${driveModel.basedOn}) drive pedal in front` : ''}.${input.style ? ` I want to achieve: ${input.style}` : ''} ${input.additionalNotes || ''}` }
         ],
         response_format: { type: "json_object" },
         temperature: 0.3,
@@ -6835,6 +6894,9 @@ Respond in JSON format:
 
       const result = JSON.parse(response.choices[0].message.content || "{}");
       result.controlLayout = controlLayout;
+      if (driveLayout) {
+        result.driveControlLayout = driveLayout;
+      }
       res.json(result);
     } catch (err) {
       console.error('Amp dial-in error:', err);
