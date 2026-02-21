@@ -28,7 +28,6 @@ export const BAND_COLORS = [
   { label: "HiMid", key: "highMid" as const, color: "bg-yellow-500" },
   { label: "Presence", key: "presence" as const, color: "bg-orange-500" },
   { label: "Air", key: "air" as const, color: "bg-rose-400" },
-  { label: "Fizz", key: "fizz" as const, color: "bg-red-500" },
 ];
 
 export function MatchBadge({ match }: { match: MatchResult }) {
