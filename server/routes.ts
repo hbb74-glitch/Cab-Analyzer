@@ -6802,34 +6802,125 @@ Respond in JSON format:
 DRIVE PEDAL AUTO-RECOMMENDATION:
 The user has NOT selected a drive pedal, but their tone request may clearly call for one. You are an expert who knows which artists use which pedals. If the requested tone/style strongly implies a specific drive pedal, you MUST recommend one and provide full settings for it.
 
-ARTIST → DRIVE PEDAL KNOWLEDGE BASE:
-- J Mascis / Dinosaur Jr → PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head). Big Muff Ram's Head into clean Fender. Sustain high, Tone 4-6.
-- Billy Corgan / Smashing Pumpkins → PI FUZZ (pi-fuzz) or PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head). Big Muff into clean amp, layered.
-- David Gilmour / Pink Floyd → PI FUZZ - TRIANGLE (pi-fuzz-triangle) for smooth leads, FACE FUZZ (face-fuzz) for aggressive parts. Also uses RAM'S HEAD live.
-- Dan Auerbach / Black Keys → PI FUZZ - RUSSIAN (pi-fuzz-russian). Russian Big Muff for thick, dark fuzz.
-- Jimi Hendrix → FACE FUZZ (face-fuzz) + OCTAVE DISTORTION (octave-dist). Fuzz Face into cranked Marshall. Also used wah before fuzz.
-- Eric Johnson → T808 OD (t808-od). TS808 as clean boost into slightly overdriven amp. Drive low, Level high.
-- Stevie Ray Vaughan → T808 OD (t808-od). TS808 for lead boost. Also used FACE FUZZ (face-fuzz) for heavy blues.
-- John Mayer → KLONE CHIRON (klone-chiron) for always-on sweetener, T808 OD (t808-od) for lead boost.
-- Brian May / Queen → TREB BOOST (treble-boost) into cranked Vox AC30. The essential Brian May tone.
-- Tony Iommi / Black Sabbath → TREB BOOST (treble-boost) into cranked Laney. Also PLUS DISTORTION (plus-dist) for later tones.
-- Kurt Cobain / Nirvana → DS1 DISTORTION (ds1-distortion). Boss DS-1 into clean amp. Also used SUPER OD (super-od).
-- The Edge / U2 → FET PREAMP (fet-preamp) or SDD PREAMP (sdd-preamp) for clean shimmer tone.
-- Jeff Beck → COLORTONE BOOSTER (colortone-booster). Power Boost for aggressive leads. Also used FACE FUZZ (face-fuzz) early on.
-- Misha Mansoor / Periphery / Djent → HORIZON PRECISION DRIVE (horizon-precision). THE djent tightening pedal.
-- Josh Homme / QOTSA → COLORTONE OD (colortone-od) or COMPULSION DIST HP (compulsion-hp). Crunchy, compressed.
-- Tom Morello / RATM → COMPULSION DIST HP (compulsion-hp) for heavy tones. OCD/Whammy combo.
-- Radiohead / Thom Yorke → RAT DISTORTION (rat-dist). RAT for gritty alt-rock distortion.
-- Keith Richards / Rolling Stones → MASTER FUZZ (master-fuzz) for Satisfaction. Or just amp cranked.
-- Randy Rhoads → PLUS DISTORTION (plus-dist). MXR Distortion+ into cranked Marshall.
-- Eddie Van Halen → No pedal needed (amp gain only) or COMPULSION DIST HP (compulsion-hp) for modern EVH sound.
-- Gary Moore → RAT DISTORTION (rat-dist) or BLUES OD (blues-od) for blues era. Direct into cranked Marshall for rock.
-- Robben Ford / Larry Carlton → ZENITH DRIVE (zenith-drive). Dumble-inspired overdrive for fusion/blues.
-- Nashville / Country → NOBELLIUM OVD-1 (nobellium-ovd1) or KLONE CHIRON (klone-chiron). Subtle, transparent.
-- Modern Metal / Metalcore → T808 OD (t808-od) or HORIZON PRECISION DRIVE (horizon-precision) as tight boost before high-gain amp.
-- Classic Rock (generic) → KLONE CHIRON (klone-chiron) or COMPULSION DIST HP (compulsion-hp). Depends on gain level needed.
-- Blues (generic) → KLONE CHIRON (klone-chiron) or T808 OD (t808-od) or BLUES OD (blues-od).
-- Shoegaze / My Bloody Valentine → RAT DISTORTION (rat-dist) or PI FUZZ (pi-fuzz). Kevin Shields used multiple distortion/fuzz sources.
+ARTIST → DRIVE PEDAL KNOWLEDGE BASE (sourced from Equipboard, Premier Guitar Rig Rundowns, Guitar Geek diagrams, and documented interviews):
+
+=== BIG MUFF / PI FUZZ ARTISTS ===
+- J Mascis / Dinosaur Jr → PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head). Ram's Head Big Muff into clean Fender Twin/Deluxe Reverb. Sustain 7-8, Tone 4-6, Level 5. The defining alt-rock fuzz tone. Uses neck pickup for leads.
+- Billy Corgan / Smashing Pumpkins → PI FUZZ (pi-fuzz). Actually used an Op-Amp Big Muff V4 on Siamese Dream. Sustain MAXED, Tone 6-7 (slight treble), Volume 5. Into Marshall JCM800 with mids cranked to 8-10. Layered 4-6 guitar tracks for massive wall of fuzz. Also stacked MXR Distortion+ BEFORE the Muff for extra aggression. (Source: Premier Guitar Rig Rundown, Reverb interview)
+- David Gilmour / Pink Floyd → PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head) for live (Comfortably Numb solo: Sustain 7, Tone 7, Volume 5-6). PI FUZZ - TRIANGLE (pi-fuzz-triangle) for smooth studio leads (Dark Side/Wish You Were Here era). FACE FUZZ (face-fuzz) for early era (pre-1974). Signal chain: Strat → Big Muff → Electric Mistress flanger → delay → Hiwatt DR103. He stacks overdrive AFTER the Muff for warmth. (Source: Gilmourish.com, Equipboard, Guitar Geek)
+- Dan Auerbach / Black Keys → PI FUZZ - RUSSIAN (pi-fuzz-russian). Russian Green/Black Big Muff for thick, dark, doomy fuzz. Sustain 6-8, Tone 3-4 (rolled back for darkness). Into cranked Fender amp.
+- Jack White / White Stripes → PI FUZZ (pi-fuzz). Big Muff for wall-of-fuzz rhythm parts. Also uses FACE FUZZ (face-fuzz) and OCTAVE DISTORTION (octave-dist) for leads.
+
+=== FUZZ FACE ARTISTS ===
+- Jimi Hendrix → FACE FUZZ (face-fuzz) + OCTAVE DISTORTION (octave-dist). Germanium Fuzz Face into cranked Marshall Super Lead 100W. Signal chain: Strat → Vox wah → Fuzz Face → Octavia → cranked Marshall. Fuzz 6-8, Volume to taste. Used guitar volume knob extensively for dynamics — full Fuzz with volume rolled back = clean. (Source: Guitar Geek, Equipboard, Roger Mayer interviews)
+- Stevie Ray Vaughan → T808 OD (t808-od) as always-on tone shaper, FACE FUZZ (face-fuzz) for heavy blues. TS808/TS9/TS10 into cranked Fender Vibroverb + Dumble Steel String Singer. TS settings: Drive 3-4, Tone 5, Level 7-8. Also used OCTAVE DISTORTION (octave-dist) — owned Jimi's Octavia via brother Jimmie. Heavy .013 strings. (Source: Equipboard, SRV Archive, Guitar Geek 1985 diagram)
+- Eric Clapton (Cream era) → FACE FUZZ (face-fuzz). Fuzz Face into cranked Marshall. "Woman tone" = Fuzz full, guitar tone rolled off. Later switched to amp gain only (no pedals).
+
+=== TUBE SCREAMER / T808 OD ARTISTS ===
+- Eric Johnson → T808 OD (t808-od). TS808 as clean boost into slightly overdriven amp. Drive 1-2, Tone 5, Level 7-8. Obsessively particular about tone. Into clean Fender Twin or Marshall.
+- John Mayer → KLONE CHIRON (klone-chiron) as always-on sweetener (Gain 1-2, Treble 5, Output 7). T808 OD (t808-od) for lead boost. Also uses BLUES OD (blues-od) / Keeley-modded BD-2. Into PRS J-MOD 100, Two Rock, or Dumble SSS — all clean high-headroom amps. Signal chain: Strat/PRS → Klon → TS → amp. (Source: Equipboard, Premier Guitar, Guitar World)
+- Kenny Wayne Shepherd → KLONE CHIRON (klone-chiron) + OCTAVE DISTORTION (octave-dist). Klon KTR for transparent boost, Analogman King of Tone for dual OD. (Source: Premier Guitar 2024 Rig Rundown)
+- Jerry Cantrell / Alice in Chains → T808 OD (t808-od). Ibanez TS808HW in rack. Also uses TIMOTHY (timothy) — MXR Timmy for lead boost. Into cranked G&L + Mesa/Marshall. (Source: Premier Guitar 2024 Rig Rundown)
+- Modern Metal / Metalcore → T808 OD (t808-od) or MAXOFF 808 (maxon-808) as tight boost (Drive 0-2, Tone 5, Level 8-10) before high-gain amp. THE universal metal production technique. Every modern metal guitarist from Periphery to Killswitch Engage to August Burns Red uses this.
+
+=== KLON / KLONE CHIRON ARTISTS ===
+- Jeff Beck (later era) → KLONE CHIRON (klone-chiron). After the Colorsound era, Beck used cleaner drives. Klon for transparent boost.
+- Nels Cline / Wilco → KLONE CHIRON (klone-chiron). Transparent boost for jazz-influenced alt-rock.
+- Nashville / Country → KLONE CHIRON (klone-chiron) or NOBELLIUM OVD-1 (nobellium-ovd1). Brad Paisley, Brent Mason, Tom Bukovac — transparent, dynamic drives that don't color the tone. Gain low, Output high.
+- Blues (generic) → KLONE CHIRON (klone-chiron) or T808 OD (t808-od) or BLUES OD (blues-od). Clean boost territory.
+
+=== RAT / DISTORTION ARTISTS ===
+- Radiohead / Jonny Greenwood → RAT DISTORTION (rat-dist). RAT for gritty alt-rock distortion. Distortion 3-5, Filter 3-5. Into Fender The Twin or Vox AC30.
+- Dave Grohl / Foo Fighters → RAT DISTORTION (rat-dist). Used RAT since Nirvana era for thick rhythm distortion.
+- Jeff Beck (Yardbirds/early era) → BENDER FUZZ (bender-fuzz). Tone Bender MkII for raw, aggressive lead fuzz. Also COLORTONE BOOSTER (colortone-booster) for later Beck's Guitar Shop era.
+- Thurston Moore / Sonic Youth → RAT DISTORTION (rat-dist). RAT for noise rock and alternative textures. Distortion varied, Filter low (bright, cutting).
+- Kevin Shields / My Bloody Valentine → RAT DISTORTION (rat-dist) + PI FUZZ (pi-fuzz) + multiple drive sources. Shields layered multiple distortions. Also COMPULSION DIST HP (compulsion-hp). The shoegaze wall of sound.
+
+=== TREBLE BOOST ARTISTS ===
+- Brian May / Queen → TREB BOOST (treble-boost) into cranked Vox AC30 Top Boost. THE Brian May sound — Rangemaster into AC30 at full volume. Boost 7-8. Red Special guitar with series-wired pickups. (Source: Guitar Geek, Equipboard)
+- Tony Iommi / Black Sabbath → TREB BOOST (treble-boost) into cranked Laney Supergroup. The original doom/metal boost. Rangemaster cuts bass, pushes amp into fat saturation. Also used PLUS DISTORTION (plus-dist) and COLORTONE BOOSTER (colortone-booster) on later albums. (Source: Equipboard, Guitar World)
+- Rory Gallagher → TREB BOOST (treble-boost) into cranked Vox AC30 or Fender Bassman. Raw, aggressive Irish blues-rock. Also used FACE FUZZ (face-fuzz).
+
+=== OCD / COMPULSION ARTISTS ===
+- Tom Morello / RATM → COMPULSION DIST HP (compulsion-hp). OCD-style drive for heavy rhythm. Into cranked Marshall JCM800. Also uses DigiTech Whammy for pitch effects.
+- Josh Homme / QOTSA → COLORTONE OD (colortone-od) or COMPULSION DIST HP (compulsion-hp). Crunchy, compressed, mid-focused desert rock. Into Ampeg amps or modded Marshalls.
+- Eddie Van Halen → No drive pedal needed for classic "brown sound" (amp gain only — cranked Marshall Super Lead / 5150). For modern EVH tones on lower-gain amps, COMPULSION DIST HP (compulsion-hp) or PLUS DISTORTION (plus-dist) can approximate the harmonic content.
+
+=== DS-1 / BOSS DISTORTION ARTISTS ===
+- Kurt Cobain / Nirvana → DS1 DISTORTION (ds1-distortion). Boss DS-1 into clean Fender Twin. Distortion 5-7, Tone 4, Level to unity. Also used SUPER OD (super-od) and SMALL CLONE chorus. Gave guitar to Courtney Love at concerts. (Source: Equipboard, Premier Guitar)
+- Steve Vai (early) → DS1 DISTORTION (ds1-distortion). Used DS-1 in early career before signature Ibanez JEM/Legacy amps.
+- Joe Satriani (early) → DS1 DISTORTION (ds1-distortion). Modded DS-1 for lead tones before signature Peavey JSX amp.
+
+=== SDD PREAMP / FET PREAMP ARTISTS ===
+- The Edge / U2 → SDD PREAMP (sdd-preamp) + SUPER OD (super-od). Korg SDD-3000 preamp is foundation of his clean shimmer tone. Boss SD-1 for slight breakup. Also FET PREAMP (fet-preamp) — Boss FA-1 FET boost in rack. Signal chain: Gibson Explorer/Strat → compression → SD-1 → SDD-3000 delay → Vox AC30 Top Boost. Amp set to edge of breakup. He owns 30+ AC30s. Dotted 8th-note delays define his sound. (Source: Premier Guitar Rig Rundown, Equipboard, Guitar Geek 1983 diagram, amnesta.net delay study)
+
+=== TOOL / HIGH-GAIN ARTISTS ===
+- Adam Jones / Tool → No drive pedal — uses amp gain from Diezel VH4 + Marshall Super Bass + Mesa Dual Rectifier blended. BUT uses MXR M108 10-band EQ as mid-boost BEFORE amp input (critical for his tone). If asked for "Tool tone" on a lower-gain amp, recommend T808 OD (t808-od) or KLONE CHIRON (klone-chiron) as clean boost with mids pushed. Mesa Recto settings: Orange channel (Vintage mode), Gain at noon, Mids CRANKED, Bass/Treble moderate. (Source: Premier Guitar, Equipboard, Guitar Chalk rig diagram)
+
+=== MXR DISTORTION+ / PLUS DISTORTION ARTISTS ===
+- Randy Rhoads → PLUS DISTORTION (plus-dist). MXR Distortion+ into cranked Marshall Super Lead. THE classic metal distortion combo. Distortion 6-7, Output 5. (Source: Guitar Geek, Equipboard)
+- Bob Mould / Hüsker Dü → PLUS DISTORTION (plus-dist). MXR Dist+ for aggressive post-punk/alt-rock crunch.
+- Keith Richards / Rolling Stones → MASTER FUZZ (master-fuzz) for Satisfaction riff. Maestro Fuzz-Tone FZ-1A — the FIRST famous fuzz recording. Volume high, Attack (fuzz) moderate. Otherwise, Keith uses amp cranked with no pedals.
+
+=== DUMBLE / ZENITH DRIVE ARTISTS ===
+- Robben Ford → ZENITH DRIVE (zenith-drive). Hermida Zendrive = Dumble-in-a-box. Drive 5-6, Tone 5, Voice 5. Into clean Dumble or Fender for warm fusion/blues.
+- Larry Carlton → ZENITH DRIVE (zenith-drive). Similar approach to Ford — transparent, vocal overdrive for smooth jazz-rock leads.
+- John Mayer (fusion moments) → ZENITH DRIVE (zenith-drive) or KLONE CHIRON (klone-chiron). When channeling Dumble-style fusion tones.
+
+=== HORIZON PRECISION DRIVE ARTISTS ===
+- Misha Mansoor / Periphery → HORIZON PRECISION DRIVE (horizon-precision). THE djent tightening pedal. Drive low, Attack high, Bright on, Gate engaged. Designed by Mansoor for ultra-tight modern metal palm mutes. Before high-gain amp.
+- Modern Progressive Metal → HORIZON PRECISION DRIVE (horizon-precision). Animals As Leaders, TesseracT, Intervals — the standard modern prog-metal tight boost.
+
+=== COLORTONE / VINTAGE BOOST ARTISTS ===
+- Jeff Beck (Beck's Guitar Shop era) → COLORTONE BOOSTER (colortone-booster). Colorsound Power Boost for aggressive, biting lead tones. Into cranked Marshall. THE Jeff Beck secret weapon.
+- Marc Bolan / T. Rex → COLORTONE BOOSTER (colortone-booster). Power Boost for glam rock crunch.
+- David Bowie's guitarists → COLORTONE BOOSTER (colortone-booster). Mick Ronson used Power Boost for Ziggy-era leads.
+
+=== 1981 INVENTIONS DRV / MCMLXXXI ARTISTS ===
+- Studio Professionals / Modern Indie → MCMLXXXI DRV (mcmlxxxi-drv). Modern refined RAT-inspired circuit. Huge dynamic range. Popular with modern session players and indie artists who want RAT-like character with more headroom and refinement.
+
+=== DARKGLASS / BASS ARTISTS ===
+- Modern Metal Bass → BLACKGLASS 7K (blackglass-7k). Darkglass B7K for aggressive metal bass tone. Drive 4-6, Blend 50-70%, active EQ shaped. Nolly Getgood (Periphery), Tosin Abasi recordings.
+- Bass (general heavy) → BLACKGLASS 7K (blackglass-7k) or NO-AMP BASS DI (no-amp-bass-di). SansAmp Bass Driver for classic bass DI tone.
+
+=== ADDITIONAL NOTABLE ARTIST ASSOCIATIONS ===
+- Pete Townshend / The Who → No drive — cranked Marshall + Hiwatt at extreme volume. If needing drive on lower-gain amp, COMPULSION DIST HP (compulsion-hp) for raw power chord aggression.
+- Angus Young / AC/DC → No drive — cranked Marshall JTM45/SLP1959 at full volume. If needing drive, T808 OD (t808-od) as clean boost to push amp harder.
+- Carlos Santana → ZENITH DRIVE (zenith-drive) or KLONE CHIRON (klone-chiron). Smooth sustaining lead tone. Into Mesa Boogie Mark I. Actually one of Mesa's earliest endorsers.
+- Mark Knopfler / Dire Straits → No drive pedal for classic tones — clean Fender Twin/Vibrolux with fingerpicking dynamics. For "Money for Nothing" crunch, T808 OD (t808-od) or COMPULSION DIST HP (compulsion-hp).
+- Slash / GN'R → No drive needed — Marshall Super Lead cranked. If needing drive on lower-gain amp, COMPULSION DIST HP (compulsion-hp) or ANGRY CHUCK (angry-chuck) for Marshall-in-a-box character.
+- John Frusciante / RHCP → DS1 DISTORTION (ds1-distortion) modded + COMPULSION DIST HP (compulsion-hp). Boss DS-2 Turbo Distortion + modded DS-1 into Marshall Major. Also uses FACE FUZZ (face-fuzz) for funky fuzz parts.
+- Noel Gallagher / Oasis → DS1 DISTORTION (ds1-distortion) or T808 OD (t808-od). Into cranked Marshall. Simple British rock approach.
+- Jimmy Page / Led Zeppelin → BENDER FUZZ (bender-fuzz) for Led Zep I/II era. Tone Bender MkII into cranked Marshall. Also FACE FUZZ (face-fuzz) and amp gain only for later era. "Whole Lotta Love" solo = Tone Bender. (Source: Guitar Geek, Equipboard)
+- Robert Smith / The Cure → COMPULSION DIST HP (compulsion-hp) or BLUES OD (blues-od). Subtle drive + heavy chorus/flanger for gothic post-punk shimmer. Into Roland JC-120 or Fender.
+- Johnny Marr / The Smiths → No drive — clean Fender Twin with chorus/delay. For slight breakup, KLONE CHIRON (klone-chiron) or ESOTERIC RCB (esoteric-rcb).
+- Andy Summers / The Police → No drive for signature clean tones — chorus + delay into Roland JC-120. For "Synchronicity" crunch, T808 OD (t808-od).
+- Alex Lifeson / Rush → RAT DISTORTION (rat-dist) or COMPULSION DIST HP (compulsion-hp). Various drives over the years. Into Marshall, then Boogie, then Hughes & Kettner.
+- Gary Clark Jr → T808 OD (t808-od) + FACE FUZZ (face-fuzz). Modern blues-rock with vintage fuzz and TS combo. Into cranked Fender.
+- Joe Bonamassa → T808 OD (t808-od) + KLONE CHIRON (klone-chiron). Modern blues virtuoso. TS for boost, Klon for sweetening. Into vintage Marshall or Two Rock.
+- Derek Trucks → No drive pedal — pure amp tone. Gibson SG into cranked Fender Super Reverb or Dumble. Clean, dynamic, slide guitar master. If absolutely needing drive, KLONE CHIRON (klone-chiron) at minimal gain.
+- Trey Anastasio / Phish → T808 OD (t808-od) + ZENITH DRIVE (zenith-drive). TS for mid-push, plus a Ross Compressor. Into 2 Mesa Mark III amps. Signature liquid lead tone.
+- Kirk Hammett / Metallica → T808 OD (t808-od) as tight boost before Mesa Mark IIC+/Mark V. Drive 0, Level max, Tone 5. Kirk's wah-soaked lead tone.
+- James Hetfield / Metallica → T808 OD (t808-od) as rhythm boost before Mesa Mark IIC+/Recto. Tight, precise palm mutes. No fuzz, no heavy effects.
+- Dimebag Darrell / Pantera → No drive — Randall Century 200 or Krank amp at full gain. If needing extra push, T808 OD (t808-od) or PLUS DISTORTION (plus-dist).
+- Wes Borland / Limp Bizkit → PI FUZZ (pi-fuzz) + various experimental effects. Unconventional heavy tones.
+- Matt Bellamy / Muse → HARD FUZZ (hard-fuzz) or FACE FUZZ (face-fuzz). ZVEX Fuzz Factory for chaotic, oscillating fuzz. Self-oscillation, wild textures. Also uses Z.Vex Wah Probe and various boutique drives.
+
+=== GENRE QUICK REFERENCE ===
+- Classic Rock → KLONE CHIRON (klone-chiron) or COMPULSION DIST HP (compulsion-hp) or just amp cranked. Depends on gain level needed.
+- Blues → KLONE CHIRON (klone-chiron) or T808 OD (t808-od) or BLUES OD (blues-od). Low-gain, dynamic, transparent.
+- Jazz → Usually no drive needed. If slight warmth desired, KLONE CHIRON (klone-chiron) at Gain 0-1 or FAS BOOST (fas-boost).
+- Country / Chicken Pickin' → NOBELLIUM OVD-1 (nobellium-ovd1) or KLONE CHIRON (klone-chiron). Compression + clean boost.
+- Shoegaze → RAT DISTORTION (rat-dist) + PI FUZZ (pi-fuzz) + multiple layered drives. Kevin Shields, Slowdive, Ride.
+- Grunge → DS1 DISTORTION (ds1-distortion) or PI FUZZ (pi-fuzz) or RAT DISTORTION (rat-dist). Cobain, Soundgarden, Pearl Jam.
+- Punk → DS1 DISTORTION (ds1-distortion) or COMPULSION DIST HP (compulsion-hp). Simple, aggressive, no-frills.
+- Post-Punk / New Wave → COMPULSION DIST LP (compulsion-lp) or SUPER OD (super-od). Subtle drive + effects-heavy signal chain.
+- Doom / Stoner → PI FUZZ - RUSSIAN (pi-fuzz-russian) or BENDER FUZZ (bender-fuzz). Dark, heavy, low-tuned. Electric Wizard, Sleep, Kyuss.
+- Progressive Rock → KLONE CHIRON (klone-chiron) or ZENITH DRIVE (zenith-drive). Dynamic, articulate. Gilmour, Howe, Lifeson.
+- Progressive Metal / Djent → HORIZON PRECISION DRIVE (horizon-precision) or T808 OD (t808-od) as tight boost. Periphery, Animals As Leaders, TesseracT.
+- Worship / Ambient → KLONE CHIRON (klone-chiron) or TIMOTHY (timothy) or GUARDIAN PHOTON SPEED (guardian-photon-speed). Transparent, dynamic, stacking-friendly.
+- Neo-Soul / R&B → KLONE CHIRON (klone-chiron) or JAM RAY (jam-ray). Transparent, warm, responsive to dynamics. Tom Misch, Daniel Caesar.
+- Indie / Lo-Fi → RAT DISTORTION (rat-dist) or BLUES OD (blues-od). Warm, slightly gritty, lo-fi character.
 
 AVAILABLE DRIVE MODELS (use these exact IDs):
 ${driveList}
