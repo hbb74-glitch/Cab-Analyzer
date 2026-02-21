@@ -8,7 +8,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
-import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
+import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel, getDriveCircuitTopology, formatDriveCircuitContext } from "@shared/knowledge/amp-designer";
 import { getControlLayout, getModelIntelligence } from "@shared/knowledge/amp-dial-in";
 import { getDriveControlLayout, getDriveIntelligence } from "@shared/knowledge/drive-dial-in";
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
@@ -6581,16 +6581,35 @@ Switches: ${switchNames}
 Has Master Volume: ${hasMasterVolume ? 'YES' : 'NO — this is a non-master-volume amp. Do NOT reference Master Volume in starting points or settings. Volume/Gain IS the only gain control. For cranked tones, the user turns up Volume.'}
 ${layout.graphicEQ ? 'Has Graphic EQ: YES' : ''}
 CRITICAL: Only reference controls that actually exist on this amp. Do NOT suggest settings for controls the amp does not have. If the amp has no Master Volume, do not mention Master Volume settings in your startingPoint or anywhere else.`;
+      } else if (input.category === 'drive' && model) {
+        const driveLayout = getDriveControlLayout(input.baseModelId);
+        if (driveLayout) {
+          const knobNames = driveLayout.knobs.map(k => k.label).join(', ');
+          const switchNames = driveLayout.switches.length > 0 ? driveLayout.switches.map(s => s.label).join(', ') : 'None';
+          controlLayoutContext = `\nACTUAL CONTROLS ON THIS DRIVE MODEL (Fractal Drive Block):
+Knobs: ${knobNames}
+Switches: ${switchNames}
+CRITICAL: Only reference controls that actually exist on this drive pedal. Your startingPoint should reference ONLY these knobs/switches.`;
+        }
+      }
+
+      let circuitTopologyContext = '';
+      if (input.category === 'drive') {
+        const topology = getDriveCircuitTopology(input.baseModelId);
+        if (topology) {
+          circuitTopologyContext = `\n${formatDriveCircuitContext(topology)}`;
+        }
       }
 
       const systemPrompt = `You are an expert amp tech and guitar electronics engineer with deep knowledge of both real amp/pedal circuits AND the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 parameter system, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, and the Fractal Audio Forum extensively. You understand how real-world circuit modifications translate to Fractal's digital Expert parameters in the Amp Block and Drive Block.
 
 You are deeply familiar with Fractal Audio's naming conventions (Brit = Marshall, Dizzy = Diezel, Recto = Mesa Rectifier, Euro = Bogner, Class-A = Vox, Citrus = Orange, USA = Mesa Mark, Angle = Engl, etc.) and the specific Expert parameters available in each block.
 
-Your task: Given a base ${input.category === 'amp' ? 'amplifier' : 'drive/fuzz pedal'} model and a modification request, provide specific Fractal Audio Amp Block Expert parameter recommendations that recreate the effect of that real-world circuit modification. Use parameter names exactly as they appear in the Fractal Audio interface.
+Your task: Given a base ${input.category === 'amp' ? 'amplifier' : 'drive/fuzz pedal'} model and a modification request, provide specific Fractal Audio ${input.category === 'amp' ? 'Amp Block Expert' : 'Drive Block'} parameter recommendations that recreate the effect of that real-world circuit modification. Use parameter names exactly as they appear in the Fractal Audio interface.
 
 ${modelContext}
 ${controlLayoutContext}
+${circuitTopologyContext}
 
 ${modContext}
 
@@ -6611,6 +6630,8 @@ IMPORTANT GUIDELINES:
 - Be specific about values where possible, but note these are starting points for ear-tuning
 - Reference relevant Fractal community knowledge where appropriate (e.g., Cliff Chase's forum posts about specific models)
 - CRITICAL: If a mod is inappropriate for the selected amp (e.g., adding a master volume to an amp that already has one, adding cascaded gain stages to a JCM800 that already has them, or adding a Top Boost to a model already marked "TB"), clearly state this in the summary and suggest what the user likely wants instead. Do NOT blindly apply parameters for a mod that would be redundant or nonsensical on the target amp.
+- CRITICAL: Only include parameter changes that are DIRECTLY RELEVANT to the specific modification being applied. Do NOT pad the response with unrelated parameter recommendations. For example, if the mod is about the tone stack, do NOT include Bias or Clipping Type changes unless the mod's circuit changes actually affect biasing or clipping. Every parameter change must have a clear, direct connection to what the mod actually does to the circuit.
+- If a mod cannot be fully replicated within Fractal's drive/amp block parameters alone, explicitly state the limitation and recommend complementary signal chain solutions (e.g., a post-drive EQ block, a parametric EQ, or a filter block).
 - Reference the 2025 Marshall Modified series (1959 Modified, JCM800 Modified) when relevant — these represent Marshall officially building in popular boutique mods (PPIMV, gain boost, tight switch, mid-boost).
 
 Respond in JSON format:

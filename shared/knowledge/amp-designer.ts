@@ -677,8 +677,8 @@ export const KNOWN_MODS: KnownMod[] = [
     label: "Tone Stack Mod",
     appliesTo: ["pi-fuzz", "pi-fuzz-triangle", "pi-fuzz-rams-head", "pi-fuzz-russian", "pi-fuzz-bass"],
     category: "drive",
-    description: "Modify the Big Muff's tone circuit to reduce the mid-scoop.",
-    circuitChanges: "Stock Big Muff has a severe mid-scoop from its passive tone stack. Adding a mid-boost pot (often called the 'mids' knob) by adding a variable resistor across the tone caps. Alternatively, reduce the tone cap values to narrow the scoop. The 'flat mids' mod bypasses part of the tone stack for more midrange presence, helping the Muff cut through a band mix."
+    description: "Modify the Big Muff's tone circuit to reduce the mid-scoop. IMPORTANT: The Big Muff's Tone knob does NOT work like a normal tone control — it sweeps between a bass cap and a treble cap, and mids are scooped at ALL Tone positions. Simply turning the Tone knob up does NOT reduce the mid-scoop; it just shifts from bassy to trebly while keeping the mid-scoop. The real mod involves adding a mid-boost pot or changing cap values in the tone stack circuit itself.",
+    circuitChanges: "Stock Big Muff has a severe mid-scoop from its passive tone stack. The Tone pot is wired between two caps — one passes bass, one passes treble — and the midrange is always attenuated regardless of the Tone position. The mod adds a variable resistor (mid-boost pot) across the tone caps that allows midrange to pass through, effectively filling in the scoop. Alternatively, reducing the tone cap values narrows the bandwidth of the scoop. The 'flat mids' mod bypasses part of the tone stack for more midrange presence. On Fractal, the drive block's Tone parameter emulates the stock Big Muff tone circuit, so it CANNOT fix the mid-scoop on its own. To approximate this mod digitally, use a post-drive parametric EQ block to boost the 400-1000Hz midrange band. Do NOT suggest only changing the Tone knob — that does not address the fundamental mid-scoop topology."
   },
   {
     id: "muff-gain-mod",
@@ -792,6 +792,121 @@ export const EXPERT_PARAMETERS: ExpertParameter[] = [
   { name: "Tone", category: "drive", range: "0.0 - 10.0", defaultValue: "5.0", circuitEquivalent: "Tone control / low-pass filter", description: "In most drives, this is a simple low-pass filter. In RAT, it's a unique variable filter. In Big Muff, it's a mid-scoop circuit. The implementation varies dramatically between pedals." },
   { name: "Drive / Gain", category: "drive", range: "0.0 - 10.0", defaultValue: "5.0", circuitEquivalent: "Gain/feedback amount in clipping stage", description: "Controls how much gain is applied before clipping. Higher = more distortion and compression. In TS-type circuits, this changes the feedback resistor ratio." },
 ];
+
+export interface DriveCircuitTopology {
+  familyId: string;
+  modelIds: string[];
+  circuitType: string;
+  signalFlow: string;
+  toneCircuit: string;
+  clippingTopology: string;
+  gainStructure: string;
+  keyComponents: string;
+  knobBehavior: string;
+  fractalLimitations: string;
+}
+
+export const DRIVE_CIRCUIT_TOPOLOGIES: DriveCircuitTopology[] = [
+  {
+    familyId: "tube-screamer",
+    modelIds: ["t808-od", "t808-mod", "maxon-808", "super-od"],
+    circuitType: "Op-amp soft-clipping overdrive with feedback loop",
+    signalFlow: "Input buffer → clipping stage (op-amp with diodes in feedback loop) → tone circuit → output volume stage",
+    toneCircuit: "Single-order low-pass filter AFTER the clipping stage. The Tone knob rolls off treble — fully clockwise is brightest, fully counter-clockwise is darkest. It is a simple high-cut filter, NOT a mid-scoop. Midrange is always present regardless of Tone setting.",
+    clippingTopology: "SOFT clipping — two 1N914 silicon diodes in the FEEDBACK LOOP of the op-amp (not to ground). This means clipping happens within the gain stage itself, producing smoother, more compressed distortion. The Drive knob changes the feedback resistor ratio, which simultaneously changes gain AND clipping threshold. Stock TS808 uses symmetric soft clipping (both diodes identical). The SD-1 (Super OD) uses ASYMMETRIC soft clipping (one silicon diode + two silicon diodes in series) for slightly different harmonic content.",
+    gainStructure: "The Drive knob controls a variable resistor in the op-amp feedback loop. Higher Drive = more gain AND lower clipping threshold simultaneously. The input cap (0.047uF stock) creates a HIGH-PASS filter before the clipping stage, which is WHY the TS cuts bass — this is by design, not a limitation. The famous 'mid-hump' comes from the interaction of the input high-pass filter and the tone circuit's low-pass filter, leaving the midrange emphasized.",
+    keyComponents: "JRC4558 op-amp (stock TS808), 1N914/1N4148 silicon clipping diodes, 0.047uF input coupling cap (controls bass roll-off), 51pF cap in feedback loop (controls treble in gain stage), 4.7K/51K resistor ratio (sets minimum/maximum gain range)",
+    knobBehavior: "DRIVE: Controls feedback resistor ratio. Low values = clean boost with mild clipping. High values = saturated, compressed overdrive. The mid-hump is present at ALL Drive settings. TONE: Simple low-pass filter. Does NOT affect midrange. Fully CW = bright, fully CCW = dark. LEVEL: Output volume after the clipping/tone stages. Does not affect the character of the distortion.",
+    fractalLimitations: "Fractal's Drive block accurately models the TS circuit. The Tone parameter follows the real TS low-pass filter behavior. The Drive parameter controls gain/clipping threshold like the real circuit. The mid-hump is inherent to the model. To mod the bass response (input cap mod), there is no direct parameter — use a pre-drive EQ to simulate. Diode swap mod: use the Clipping Type parameter to change between silicon/germanium/LED/MOSFET."
+  },
+  {
+    familyId: "big-muff",
+    modelIds: ["pi-fuzz", "pi-fuzz-triangle", "pi-fuzz-rams-head", "pi-fuzz-russian", "pi-fuzz-bass"],
+    circuitType: "Four-stage cascaded hard-clipping fuzz with passive mid-scoop tone circuit",
+    signalFlow: "Input → gain stage 1 (with clipping diodes to ground) → gain stage 2 (with clipping diodes to ground) → passive tone circuit (mid-scoop) → output recovery stage",
+    toneCircuit: "CRITICAL — The Big Muff tone circuit is a PASSIVE MID-SCOOP network, NOT a simple tone control. It consists of two parallel signal paths: one passes LOW frequencies through a large cap, the other passes HIGH frequencies through a small cap. The Tone pot BLENDS between these two paths. At EVERY position of the Tone pot, the midrange frequencies (~400-1500Hz) are attenuated because neither path passes them efficiently. Turning the Tone knob fully clockwise emphasizes treble (but still scoops mids). Turning it fully counterclockwise emphasizes bass (but still scoops mids). The mid-scoop is a FIXED CHARACTERISTIC of the circuit topology — it CANNOT be removed or reduced by adjusting the Tone knob. The only way to reduce the mid-scoop is to physically modify the circuit (change cap values, add a mid-boost pot, or bypass part of the tone circuit). Different Big Muff variants have different cap values which change the depth and center frequency of the scoop: Triangle (1971) has a milder scoop, Ram's Head (mid-70s) has a tighter/brighter scoop, Russian has a darker/deeper scoop.",
+    clippingTopology: "HARD clipping — diodes connected to GROUND (not in the feedback loop like a TS). Two cascaded clipping stages, each with a pair of silicon diodes. This produces harder, more aggressive, more sustained distortion than soft clipping. The four-stage cascade (2 gain stages × 2 clipping pairs) creates massive sustain and compression. Different Muff variants use different diode combinations: Triangle era used germanium in some stages, Ram's Head used all silicon, Russian used different silicon types.",
+    gainStructure: "Each clipping stage is an independent common-emitter amplifier with its own coupling cap, bias resistor, and clipping diodes. The Sustain (Drive) knob controls the bias/gain of the clipping stages. Even at low Sustain settings, the cascaded stages produce significant distortion due to the four-stage topology. The enormous sustain comes from the cumulative compression of four clipping stages in series.",
+    keyComponents: "4x 2N5088 (or 2N5089) transistors in common-emitter configuration, 4x silicon clipping diodes (1N914 or equivalent), passive tone circuit caps (values vary by era: Triangle ~3.9nF/10nF, Ram's Head ~3.3nF/10nF, Russian ~3.9nF/22nF), 100K Tone pot, 100K Sustain pot, 100K Volume pot",
+    knobBehavior: "SUSTAIN (Drive): Controls gain/bias of clipping stages. Even at low settings, significant distortion. At high settings, massive wall-of-sound fuzz with infinite sustain. TONE: Sweeps between bass-heavy and treble-heavy voicing BUT ALWAYS SCOOPS MIDS. This is NOT a normal tone control — it cannot add mids, only choose between bass emphasis and treble emphasis. VOLUME: Output level from the recovery stage. Can be set very high for massive output boost.",
+    fractalLimitations: "Fractal's PI FUZZ drive block models the Big Muff circuit accurately, INCLUDING the mid-scoop tone behavior. The Tone parameter in Fractal follows the real Big Muff's passive mid-scoop topology — it CANNOT reduce the mid-scoop. To approximate the popular 'mid-boost' or 'flat mids' mod, you MUST use a separate parametric EQ block AFTER the drive block, boosting 400-1000Hz by 3-6dB. This is the only way to fill in the mid-scoop on Fractal. Do NOT suggest simply changing the Tone parameter to fix the mid-scoop — that is incorrect and shows a fundamental misunderstanding of the Big Muff circuit."
+  },
+  {
+    familyId: "rat",
+    modelIds: ["rat-dist", "fat-rat"],
+    circuitType: "Op-amp hard-clipping distortion with variable low-pass filter",
+    signalFlow: "Input → op-amp gain stage → hard clipping diodes to ground → unique variable low-pass filter (Filter/Tone) → output volume",
+    toneCircuit: "The RAT's Filter (Tone) control is UNIQUE among pedals — it works BACKWARDS from most tone controls. Fully CLOCKWISE = DARKEST (maximum filtering, bass-heavy). Fully COUNTERCLOCKWISE = BRIGHTEST (minimum filtering, full frequency response). This is because the Filter pot controls a variable low-pass filter: turning it up INCREASES the cutoff frequency attenuation, removing more treble. Many players find the sweet spot around 3-4 o'clock (moderately filtered). The filter does NOT scoop mids — it's a simple roll-off.",
+    clippingTopology: "HARD clipping — diodes connected to GROUND after the op-amp gain stage (similar topology to Big Muff's individual stages, but only one stage). Stock uses 1N914 silicon diodes for bright, aggressive hard clipping. The 'Turbo RAT' variant uses LEDs instead for higher headroom and less compression. The Fat RAT adds a toggle for different clipping options. Hard clipping to ground produces a more aggressive, edgier distortion character than the TS's soft clipping in the feedback loop.",
+    gainStructure: "Single op-amp gain stage with the Distortion pot controlling the feedback resistor. The op-amp type is CRITICAL to the RAT's character: the original LM308 has a very slow slew rate (~0.3V/µs) which naturally filters harsh high-frequency harmonics, creating a smoother, more compressed distortion. Modern RATs use the OP07 which has a faster slew rate and sounds brighter, more open, but harsher at high gain. This single component swap (LM308 vs OP07) is the most significant tonal variable in the RAT circuit.",
+    keyComponents: "LM308 op-amp (vintage — slow slew rate, smooth, compressed) or OP07 (modern — fast slew rate, bright, open), 1N914 silicon clipping diodes (stock), 1M Distortion pot (log taper), 100K Filter pot, 100K Volume pot (actually labeled 'Volume' on the pedal)",
+    knobBehavior: "DISTORTION: Controls op-amp feedback gain. Wide range from light overdrive to heavy distortion. At low settings with LM308, produces warm, tube-like drive. At high settings, saturated distortion with sustain. FILTER: Works BACKWARDS — clockwise = darker. Controls a variable low-pass filter. Does NOT affect mids specifically. At minimum (fully CCW), the full frequency spectrum passes through. VOLUME: Output level.",
+    fractalLimitations: "Fractal's RAT DISTORTION model accurately emulates the circuit. The Tone parameter follows the RAT's backwards filter behavior. The Slew Rate parameter is KEY — it directly controls the op-amp slew rate, which is the primary difference between vintage (LM308) and modern (OP07) RATs. Lower Slew Rate = vintage LM308 character (smoother, darker, more compressed). Higher Slew Rate = modern OP07 character (brighter, more open). Use Clipping Type to change between silicon/germanium/LED for diode swap mods."
+  },
+  {
+    familyId: "fuzz-face",
+    modelIds: ["face-fuzz"],
+    circuitType: "Two-transistor fuzz with PNP germanium or NPN silicon topology",
+    signalFlow: "Input (NO input buffer — very low input impedance) → Q1 common-emitter gain stage → Q2 common-emitter gain/clipping stage → output (Volume pot as voltage divider)",
+    toneCircuit: "The Fuzz Face has NO tone control. All tonal shaping comes from: (1) the transistor types and their bias points, (2) the input impedance interaction with pickups, (3) the guitar's volume knob (rolling back cleans up the fuzz beautifully due to the low input impedance loading the pickup). The frequency response is shaped entirely by component values and transistor characteristics.",
+    clippingTopology: "The Fuzz Face achieves clipping through transistor saturation, not diodes. Q1 provides initial gain, Q2 provides the main clipping/fuzz. The distortion character depends heavily on transistor type: GERMANIUM (PNP, like AC128, NKT275) = warmer, smoother, more dynamic, voltage/temperature sensitive. SILICON (NPN, like BC108, 2N3904) = brighter, harsher, more aggressive, more consistent, higher gain. The clipping is inherently asymmetric due to the two-transistor topology.",
+    gainStructure: "Two common-emitter stages in series. The Fuzz pot controls the amount of signal from Q1's collector that reaches Q2's base. At minimum Fuzz, Q2 still provides significant gain. At maximum Fuzz, Q2 is driven hard into saturation for full fuzz. The critical characteristic is the VERY LOW input impedance (~10K or less depending on Fuzz setting) which means: (1) it loads the guitar pickups, changing their frequency response, (2) buffer pedals BEFORE a Fuzz Face cause it to sound harsh and thin because they present a low-impedance source, (3) the guitar volume knob interacts beautifully — rolling back volume cleans up the tone due to impedance interaction.",
+    keyComponents: "Q1 and Q2 transistors (AC128/NKT275 germanium or BC108/2N3904 silicon), bias resistor from Q2 collector to V+ (controls the operating point — THE most critical component for tone), 2.2µF input coupling cap (controls low-frequency response), 0.01µF cap at Q2 collector (filters harsh highs)",
+    knobBehavior: "FUZZ: Controls how hard Q2 is driven. Even at low settings, there is significant fuzz due to the two-transistor cascade. At maximum, thick, sustaining fuzz with lots of compression. VOLUME: Simple voltage divider at the output. Controls output level only. The Fuzz Face's real 'tone control' is the guitar's volume knob — rolling it back from 10 to 7-8 gives a beautiful clean-up that no other fuzz achieves as well.",
+    fractalLimitations: "Fractal's FACE FUZZ model captures the core Fuzz Face circuit. The Bias parameter is CRITICAL — it controls the Q2 collector voltage (transistor bias point). Center (5.0) = normal bias. Lower = starved, gated, sputtery, dying-battery sound. Higher = smoother, more sustain. The Input Impedance parameter matters more on this model than any other — it controls the pickup loading effect. The Clipping Type and Slew Rate parameters have less direct applicability since the Fuzz Face uses transistor saturation, not diode clipping."
+  },
+  {
+    familyId: "tone-bender",
+    modelIds: ["bender-fuzz"],
+    circuitType: "Three-transistor germanium fuzz (Mk II topology)",
+    signalFlow: "Input → Q1 PNP germanium gain stage → Q2 PNP germanium gain/clipping stage → Q3 emitter follower output buffer → output volume",
+    toneCircuit: "Like the Fuzz Face, the Tone Bender has NO dedicated tone control. Tonal character comes from transistor selection, bias, and the circuit's inherent frequency response. The Mk II Tone Bender has more gain and a thicker, woolier character than the Fuzz Face due to its three-transistor design. The third transistor (Q3 emitter follower) provides a lower output impedance than the Fuzz Face, making it less sensitive to what follows it in the signal chain.",
+    clippingTopology: "Transistor saturation clipping across two gain stages (Q1 and Q2), similar to Fuzz Face but with more cascaded gain. The third transistor (Q3) is an emitter follower that doesn't add gain but buffers the output. The Mk II topology produces a thicker, more aggressive fuzz than the two-transistor Fuzz Face, with more sustain and compression.",
+    gainStructure: "Three-stage design with Q1 providing initial gain, Q2 providing main fuzz/saturation, Q3 providing output buffering. More gain on tap than a Fuzz Face. The Attack (Fuzz) pot controls the signal level hitting Q2. Bias is equally critical as on the Fuzz Face — germanium transistors are temperature-sensitive and the bias point dramatically affects the character.",
+    keyComponents: "3x PNP germanium transistors (OC75, OC81D, or similar), bias resistors, 2.2µF input coupling cap, AC-coupled output via Q3 emitter follower",
+    knobBehavior: "ATTACK (Fuzz): Controls drive level into Q2. Full range from moderate fuzz to thick, sustaining wall of fuzz. VOLUME: Output level from the emitter follower stage.",
+    fractalLimitations: "Fractal's BENDER FUZZ model captures the Mk II topology. The Bias parameter is critical — controls germanium transistor operating point. Same temperature/bias sensitivity as Fuzz Face but with more gain on tap. Input Impedance matters but less than Fuzz Face since the three-transistor design is somewhat more forgiving of what's in front of it."
+  },
+  {
+    familyId: "klon",
+    modelIds: ["klone-chiron"],
+    circuitType: "Dual-path overdrive with clean blend and germanium diode clipping",
+    signalFlow: "Input buffer → signal splits into TWO paths: (1) clean path with volume control and (2) clipping path with gain stage, germanium diode clipping, and tone filter → both paths summed at output",
+    toneCircuit: "The Klon's treble control is a simple high-frequency roll-off (low-pass filter) applied to the CLIPPED signal path only. The clean path is unaffected by the Treble knob. This means at low Gain settings (where the clean path dominates), the Treble knob has minimal effect. At high Gain settings (where the clipped path dominates), the Treble knob becomes more impactful. This interaction is key to the Klon's transparency.",
+    clippingTopology: "Germanium diode clipping (1N34A or similar) — softer and warmer than silicon. The diodes are in the feedback loop of the gain op-amp (soft clipping, like a TS, but with germanium for softer knee). The key difference from a TS is the CLEAN BLEND: as the Gain pot increases, a dual-ganged pot simultaneously reduces the clean path volume and increases the clipped path volume. At low Gain, mostly clean signal with a hint of grit. At high Gain, mostly clipped signal. This crossfading is the 'secret sauce' of the Klon — it preserves the attack and dynamics of the clean signal while adding harmonics from the clipped path.",
+    gainStructure: "Internal charge pump doubles the voltage from 9V to 18V, giving significantly more headroom than most pedals. The gain stage uses a TL072 op-amp. The Gain pot is DUAL-GANGED: one section controls the gain/clipping amount, the other section controls the clean/clipped signal blend ratio. This is why the Klon stays 'transparent' at low gain — you're mostly hearing your clean signal with subtle overtones mixed in.",
+    keyComponents: "TL072 dual op-amp, charge pump voltage doubler (ICL7660 or equivalent), 1N34A germanium clipping diodes, dual-ganged Gain pot (simultaneously controls gain and clean blend), simple RC low-pass filter for Treble control",
+    knobBehavior: "GAIN: Dual function — controls BOTH the amount of clipping AND the ratio of clean-to-clipped signal. Low Gain = mostly clean with subtle harmonics. Mid Gain = balanced clean/clipped blend. High Gain = mostly clipped signal with more distortion. TREBLE: High-frequency roll-off on the clipped path only. Effect is subtle at low Gain, more noticeable at high Gain. OUTPUT: Sets the overall output level. The Klon is often used as a 'clean boost' with Gain low and Output high.",
+    fractalLimitations: "Fractal's KLONE CHIRON model captures the clean blend topology. The Drive parameter emulates the dual-ganged Gain pot behavior (gain + blend). The Tone parameter follows the treble roll-off on the clipped path. The key Klon characteristic — the clean blend — is inherent to the model and cannot be separated into individual parameters. To mod the clipping character, use the Clipping Type parameter (stock = germanium). Bias has minimal relevance since the Klon uses op-amp-based clipping, not transistor saturation."
+  },
+  {
+    familyId: "rangemaster",
+    modelIds: ["treble-boost"],
+    circuitType: "Single-transistor germanium treble booster",
+    signalFlow: "Input → small input coupling cap (high-pass filter) → single PNP germanium transistor gain stage → output",
+    toneCircuit: "The Rangemaster has NO tone knob. Its tonal character is defined entirely by the small input coupling cap (0.005µF stock) which creates a high-pass filter, rolling off bass and low-mids before the transistor stage. This is what makes it a 'treble booster' — it's not boosting treble, it's CUTTING bass. The transistor then amplifies the treble-emphasized signal. The frequency response is fixed by the input cap value — changing this cap IS the mod.",
+    clippingTopology: "At lower boost settings, the Rangemaster is a clean boost with treble emphasis. At higher boost settings or with hot pickups, the single transistor begins to soft-clip, adding warm germanium saturation. The clipping is subtle and musical — not a full fuzz sound, but a thickening of harmonics that drives the front end of a tube amp beautifully.",
+    gainStructure: "Single common-emitter PNP germanium transistor (OC44, OC71, or similar). The Boost knob controls the output level via a voltage divider. The transistor provides roughly 20-25dB of gain. The key is that this gain is frequency-shaped by the input cap — the bass is cut before amplification, so the boost is concentrated in the upper frequencies.",
+    keyComponents: "Single PNP germanium transistor (OC44 stock), 0.005µF input coupling cap (THE component that defines the voicing — this is what the mod changes), Boost pot (output level), simple bias network",
+    knobBehavior: "BOOST: Output level. At low settings, subtle treble emphasis. At high settings, significant treble boost that can push a tube amp into singing overdrive. Brian May runs his Rangemaster (via the Fryer Treble Booster) nearly full to push his AC30s into their signature crunch. Tony Iommi used a Rangemaster to push his Laney amps for the first Black Sabbath albums — the treble boost cuts through the heavily detuned, bass-heavy signal.",
+    fractalLimitations: "Fractal's TREB BOOST model captures the Rangemaster circuit. The Tone parameter may approximate the input cap voicing to some degree. However, the primary mod (changing the input cap for full-range or mid-boost character) cannot be precisely replicated with the Tone parameter alone since the input cap shapes the signal BEFORE the gain stage, not after. To simulate the input cap mod, use a pre-boost EQ block to shape the frequency content entering the treble boost, or adjust the Tone and Drive parameters together."
+  },
+];
+
+export function getDriveCircuitTopology(modelId: string): DriveCircuitTopology | undefined {
+  return DRIVE_CIRCUIT_TOPOLOGIES.find(t => t.modelIds.includes(modelId));
+}
+
+export function formatDriveCircuitContext(topology: DriveCircuitTopology): string {
+  return `CIRCUIT TOPOLOGY — ${topology.circuitType}:
+Signal Flow: ${topology.signalFlow}
+Tone Circuit: ${topology.toneCircuit}
+Clipping: ${topology.clippingTopology}
+Gain Structure: ${topology.gainStructure}
+Key Components: ${topology.keyComponents}
+What Each Knob Actually Does: ${topology.knobBehavior}
+Fractal Implementation Notes: ${topology.fractalLimitations}`;
+}
 
 export function getModsForModel(modelId: string): KnownMod[] {
   return KNOWN_MODS.filter(mod => 
