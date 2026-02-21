@@ -4328,9 +4328,12 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "high-gain",
     gainRange: [3, 9],
     intendedUse: ["modern metal", "progressive metal", "tight high-gain rhythm"],
+    notSuitedFor: ["jazz", "country", "clean tones", "warm cleans", "Fender-style sparkle"],
     warnings: [
       "Diezel approach is OPPOSITE to most amps: Bass HIGHER (6-8), Presence CRANKED (7-8+)",
-      "The naturally tight circuit handles high bass without flub — trust it"
+      "The naturally tight circuit handles high bass without flub — trust it",
+      "NOT a jazz/clean amp — even at low gain the VH4 has an aggressive, modern voicing with harsh upper mids that fights warm jazz tones",
+      "For jazz: use Fender Twin/Deluxe Reverb, JC120, Dumble, or a Carr Rambler instead"
     ],
     sweetSpot: "Gain 6, Bass 7, Presence 8, Deep 5 for the signature Diezel precision",
     historicalContext: "German precision engineering. Adam Jones (Tool), Metallica live rigs, Meshuggah."
@@ -4340,7 +4343,12 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "high-gain",
     gainRange: [2, 9],
     intendedUse: ["modern metal", "versatile high-gain", "progressive"],
+    notSuitedFor: ["jazz", "country", "warm cleans"],
     channelNote: "More versatile than VH4. Channel 2 +/- modes. Herbert has more midrange flexibility.",
+    warnings: [
+      "Slightly more versatile than VH4 but still a modern high-gain amp — not voiced for jazz warmth",
+      "For jazz: use Fender Twin/Deluxe Reverb, JC120, Dumble, or a Carr Rambler instead"
+    ],
     sweetSpot: "Same Diezel philosophy: bass higher, presence cranked. Herbert is tighter than VH4.",
     historicalContext: "Diezel's more versatile design. Tighter and more refined than the VH4."
   },
