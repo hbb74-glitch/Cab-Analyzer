@@ -539,9 +539,9 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "snorkler",
     label: "Snorkler Mod",
-    appliesTo: ["brit-800-2204-high", "brit-800-2204-low", "brit-800-2203-high", "brit-800-2203-low", "1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble"],
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-jm45", "brit-jm45-jumped"],
     category: "amp",
-    description: "Cascaded gain stages mod for more distortion while retaining the amp's core character.",
+    description: "Cascaded gain stages mod for non-master-volume Marshalls. Adds significantly more preamp gain while retaining the amp's core Plexi/JTM character. NOT applicable to JCM800 2203/2204 which already have cascaded stages from the factory.",
     circuitChanges: "Routes signal from V1a to V1b (cascading the preamp stages) instead of running them in parallel. Adds a coupling cap and grid leak resistor between stages. Effectively doubles the preamp gain. Similar concept to the Jose mod but simpler. May include cathode bypass cap changes for more gain on the second stage."
   },
   {
@@ -563,17 +563,17 @@ export const KNOWN_MODS: KnownMod[] = [
   {
     id: "jcm800-gain-mod",
     label: "JCM 800 Extra Gain Mod",
-    appliesTo: ["brit-800-2204-high", "brit-800-2204-low", "brit-800-2203-high", "brit-800-2203-low", "brit-800-mod", "brit-800-studio-20"],
+    appliesTo: ["brit-800-2204-high", "brit-800-2204-low", "brit-800-2203-high", "brit-800-2203-low", "brit-800-studio-20"],
     category: "amp",
-    description: "Increase gain in a JCM 800 beyond stock levels for heavier tones.",
+    description: "Increase gain in a stock JCM 800 beyond stock levels for heavier tones. NOT applicable to models already marked 'MOD' or '#34' — those already have enhanced gain from the factory.",
     circuitChanges: "Add or increase cathode bypass cap on second preamp stage (from 0.68uF to 1uF or higher). Change coupling cap between stages for more bass into the clipping stages. Reduce the bright cap value to tame ice-pick highs at higher gain. Some versions add a clipping diode pair to ground after the second gain stage."
   },
   {
     id: "vox-top-boost",
     label: "Top Boost Mod",
-    appliesTo: ["class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "class-a-30w-tb", "class-a-15w-tb", "ac-20-12ax7-bass", "ac-20-12ax7-treble", "ac-20-ef86-bass", "ac-20-ef86-treble"],
+    appliesTo: ["class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "ac-20-12ax7-bass", "ac-20-12ax7-treble", "ac-20-ef86-bass", "ac-20-ef86-treble"],
     category: "amp",
-    description: "Add the classic Top Boost circuit to a normal-channel Vox for more treble and gain.",
+    description: "Add the classic Top Boost circuit to a normal-channel Vox for more treble and gain. NOT applicable to models already marked 'TB' (Top Boost) — those already have this circuit from the factory.",
     circuitChanges: "Add an extra triode gain stage with treble and bass cut controls after the first preamp stage. The Top Boost circuit adds a 12AX7 stage with adjustable high-frequency emphasis. This became standard on later AC30s but early models lacked it."
   },
   {
@@ -602,11 +602,11 @@ export const KNOWN_MODS: KnownMod[] = [
   },
   {
     id: "friedman-sat-voice",
-    label: "Friedman SAT/Voice Mod",
+    label: "Friedman SAT/Voice Circuit Exploration",
     appliesTo: ["friedman-be-2010", "friedman-be-c45", "friedman-be-v1", "friedman-be-v1-fat", "friedman-be-v2", "friedman-be-v3", "friedman-hbe-2010", "friedman-hbe-c45", "friedman-hbe-v1", "friedman-hbe-v1-fat", "friedman-hbe-v2", "friedman-hbe-v3"],
     category: "amp",
-    description: "Explore the Friedman's SAT switch and Voice switch combinations for different gain characters.",
-    circuitChanges: "SAT switch adds a clipping network in the preamp that compresses and saturates the signal. Without SAT, the amp is more open and dynamic. Voice switch changes the high-frequency roll-off and bass response: one position is brighter with bigger bass, the other is darker with more midrange focus. These interact with each other significantly."
+    description: "Understanding the Friedman's built-in SAT and Voice switches — these are stock features, not aftermarket mods. Knowing their circuit behavior helps translate settings to Fractal's Expert parameters.",
+    circuitChanges: "SAT switch adds a clipping network in the preamp that compresses and saturates the signal. Without SAT, the amp is more open and dynamic (simulate via Fractal's Preamp Compression and Input Trim). Voice switch changes the high-frequency roll-off and bass response: one position is brighter with bigger bass, the other is darker with more midrange focus (simulate via Bright Cap and Hi-Cut parameters). These interact with each other significantly."
   },
   {
     id: "5153-bias-shift",
@@ -703,6 +703,70 @@ export const KNOWN_MODS: KnownMod[] = [
     category: "drive",
     description: "Change the Rangemaster input cap to make it a full-range or mid-range booster.",
     circuitChanges: "Stock Rangemaster uses a small input cap (0.005uF) that rolls off bass, making it a treble booster. Increasing to 0.01uF = mid-boost character. Increasing to 0.1uF or higher = full-range boost. Adding a switchable cap selection gives multiple voicings. This single cap change transforms the pedal's character completely."
+  },
+  {
+    id: "ppimv",
+    label: "Post-Phase-Inverter Master Volume (PPIMV)",
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-jm45", "brit-jm45-jumped", "class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "class-a-30w-tb", "class-a-15w-tb", "59-bassguy-bright", "59-bassguy-jumped", "59-bassguy-normal", "deluxe-tweed", "deluxe-tweed-jumped"],
+    category: "amp",
+    description: "Add a master volume control after the phase inverter on non-master-volume amps. The single most popular amp mod in history — allows cranked preamp tone at manageable volumes. As featured on the 2025 Marshall 1959 Modified. NOT applicable to amps that already have a master volume (JCM800 2203/2204, JVM, 5150, Rectifier, etc.).",
+    circuitChanges: "Insert a dual-ganged potentiometer between the phase inverter outputs and the power tube grids. This attenuates the signal after all preamp distortion has occurred, preserving preamp tone at lower power amp levels. The pot must be dual-ganged to maintain balanced drive to the push-pull power tubes. Some implementations use a single pot on one phase for intentional asymmetry. On Fractal, the Master Volume Trim Expert parameter simulates this behavior."
+  },
+  {
+    id: "marshall-gain-boost",
+    label: "Gain Boost Switch Mod",
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-800-2203-high", "brit-800-2203-low", "brit-800-2204-high", "brit-800-2204-low", "brit-800-studio-20", "brit-jm45", "brit-jm45-jumped"],
+    category: "amp",
+    description: "Switchable gain boost stage as featured on the 2025 Marshall 1959 Modified and JCM800 Modified. Adds an extra gain stage for heavier tones while retaining stock voicing when disengaged. Formerly a popular boutique mod by MetroAmp, Voodoo Amps, and others.",
+    circuitChanges: "Adds an additional cascaded triode gain stage that can be switched in or out of the signal path. When engaged, the signal passes through an extra 12AX7 stage with its own coupling cap and bias resistor before hitting the tone stack. This effectively adds another ~30dB of gain. The coupling cap value between the boost stage and tone stack shapes how much bass enters the additional clipping — typically 0.022uF for tighter response. On Fractal, simulate by increasing Input Trim and adjusting the Preamp Sag parameter."
+  },
+  {
+    id: "marshall-tight-mod",
+    label: "Tight / Low-End Focus Mod",
+    appliesTo: ["brit-800-2203-high", "brit-800-2203-low", "brit-800-2204-high", "brit-800-2204-low", "brit-800-studio-20", "1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "recto1-orange-modern", "recto1-orange-normal", "recto1-red", "recto2-orange-modern", "recto2-orange-vintage", "recto2-red-modern", "recto2-red-vintage"],
+    category: "amp",
+    description: "Switchable low-end tightening as featured on the 2025 Marshall JCM800 Modified. Cuts low-frequency content entering the gain stages for improved note definition on palm mutes and down-tuned guitars. A staple mod for metal and modern rock players.",
+    circuitChanges: "Reduces the value of coupling capacitors between preamp stages (typically from 0.022uF down to 0.01uF or smaller) when the switch is engaged. This creates a high-pass filter that prevents low frequencies from entering the clipping stages, resulting in tighter, more defined distortion. Some implementations also reduce the cathode bypass cap value. On Fractal, the Low Cut parameter in the amp block and the Depth control achieve similar results."
+  },
+  {
+    id: "marshall-mid-boost-mod",
+    label: "Mid-Boost Switch Mod",
+    appliesTo: ["brit-800-2203-high", "brit-800-2203-low", "brit-800-2204-high", "brit-800-2204-low", "brit-800-studio-20", "1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble"],
+    category: "amp",
+    description: "Switchable midrange emphasis as featured on the 2025 Marshall JCM800 Modified. Boosts midrange frequencies for better cut through a band mix and enhanced lead tones. Popular mod from the hot-rod Marshall era.",
+    circuitChanges: "Modifies the tone stack values when engaged — typically by switching in a smaller mid-scoop capacitor or adding a parallel resistor across the midrange leg of the tone stack. This reduces the mid-scoop characteristic of the Marshall tone stack, pushing more midrange into the power amp. Some versions bypass part of the tone stack entirely. On Fractal, simulate by increasing the Mid control and adjusting the Tone Stack Topology parameter."
+  },
+  {
+    id: "bright-cap-mod",
+    label: "Bright Cap Remove / Switch Mod",
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-800-2203-high", "brit-800-2203-low", "brit-800-2204-high", "brit-800-2204-low", "brit-jm45", "brit-jm45-jumped", "deluxe-verb-normal", "deluxe-verb-vibrato", "double-verb-normal", "double-verb-vibrato", "double-verb-silverface"],
+    category: "amp",
+    description: "Remove or make switchable the bright cap across the volume pot. As featured on the 2025 Marshall 1959 Modified (bright cap switch). The bright cap adds treble at lower volume settings — removing it warms the amp, making a switch gives versatility.",
+    circuitChanges: "The bright cap is a small capacitor (typically 100-470pF) wired across the volume pot that allows high frequencies to bypass the pot at lower settings. At full volume the cap has minimal effect. Removing it = warmer tone at all volume positions, no ice-pick at lower settings. Adding a switch lets you choose. On Fractal, the Bright Cap Expert parameter directly controls this."
+  },
+  {
+    id: "neg-feedback-mod",
+    label: "Negative Feedback Reduction",
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-800-2203-high", "brit-800-2203-low", "brit-800-2204-high", "brit-800-2204-low", "brit-jm45", "brit-jm45-jumped", "deluxe-verb-normal", "deluxe-verb-vibrato", "double-verb-normal", "double-verb-vibrato", "solo-100-clean", "solo-100-lead", "solo-100-rhythm"],
+    category: "amp",
+    description: "Reduce or remove the negative feedback loop for more gain, looser feel, and enhanced harmonics. One of the most common and impactful single-component amp mods. Removing NFB entirely makes the amp wilder and more touch-sensitive.",
+    circuitChanges: "Increase the value of (or remove) the negative feedback resistor from the output transformer secondary to the phase inverter. Stock Fender amps typically have heavy NFB (~27k ohm resistor). Marshalls have less (~100k ohm). Reducing/removing NFB increases gain, widens frequency response, adds harmonic content, and makes the amp less 'controlled' — more dynamic and responsive to playing dynamics. On Fractal, the Negative Feedback Expert parameter directly controls this."
+  },
+  {
+    id: "silverface-blackface",
+    label: "Silverface-to-Blackface Conversion",
+    appliesTo: ["double-verb-silverface"],
+    category: "amp",
+    description: "Convert a Silverface Fender back to Blackface-era specs. One of the most popular Fender mods — reverses CBS-era changes that many players consider inferior.",
+    circuitChanges: "Key changes: Remove the extra feedback loop CBS added to the Silverface circuit (reduces the 'sterile' quality). Change the bias circuit back to the original Blackface fixed-bias design. Replace the Silverface tone stack cap values with Blackface values. Remove any added pull-boost switches. Change the phase inverter circuit from CBS-modified back to original Blackface spec. Result is a more dynamic, open, sweeter-sounding amp closer to the original 1965 designs."
+  },
+  {
+    id: "fx-loop-mod",
+    label: "Effects Loop Addition",
+    appliesTo: ["1959slp-jumped", "1959slp-normal", "1959slp-treble", "1987x-jumped", "1987x-normal", "1987x-treble", "brit-jm45", "brit-jm45-jumped", "deluxe-verb-normal", "deluxe-verb-vibrato", "deluxe-tweed", "deluxe-tweed-jumped", "class-a-30w", "class-a-30w-tb"],
+    category: "amp",
+    description: "Add a series effects loop to amps that lack one. As featured on the 2025 Marshall JCM800 Modified (series FX loop). Essential for time-based effects (delay, reverb) that sound better after preamp distortion.",
+    circuitChanges: "Insert send/return jacks between the preamp output and the phase inverter input. Series loop: the entire signal passes through the effects. Parallel loop: blends wet/dry. The send level and return level must be matched to avoid noise or signal loss. Some implementations buffer the send for driving long cables. On Fractal, effects loop placement is handled natively in the signal chain."
   },
 ];
 

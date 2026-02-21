@@ -6595,6 +6595,8 @@ IMPORTANT GUIDELINES:
 - If the mod involves changes that affect multiple parameter domains, cover all of them
 - Be specific about values where possible, but note these are starting points for ear-tuning
 - Reference relevant Fractal community knowledge where appropriate (e.g., Cliff Chase's forum posts about specific models)
+- CRITICAL: If a mod is inappropriate for the selected amp (e.g., adding a master volume to an amp that already has one, adding cascaded gain stages to a JCM800 that already has them, or adding a Top Boost to a model already marked "TB"), clearly state this in the summary and suggest what the user likely wants instead. Do NOT blindly apply parameters for a mod that would be redundant or nonsensical on the target amp.
+- Reference the 2025 Marshall Modified series (1959 Modified, JCM800 Modified) when relevant — these represent Marshall officially building in popular boutique mods (PPIMV, gain boost, tight switch, mid-boost).
 
 Respond in JSON format:
 {
