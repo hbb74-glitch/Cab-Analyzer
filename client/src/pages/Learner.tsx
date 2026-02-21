@@ -1356,7 +1356,7 @@ export default function Learner() {
       const winners = sorted.filter(([, e]) => e.rating > ELO_BASE);
       const losers = sorted.filter(([, e]) => e.rating < ELO_BASE);
       const settledW = winners.filter(([, e]) => e.matchCount >= 2 && e.rating >= ELO_BASE + 15 && e.uncertainty < 0.75);
-      const settledL = losers.filter(([, e]) => e.matchCount >= 2 && e.rating <= ELO_BASE - 25 && e.uncertainty < 0.65);
+      const settledL = losers.filter(([, e]) => e.matchCount >= 1 && e.rating < ELO_BASE - 10 && e.uncertainty < 0.75);
 
       lines.push("--- Learning Evidence ---");
       lines.push(`Combos rated: ${eloEntries.length} | Winners: ${winners.length} | Losers: ${losers.length}`);
