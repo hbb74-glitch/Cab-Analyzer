@@ -15,6 +15,7 @@ import {
   Music,
   Headphones,
   CircleDot,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ interface AIDialInResult {
   famousUsers: string;
   styleNotes: string;
   quickTweak: string;
+  modelWarning?: string;
 }
 
 function KnobIcon({ className }: { className?: string }) {
@@ -329,6 +331,20 @@ function AIResultDisplay({ result }: { result: AIDialInResult }) {
 
   return (
     <div className="space-y-6">
+      {result.modelWarning && (
+        <Card className="border-yellow-500/50 bg-yellow-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-yellow-500 mb-1">Model Suitability Warning</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{result.modelWarning}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <PresetDisplay preset={asPreset} controlLayout={result.controlLayout} isAI />
 
       {result.famousUsers && (

@@ -9,7 +9,7 @@ import OpenAI from "openai";
 import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
 import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
 import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel } from "@shared/knowledge/amp-designer";
-import { getControlLayout } from "@shared/knowledge/amp-dial-in";
+import { getControlLayout, getModelIntelligence } from "@shared/knowledge/amp-dial-in";
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
@@ -6696,6 +6696,7 @@ Respond in JSON format:
       }
 
       const controlLayout = getControlLayout(input.modelId, FRACTAL_AMP_MODELS);
+      const modelIntel = getModelIntelligence(input.modelId);
 
       const knobsList = controlLayout.knobs.map(k => `"${k.id}": number (0-${k.max || 10}) // labeled "${k.label}"`).join(",\n    ");
       const switchesList = controlLayout.switches.map(s => {
@@ -6715,6 +6716,38 @@ Respond in JSON format:
         controlLayout.graphicEQ ? 'GRAPHIC EQ: 5-band (80Hz, 240Hz, 750Hz, 2.2kHz, 6.6kHz)' : '',
       ].filter(Boolean).join('\n');
 
+      let modelIntelSection = '';
+      if (modelIntel) {
+        const parts = [
+          `MODEL INTELLIGENCE (use this to provide expert-level contextual guidance):`,
+          `Category: ${modelIntel.category}`,
+          `Gain range: ${modelIntel.gainRange[0]}-${modelIntel.gainRange[1]} (on a 0-10 scale)`,
+          `Intended use: ${modelIntel.intendedUse.join(', ')}`,
+        ];
+        if (modelIntel.notSuitedFor?.length) {
+          parts.push(`NOT suited for: ${modelIntel.notSuitedFor.join(', ')}`);
+        }
+        if (modelIntel.inputNote) {
+          parts.push(`INPUT NOTE: ${modelIntel.inputNote}`);
+        }
+        if (modelIntel.channelNote) {
+          parts.push(`Channel info: ${modelIntel.channelNote}`);
+        }
+        if (modelIntel.warnings?.length) {
+          parts.push(`WARNINGS:\n${modelIntel.warnings.map(w => `  ⚠ ${w}`).join('\n')}`);
+        }
+        if (modelIntel.sweetSpot) {
+          parts.push(`Sweet spot: ${modelIntel.sweetSpot}`);
+        }
+        if (modelIntel.historicalContext) {
+          parts.push(`Historical context: ${modelIntel.historicalContext}`);
+        }
+        if (modelIntel.relatedModels?.length) {
+          parts.push(`Related models: ${modelIntel.relatedModels.join('; ')}`);
+        }
+        modelIntelSection = '\n\n' + parts.join('\n');
+      }
+
       const systemPrompt = `You are an expert guitar amp tech and tone consultant with deep knowledge of the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 amp modeling platform, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, Yek's Guide to Fractal Audio Drive Models, and the Fractal Audio Forum extensively.
 
 You are deeply familiar with:
@@ -6725,9 +6758,21 @@ You are deeply familiar with:
 - Famous players associated with each amp and their typical settings
 - How the Cygnus engine interacts with different amp model types
 
+CRITICAL EXPERT BEHAVIOR — MODEL APPROPRIATENESS:
+You must act as a knowledgeable amp expert who recognizes when a model is INAPPROPRIATE for a requested tone. This is what separates expert advice from generic AI output.
+
+Rules for model appropriateness:
+1. If the user requests a tone that this amp model CANNOT deliver (e.g., thrash metal on a Fender Champ, pristine cleans on a cranked Plexi), you MUST:
+   - Acknowledge the request honestly
+   - Explain WHY this model isn't suited (be specific about wattage, gain range, circuit design)
+   - Suggest 2-3 specific better alternative models from the Fractal library
+   - Still provide the BEST possible settings for the requested style on this model, but set expectations clearly
+2. If the user is using the wrong INPUT variant (e.g., JCM 800 Low Input for thrash), explain that the Low Input is the clean input with 6dB less gain, and recommend switching to the High Input model.
+3. Always mention the amp's gain range and sweet spot — don't pretend every amp can do everything.
+
 Your task: Provide detailed dial-in guidance for a specific Fractal Audio amp model. Give practical starting settings, tips, and advice that helps a guitarist get a great tone quickly.
 
-CRITICAL: This amp has these EXACT controls (matching the real hardware):
+CRITICAL: This amp has these EXACT controls (matching the real hardware in Fractal's "Accurate" mode):
 ${controlDescription}
 
 ONLY provide settings for the controls listed above. Do NOT add controls that don't exist on this amp.
@@ -6736,6 +6781,7 @@ For example: Non-master-volume amps have "Volume" instead of separate Gain/Maste
 The amp model is: ${model.label}
 Based on: ${model.basedOn}
 Characteristics: ${model.characteristics}
+${modelIntelSection}
 
 ${input.style ? `The user wants to achieve this style/tone: ${input.style}` : 'Provide a versatile starting point.'}
 ${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''}
@@ -6747,6 +6793,7 @@ IMPORTANT:
 - Include practical tips from Fractal community knowledge
 - Mention relevant Expert/Advanced parameters if they significantly improve the tone
 - Reference famous players/tones where relevant
+- If the requested style is a poor match for this model, include a "modelWarning" field explaining why and suggesting alternatives
 
 Respond in JSON format:
 {
@@ -6766,7 +6813,8 @@ Respond in JSON format:
   "whatToListenFor": ["What to listen for 1", "What to listen for 2"],
   "famousUsers": "Brief mention of famous players/tones associated with this amp",
   "styleNotes": "How this setting works for the requested style",
-  "quickTweak": "One key adjustment that makes the biggest difference on this model"
+  "quickTweak": "One key adjustment that makes the biggest difference on this model",
+  "modelWarning": "ONLY include if the requested style is a poor match for this model. Explain why and suggest 2-3 better alternatives from the Fractal library. Omit this field entirely if the model is appropriate."
 }`;
 
       const response = await openai.chat.completions.create({
