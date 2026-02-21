@@ -6569,6 +6569,20 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       const modContext = knownMod ? formatKnownModContext(knownMod) : '';
       const modLabel = knownMod ? knownMod.label : (input.modLabel || 'Custom Modification');
 
+      let controlLayoutContext = '';
+      if (input.category === 'amp' && model) {
+        const layout = getControlLayout(input.baseModelId, FRACTAL_AMP_MODELS);
+        const knobNames = layout.knobs.map(k => k.label).join(', ');
+        const switchNames = layout.switches.length > 0 ? layout.switches.map(s => s.label).join(', ') : 'None';
+        const hasMasterVolume = layout.knobs.some(k => k.id === 'master' || k.id === 'mv' || k.label.toLowerCase().includes('master'));
+        controlLayoutContext = `\nACTUAL CONTROLS ON THIS AMP MODEL (Fractal "Accurate" mode):
+Knobs: ${knobNames}
+Switches: ${switchNames}
+Has Master Volume: ${hasMasterVolume ? 'YES' : 'NO — this is a non-master-volume amp. Do NOT reference Master Volume in starting points or settings. Volume/Gain IS the only gain control. For cranked tones, the user turns up Volume.'}
+${layout.graphicEQ ? 'Has Graphic EQ: YES' : ''}
+CRITICAL: Only reference controls that actually exist on this amp. Do NOT suggest settings for controls the amp does not have. If the amp has no Master Volume, do not mention Master Volume settings in your startingPoint or anywhere else.`;
+      }
+
       const systemPrompt = `You are an expert amp tech and guitar electronics engineer with deep knowledge of both real amp/pedal circuits AND the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 parameter system, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, and the Fractal Audio Forum extensively. You understand how real-world circuit modifications translate to Fractal's digital Expert parameters in the Amp Block and Drive Block.
 
 You are deeply familiar with Fractal Audio's naming conventions (Brit = Marshall, Dizzy = Diezel, Recto = Mesa Rectifier, Euro = Bogner, Class-A = Vox, Citrus = Orange, USA = Mesa Mark, Angle = Engl, etc.) and the specific Expert parameters available in each block.
@@ -6576,6 +6590,7 @@ You are deeply familiar with Fractal Audio's naming conventions (Brit = Marshall
 Your task: Given a base ${input.category === 'amp' ? 'amplifier' : 'drive/fuzz pedal'} model and a modification request, provide specific Fractal Audio Amp Block Expert parameter recommendations that recreate the effect of that real-world circuit modification. Use parameter names exactly as they appear in the Fractal Audio interface.
 
 ${modelContext}
+${controlLayoutContext}
 
 ${modContext}
 
