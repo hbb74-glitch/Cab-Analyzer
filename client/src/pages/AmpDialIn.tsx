@@ -46,6 +46,9 @@ interface AIDialInResult {
   driveSettings?: DialInSettings;
   driveControlLayout?: AmpControlLayout;
   driveInteraction?: string;
+  recommendedDriveId?: string;
+  recommendedDriveLabel?: string;
+  recommendedDriveReason?: string;
   expertTips: { parameter: string; suggestion: string; why: string }[];
   tips: string[];
   whatToListenFor: string[];
@@ -351,12 +354,26 @@ function AIResultDisplay({ result }: { result: AIDialInResult }) {
 
       <PresetDisplay preset={asPreset} controlLayout={result.controlLayout} isAI />
 
+      {result.recommendedDriveId && result.recommendedDriveLabel && result.recommendedDriveReason && (
+        <Card className="border-purple-500/30 bg-purple-500/5" data-testid="card-ai-drive-recommendation">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-purple-400 mb-1" data-testid="text-recommended-drive-label">AI Recommends: {result.recommendedDriveLabel}</p>
+                <p className="text-sm text-muted-foreground" data-testid="text-recommended-drive-reason">{result.recommendedDriveReason}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {result.driveSettings && result.driveControlLayout && (
         <Card className="border-green-500/20" data-testid="card-ai-drive-settings">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2" data-testid="text-ai-drive-title">
               <KnobIcon className="w-4 h-4 text-green-400" />
-              Drive Pedal Settings
+              {result.recommendedDriveLabel ? `${result.recommendedDriveLabel} Settings` : 'Drive Pedal Settings'}
               <Badge variant="outline" className="text-xs gap-1 border-green-500/30 text-green-400">
                 <Sparkles className="w-3 h-3" />
                 AI

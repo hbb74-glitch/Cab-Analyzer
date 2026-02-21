@@ -6697,9 +6697,10 @@ Respond in JSON format:
         return res.status(400).json({ message: "Unknown amp model" });
       }
 
-      const driveModel = input.driveId ? FRACTAL_DRIVE_MODELS.find(m => m.id === input.driveId) : null;
-      const driveLayout = input.driveId ? getDriveControlLayout(input.driveId) : null;
-      const driveIntel = input.driveId ? getDriveIntelligence(input.driveId) : null;
+      let driveModel = input.driveId ? FRACTAL_DRIVE_MODELS.find(m => m.id === input.driveId) : null;
+      let driveLayout = input.driveId ? getDriveControlLayout(input.driveId) : null;
+      let driveIntel = input.driveId ? getDriveIntelligence(input.driveId) : null;
+      const userSelectedDrive = !!input.driveId;
 
       const controlLayout = getControlLayout(input.modelId, FRACTAL_AMP_MODELS);
       const modelIntel = getModelIntelligence(input.modelId);
@@ -6793,6 +6794,56 @@ Respond in JSON format:
         driveSection = driveParts.join('\n');
       }
 
+      let driveAutoRecommendSection = '';
+      if (!userSelectedDrive && input.style) {
+        const driveList = FRACTAL_DRIVE_MODELS.map(d => `${d.id}: ${d.label} (${d.basedOn})`).join('\n');
+        driveAutoRecommendSection = `
+
+DRIVE PEDAL AUTO-RECOMMENDATION:
+The user has NOT selected a drive pedal, but their tone request may clearly call for one. You are an expert who knows which artists use which pedals. If the requested tone/style strongly implies a specific drive pedal, you MUST recommend one and provide full settings for it.
+
+ARTIST → DRIVE PEDAL KNOWLEDGE BASE:
+- J Mascis / Dinosaur Jr → PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head). Big Muff Ram's Head into clean Fender. Sustain high, Tone 4-6.
+- Billy Corgan / Smashing Pumpkins → PI FUZZ (pi-fuzz) or PI FUZZ - RAM'S HEAD (pi-fuzz-rams-head). Big Muff into clean amp, layered.
+- David Gilmour / Pink Floyd → PI FUZZ - TRIANGLE (pi-fuzz-triangle) for smooth leads, FACE FUZZ (face-fuzz) for aggressive parts. Also uses RAM'S HEAD live.
+- Dan Auerbach / Black Keys → PI FUZZ - RUSSIAN (pi-fuzz-russian). Russian Big Muff for thick, dark fuzz.
+- Jimi Hendrix → FACE FUZZ (face-fuzz) + OCTAVE DISTORTION (octave-dist). Fuzz Face into cranked Marshall. Also used wah before fuzz.
+- Eric Johnson → T808 OD (t808-od). TS808 as clean boost into slightly overdriven amp. Drive low, Level high.
+- Stevie Ray Vaughan → T808 OD (t808-od). TS808 for lead boost. Also used FACE FUZZ (face-fuzz) for heavy blues.
+- John Mayer → KLONE CHIRON (klone-chiron) for always-on sweetener, T808 OD (t808-od) for lead boost.
+- Brian May / Queen → TREB BOOST (treble-boost) into cranked Vox AC30. The essential Brian May tone.
+- Tony Iommi / Black Sabbath → TREB BOOST (treble-boost) into cranked Laney. Also PLUS DISTORTION (plus-dist) for later tones.
+- Kurt Cobain / Nirvana → DS1 DISTORTION (ds1-distortion). Boss DS-1 into clean amp. Also used SUPER OD (super-od).
+- The Edge / U2 → FET PREAMP (fet-preamp) or SDD PREAMP (sdd-preamp) for clean shimmer tone.
+- Jeff Beck → COLORTONE BOOSTER (colortone-booster). Power Boost for aggressive leads. Also used FACE FUZZ (face-fuzz) early on.
+- Misha Mansoor / Periphery / Djent → HORIZON PRECISION DRIVE (horizon-precision). THE djent tightening pedal.
+- Josh Homme / QOTSA → COLORTONE OD (colortone-od) or COMPULSION DIST HP (compulsion-hp). Crunchy, compressed.
+- Tom Morello / RATM → COMPULSION DIST HP (compulsion-hp) for heavy tones. OCD/Whammy combo.
+- Radiohead / Thom Yorke → RAT DISTORTION (rat-dist). RAT for gritty alt-rock distortion.
+- Keith Richards / Rolling Stones → MASTER FUZZ (master-fuzz) for Satisfaction. Or just amp cranked.
+- Randy Rhoads → PLUS DISTORTION (plus-dist). MXR Distortion+ into cranked Marshall.
+- Eddie Van Halen → No pedal needed (amp gain only) or COMPULSION DIST HP (compulsion-hp) for modern EVH sound.
+- Gary Moore → RAT DISTORTION (rat-dist) or BLUES OD (blues-od) for blues era. Direct into cranked Marshall for rock.
+- Robben Ford / Larry Carlton → ZENITH DRIVE (zenith-drive). Dumble-inspired overdrive for fusion/blues.
+- Nashville / Country → NOBELLIUM OVD-1 (nobellium-ovd1) or KLONE CHIRON (klone-chiron). Subtle, transparent.
+- Modern Metal / Metalcore → T808 OD (t808-od) or HORIZON PRECISION DRIVE (horizon-precision) as tight boost before high-gain amp.
+- Classic Rock (generic) → KLONE CHIRON (klone-chiron) or COMPULSION DIST HP (compulsion-hp). Depends on gain level needed.
+- Blues (generic) → KLONE CHIRON (klone-chiron) or T808 OD (t808-od) or BLUES OD (blues-od).
+- Shoegaze / My Bloody Valentine → RAT DISTORTION (rat-dist) or PI FUZZ (pi-fuzz). Kevin Shields used multiple distortion/fuzz sources.
+
+AVAILABLE DRIVE MODELS (use these exact IDs):
+${driveList}
+
+When recommending a drive, include these fields in your JSON response:
+- "recommendedDriveId": the exact drive model ID from the list above
+- "recommendedDriveLabel": the display name of the drive
+- "recommendedDriveReason": why this drive is essential for the requested tone (1-2 sentences referencing the artist/style)
+- "driveSettings": full settings object for the recommended drive's controls
+- "driveInteraction": how the drive and amp interact together
+
+If the tone request does NOT require a drive pedal (e.g., "clean jazz" on a Twin Reverb), do NOT recommend one — just provide amp settings only.`;
+      }
+
       const systemPrompt = `You are an expert guitar amp tech and tone consultant with deep knowledge of the Fractal Audio Axe-FX III / FM9 / FM3 / AM4 amp modeling platform, including the Cygnus amp modeling engine. You have studied the Fractal Audio Wiki (wiki.fractalaudio.com), Yek's Guide to Fractal Audio Amp Models, Yek's Guide to Fractal Audio Drive Models, and the Fractal Audio Forum extensively.
 
 You are deeply familiar with:
@@ -6835,6 +6886,7 @@ Based on: ${model.basedOn}
 Characteristics: ${model.characteristics}
 ${modelIntelSection}
 ${driveSection}
+${driveAutoRecommendSection}
 
 ${input.style ? `The user wants to achieve this style/tone: ${input.style}` : 'Provide a versatile starting point.'}
 ${input.additionalNotes ? `Additional user notes: ${input.additionalNotes}` : ''}
@@ -6879,7 +6931,10 @@ Respond in JSON format:
   "famousUsers": "Brief mention of famous players/tones associated with this amp${driveModel ? ' and drive combo' : ''}",
   "styleNotes": "How this setting works for the requested style",
   "quickTweak": "One key adjustment that makes the biggest difference on this model",
-  "modelWarning": "Include ONLY when the style is unconventional for this amp. Frame it as helpful context: acknowledge the unconventional choice, explain what makes this amp's voicing different for that style, describe the specific adjustments you're making to compensate, reference any players who've used similar amps creatively, and mention 1-2 conventional alternatives in passing. For true physical limitations (e.g., 5W amp for metal), be honest about the ceiling. Omit this field entirely if the model is a natural fit."
+  "modelWarning": "Include ONLY when the style is unconventional for this amp. Frame it as helpful context: acknowledge the unconventional choice, explain what makes this amp's voicing different for that style, describe the specific adjustments you're making to compensate, reference any players who've used similar amps creatively, and mention 1-2 conventional alternatives in passing. For true physical limitations (e.g., 5W amp for metal), be honest about the ceiling. Omit this field entirely if the model is a natural fit."${!userSelectedDrive && input.style ? `,
+  "recommendedDriveId": "If you are recommending a drive pedal, put the exact model ID here (e.g., pi-fuzz-rams-head). Omit if no drive needed.",
+  "recommendedDriveLabel": "The display name of the recommended drive (e.g., PI FUZZ - RAM'S HEAD). Omit if no drive needed.",
+  "recommendedDriveReason": "1-2 sentences explaining why this drive is essential for the requested tone, referencing the artist/style. Omit if no drive needed."` : ''}
 }`;
 
       const response = await openai.chat.completions.create({
@@ -6896,6 +6951,13 @@ Respond in JSON format:
       result.controlLayout = controlLayout;
       if (driveLayout) {
         result.driveControlLayout = driveLayout;
+      }
+      if (!userSelectedDrive && result.recommendedDriveId) {
+        const recDrive = FRACTAL_DRIVE_MODELS.find(m => m.id === result.recommendedDriveId);
+        if (recDrive) {
+          result.driveControlLayout = getDriveControlLayout(result.recommendedDriveId);
+          result.recommendedDriveLabel = recDrive.label;
+        }
       }
       res.json(result);
     } catch (err) {
