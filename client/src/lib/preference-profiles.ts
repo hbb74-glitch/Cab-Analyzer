@@ -1181,7 +1181,7 @@ type ComboWithMeta = SuggestedPairing & {
 function detectPlateauWinners(
   combos: ComboWithMeta[],
   eloRatings: Record<string, EloEntry> | undefined,
-  plateauThreshold = 15,
+  plateauThreshold = 30,
   minRating = ELO_BASE_RATING + 10
 ): ComboWithMeta[] {
   if (!eloRatings) return [];
@@ -1213,7 +1213,7 @@ function detectPlateauWinners(
     return r >= maxR - plateauThreshold;
   });
 
-  return topTier.length >= 3 ? topTier : [];
+  return topTier.length >= 2 ? topTier : [];
 }
 
 function swissPairScore(
@@ -1573,9 +1573,9 @@ export function pickTasteCheckCandidates(
     }
   }
 
-  const settledLoserThreshold = ELO_BASE_RATING - 25;
-  const settledUncertaintyMax = 0.65;
-  const settledMinMatches = 2;
+  const settledLoserThreshold = ELO_BASE_RATING - 10;
+  const settledUncertaintyMax = 0.75;
+  const settledMinMatches = 1;
   const settledBefore = allCombos.length;
 
   const settledLosers: ComboWithMeta[] = [];
@@ -1666,7 +1666,7 @@ export function pickTasteCheckCandidates(
     && settledWinners.length >= 2
     && !isCalibrationRound
     && totalRounds > 1
-    && sessionRoundIndex % 2 === 1;
+    && sessionRoundIndex % 2 === 0;
 
   if (tasteSignal || eloRatings) {
     const hasElo = activeEloRatings && Object.keys(activeEloRatings).length > 0;
