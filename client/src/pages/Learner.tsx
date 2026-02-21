@@ -837,7 +837,6 @@ export default function Learner() {
         fmt((bp.highMid ?? 0) * scale, 1),
         fmt((bp.presence ?? 0) * scale, 1),
         fmt((bp.air ?? 0) * scale, 2),
-        inferFizzLabel(tf),
         "",
       ].join("\t");
     });
@@ -919,7 +918,6 @@ export default function Learner() {
       spectralTilt: norm.spectralTiltDbPerOct,
       rolloffFreq: norm.rolloffFreq,
       smoothScore: norm.smoothScore,
-      fizzEnergy: 0,
     };
     return computeTonalFeatures(featureSource);
   }, []);
@@ -939,11 +937,6 @@ export default function Learner() {
       const results: AnalyzedIR[] = analyzed.map(({ filename, metrics }) => {
         const norm = normMap.get(filename);
         const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
-        if (filename.includes("R121_Cap_6in")) {
-          const clientFeatures = computeTonalFeatures(metrics);
-          console.log("[Learner DEBUG] R121_Cap_6in server-norm:", !!norm, "fizzEnergy:", features.fizzEnergy, "bandsPercent.mid:", features.bandsPercent.mid, "bandsPercent.fizz:", features.bandsPercent.fizz);
-          console.log("[Learner DEBUG] R121_Cap_6in client-only fizzEnergy:", clientFeatures.fizzEnergy, "bandsPercent.mid:", clientFeatures.bandsPercent.mid, "bandsPercent.fizz:", clientFeatures.bandsPercent.fizz);
-        }
         return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
       });
       setAllIRs(results);
