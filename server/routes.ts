@@ -2110,25 +2110,25 @@ function buildTonalSummary(
   }
 
   if (Object.keys(perProfileAdj).length > 0) {
-    const featAdj = perProfileAdj["Presence"];
-    const bodyAdj = perProfileAdj["Warmth"];
-    if (featAdj && bodyAdj) {
-      const featPres = featAdj.presence.shift;
-      const bodyPres = bodyAdj.presence.shift;
-      const featMid = featAdj.mid.shift;
-      const bodyMid = bodyAdj.mid.shift;
-      if (Math.abs(featPres - bodyPres) >= 1.5 || Math.abs(featMid - bodyMid) >= 1.5) {
+    const cutAdj = perProfileAdj["Presence"];
+    const warmAdj = perProfileAdj["Warmth"];
+    if (cutAdj && warmAdj) {
+      const cutPres = cutAdj.presence.shift;
+      const warmPres = warmAdj.presence.shift;
+      const cutMid = cutAdj.mid.shift;
+      const warmMid = warmAdj.mid.shift;
+      if (Math.abs(cutPres - warmPres) >= 1.5 || Math.abs(cutMid - warmMid) >= 1.5) {
         lines.push("");
-        lines.push("**Profile-specific tastes:**");
-        if (Math.abs(featPres - bodyPres) >= 1.5) {
-          lines.push(featPres > bodyPres
-            ? `For Featured (cut/bite) IRs you want more brightness than for Body (foundation) IRs.`
-            : `For Body IRs you actually prefer more top-end than for Featured IRs -- unusual but noted.`);
+        lines.push("**Role-specific tastes:**");
+        if (Math.abs(cutPres - warmPres) >= 1.5) {
+          lines.push(cutPres > warmPres
+            ? `For cut/bite roles you want more brightness than for warm foundation roles.`
+            : `For warm foundation roles you actually prefer more top-end than for cut/bite roles -- unusual but noted.`);
         }
-        if (Math.abs(featMid - bodyMid) >= 1.5) {
-          lines.push(featMid > bodyMid
-            ? `You like more mid density in your Featured IRs than in Body IRs.`
-            : `You prefer leaner mids in Featured IRs and fuller mids in Body IRs.`);
+        if (Math.abs(cutMid - warmMid) >= 1.5) {
+          lines.push(cutMid > warmMid
+            ? `You like more mid density in cut/bite roles than in warm foundation roles.`
+            : `You prefer leaner mids in cut/bite roles and fuller mids in warm foundation roles.`);
         }
       }
     }
