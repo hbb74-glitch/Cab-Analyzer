@@ -1169,9 +1169,10 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
         tips: [
           "The Top Boost channel has Bass and Treble EQ — this is 'the AC30 sound'",
           "There is no Mid control — the midrange is fixed and prominent",
-          "The Cut control rolls off highs at the power amp — turn it UP to darken (counterintuitive!)",
+          "In Fractal, the Cut maps to the Presence knob — it acts as a Hi-Cut when Damping is 0 (default for AC30)",
+          "Cut/Presence below noon = cuts highs (authentic AC30 behavior). Above noon = boosts highs (Fractal bonus)",
+          "Cut at 3 (below noon) = bright, chimey tone. Increase to 5-6 to darken when cranked",
           "No master volume — Volume IS your gain. Crank it for breakup",
-          "The Beatles, Brian May, The Edge, Radiohead — this amp is everywhere",
           "Supply Sag is critical for the AC30 feel — increase for more bloom and sag",
           "EL84 tubes saturate differently from 6L6/EL34 — more compression, more chime"
         ],
@@ -1184,12 +1185,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "vox-crunch",
         style: "British Crunch",
-        settings: { volume: 7, bass: 4, treble: 5, cut: 4 },
+        settings: { volume: 7, bass: 4, treble: 5, cut: 5 },
         tips: [
           "Crank the volume for AC30 crunch — power amp saturation is the magic",
-          "Use the Cut control to tame harsh treble at higher volumes",
+          "Increase Cut to 5-6 when cranked — tames the harsh highs that come with power amp breakup",
           "The amp sags beautifully when pushed — Supply Sag parameter is key in Fractal",
           "Brian May's tone: AC30 cranked with a treble booster (Dallas Rangemaster) in front",
+          "Depth does nothing on AC30 models (Damping=0 disables it) — leave it alone",
           "Pair with a Vox 2x12 Alnico Blue speaker IR for the authentic experience"
         ],
         whatToListenFor: [
@@ -1216,7 +1218,8 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
           "Only has a single Tone control — simpler but effective",
           "Great for blues and jazz — less chimey, more round",
           "The EF86 models have a pentode preamp — more gain and a unique character",
-          "Cut control still works to tame brightness at the power amp stage"
+          "Cut maps to Presence in Fractal — below noon darkens, above noon brightens",
+          "Cut at 3 keeps the sparkle; raise to 5+ for a darker, jazzier tone"
         ],
         whatToListenFor: [
           "Warmer, darker tone compared to the Top Boost channel",
@@ -1850,51 +1853,231 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   },
 
   {
-    familyId: "mesa-mark",
-    familyName: "Mesa/Boogie Mark Series",
-    modelPatterns: ["usa-mk", "usa-lead", "usa-pre", "usa-jp"],
+    familyId: "mesa-mark-iic",
+    familyName: "Mesa/Boogie Mark IIC+",
+    modelPatterns: ["usa-iic", "usa-jp"],
     controlLayout: MESA_MARK_LAYOUT,
     presets: [
       {
-        id: "mark-rhythm",
-        style: "Mark IIC+ Rhythm",
+        id: "iic-rhythm",
+        style: "IIC+ Thrash/Prog Rhythm",
         settings: {
-          gain: 6, bass: 3, mid: 4, treble: 7, master: 7, presence: 5, bright: false,
-          eq80: 4, eq240: 3, eq750: 2, eq2200: 7, eq6600: 6
+          gain: 7, bass: 1, mid: 4, treble: 7, master: 5, presence: 4, bright: false,
+          eq80: 8, eq240: 6, eq750: 2, eq2200: 6, eq6600: 7
         },
         tips: [
-          "The Graphic EQ is CRITICAL on Mark amps — it reshapes the tone dramatically",
-          "The classic V-curve: 80Hz up, 240Hz down, 750Hz down, 2.2kHz up, 6.6kHz up",
-          "Without the GEQ, Mark amps sound thin and buzzy — the GEQ IS the tone",
-          "The Mark IIC+ is the Metallica Master of Puppets / Dream Theater standard",
-          "Keep bass low in the main EQ — the GEQ handles the low-end shaping",
-          "The JP-2C models are John Petrucci's signature — refined IIC+ with more features"
+          "The Graphic EQ is ESSENTIAL — without it the Mark IIC+ sounds thin and buzzy",
+          "Classic V-curve: 80Hz max boost, 750Hz deep scoop, 6600Hz boost — this IS the tone",
+          "Bass at 0-2 in main EQ — the GEQ 80Hz slider adds back the RIGHT bass frequencies",
+          "Treble acts as a secondary gain control — higher treble = more cut and aggression",
+          "The Mark IIC+ is Metallica Master of Puppets / Dream Theater — THE prog/thrash standard",
+          "Pull Treble Shift (Fat switch) for thicker tone — Mesa Lead 2 mode had this engaged by default",
+          "Master at 5 gives good power tube compression and midrange — go higher for more saturation"
         ],
         whatToListenFor: [
-          "Tight, focused distortion with cutting treble and controlled bass",
-          "Extreme clarity and note definition even at high gain"
+          "Laser-focused, cutting high-gain with extreme clarity and note definition",
+          "Tight, defined palm mutes even during fast alternate picking"
         ],
         source: "Yek's Guide / Fractal Wiki / Fractal Forum"
       },
       {
-        id: "mark-lead",
-        style: "Singing Lead",
+        id: "iic-petrucci",
+        style: "Petrucci Style",
         settings: {
-          gain: 7, bass: 3, mid: 5, treble: 6, master: 8, presence: 4, bright: false,
-          eq80: 5, eq240: 4, eq750: 5, eq2200: 6, eq6600: 5
+          gain: 7, bass: 2, mid: 5, treble: 7, master: 5, presence: 4, bright: false,
+          eq80: 6, eq240: 6, eq750: 3, eq2200: 4, eq6600: 5
         },
         tips: [
-          "For leads, flatten the V-curve slightly — more mids help leads cut through",
-          "Push the master higher for more power tube saturation and sustain",
-          "The Mark IIC+ lead channel is one of the most sought-after tones ever",
-          "Lower presence helps smooth out the top for liquid leads",
-          "The Shred switch on JP-2C models adds even more gain and compression"
+          "John Petrucci's approach: less extreme V-curve than classic thrash",
+          "GEQ nearly flat on upper bands — Petrucci relies more on the preamp voicing",
+          "750Hz still scooped but less aggressively — keeps more body for complex chords",
+          "JP-2C models are his signature — refined IIC+ with Shred switch for extra gain/compression",
+          "Try Master at 5 — Petrucci uses moderate MV for controlled power amp saturation"
         ],
         whatToListenFor: [
-          "Liquid, singing sustain with a smooth top end",
-          "Notes that bloom and sustain naturally without harsh fizz"
+          "Articulate, detailed high-gain with excellent chord clarity",
+          "Complex voicings stay defined — each note in a chord is audible"
+        ],
+        source: "Fractal Forum / Yek's Guide / Petrucci settings"
+      },
+      {
+        id: "iic-lead",
+        style: "Singing Lead",
+        settings: {
+          gain: 7, bass: 2, mid: 5, treble: 6, master: 7, presence: 3, bright: false,
+          eq80: 5, eq240: 5, eq750: 5, eq2200: 6, eq6600: 5
+        },
+        tips: [
+          "For leads, FLATTEN the V-curve — more mids help you cut through the mix",
+          "Push master higher (7-8) for more power tube saturation and singing sustain",
+          "Lower presence (3-4) smooths the top for liquid, vocal-like leads",
+          "The Mark IIC+ lead tone is legendary — one of the most sought-after sounds ever",
+          "Shred switch on JP-2C adds even more gain and compression for effortless sustain"
+        ],
+        whatToListenFor: [
+          "Liquid, singing sustain with a smooth, musical top end",
+          "Notes that bloom naturally without harsh fizz — endless sustain"
         ],
         source: "Yek's Guide / Fractal Forum"
+      }
+    ]
+  },
+
+  {
+    familyId: "mesa-mark-iv",
+    familyName: "Mesa/Boogie Mark IV",
+    modelPatterns: ["usa-lead", "usa-rhythm", "usa-clean", "usa-pre-lead", "usa-pre-rhythm"],
+    controlLayout: MESA_MARK_LAYOUT,
+    presets: [
+      {
+        id: "mark-iv-rhythm",
+        style: "Mark IV Lead Channel Rhythm",
+        settings: {
+          gain: 7, bass: 2, mid: 5, treble: 7, master: 4, presence: 4, bright: true,
+          eq80: 7, eq240: 5, eq750: 3, eq2200: 6, eq6600: 6
+        },
+        tips: [
+          "The Mark IV is more versatile than the IIC+ — three channels with more EQ range",
+          "Bass at 0-2 is standard — the GEQ 80Hz slider handles low-end shaping",
+          "Treble high (6.5-8) acts as a secondary gain/aggression control on all Mark amps",
+          "Bright switch ON for lead channel rhythm — adds definition and cut",
+          "The Mark IV's tone controls are PRE-gain — they shape feel and response, not final tone",
+          "GEQ moderate V-curve: less scooped than IIC+ for better mix presence",
+          "Master moderate (3-4) — higher MV adds more midrange compression and softer highs"
+        ],
+        whatToListenFor: [
+          "Tight, aggressive rhythm tone with more midrange body than the IIC+",
+          "Excellent pick dynamics — the Mark IV responds to every nuance"
+        ],
+        source: "Yek's Guide / Fractal Wiki / Fractal Forum"
+      },
+      {
+        id: "mark-iv-lead",
+        style: "Mark IV Smooth Lead",
+        settings: {
+          gain: 7, bass: 2, mid: 6, treble: 7, master: 5, presence: 3, bright: false,
+          eq80: 6, eq240: 5, eq750: 4, eq2200: 6, eq6600: 5
+        },
+        tips: [
+          "For leads, flatten the V-curve — more 750Hz keeps body and sustain",
+          "Bright switch OFF for leads — smoother top end, less fizz",
+          "Push master to 5 for more power tube saturation and singing quality",
+          "Lower presence (3) smooths out the top for effortless legato",
+          "The Mark IV lead channel is warmer and more forgiving than the IIC+"
+        ],
+        whatToListenFor: [
+          "Warm, sustaining lead tone with musical compression",
+          "Smooth note-to-note transitions without harshness"
+        ],
+        source: "Yek's Guide / Fractal Forum"
+      },
+      {
+        id: "mark-iv-clean",
+        style: "Mark IV Clean",
+        settings: {
+          gain: 3, bass: 3, mid: 6, treble: 6, master: 4, presence: 5, bright: true,
+          eq80: 5, eq240: 5, eq750: 5, eq2200: 5, eq6600: 5
+        },
+        tips: [
+          "The Mark IV clean channel is rich and full — better than most dedicated clean amps",
+          "GEQ flat for clean — let the natural voicing come through",
+          "Bright switch ON adds sparkle and shimmer to the clean tone",
+          "Great for jazz, worship, and clean studio work",
+          "The clean channel responds beautifully to dynamics — quiet picking stays crystal clear"
+        ],
+        whatToListenFor: [
+          "Full, rich clean tone with excellent depth and dimension",
+          "Sparkly highs with warm lows — the complete clean package"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
+      }
+    ]
+  },
+
+  {
+    familyId: "mesa-mark-v",
+    familyName: "Mesa/Boogie Mark V",
+    modelPatterns: ["usa-mk-v"],
+    controlLayout: MESA_MARK_LAYOUT,
+    presets: [
+      {
+        id: "mark-v-iic-mode",
+        style: "Mark V IIC+ Mode",
+        settings: {
+          gain: 7, bass: 2, mid: 3, treble: 8, master: 7, presence: 5, bright: false,
+          eq80: 7, eq240: 3, eq750: 2, eq2200: 8, eq6600: 7
+        },
+        tips: [
+          "Red Channel IIC+ mode replicates the legendary Mark IIC+ circuit",
+          "Aggressive V-curve GEQ: deep 750Hz scoop with boosted extremes — this is the classic sound",
+          "Bass at 1-2, Treble at 7-8 — low bass in main EQ, let the GEQ shape the bottom",
+          "Dream Theater, Metallica — this mode captures the classic IIC+ character",
+          "The Mark V IIC+ mode captures the classic IIC+ circuit topology"
+        ],
+        whatToListenFor: [
+          "Laser-focused, cutting high-gain with the IIC+ signature",
+          "Detailed note articulation even during fast, complex passages"
+        ],
+        source: "Yek's Guide / Fractal Wiki / Fractal Forum"
+      },
+      {
+        id: "mark-v-iv-mode",
+        style: "Mark V Mark IV Mode",
+        settings: {
+          gain: 6, bass: 2, mid: 5, treble: 7, master: 5, presence: 4, bright: true,
+          eq80: 6, eq240: 5, eq750: 3, eq2200: 6, eq6600: 6
+        },
+        tips: [
+          "Mark IV mode has tighter, more modern voicing than the IIC+ mode",
+          "Bright switch ON is standard for Mark IV mode — adds definition",
+          "Moderate V-curve GEQ: less extreme scoop for better mix presence",
+          "More compressed feel than IIC+ — better for tight, chunky rhythm work",
+          "More midrange body makes this better for rhythm work in a band context"
+        ],
+        whatToListenFor: [
+          "Tighter, more modern voicing compared to IIC+ mode",
+          "Better midrange presence for cutting through dense mixes"
+        ],
+        source: "Yek's Guide / Fractal Forum"
+      },
+      {
+        id: "mark-v-extreme",
+        style: "Mark V Extreme Mode",
+        settings: {
+          gain: 8, bass: 1, mid: 4, treble: 8, master: 5, presence: 5, bright: true,
+          eq80: 7, eq240: 7, eq750: 1, eq2200: 7, eq6600: 7
+        },
+        tips: [
+          "Extreme mode is the highest gain Mark V mode — maximum saturation",
+          "The deepest V-curve: 750Hz maxed out in cut, everything else boosted",
+          "Bass at 1 in main EQ is standard — the GEQ provides all the low end",
+          "Bright switch ON with Extreme mode is the Petrucci extreme V approach",
+          "This is modern prog metal territory — extreme gain with extreme clarity"
+        ],
+        whatToListenFor: [
+          "Maximum saturation with the deepest mid scoop",
+          "Extreme gain that somehow stays tight and articulate"
+        ],
+        source: "Fractal Forum / Mesa Boogie Forum / Yek's Guide"
+      },
+      {
+        id: "mark-v-crunch",
+        style: "Mark V Crunch (Green)",
+        settings: {
+          gain: 5, bass: 3, mid: 6, treble: 6, master: 5, presence: 5, bright: false,
+          eq80: 5, eq240: 5, eq750: 4, eq2200: 6, eq6600: 5
+        },
+        tips: [
+          "Green channel crunch mode — excellent for classic rock and blues",
+          "Milder V-curve or nearly flat GEQ — let the preamp voicing shine",
+          "The Mark V's crunch is more versatile than dedicated crunch amps",
+          "Great for vintage rock tones with the Mark series' characteristic clarity"
+        ],
+        whatToListenFor: [
+          "Rich, musical crunch with the Mark series clarity",
+          "Excellent clean-up when rolling back guitar volume"
+        ],
+        source: "Yek's Guide / Fractal Wiki"
       }
     ]
   },
@@ -3351,12 +3534,12 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
       {
         id: "ac30-jangle",
         style: "Chimey Jangle",
-        settings: { volume: 4, bass: 4, treble: 7, cut: 3 },
+        settings: { volume: 4, bass: 4, treble: 5, cut: 3 },
         tips: [
           "The AC30 Top Boost is one of the most iconic amps ever made",
           "NO master volume, NO mid control — this is how the real amp works",
-          "The Cut control is key — turn UP to tame harsh highs",
-          "The Beatles, Brian May, The Edge, Radiohead — this amp is everywhere",
+          "Cut maps to Presence in Fractal — below noon = darken (authentic), above noon = brighten (bonus)",
+          "Treble at 5 (noon) — the AC30 is naturally bright, don't push treble too high",
           "Supply Sag is crucial — increase for more bloom and EL84 compression"
         ],
         whatToListenFor: [
@@ -3368,12 +3551,13 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
       {
         id: "ac30-breakup",
         style: "Cranked AC30",
-        settings: { volume: 7, bass: 4, treble: 6, cut: 5 },
+        settings: { volume: 7, bass: 4, treble: 5, cut: 5 },
         tips: [
           "Cranking the volume is how you get AC30 breakup — no other way",
-          "Turn Cut UP as you increase volume to control harshness",
+          "Increase Cut to 5-6 when cranked — tames harsh highs from power amp breakup",
           "Brian May: AC30 cranked with treble booster in front (Dallas Rangemaster)",
-          "Supply Sag parameter in Fractal is critical for the AC30 feel"
+          "Supply Sag parameter in Fractal is critical for the AC30 feel",
+          "Depth does nothing on AC30 models (Damping=0) — don't bother adjusting it"
         ],
         whatToListenFor: [
           "Aggressive, chimey breakup with musical compression",
@@ -3391,15 +3575,15 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
         id: "mkv-iic-metal",
         style: "IIC+ Metal",
         settings: {
-          gain: 7, bass: 2, mid: 3, treble: 8, master: 7, presence: 5, bright: false,
-          eq80: 6, eq240: 3, eq750: 2, eq2200: 8, eq6600: 7
+          gain: 7, bass: 1, mid: 3, treble: 8, master: 7, presence: 5, bright: false,
+          eq80: 8, eq240: 6, eq750: 2, eq2200: 6, eq6600: 7
         },
         tips: [
-          "The Graphic EQ is ESSENTIAL — without it the tone is thin and buzzy",
-          "Classic V-curve: 80Hz UP, 240Hz DOWN, 750Hz DOWN, 2.2kHz UP, 6.6kHz UP",
-          "The V-curve reshapes the scooped preamp into a tight, focused monster",
+          "The Mark V's Red IIC+ mode replicates the legendary IIC+ circuit",
+          "Bass at 0-1 — the GEQ 80Hz slider (cranked) provides all the low end you need",
+          "Classic V-curve: 80Hz max boost, 750Hz deep scoop, 6600Hz boost — this IS the tone",
           "Dream Theater, Metallica Master of Puppets — THE progressive/thrash tone",
-          "Bass extremely low in main EQ — the GEQ adds back the right bass frequencies"
+          "Treble high (7-8) acts as a secondary gain control on all Mark amps"
         ],
         whatToListenFor: [
           "Laser-focused, cutting high-gain with extreme clarity",
@@ -3411,13 +3595,13 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
         id: "mkv-iic-lead",
         style: "IIC+ Singing Lead",
         settings: {
-          gain: 7, bass: 2, mid: 5, treble: 7, master: 8, presence: 4, bright: false,
-          eq80: 5, eq240: 4, eq750: 5, eq2200: 6, eq6600: 5
+          gain: 7, bass: 2, mid: 5, treble: 7, master: 8, presence: 3, bright: false,
+          eq80: 5, eq240: 5, eq750: 5, eq2200: 6, eq6600: 5
         },
         tips: [
-          "For leads, flatten the V-curve — more mids help you cut through",
-          "Push master higher for power tube saturation and singing sustain",
-          "Lower presence smooths the top for liquid leads",
+          "For leads, FLATTEN the V-curve — more 750Hz keeps body and sustain",
+          "Push master to 7-8 for power tube saturation and singing quality",
+          "Lower presence (3) smooths the top for liquid, vocal-like leads",
           "The Mark IIC+ lead tone is legendary — one of the most musical ever"
         ],
         whatToListenFor: [
@@ -3503,13 +3687,13 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
       {
         id: "ods-boutique-clean",
         style: "Ultimate Clean",
-        settings: { gain: 3, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 5, presence: 5, pab: false },
+        settings: { gain: 4, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 10, presence: 5, pab: false },
         tips: [
           "The Dumble ODS-100 clean is Fender-derived with more body and dimension",
-          "Real Dumbles sell for $50k-$150k — Fractal modeling is the accessible path",
+          "Master at 10 is how Dumbles are meant to be played — the power amp IS the tone",
           "PAB OFF and OD at 0 = pure, rich clean channel",
-          "Robben Ford, Larry Carlton, Carlos Santana — the boutique clean standard",
-          "Every setting at noon is actually a great starting point for the Dumble clean"
+          "Use Input Drive (gain) and guitar volume to control your level, not the master",
+          "Robben Ford, Larry Carlton, Carlos Santana — the boutique clean standard"
         ],
         whatToListenFor: [
           "An almost 3D quality — depth, width, and presence in the clean tone",
@@ -3526,13 +3710,13 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
       {
         id: "slo-lead-liquid",
         style: "Liquid Lead",
-        settings: { gain: 7, bass: 4, mid: 6, treble: 6, master: 7, presence: 5, bright: false, depth: true },
+        settings: { gain: 4, bass: 5, mid: 6, treble: 6, master: 7, presence: 4, bright: false, depth: true },
         tips: [
           "The SLO-100 Lead channel is THE benchmark for smooth, liquid lead tones",
+          "Even on the lead channel, gain 3-5 is plenty — the SLO has massive gain on tap",
           "Depth switch ON adds low-end resonance for thicker, fuller leads",
-          "Push the Master for power tube saturation — this is where the sustain lives",
-          "One of the first modern high-gain amps (1987) — it defined the category",
-          "Presence moderate — the SLO can get harsh if you push treble and presence too high"
+          "Push the Master high (6-7) for power tube saturation — this is where the sustain lives",
+          "Presence at 4 — the SLO can get harsh if presence and treble are both too high"
         ],
         whatToListenFor: [
           "Smooth, liquid sustain that flows effortlessly",
