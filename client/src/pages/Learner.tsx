@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3 } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3, RefreshCw, Clock } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
@@ -376,10 +376,41 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
   );
 }
 
-function TonalInsightsPanel({ learnedProfile, eloRatings }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry> }) {
+function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry> }) {
   const [expanded, setExpanded] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
+  const [recentOnly, setRecentOnly] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
+
+  const recentOptions = [
+    { label: "All time", value: null },
+    { label: "Last 50", value: 50 },
+    { label: "Last 100", value: 100 },
+    { label: "Last 200", value: 200 },
+  ];
+
+  const filteredQueryKey: string[] = recentOnly !== null
+    ? [`/api/preferences/learned?recentOnly=${recentOnly}`]
+    : ["/api/preferences/learned"];
+
+  const { data: filteredProfile, isFetching: isFilteredFetching, refetch: refetchFiltered } = useQuery<LearnedProfileData>({
+    queryKey: filteredQueryKey,
+  });
+
+  const learnedProfile = filteredProfile ?? baseProfile;
+  const isFilterLoading = isFilteredFetching && !filteredProfile;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ predicate: (query) => {
+      const key = query.queryKey[0];
+      return typeof key === "string" && key.startsWith("/api/preferences/learned");
+    }});
+    await refetchFiltered();
+    setIsRefreshing(false);
+    toast({ title: "Summary refreshed", duration: 1500 });
+  };
 
   const correctionMutation = useMutation({
     mutationFn: async (text: string) => {
@@ -389,7 +420,10 @@ function TonalInsightsPanel({ learnedProfile, eloRatings }: { learnedProfile: Le
     onSuccess: (data: { applied: boolean; summary: string }) => {
       toast({ title: "Correction applied", description: data.summary });
       setCorrectionText("");
-      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === "string" && key.startsWith("/api/preferences/learned");
+      }});
     },
     onError: () => {
       toast({ title: "Failed to apply correction", variant: "destructive" });
@@ -430,6 +464,11 @@ function TonalInsightsPanel({ learnedProfile, eloRatings }: { learnedProfile: Le
           <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">
             {learnedProfile.status === "mastered" ? "Mastered" : learnedProfile.status === "confident" ? "Confident" : "Learning"}
           </Badge>
+          {recentOnly && (
+            <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-500/30 no-default-hover-elevate no-default-active-elevate">
+              Last {recentOnly}
+            </Badge>
+          )}
         </div>
         {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
@@ -444,8 +483,50 @@ function TonalInsightsPanel({ learnedProfile, eloRatings }: { learnedProfile: Le
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 space-y-4">
+              <div className="flex items-center gap-2 flex-wrap" data-testid="insights-toolbar">
+                <div className="flex items-center gap-1 rounded-md border border-border/50 bg-card/30 p-0.5">
+                  {recentOptions.map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRecentOnly(opt.value);
+                      }}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[10px] font-medium transition-colors",
+                        (recentOnly === opt.value) ? "bg-purple-500/20 text-purple-300" : "text-muted-foreground hover:text-foreground"
+                      )}
+                      data-testid={`filter-recent-${opt.value ?? "all"}`}
+                    >
+                      {opt.value ? <><Clock className="w-3 h-3 inline mr-1" />{opt.label}</> : opt.label}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs gap-1 text-purple-300 hover:text-purple-200"
+                  onClick={(e) => { e.stopPropagation(); handleRefresh(); }}
+                  disabled={isRefreshing}
+                  data-testid="button-refresh-insights"
+                >
+                  <RefreshCw className={cn("w-3 h-3", isRefreshing && "animate-spin")} />
+                  Refresh
+                </Button>
+                {recentOnly && (learnedProfile as any).totalSignalCount && (
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    Showing {recentOnly} of {(learnedProfile as any).totalSignalCount} total ratings
+                  </span>
+                )}
+              </div>
+
               <div className="rounded-lg bg-card/50 p-3 border border-border/50" data-testid="tonal-summary-text">
-                {renderFormattedSummary(learnedProfile.tonalSummary || "")}
+                {(isFilterLoading || isRefreshing) ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-4 justify-center" data-testid="summary-loading">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {isRefreshing ? "Refreshing..." : "Loading filtered summary..."}
+                  </div>
+                ) : renderFormattedSummary(learnedProfile.tonalSummary || "")}
               </div>
 
               {eloRatings && Object.keys(eloRatings).length > 0 && (() => {
@@ -721,7 +802,10 @@ export default function Learner() {
       await apiRequest("POST", "/api/preferences/signals", { signals });
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === "string" && key.startsWith("/api/preferences/learned");
+      }});
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
       toast({ title: `${variables.length} rating${variables.length !== 1 ? "s" : ""} saved`, duration: 2000 });
     },
@@ -736,7 +820,10 @@ export default function Learner() {
       return res.json();
     },
     onSuccess: (_data, speakerPrefix) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/preferences/learned"] });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === "string" && key.startsWith("/api/preferences/learned");
+      }});
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
       setTasteCheckPassed(false);
       setTotalRoundsCompleted(0);

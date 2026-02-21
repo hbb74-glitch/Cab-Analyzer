@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
 - **Complementary Pairing Suggestions**: Identifies tonally compensating IRs.
 - **Tonal Feedback Tags**: Contextual quick-tag system for pairing ratings, mapping to band-specific nudges for the learning algorithm.
 - **Free-Form Text Feedback**: AI-interpreted text nudges from user comments produce structured 6-band nudges, learn user vocabulary, and are integrated into AI prompts.
-- **Tonal Insights Panel**: Displays a human-readable summary of learned tonal preferences, including likes, avoid zones, gear tendencies, and blend ratio preferences.
+- **Tonal Insights Panel**: Displays a human-readable summary of learned tonal preferences, including likes, avoid zones, gear tendencies, and tonal balance. Features refresh button and "recent only" filter (Last 50/100/200 ratings) to view evolving taste. Ratio reporting suppressed unless sufficient dedicated ratio refinement data exists; falls back to median-based dark/bright tonal balance analysis.
 - **Preference Corrections**: User input to correct learned preferences, immediately steering the learned profile.
 - **Tone Request / Find Me This Tone**: Users describe a desired tone, and the system suggests IR blend combinations using AI, incorporating learned preferences.
 - **Test AI**: Diagnostic tool for users to query the AI about loaded IRs, verifying its tonal understanding.

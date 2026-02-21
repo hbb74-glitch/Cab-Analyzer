@@ -2163,21 +2163,43 @@ function buildTonalSummary(
   }
 
   if (ratioPreference) {
-    lines.push("");
-    const pct = Math.round(ratioPreference.preferredRatio * 100);
-    if (Math.abs(ratioPreference.preferredRatio - 0.5) >= 0.05) {
-      lines.push(`**Blend ratio:** You tend to prefer ${pct}/${100 - pct} base-to-feature mixes${ratioPreference.confidence >= 0.7 ? " (fairly consistent)" : " (still settling)"}.`);
-    } else {
-      lines.push(`**Blend ratio:** You're happy around an even 50/50 mix.`);
-    }
-    if (ratioPreference.perProfile) {
-      const parts: string[] = [];
-      for (const [name, pr] of Object.entries(ratioPreference.perProfile)) {
-        if (Math.abs(pr.preferredRatio - 0.5) >= 0.05) {
-          parts.push(`${name}: ${Math.round(pr.preferredRatio * 100)}/${100 - Math.round(pr.preferredRatio * 100)}`);
+    const dedicatedRatioPicks = allSignals.filter(s => s.action === "ratio_pick");
+    const hasEnoughRatioData = dedicatedRatioPicks.length >= 4;
+
+    if (hasEnoughRatioData) {
+      lines.push("");
+      const pct = Math.round(ratioPreference.preferredRatio * 100);
+      if (Math.abs(ratioPreference.preferredRatio - 0.5) >= 0.05) {
+        lines.push(`**Blend ratio:** You tend to prefer ${pct}/${100 - pct} base-to-feature mixes${ratioPreference.confidence >= 0.7 ? " (fairly consistent)" : " (still settling)"}.`);
+      } else {
+        lines.push(`**Blend ratio:** You're happy around an even 50/50 mix.`);
+      }
+      if (ratioPreference.perProfile) {
+        const parts: string[] = [];
+        for (const [name, pr] of Object.entries(ratioPreference.perProfile)) {
+          if (Math.abs(pr.preferredRatio - 0.5) >= 0.05) {
+            parts.push(`${name}: ${Math.round(pr.preferredRatio * 100)}/${100 - Math.round(pr.preferredRatio * 100)}`);
+          }
+        }
+        if (parts.length > 0) lines.push(`Per-profile: ${parts.join(", ")}.`);
+      }
+    } else if (liked.length >= 5) {
+      const presenceValues = liked.map(s => (s.highMid + s.presence) / 2).sort((a, b) => a - b);
+      const medianPresence = presenceValues[Math.floor(presenceValues.length / 2)];
+      const darkCount = liked.filter(s => (s.highMid + s.presence) / 2 < medianPresence).length;
+      const brightCount = liked.length - darkCount;
+      const skew = Math.abs(darkCount - brightCount) / liked.length;
+      if (skew >= 0.15) {
+        lines.push("");
+        const total = darkCount + brightCount;
+        const darkPct = Math.round((darkCount / total) * 100);
+        const brightPct = 100 - darkPct;
+        if (darkCount > brightCount) {
+          lines.push(`**Tonal balance:** You tend to favor darker, warmer IRs (${darkPct}% dark vs ${brightPct}% bright in your liked blends).`);
+        } else {
+          lines.push(`**Tonal balance:** You tend to favor brighter, more present IRs (${brightPct}% bright vs ${darkPct}% dark in your liked blends).`);
         }
       }
-      if (parts.length > 0) lines.push(`Per-profile: ${parts.join(", ")}.`);
     }
   }
 
@@ -5639,10 +5661,18 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     }
   });
 
-  app.get(api.preferences.learned.path, async (_req, res) => {
+  app.get(api.preferences.learned.path, async (req, res) => {
     try {
-      const signals = await storage.getPreferenceSignals();
+      const allSignals = await storage.getPreferenceSignals();
+      const recentOnly = parseInt(req.query.recentOnly as string);
+      const signals = (!isNaN(recentOnly) && recentOnly > 0)
+        ? allSignals.slice(-recentOnly)
+        : allSignals;
       const learned = await computeLearnedProfile(signals);
+      if (!isNaN(recentOnly) && recentOnly > 0) {
+        (learned as any).recentOnlyCount = recentOnly;
+        (learned as any).totalSignalCount = allSignals.length;
+      }
       res.json(learned);
     } catch (err) {
       console.error('Learned profile error:', err);
