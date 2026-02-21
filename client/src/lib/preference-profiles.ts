@@ -1578,10 +1578,11 @@ export function pickTasteCheckCandidates(
   const settledMinMatches = 1;
   const settledBefore = allCombos.length;
 
+  const rawEloRatings = eloRatings ?? activeEloRatings;
   const settledLosers: ComboWithMeta[] = [];
   const tastePool = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
-    const elo = activeEloRatings?.[ck];
+    const elo = rawEloRatings?.[ck];
     if (elo && elo.rating < settledLoserThreshold && elo.uncertainty < settledUncertaintyMax && elo.matchCount >= settledMinMatches) {
       settledLosers.push(c);
       return false;
@@ -1589,8 +1590,6 @@ export function pickTasteCheckCandidates(
     return true;
   });
   const settledRemoved = settledBefore - tastePool.length;
-
-  const rawEloRatings = eloRatings ?? activeEloRatings;
   const settledWinners = allCombos.filter(c => {
     const ck = [c.baseFilename, c.featureFilename].sort().join("||");
     const raw = rawEloRatings?.[ck];
