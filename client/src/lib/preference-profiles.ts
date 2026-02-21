@@ -1235,10 +1235,24 @@ function swissPairScore(
   return ratingProximity * 0.5 + avgUncertainty * 0.3 + directMatchPenalty;
 }
 
+function extractRecentRefinementMatchups(history?: TasteCheckRoundResult[]): Set<string> {
+  const matchups = new Set<string>();
+  if (!history) return matchups;
+  const recentBinaries = history.filter(h => h.roundType === "binary").slice(-5);
+  for (const h of recentBinaries) {
+    if (h.options.length === 2) {
+      const keys = h.options.map(o => [o.baseFilename, o.featureFilename].sort().join("||")).sort();
+      matchups.add(keys.join("|||"));
+    }
+  }
+  return matchups;
+}
+
 function pickSwissPairs(
   pool: ComboWithMeta[],
   count: number,
-  eloRatings: Record<string, EloEntry> | undefined
+  eloRatings: Record<string, EloEntry> | undefined,
+  recentMatchups?: Set<string>
 ): ComboWithMeta[] {
   if (pool.length <= count || !eloRatings) return pool.slice(0, count);
 
@@ -1260,8 +1274,14 @@ function pickSwissPairs(
         const ckB = [sorted[j].baseFilename, sorted[j].featureFilename].sort().join("||");
         const eloA = eloRatings[ckA];
         const eloB = eloRatings[ckB];
-        const score = swissPairScore(eloA, eloB) +
+        let score = swissPairScore(eloA, eloB) +
           (eloA && eloB ? informationGain(eloA, eloB) : 0.5);
+        if (recentMatchups) {
+          const matchupKey = [ckA, ckB].sort().join("|||");
+          if (recentMatchups.has(matchupKey)) {
+            score -= 0.8;
+          }
+        }
         if (score > bestScore) {
           bestScore = score;
           bestPair = [sorted[i], sorted[j]];
@@ -1318,7 +1338,7 @@ function computeAdaptiveExplorationRate(
   const baseFade = Math.max(0.15, 1 - totalRounds * 0.03);
   const coveragePenalty = coverageRatio > 0.7 ? 0.5 : (coverageRatio > 0.5 ? 0.75 : 1.0);
   const confScale = confidence === "high" ? 0.5 : confidence === "moderate" ? 0.75 : 1.0;
-  return Math.max(0.1, Math.min(1.0, baseFade * coveragePenalty * confScale));
+  return Math.max(0.15, Math.min(1.0, baseFade * coveragePenalty * confScale));
 }
 
 function pickDiverseFromPool(
@@ -1727,7 +1747,8 @@ export function pickTasteCheckCandidates(
 
       let diverse: ComboWithMeta[];
       if (isRefinementRound && plateauWinners.length >= pickCount) {
-        const swissPairs = pickSwissPairs(plateauWinners, pickCount, activeEloRatings);
+        const recentMatchups = extractRecentRefinementMatchups(history);
+        const swissPairs = pickSwissPairs(plateauWinners, pickCount, activeEloRatings, recentMatchups);
         diverse = swissPairs;
         console.log(`[REFINEMENT quad] Swiss-paired ${swissPairs.length} plateau winners for winner-vs-winner round`);
       } else {
@@ -1828,8 +1849,9 @@ export function pickTasteCheckCandidates(
 
     let diverse: ComboWithMeta[];
     if (isRefinementRound && plateauWinners.length >= 2) {
-      diverse = pickSwissPairs(plateauWinners, 2, activeEloRatings);
-      console.log(`[REFINEMENT binary] Swiss-paired ${diverse.length} plateau winners`);
+      const recentMatchups = extractRecentRefinementMatchups(history);
+      diverse = pickSwissPairs(plateauWinners, 2, activeEloRatings, recentMatchups);
+      console.log(`[REFINEMENT binary] Swiss-paired ${diverse.length} plateau winners (${recentMatchups.size} recent matchups penalized)`);
     } else {
       diverse = pickDiverseFromPool(binaryPool, 2, intent, tasteSignal, activeEloRatings, explorationRate);
     }
