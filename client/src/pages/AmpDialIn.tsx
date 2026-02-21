@@ -335,9 +335,9 @@ function AIResultDisplay({ result }: { result: AIDialInResult }) {
         <Card className="border-yellow-500/50 bg-yellow-500/5">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+              <Info className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-yellow-500 mb-1">Model Suitability Warning</p>
+                <p className="text-sm font-medium text-yellow-500 mb-1">Tone Note</p>
                 <p className="text-sm text-muted-foreground whitespace-pre-line">{result.modelWarning}</p>
               </div>
             </div>

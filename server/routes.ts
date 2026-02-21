@@ -6724,8 +6724,8 @@ Respond in JSON format:
           `Gain range: ${modelIntel.gainRange[0]}-${modelIntel.gainRange[1]} (on a 0-10 scale)`,
           `Intended use: ${modelIntel.intendedUse.join(', ')}`,
         ];
-        if (modelIntel.notSuitedFor?.length) {
-          parts.push(`NOT suited for: ${modelIntel.notSuitedFor.join(', ')}`);
+        if (modelIntel.unconventionalFor?.length) {
+          parts.push(`Unconventional for (CAN still work with adjustments): ${modelIntel.unconventionalFor.join(', ')}`);
         }
         if (modelIntel.inputNote) {
           parts.push(`INPUT NOTE: ${modelIntel.inputNote}`);
@@ -6758,17 +6758,23 @@ You are deeply familiar with:
 - Famous players associated with each amp and their typical settings
 - How the Cygnus engine interacts with different amp model types
 
-CRITICAL EXPERT BEHAVIOR — MODEL APPROPRIATENESS:
-You must act as a knowledgeable amp expert who recognizes when a model is INAPPROPRIATE for a requested tone. This is what separates expert advice from generic AI output.
+CRITICAL EXPERT BEHAVIOR — NUANCED MODEL GUIDANCE:
+You must act as a seasoned amp tech and tone consultant — the kind of expert who has spent decades working with real amps and knows them inside out. Your job is NOT to gatekeep — it's to help the user get the best possible tone from whatever amp they've chosen.
 
-Rules for model appropriateness:
-1. If the user requests a tone that this amp model CANNOT deliver (e.g., thrash metal on a Fender Champ, pristine cleans on a cranked Plexi), you MUST:
-   - Acknowledge the request honestly
-   - Explain WHY this model isn't suited (be specific about wattage, gain range, circuit design)
-   - Suggest 2-3 specific better alternative models from the Fractal library
-   - Still provide the BEST possible settings for the requested style on this model, but set expectations clearly
-2. If the user is using the wrong INPUT variant (e.g., JCM 800 Low Input for thrash), explain that the Low Input is the clean input with 6dB less gain, and recommend switching to the High Input model.
-3. Always mention the amp's gain range and sweet spot — don't pretend every amp can do everything.
+Key principles:
+1. EVERY amp can produce SOME version of most styles — the question is how conventional/unconventional that choice is, and what adjustments are needed. A Diezel VH4 CAN do jazz — it just requires different dialing than a Twin Reverb would.
+2. When the style is unconventional for the model:
+   - Acknowledge it's not the typical choice, but show enthusiasm for the creative challenge
+   - Explain what makes this amp's voicing different for that style (circuit design, gain structure, EQ curve)
+   - Provide specific control adjustments to compensate (e.g., "roll Treble and Presence way back to tame the aggressive upper mids")
+   - Reference any players who've done something similar (e.g., Allan Holdsworth used high-gain amps for fusion/jazz cleans)
+   - Mention 1-2 more conventional alternatives in passing, but DON'T lead with "you should use a different amp" — lead with "here's how we make this work"
+3. ONLY flag a true hard limitation when the amp physically cannot produce the tone:
+   - A 5W Fender Champ literally cannot produce tight metal tones — it's a single-ended circuit that will just fart out
+   - A fully cranked non-master-volume Plexi cannot do pristine bedroom cleans — there's no way to reduce the power stage distortion
+   - In these cases, still provide the closest achievable settings, but be honest about the ceiling
+4. If the user is using the wrong INPUT variant (e.g., JCM 800 Low Input for high-gain), explain the difference and suggest the correct variant.
+5. Always reference the amp's natural sweet spot and explain how the requested style deviates from it — this educates the user.
 
 Your task: Provide detailed dial-in guidance for a specific Fractal Audio amp model. Give practical starting settings, tips, and advice that helps a guitarist get a great tone quickly.
 
@@ -6793,7 +6799,7 @@ IMPORTANT:
 - Include practical tips from Fractal community knowledge
 - Mention relevant Expert/Advanced parameters if they significantly improve the tone
 - Reference famous players/tones where relevant
-- If the requested style is a poor match for this model, include a "modelWarning" field explaining why and suggesting alternatives
+- If the requested style is unconventional for this model, include a "modelWarning" field — but frame it as helpful context, not rejection. Lead with how to make it work, then mention alternatives in passing
 
 Respond in JSON format:
 {
@@ -6814,7 +6820,7 @@ Respond in JSON format:
   "famousUsers": "Brief mention of famous players/tones associated with this amp",
   "styleNotes": "How this setting works for the requested style",
   "quickTweak": "One key adjustment that makes the biggest difference on this model",
-  "modelWarning": "ONLY include if the requested style is a poor match for this model. Explain why and suggest 2-3 better alternatives from the Fractal library. Omit this field entirely if the model is appropriate."
+  "modelWarning": "Include ONLY when the style is unconventional for this amp. Frame it as helpful context: acknowledge the unconventional choice, explain what makes this amp's voicing different for that style, describe the specific adjustments you're making to compensate, reference any players who've used similar amps creatively, and mention 1-2 conventional alternatives in passing. For true physical limitations (e.g., 5W amp for metal), be honest about the ceiling. Omit this field entirely if the model is a natural fit."
 }`;
 
       const response = await openai.chat.completions.create({

@@ -3971,7 +3971,7 @@ export interface ModelIntelligence {
   category: "clean" | "crunch" | "high-gain" | "pedal-platform" | "full-range" | "specialty";
   gainRange: [number, number];
   intendedUse: string[];
-  notSuitedFor?: string[];
+  unconventionalFor?: string[];
   inputNote?: string;
   channelNote?: string;
   relatedModels?: string[];
@@ -3987,7 +3987,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "clean",
     gainRange: [0, 3],
     intendedUse: ["recording", "studio", "low-volume practice", "blues at bedroom levels"],
-    notSuitedFor: ["high-gain", "metal", "thrash", "hard rock", "band rehearsal volume"],
+    unconventionalFor: ["high-gain", "metal", "thrash", "hard rock", "band rehearsal volume"],
     warnings: [
       "This is a 5W single-ended amp — it CANNOT do high gain or metal tones no matter what settings you use",
       "If you want high-gain tones, use a Marshall, Mesa, Soldano, Diezel, or 5150-based model instead",
@@ -4001,7 +4001,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "clean",
     gainRange: [0, 5],
     intendedUse: ["studio recording", "blues", "country", "jazz", "worship", "singer-songwriter"],
-    notSuitedFor: ["metal", "thrash", "djent", "extreme high-gain"],
+    unconventionalFor: ["metal", "thrash", "djent", "extreme high-gain"],
     channelNote: "Vibrato channel has reverb and Bright switch. Normal channel is warmer/darker with no reverb.",
     warnings: [
       "22W non-master-volume amp — gains breakup from Volume control only",
@@ -4015,7 +4015,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "pedal-platform",
     gainRange: [0, 3],
     intendedUse: ["pristine cleans", "pedal platform", "country", "jazz", "worship"],
-    notSuitedFor: ["natural overdrive at low volume", "metal", "high-gain"],
+    unconventionalFor: ["natural overdrive at low volume", "metal", "high-gain"],
     warnings: [
       "85W — stays clean at extreme volumes. If you want natural amp breakup, choose a Deluxe Reverb or smaller Fender instead",
       "The Twin is THE pedal platform — it excels when you put drive pedals in front"
@@ -4037,7 +4037,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "clean",
     gainRange: [0, 5],
     intendedUse: ["boutique clean", "blues", "country", "jazz", "studio"],
-    notSuitedFor: ["metal", "high-gain", "aggressive rock"],
+    unconventionalFor: ["metal", "high-gain", "aggressive rock"],
     sweetSpot: "Volume 3-5 for sparkling cleans, push for rich Fender breakup",
     historicalContext: "Fender's modern boutique amp. Combines Twin-like cleans with more complex voicing."
   },
@@ -4054,7 +4054,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 5],
     intendedUse: ["blues", "practice", "small venue", "recording"],
-    notSuitedFor: ["metal", "high-gain", "loud band situations"],
+    unconventionalFor: ["metal", "high-gain", "loud band situations"],
     warnings: ["15W EL84 amp — breaks up early, limited clean headroom"],
     sweetSpot: "Master 4-5, Volume to taste for breakup level",
     historicalContext: "The best-selling tube amp in history. Affordable, simple, sounds great cranked."
@@ -4064,7 +4064,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 6],
     intendedUse: ["blues", "roots", "classic rock", "recording"],
-    notSuitedFor: ["clean headroom", "metal", "high-gain"],
+    unconventionalFor: ["clean headroom", "metal", "high-gain"],
     channelNote: "Jumped models combine both inputs for the classic Neil Young/cranked Tweed sound.",
     warnings: ["The 5E3 Deluxe has almost NO clean headroom — it starts breaking up almost immediately"],
     sweetSpot: "Volume 7-12 for the classic cranked Tweed sound — it's MEANT to be pushed",
@@ -4086,7 +4086,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 7],
     intendedUse: ["classic rock", "blues-rock", "hard rock", "70s rock"],
-    notSuitedFor: ["pristine cleans (too much harmonic content)", "modern metal (not tight enough)"],
+    unconventionalFor: ["pristine cleans (too much harmonic content)", "modern metal (not tight enough)"],
     channelNote: "Jumped models combine Normal (warm) and Treble (bright) channels. Volume I = Normal, Volume II = Treble. Most classic sounds use the Treble input or jumped.",
     warnings: [
       "Non-master-volume amp — gets louder as you add gain. Use Fractal's Level control to compensate.",
@@ -4100,7 +4100,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 5],
     intendedUse: ["blues-rock", "classic rock", "blues", "vintage tones"],
-    notSuitedFor: ["metal", "high-gain", "modern rock"],
+    unconventionalFor: ["metal", "high-gain", "modern rock"],
     warnings: ["Lower gain than JCM 800 or Plexi — more Fender-like character due to shared Bassman heritage"],
     sweetSpot: "Volume 6-8 for warm, bluesy breakup",
     historicalContext: "The FIRST Marshall amp. Based on the Fender Bassman circuit. Eric Clapton Bluesbreakers."
@@ -4170,7 +4170,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 6],
     intendedUse: ["jangle pop", "indie", "classic rock", "blues", "worship", "British Invasion"],
-    notSuitedFor: ["metal", "high-gain", "thrash"],
+    unconventionalFor: ["metal", "high-gain", "thrash"],
     channelNote: "Top Boost has treble/bass EQ. Normal channel is simpler/darker. AC15 has less headroom (breaks up earlier).",
     warnings: [
       "No Mid control on the real AC30 Top Boost — don't expect one",
@@ -4231,7 +4231,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "clean",
     gainRange: [0, 5],
     intendedUse: ["boutique clean", "country", "jazz", "worship", "light blues"],
-    notSuitedFor: ["metal", "high-gain", "aggressive rock"],
+    unconventionalFor: ["metal", "high-gain", "aggressive rock"],
     sweetSpot: "Channel 1 for pristine cleans, Channel 2 for warm singing overdrive",
     historicalContext: "Mesa's clean machine. One of the best clean amps in the Fractal library."
   },
@@ -4283,7 +4283,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 6],
     intendedUse: ["vintage rock", "blues-rock", "classic rock", "edge of breakup"],
-    notSuitedFor: ["metal", "extreme high-gain"],
+    unconventionalFor: ["metal", "extreme high-gain"],
     sweetSpot: "Gain 3-5 for gorgeous vintage crunch. Master 6-7 for power tube warmth.",
     historicalContext: "Friedman's Plexi/JTM-45 inspired design. Lower gain, more dynamics than the BE."
   },
@@ -4316,7 +4316,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 7],
     intendedUse: ["boutique clean", "smooth crunch", "blues-rock", "singing leads"],
-    notSuitedFor: ["extreme metal", "djent", "thrash"],
+    unconventionalFor: ["extreme metal", "djent", "thrash"],
     warnings: ["The Shiva is NOT a metal amp — it excels at clean, crunch, and smooth lead"],
     sweetSpot: "Clean channel with Bright ON for bell-like cleans. Lead channel gain 5-6 for smooth, creamy saturation.",
     historicalContext: "Bogner's smooth, refined amp. EL34 warmth with boutique character."
@@ -4328,12 +4328,12 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "high-gain",
     gainRange: [3, 9],
     intendedUse: ["modern metal", "progressive metal", "tight high-gain rhythm"],
-    notSuitedFor: ["jazz", "country", "clean tones", "warm cleans", "Fender-style sparkle"],
+    unconventionalFor: ["jazz", "country", "vintage cleans"],
     warnings: [
       "Diezel approach is OPPOSITE to most amps: Bass HIGHER (6-8), Presence CRANKED (7-8+)",
       "The naturally tight circuit handles high bass without flub — trust it",
-      "NOT a jazz/clean amp — even at low gain the VH4 has an aggressive, modern voicing with harsh upper mids that fights warm jazz tones",
-      "For jazz: use Fender Twin/Deluxe Reverb, JC120, Dumble, or a Carr Rambler instead"
+      "CAN do clean/jazz at low gain but the voicing is modern and aggressive — roll back Treble and Presence significantly to tame the upper mids",
+      "More typical jazz choices: Fender Twin/Deluxe Reverb, JC120, Dumble — but VH4 cleans have a unique modern clarity some players prefer"
     ],
     sweetSpot: "Gain 6, Bass 7, Presence 8, Deep 5 for the signature Diezel precision",
     historicalContext: "German precision engineering. Adam Jones (Tool), Metallica live rigs, Meshuggah."
@@ -4343,11 +4343,11 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "high-gain",
     gainRange: [2, 9],
     intendedUse: ["modern metal", "versatile high-gain", "progressive"],
-    notSuitedFor: ["jazz", "country", "warm cleans"],
+    unconventionalFor: ["jazz", "country"],
     channelNote: "More versatile than VH4. Channel 2 +/- modes. Herbert has more midrange flexibility.",
     warnings: [
-      "Slightly more versatile than VH4 but still a modern high-gain amp — not voiced for jazz warmth",
-      "For jazz: use Fender Twin/Deluxe Reverb, JC120, Dumble, or a Carr Rambler instead"
+      "More versatile than VH4 — can get usable cleans on lower channels with gain dialed back",
+      "For jazz, roll back gain, treble, and presence — the Herbert's midrange flexibility helps here more than the VH4"
     ],
     sweetSpot: "Same Diezel philosophy: bass higher, presence cranked. Herbert is tighter than VH4.",
     historicalContext: "Diezel's more versatile design. Tighter and more refined than the VH4."
@@ -4397,7 +4397,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 7],
     intendedUse: ["boutique overdrive", "blues", "fusion", "smooth lead", "sophisticated clean"],
-    notSuitedFor: ["metal", "thrash", "aggressive high-gain"],
+    unconventionalFor: ["metal", "thrash", "aggressive high-gain"],
     channelNote: "OD knob controls overdrive channel gain. PAB (Pre Amp Boost) adds gain staging. Master at 10 is standard — the power amp IS the tone.",
     warnings: [
       "Master Volume at 10 is how Dumbles are meant to be played — don't turn it down",
@@ -4454,7 +4454,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 6],
     intendedUse: ["boutique clean/crunch", "indie", "jangly pop", "worship"],
-    notSuitedFor: ["metal", "high-gain", "thrash"],
+    unconventionalFor: ["metal", "high-gain", "thrash"],
     sweetSpot: "Volume 4-5 for chimey cleans, push for rich crunch",
     historicalContext: "Matchless DC30/HC30. Vox-like chime with more refinement and headroom."
   },
@@ -4463,7 +4463,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 7],
     intendedUse: ["boutique crunch", "dynamic rock", "blues", "expressive playing"],
-    notSuitedFor: ["metal", "high-gain"],
+    unconventionalFor: ["metal", "high-gain"],
     warnings: ["No master volume — Volume IS your gain. These amps want to be played HARD."],
     sweetSpot: "Volume 6-8 for extraordinary touch sensitivity and harmonic complexity",
     historicalContext: "Among the most coveted boutique amps ever. Express = Vox-meets-Marshall, Liverpool = more Vox, Rocket = more Marshall."
@@ -4473,7 +4473,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "crunch",
     gainRange: [0, 6],
     intendedUse: ["Vox-inspired boutique", "blues", "indie", "worship"],
-    notSuitedFor: ["metal", "high-gain"],
+    unconventionalFor: ["metal", "high-gain"],
     sweetSpot: "Volume 5-7 for chimey breakup with natural sag",
     historicalContext: "Morgan AC20 — modern take on the Vox AC circuit."
   },
@@ -4484,7 +4484,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "pedal-platform",
     gainRange: [0, 4],
     intendedUse: ["powerful cleans", "pedal platform", "Pink Floyd tones", "The Who"],
-    notSuitedFor: ["natural high-gain (stays clean too long)", "metal without pedals"],
+    unconventionalFor: ["natural high-gain (stays clean too long)", "metal without pedals"],
     warnings: [
       "Massive clean headroom — harder to break up than almost any other amp",
       "Excels as a pedal platform: Big Muff for Gilmour leads, fuzz for Townshend power chords"
@@ -4519,7 +4519,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "clean",
     gainRange: [0, 1],
     intendedUse: ["pristine clean", "jazz", "new wave", "post-punk", "chorus-based tones"],
-    notSuitedFor: ["any form of overdrive or distortion (it's solid-state — no tube breakup)", "metal", "rock"],
+    unconventionalFor: ["any form of overdrive or distortion (it's solid-state — no tube breakup)", "metal", "rock"],
     warnings: [
       "Solid-state amp — ZERO natural breakup. It stays perfectly clean forever.",
       "The Distortion circuit on the JC-120 is a separate solid-state circuit, not tube overdrive",
@@ -4535,7 +4535,7 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "specialty",
     gainRange: [0, 4],
     intendedUse: ["lo-fi", "recording", "vintage character", "garage rock"],
-    notSuitedFor: ["clean headroom", "metal", "high-gain", "modern tones"],
+    unconventionalFor: ["clean headroom", "metal", "high-gain", "modern tones"],
     warnings: ["Volume-only control. Raw, gritty character. Breaks up early with a fuzzy quality."],
     sweetSpot: "Volume 6 for dirty, characterful tones",
     historicalContext: "Jimmy Page's secret weapon on early Led Zeppelin. Raw, gritty, unlike anything else."
