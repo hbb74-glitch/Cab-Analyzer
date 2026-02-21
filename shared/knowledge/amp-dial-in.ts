@@ -740,13 +740,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "bassman-bright-blues",
         style: "Classic Blues",
-        settings: { volume: 6, bass: 6, treble: 6, presence: 5, bright: false, deep: false },
+        settings: { volume: 6, bass: 8, treble: 8, presence: 8, bright: false, deep: false },
         tips: [
           "The Bassman is the amp that inspired the Marshall — the grandfather of rock tone",
           "NO Mid knob on the real 5F6-A single channel — midrange is set by the tonestack",
-          "Bright channel has more treble and earlier breakup",
-          "Normal channel is fatter and warmer — great for jazz and blues",
-          "Presence shapes the power amp high-frequency response",
+          "Crank Bass and Treble high (7-8) — this is how the Tweed Bassman gets its magic",
+          "Presence high (8-10) is authentic — the real amp sounds best with presence cranked",
+          "Original controls go 1-12, Fractal goes 0-10 — adjust accordingly",
           "The Deep switch adds low-end resonance — try it for fuller rhythm tones",
           "Pair with a 4x10 cab for the authentic Bassman experience"
         ],
@@ -759,7 +759,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "bassman-cranked",
         style: "Cranked Rock",
-        settings: { volume: 8, bass: 5, treble: 7, presence: 6, bright: true, deep: false },
+        settings: { volume: 8, bass: 7, treble: 8, presence: 9, bright: true, deep: false },
         tips: [
           "Cranking the Bassman is how the Tweed era gets its magic",
           "Bright switch at high volume adds sizzle — great for cutting through a mix",
@@ -991,10 +991,10 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "twin-clean",
         style: "Pristine Clean",
-        settings: { volume: 4, bass: 5, mid: 5, treble: 6, bright: true },
+        settings: { volume: 4, bass: 3, mid: 5, treble: 6, bright: true },
         tips: [
           "The Twin Reverb has Volume, Bass, Mid, Treble + Bright switch — NO Presence on the real amp",
-          "Massive headroom at 100W — it stays clean very loud",
+          "Bass LOW (2-3) is critical — the Twin has massive bottom end that gets boomy fast",
           "The bright switch adds sparkle and is useful at most volume settings",
           "Great pedal platform — the clean stays clean even with effects in front",
           "The blackface Twin is THE clean tone reference for many players",
@@ -1009,7 +1009,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "twin-pedal-platform",
         style: "Pedal Platform",
-        settings: { volume: 3, bass: 5, mid: 6, treble: 5, bright: false },
+        settings: { volume: 3, bass: 3, mid: 6, treble: 5, bright: false },
         tips: [
           "The Twin excels as a pedal platform — stays clean behind everything",
           "Mid at 6 helps cut through in a band mix since there's no Presence",
@@ -1165,7 +1165,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "vox-chime",
         style: "Chimey Clean",
-        settings: { volume: 4, bass: 4, treble: 7, cut: 3 },
+        settings: { volume: 4, bass: 4, treble: 5, cut: 3 },
         tips: [
           "The Top Boost channel has Bass and Treble EQ — this is 'the AC30 sound'",
           "There is no Mid control — the midrange is fixed and prominent",
@@ -1184,7 +1184,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "vox-crunch",
         style: "British Crunch",
-        settings: { volume: 7, bass: 4, treble: 6, cut: 4 },
+        settings: { volume: 7, bass: 4, treble: 5, cut: 4 },
         tips: [
           "Crank the volume for AC30 crunch — power amp saturation is the magic",
           "Use the Cut control to tame harsh treble at higher volumes",
@@ -1410,12 +1410,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "jcm800-high-classic-rock",
         style: "80s Hard Rock",
-        settings: { gain: 7, bass: 4, mid: 7, treble: 5, master: 7, presence: 3, boost: false },
+        settings: { gain: 5, bass: 4, mid: 7, treble: 7, master: 7, presence: 3, boost: false },
         tips: [
           "The High input is the classic JCM 800 input — bright, aggressive, cutting",
-          "Push the Master to at least 6-7 — power amp compression tames the harshness",
+          "Lower preamp gain (4-6) with higher Master (6-7) is the authentic recipe — let the power amp work",
           "Keep Presence LOW (3-5) — this amp has extreme treble boost built into the circuit",
-          "If it's too harsh, lower the Triode Freq parameter in Advanced to soften the attack",
+          "Treble at 7-8 is correct — the JCM 800 needs treble to come alive",
           "Boost switch OFF at moderate gain — it adds too much harsh treble peaking",
           "The 2203 is 100W (more headroom), the 2204 is 50W (breaks up earlier)",
           "Pair with 4x12 Greenback for classic rock or Vintage 30 for modern tightness"
@@ -1429,7 +1429,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "jcm800-high-boosted",
         style: "Boosted Metal",
-        settings: { gain: 8, bass: 3, mid: 8, treble: 5, master: 7, presence: 4, boost: true },
+        settings: { gain: 6, bass: 3, mid: 8, treble: 7, master: 7, presence: 4, boost: true },
         tips: [
           "A Tubescreamer in front is THE classic JCM 800 trick — low gain, high level on the TS",
           "The Boost switch tightens bass and pushes the preamp into heavier saturation",
@@ -1597,12 +1597,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "jubilee-lead",
         style: "Hot Rod Lead",
-        settings: { gain: 7, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, bright: false },
+        settings: { gain: 8, bass: 8, mid: 8, treble: 6, master: 6, presence: 6, bright: false },
         tips: [
           "The Silver Jubilee is a hot-rodded Marshall with diode clipping",
-          "Bridges the gap between JCM 800 and JCM 900",
+          "Bass HIGH (8-10) is authentic — Joe Bonamassa runs bass maxed on his Jubilee",
+          "Mids high (7-9) — the Jubilee wants lots of midrange, it's not a tight modern amp",
           "Slash used a Jubilee extensively — it's the 'other' Slash amp",
-          "Start gain lower than you think — it has plenty on tap",
           "The diode clipping adds compression and sustain unique to this model",
           "Alex Lifeson (Rush) also favored the Jubilee — versatile rock machine"
         ],
@@ -1813,11 +1813,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "recto-modern",
         style: "Modern High Gain",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7, bold_spongy: "Bold" },
+        settings: { gain: 4, bass: 3, mid: 5, treble: 6, master: 6, presence: 7, bold_spongy: "Bold" },
         tips: [
-          "Rectifiers are notorious for too much bass — start with bass lower than expected",
+          "Gain LOW (2-4) — Rectifiers have tons of gain on tap, less is more",
+          "A Tubescreamer boost in front is THE essential Recto trick — tightens everything up",
           "Bold = silicon rectifier (tighter, more immediate), Spongy = tube rectifier (more sag and compression)",
-          "Presence and Master interact — higher master with lower presence can be smoother",
+          "Bass very low (2-4) — Rectos are notorious for flubby bass, start lower than expected",
           "Metallica, Dream Theater, Foo Fighters — the modern high-gain standard",
           "The Recto2 (3-channel) has a more refined circuit than the Recto1 (2-channel)",
           "Orange channel Vintage mode is more mid-forward — better for mix presence"
@@ -1831,7 +1832,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "recto-vintage",
         style: "Vintage Spongy",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 7, presence: 5, bold_spongy: "Spongy" },
+        settings: { gain: 3, bass: 4, mid: 6, treble: 6, master: 7, presence: 5, bold_spongy: "Spongy" },
         tips: [
           "Spongy mode adds tube rectifier sag and compression — great for feel",
           "Vintage mode has less gain but more dynamic response",
@@ -1986,12 +1987,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "slo-crunch",
         style: "Hot Rod Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, depth: false },
+        settings: { gain: 4, bass: 5, mid: 6, treble: 6, master: 6, presence: 4, bright: true, depth: false },
         tips: [
           "The SLO-100 was one of the first modern high-gain amps — 1987",
-          "Crunch channel is Plexi-derived with more gain stages",
-          "Presence is very powerful — start moderate and increase carefully",
-          "The X88R and X99 are rack preamp versions with similar voicing",
+          "Low gain (3-4) with HIGH master (6-6.5) is the SLO sweet spot — power amp does the work",
+          "Bright switch ON is standard for the crunch channel — opens up the top end",
+          "Presence moderate (4-5) — the SLO can get harsh if cranked",
           "Eric Clapton, Mark Knopfler, Lou Reed — more versatile than you'd think"
         ],
         whatToListenFor: [
@@ -2003,12 +2004,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "slo-overdrive",
         style: "High Gain Lead",
-        settings: { gain: 7, bass: 4, mid: 6, treble: 6, master: 6, presence: 5, bright: false, depth: true },
+        settings: { gain: 4, bass: 5, mid: 6, treble: 6, master: 6, presence: 4, bright: false, depth: true },
         tips: [
           "The SLO overdrive/lead channel is THE benchmark for smooth high-gain leads",
-          "Depth switch adds low-end resonance — try ON for thicker leads",
-          "It's creamy and musical without being muddy or fizzy",
-          "The SLO defines 'liquid' — notes flow and sustain effortlessly"
+          "Even on the lead channel, gain 3-5 is plenty — the SLO has massive gain on tap",
+          "Depth switch ON adds low-end resonance for thicker, fuller leads",
+          "The SLO defines 'liquid' — notes flow and sustain effortlessly",
+          "Bass setting varies widely (4-9 on the real amp) — experiment to taste"
         ],
         whatToListenFor: [
           "Smooth, liquid high-gain that sustains forever",
@@ -2030,14 +2032,14 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "friedman-be-rock",
         style: "Hot Rod Marshall",
-        settings: { gain: 6, bass: 5, mid: 7, treble: 6, master: 6, presence: 6, bright: false, sat: false, voicing: "Tight" },
+        settings: { gain: 4, bass: 4, mid: 7, treble: 6, master: 3, presence: 5, bright: false, sat: false, voicing: "Tight" },
         tips: [
           "Dave Friedman's amps are hot-rodded Marshalls with modern refinements",
+          "Lower gain (3.5-5) and LOW master (3-3.5) is the Friedman sweet spot — the low MV opens up the tone",
           "SAT switch changes gain structure — OFF is more open and dynamic, ON is more saturated and compressed",
-          "Voicing: Tight = focused low end, Fat = fuller, more open response",
+          "Dynamic Presence at +2.00 in Fractal Advanced is the 'money control' for articulation",
           "The HBE has even more gain — for when the BE isn't enough",
-          "The Smallbox is more Marshall-like with a tighter, more vintage character",
-          "Multiple revisions (V1, V2, V3) have progressively refined the gain structure"
+          "The Smallbox is more Marshall-like with a tighter, more vintage character"
         ],
         whatToListenFor: [
           "The best of Marshall with modern tightness and clarity",
@@ -2048,11 +2050,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "friedman-be-heavy",
         style: "Modern High Gain",
-        settings: { gain: 7, bass: 4, mid: 7, treble: 6, master: 6, presence: 5, bright: false, sat: true, voicing: "Tight" },
+        settings: { gain: 5, bass: 3, mid: 7, treble: 7, master: 3, presence: 5, bright: false, sat: true, voicing: "Tight" },
         tips: [
           "SAT ON adds clipping for more compression and sustain",
+          "Even with SAT, keep gain moderate (4-6) — the amp has tons of gain already",
           "Fat voicing opens up the low end — great for drop tuning",
-          "Keep bass conservative with SAT ON to maintain tightness",
+          "Keep bass very low (3-4) with SAT ON to maintain tightness",
           "The HBE versions have even more gain on tap for extreme metal"
         ],
         whatToListenFor: [
@@ -2170,12 +2173,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "bogner-crunch",
         style: "Boutique Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, structure: "Open" },
+        settings: { gain: 5, bass: 3, mid: 4, treble: 6, master: 5, presence: 7, bright: false, structure: "Open" },
         tips: [
           "Bogner Ecstasy blends Marshall aggression with American warmth",
+          "Presence HIGH (7-8+) is critical on the Ecstasy — it shapes the top-end magic, crank it",
+          "Bass LOW (3-3.5) — the Ecstasy has a lot of low end built in",
           "Structure switch: Tight = tighter low end, Open = fuller, more organic",
           "The Blue channel is Plexi-like crunch, Red is high gain",
-          "Modern modes add tighter bass and more aggressive voicing",
           "Try Bright ON at lower gains, OFF at higher gains"
         ],
         whatToListenFor: [
@@ -2187,12 +2191,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "bogner-highgain",
         style: "High Gain Lead",
-        settings: { gain: 7, bass: 5, mid: 6, treble: 6, master: 6, presence: 5, bright: false, structure: "Tight" },
+        settings: { gain: 7, bass: 3, mid: 4, treble: 6, master: 6, presence: 8, bright: false, structure: "Tight" },
         tips: [
           "Red channel is a high-gain monster with incredible feel and articulation",
+          "Presence CRANKED (7-8+) — this is where the Bogner magic lives",
+          "Bass LOW even at high gain — the Ecstasy generates plenty of bottom",
           "Structure = Tight keeps the low end focused for metal rhythm",
-          "It tracks fast riffs better than most high-gain amps",
-          "Modern mode is tighter and more aggressive than standard"
+          "It tracks fast riffs better than most high-gain amps"
         ],
         whatToListenFor: [
           "Articulate high-gain that retains clarity even at extreme settings",
@@ -2288,11 +2293,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "diezel-modern",
         style: "Modern Metal",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 6, master: 6, presence: 7, deep: 3 },
+        settings: { gain: 6, bass: 7, mid: 5, treble: 6, master: 6, presence: 8, deep: 5 },
         tips: [
           "Diezel amps are tight, aggressive, and incredibly detailed — German precision",
-          "The VH4 Silver channel is the legendary high-gain channel",
-          "The Deep control adds low-end resonance — use sparingly for tight rhythm",
+          "Bass HIGHER than expected (6-8) — Diezels have a naturally tight circuit that handles bass well",
+          "Presence crank it (7-8+) — the VH4 needs presence to come alive and cut through",
+          "Deep control at 4-7 adds low-end thump without muddiness due to the tight circuit",
           "Blue channel is clean, Silver is gain — multiple gain positions via number suffix",
           "Das Metall is modeled from VH4 schematics — a community metal favorite",
           "Pair with 4x12 Vintage 30 for the classic Diezel experience"
@@ -2371,13 +2377,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "dumble-clean",
         style: "Boutique Clean",
-        settings: { gain: 3, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 5, presence: 5, pab: false },
+        settings: { gain: 4, overdrive: 0, bass: 5, mid: 5, treble: 5, master: 10, presence: 5, pab: false },
         tips: [
           "The ODS-100 clean is Fender-derived but richer and more three-dimensional",
+          "Master Volume at 10 is how Dumbles are meant to be played — the power amp IS the tone",
           "OD knob controls the overdrive channel gain — set to 0 for clean",
           "PAB (Pre Amp Boost) switch adds gain staging — leave OFF for clean",
-          "Real Dumbles sell for $50k-$150k — Fractal modeling is the accessible path",
-          "These amps are incredibly touch-sensitive — the feel is the magic",
+          "Use Input Drive (gain) and guitar volume to control your level, not the master",
           "The Bludojai models are based on the Dumble SSS/Steel String Singer variant"
         ],
         whatToListenFor: [
@@ -2389,13 +2395,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "dumble-overdrive",
         style: "Smooth Overdrive",
-        settings: { gain: 5, overdrive: 6, bass: 5, mid: 6, treble: 5, master: 6, presence: 5, pab: true },
+        settings: { gain: 3, overdrive: 6, bass: 5, mid: 6, treble: 5, master: 10, presence: 5, pab: true },
         tips: [
           "The overdrive channel is smooth, creamy, and incredibly musical",
+          "Master at 10, Drive LOW (2-4) — use guitar volume for dynamics, not the amp controls",
           "PAB ON + OD dial at 5-7 = the classic Dumble lead tone",
-          "The amp responds to guitar volume changes like no other",
-          "Robben Ford, Larry Carlton, Carlos Santana territory",
-          "Zero harshness — just pure, musical distortion that sings"
+          "The amp responds to guitar volume changes like no other — this is the magic",
+          "Robben Ford, Larry Carlton, Carlos Santana territory"
         ],
         whatToListenFor: [
           "Creamy, vocal-like overdrive that sings and sustains",
