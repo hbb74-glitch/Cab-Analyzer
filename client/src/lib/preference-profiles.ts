@@ -890,6 +890,10 @@ export function shouldContinueTasteCheck(
   const minRounds = confidence === "moderate" ? 2 : 3;
   if (history.length < minRounds) return true;
 
+  const binaryCount = binaryRounds.length;
+  const minBinaryRounds = confidence === "moderate" ? 2 : 3;
+  if (binaryCount < minBinaryRounds) return true;
+
   const axisCounts: Record<string, number> = {};
   for (const h of history) {
     axisCounts[h.axisName] = (axisCounts[h.axisName] ?? 0) + 1;
@@ -1742,7 +1746,7 @@ export function pickTasteCheckCandidates(
 
   const forceQuad = modeOverride === "acquisition";
   const refinementForceBinary = isRefinementRound && plateauWinners.length >= 2;
-  const quadRounds = forceBinary || refinementForceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 2 : confidence === "moderate" ? 3 : 5;
+  const quadRounds = forceBinary || refinementForceBinary ? 0 : forceQuad ? Infinity : confidence === "high" ? 1 : confidence === "moderate" ? 2 : 3;
 
   if (!forceBinary && !refinementForceBinary && round < quadRounds && workingPool.length >= 4) {
     const unexplored = axisWithSpread.filter((a) => !exploredAxes.has(a.axis.name));

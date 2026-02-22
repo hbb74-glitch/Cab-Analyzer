@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3, RefreshCw, Clock } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { StandaloneBadge } from "@/components/StandaloneBadge";
@@ -765,6 +765,8 @@ export default function Learner() {
     if (persisted) setSandboxMode(true);
     return persisted;
   });
+  const [tasteTieMode, setTasteTieMode] = useState(false);
+  const [tasteTieSelected, setTasteTieSelected] = useState<Set<number>>(new Set());
   const [resetAllConfirm, setResetAllConfirm] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
@@ -1794,6 +1796,8 @@ export default function Learner() {
   const handleTasteCheckPick = useCallback((pickedIndex: number) => {
     if (!tasteCheckPhase) return;
 
+    setTasteTieMode(false);
+    setTasteTieSelected(new Set());
     setTasteCheckPhase({ ...tasteCheckPhase, userPick: pickedIndex, showingResult: true });
 
     const newHistory: TasteCheckRoundResult[] = [
@@ -1982,6 +1986,71 @@ export default function Learner() {
         [],
         true
       );
+      setTasteVersion(v => v + 1);
+    } catch {}
+  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+
+  const handleTasteCheckMultiTie = useCallback((selectedIndices: Set<number>) => {
+    if (!tasteCheckPhase || selectedIndices.size < 2) return;
+    try {
+      const selected = Array.from(selectedIndices).sort();
+      const unselected = tasteCheckPhase.candidates
+        .map((_, i) => i)
+        .filter(i => !selectedIndices.has(i));
+
+      const selectedCandidates = selected.map(i => tasteCheckPhase.candidates[i]);
+      const allFeatures: [string, string][] = [];
+
+      for (let si = 0; si < selectedCandidates.length; si++) {
+        for (let sj = si + 1; sj < selectedCandidates.length; sj++) {
+          const a = selectedCandidates[si];
+          const b = selectedCandidates[sj];
+          const aB = featuresByFilename.get(a.baseFilename);
+          const aF = featuresByFilename.get(a.featureFilename);
+          const bB = featuresByFilename.get(b.baseFilename);
+          const bF = featuresByFilename.get(b.featureFilename);
+          const aR = a.suggestedRatio?.base ?? 0.5;
+          const bR = b.suggestedRatio?.base ?? 0.5;
+          if (!aB || !aF || !bB || !bF) continue;
+          const xA = featurizeBlend(aB, aF, aR);
+          const xB = featurizeBlend(bB, bF, bR);
+          recordOutcome(tasteContext, xA, xB, "tie", { source: "pick4" });
+        }
+      }
+
+      for (const si of selected) {
+        const winner = tasteCheckPhase.candidates[si];
+        const wBase = featuresByFilename.get(winner.baseFilename);
+        const wFeat = featuresByFilename.get(winner.featureFilename);
+        const wRatio = winner.suggestedRatio?.base ?? 0.5;
+        if (!wBase || !wFeat) continue;
+        const xW = featurizeBlend(wBase, wFeat, wRatio);
+        for (const ui of unselected) {
+          const loser = tasteCheckPhase.candidates[ui];
+          const lBase = featuresByFilename.get(loser.baseFilename);
+          const lFeat = featuresByFilename.get(loser.featureFilename);
+          const lRatio = loser.suggestedRatio?.base ?? 0.5;
+          if (!lBase || !lFeat) continue;
+          const xL = featurizeBlend(lBase, lFeat, lRatio);
+          recordOutcome(tasteContext, xW, xL, "a", { source: "pick4" });
+          allFeatures.push([loser.baseFilename, loser.featureFilename]);
+        }
+      }
+
+      const allWinnerFilenames = selectedCandidates.flatMap(c => [c.baseFilename, c.featureFilename]);
+      recordIROutcome(
+        tasteContext,
+        allWinnerFilenames,
+        [],
+        true
+      );
+
+      const shownKeys = tasteCheckPhase.candidates.map(c =>
+        [c.baseFilename, c.featureFilename].sort().join("||")
+      );
+      recordShownPairs(tasteContext, shownKeys, tasteCheckPhase.round);
+      recordTasteVote(tasteContext);
+
       setTasteVersion(v => v + 1);
     } catch {}
   }, [tasteCheckPhase, featuresByFilename, tasteContext]);
@@ -3680,7 +3749,9 @@ export default function Learner() {
                 {!tasteCheckPhase.showingResult && (
                   <>
                     <p className="text-xs text-muted-foreground">
-                      Pick whichever blend sounds best to you.
+                      {tasteTieMode
+                        ? "Tap the options you like equally, then confirm."
+                        : "Pick whichever blend sounds best to you."}
                     </p>
                     <div className={cn(
                       "grid gap-3",
@@ -3690,17 +3761,40 @@ export default function Learner() {
                         const hiMidMidRatio = pair.blendBands.mid > 0
                           ? Math.round((pair.blendBands.highMid / pair.blendBands.mid) * 100) / 100
                           : 0;
+                        const isTieSelected = tasteTieMode && tasteTieSelected.has(idx);
                         return (
                           <button
                             key={idx}
-                            onClick={() => handleTasteCheckPick(idx)}
-                            className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
+                            onClick={() => {
+                              if (tasteTieMode) {
+                                setTasteTieSelected(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(idx)) next.delete(idx);
+                                  else next.add(idx);
+                                  return next;
+                                });
+                              } else {
+                                handleTasteCheckPick(idx);
+                              }
+                            }}
+                            className={cn(
+                              "p-3 rounded-lg border transition-all text-left space-y-2",
+                              isTieSelected
+                                ? "border-teal-400 bg-teal-500/10 ring-1 ring-teal-400/30"
+                                : "border-white/10 hover-elevate"
+                            )}
                             data-testid={`button-taste-option-${idx}`}
                           >
                             <div className="flex items-center justify-center gap-2">
-                              <p className="text-xs font-semibold text-foreground uppercase tracking-widest">
+                              <p className={cn(
+                                "text-xs font-semibold uppercase tracking-widest",
+                                isTieSelected ? "text-teal-400" : "text-foreground"
+                              )}>
                                 {String.fromCharCode(65 + idx)}
                               </p>
+                              {isTieSelected && (
+                                <CheckCircle className="w-3.5 h-3.5 text-teal-400" />
+                              )}
                             </div>
                             <div className="flex items-center gap-1 flex-wrap">
                               <p className="text-[10px] font-mono text-foreground truncate">
@@ -3734,22 +3828,56 @@ export default function Learner() {
                         );
                       })}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => { handleTasteCheckTie(); handleTasteCheckPick(-1); }}
-                        className="flex-1 text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
-                        data-testid="button-taste-tie"
-                      >
-                        No preference / Tie
-                      </button>
-                      <button
-                        onClick={() => { handleTasteCheckBothUseful(); handleTasteCheckPick(-1); }}
-                        className="flex-1 text-center py-1.5 text-[11px] text-teal-400/80 hover-elevate rounded-md transition-colors"
-                        data-testid="button-taste-both-useful"
-                      >
-                        Both useful
-                      </button>
-                    </div>
+                    {tasteTieMode ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setTasteTieMode(false); setTasteTieSelected(new Set()); }}
+                          className="flex-1 text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
+                          data-testid="button-taste-tie-cancel"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (tasteTieSelected.size >= 2) {
+                              handleTasteCheckMultiTie(tasteTieSelected);
+                              handleTasteCheckPick(-1);
+                              setTasteTieMode(false);
+                              setTasteTieSelected(new Set());
+                            }
+                          }}
+                          disabled={tasteTieSelected.size < 2}
+                          className={cn(
+                            "flex-1 text-center py-1.5 text-[11px] rounded-md transition-colors",
+                            tasteTieSelected.size >= 2
+                              ? "text-teal-400 bg-teal-500/10 hover-elevate"
+                              : "text-muted-foreground/50 cursor-not-allowed"
+                          )}
+                          data-testid="button-taste-tie-confirm"
+                        >
+                          Confirm {tasteTieSelected.size >= 2
+                            ? `${tasteTieSelected.size} equally liked`
+                            : "(select 2+)"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setTasteTieMode(true); setTasteTieSelected(new Set()); }}
+                          className="flex-1 text-center py-1.5 text-[11px] text-muted-foreground hover-elevate rounded-md transition-colors"
+                          data-testid="button-taste-tie"
+                        >
+                          Equally liked
+                        </button>
+                        <button
+                          onClick={() => { handleTasteCheckTie(); handleTasteCheckPick(-1); }}
+                          className="flex-1 text-center py-1.5 text-[11px] text-muted-foreground/70 hover-elevate rounded-md transition-colors"
+                          data-testid="button-taste-no-pref"
+                        >
+                          No preference
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
 
