@@ -301,12 +301,20 @@ export function scoreBlendQuality(features: TonalFeatures, profiles: PreferenceP
 
 export function findFoundationIR(
   irs: { filename: string; features: TonalFeatures }[],
-  profiles: PreferenceProfile[] = DEFAULT_PROFILES
+  profiles: PreferenceProfile[] = DEFAULT_PROFILES,
+  learned?: LearnedProfileData
 ): FoundationScore[] {
   if (irs.length === 0) return [];
 
   const bodyProfile = profiles.find((p) => p.name === "Warmth") || profiles[1];
   const featuredProfile = profiles.find((p) => p.name === "Presence") || profiles[0];
+
+  const soloSet = new Map<string, "love" | "like">();
+  if (learned?.standaloneWorthy) {
+    for (const sw of learned.standaloneWorthy) {
+      soloSet.set(sw.filename, sw.rating);
+    }
+  }
 
   const scored = irs.map((ir) => {
     const bodyMatch = scoreAgainstProfile(ir.features, bodyProfile);
@@ -336,10 +344,17 @@ export function findFoundationIR(
       reasons.push(`Intended as feature — less ideal as foundation`);
     }
 
+    let soloBonus = 0;
+    const soloRating = soloSet.get(ir.filename);
+    if (soloRating) {
+      soloBonus = soloRating === "love" ? 10 : 6;
+      reasons.push(soloRating === "love" ? "Solo ★ — proven standalone" : "Solo viable — good standalone");
+    }
+
     const pct = ir.features.bandsPercent;
     return {
       filename: ir.filename,
-      score: Math.max(0, Math.min(100, bodyMatch.score + intentBonus)),
+      score: Math.max(0, Math.min(100, bodyMatch.score + intentBonus + soloBonus)),
       bodyScore: bodyMatch.score,
       featuredScore: featuredMatch.score,
       reasons,
@@ -426,6 +441,10 @@ export interface SuggestedPairing {
   score: number;
   rank: number;
   suggestedRatio?: { base: number; feature: number };
+  soloBase?: boolean;
+  soloFeature?: boolean;
+  doubleSolo?: boolean;
+  soloRatioAdjusted?: boolean;
 }
 
 interface GearScore { loved: number; liked: number; noped: number; net: number }
@@ -614,6 +633,13 @@ export function suggestPairings(
 ): SuggestedPairing[] {
   if (irs.length < 2) return [];
 
+  const soloSet = new Map<string, "love" | "like">();
+  if (learned?.standaloneWorthy) {
+    for (const sw of learned.standaloneWorthy) {
+      soloSet.set(sw.filename, sw.rating);
+    }
+  }
+
   const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
   const snapRatio = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
   const ratiosToTry: { base: number; feature: number }[] = [{ base: 0.5, feature: 0.5 }];
@@ -692,6 +718,42 @@ export function suggestPairings(
       const roleB = irRoles.get(irs[j].filename) || "Foundation";
       const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
 
+      const baseSolo = soloSet.get(irs[i].filename);
+      const featSolo = soloSet.get(irs[j].filename);
+      const isSoloBase = !!baseSolo;
+      const isSoloFeat = !!featSolo;
+      const isDoubleSolo = isSoloBase && isSoloFeat;
+
+      if (!isSoloBase && isSoloFeat) continue;
+
+      let soloBoost = 0;
+      if (isSoloBase && !isSoloFeat) {
+        soloBoost = baseSolo === "love" ? 8 : 5;
+      } else if (isDoubleSolo) {
+        soloBoost = -6;
+      }
+
+      let soloRatioAdjusted = false;
+      let finalRatio = bestRatioUsed;
+      if (isSoloBase && !isSoloFeat) {
+        const fiftyFiftyBlend = blendFeatures(irs[i].features, irs[j].features, 0.5, 0.5);
+        const fiftyFiftyBQ = learned
+          ? scoreBlendWithAvoidPenalty(fiftyFiftyBlend, profiles, learned)
+          : scoreBlendQuality(fiftyFiftyBlend, profiles);
+        const soloRatio = { base: 0.7, feature: 0.3 };
+        const soloBlended = blendFeatures(irs[i].features, irs[j].features, soloRatio.base, soloRatio.feature);
+        const soloBQ = learned
+          ? scoreBlendWithAvoidPenalty(soloBlended, profiles, learned)
+          : scoreBlendQuality(soloBlended, profiles);
+        if (soloBQ.blendScore >= fiftyFiftyBQ.blendScore - 3) {
+          finalRatio = soloRatio;
+          bestBQ = { blendScore: soloBQ.blendScore, blendLabel: soloBQ.blendLabel };
+          bestBlendFeatures = soloBlended;
+          bestResult = scoreAgainstAllProfiles(soloBlended, profiles);
+          soloRatioAdjusted = true;
+        }
+      }
+
       allCombos.push({
         baseFilename: irs[i].filename,
         featureFilename: irs[j].filename,
@@ -699,9 +761,13 @@ export function suggestPairings(
         bestMatch: bestResult.best,
         blendScore: bestBQ.blendScore,
         blendLabel: bestBQ.blendLabel,
-        score: bestBQ.blendScore + noveltyBoost + intentAlignBoost + roleBonus,
+        score: bestBQ.blendScore + noveltyBoost + intentAlignBoost + roleBonus + soloBoost,
         rank: 0,
-        suggestedRatio: bestRatioUsed.base !== 0.5 ? bestRatioUsed : undefined,
+        suggestedRatio: finalRatio.base !== 0.5 ? finalRatio : undefined,
+        soloBase: isSoloBase || undefined,
+        soloFeature: isSoloFeat || undefined,
+        doubleSolo: isDoubleSolo || undefined,
+        soloRatioAdjusted: soloRatioAdjusted || undefined,
       });
     }
   }

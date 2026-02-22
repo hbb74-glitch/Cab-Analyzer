@@ -3488,11 +3488,19 @@ export default function Learner() {
                         )}
                         <StandaloneBadge filename={pair.baseFilename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                       </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        + ({pair.suggestedRatio
-                          ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
-                          : "50/50"})
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[10px] text-muted-foreground">
+                          + ({pair.suggestedRatio
+                            ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+                            : "50/50"})
+                        </p>
+                        {pair.soloRatioAdjusted && (
+                          <span className="text-[9px] text-amber-400/80 font-medium" data-testid={`text-solo-ratio-${idx}`}>solo-weighted</span>
+                        )}
+                        {pair.doubleSolo && (
+                          <span className="text-[9px] text-orange-400/80 font-medium" data-testid={`text-double-solo-${idx}`}>both solo</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
                           {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
@@ -3827,11 +3835,15 @@ export default function Learner() {
                               </p>
                               {!blindMode && <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />}
                             </div>
-                            <p className="text-[10px] text-muted-foreground">
-                              + {pair.suggestedRatio
-                                ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
-                                : "50/50"}
-                            </p>
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] text-muted-foreground">
+                                + {pair.suggestedRatio
+                                  ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+                                  : "50/50"}
+                              </p>
+                              {pair.soloRatioAdjusted && <span className="text-[9px] text-amber-400/80 font-medium">solo-weighted</span>}
+                              {pair.doubleSolo && <span className="text-[9px] text-orange-400/80 font-medium">both solo</span>}
+                            </div>
                             <div className="flex items-center gap-1 flex-wrap">
                               <p className="text-[10px] font-mono text-foreground truncate">
                                 {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
