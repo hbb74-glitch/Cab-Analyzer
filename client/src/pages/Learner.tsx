@@ -734,6 +734,9 @@ export default function Learner() {
   const [singleIrPage, setSingleIrPage] = useState(0);
   const [singleIrTags, setSingleIrTags] = useState<Record<string, string[]>>({});
   const [singleIrNotes, setSingleIrNotes] = useState<Record<string, string>>({});
+  const [singleIrDecided, setSingleIrDecided] = useState<Set<string>>(new Set());
+  const [singleIrPrevRatings, setSingleIrPrevRatings] = useState<Record<string, { action: string; count: number }>>({});
+  const [singleIrReassessing, setSingleIrReassessing] = useState(false);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
@@ -1071,15 +1074,25 @@ export default function Learner() {
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
-    const n = pairingPool.length;
+    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename)).length;
     return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
-  }, [pairingPool.length]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing]);
+
+  const singleIrUndecided = useMemo(() => {
+    if (singleIrReassessing) return pairingPool;
+    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename));
+  }, [pairingPool, singleIrDecided, singleIrReassessing]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
+    if (singleIrPage > maxPage) setSingleIrPage(maxPage);
+  }, [singleIrUndecided.length, singleIrPage]);
 
   const singleIrPageItems = useMemo(() => {
     const start = singleIrPage * SINGLE_IR_PAGE_SIZE;
     const end = start + SINGLE_IR_PAGE_SIZE;
-    return pairingPool.slice(start, end);
-  }, [pairingPool, singleIrPage]);
+    return singleIrUndecided.slice(start, end);
+  }, [singleIrUndecided, singleIrPage]);
 
   const WHY_TAGS = useMemo(() => ([
     "perfect",
@@ -2604,6 +2617,7 @@ export default function Learner() {
               Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}
             </div>
 
+            {singleIrUndecided.length > 0 && (
             <div className="flex items-center gap-2 text-xs opacity-80">
               <button
                 className="px-2 py-1 rounded border border-zinc-600"
@@ -2620,15 +2634,49 @@ export default function Learner() {
                 Next
               </button>
               <span className="ml-2">
-                Page {singleIrPage + 1} / {singleIrTotalPages} (showing {SINGLE_IR_PAGE_SIZE} at a time)
+                Page {singleIrPage + 1} / {singleIrTotalPages} ({singleIrDecided.size} decided, {singleIrUndecided.length} remaining)
               </span>
             </div>
+            )}
 
-            {singleIrPageItems.map((ir: any, idx: number) => (
+            {singleIrUndecided.length === 0 ? (
+              <div className="border rounded p-4 text-center" data-testid="single-ir-all-evaluated">
+                <div className="text-sm mb-2">You have evaluated all {pairingPool.length} IRs on this page.</div>
+                <button
+                  className="px-3 py-1 rounded border border-amber-500 text-amber-400 text-xs"
+                  data-testid="button-single-ir-reassess"
+                  onClick={() => {
+                    setSingleIrReassessing(true);
+                    setSingleIrRatings({});
+                    setSingleIrTags({});
+                    setSingleIrNotes({});
+                    setSingleIrPage(0);
+                  }}
+                >
+                  Reassess — votes will be averaged with previous
+                </button>
+              </div>
+            ) : singleIrPageItems.map((ir: any, idx: number) => {
+              const rating = singleIrRatings[ir.filename];
+              const prevDecision = singleIrPrevRatings[ir.filename];
+              const activeTagBank =
+                rating === "love" ? WHY_TAGS :
+                rating === "like" ? IMPROVE_TAGS :
+                (rating === "meh" || rating === "nope") ? ISSUE_TAGS :
+                null;
+              const tagLabel =
+                rating === "love" ? "Why it's great:" :
+                rating === "like" ? "What could improve:" :
+                (rating === "meh" || rating === "nope") ? "What's wrong:" :
+                null;
+              return (
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</span>
                   <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                  {prevDecision && (
+                    <span className="text-xs opacity-60">(prev: {prevDecision.action} x{prevDecision.count})</span>
+                  )}
                 </div>
 
                 <div className="flex gap-2 mt-2 flex-wrap">
@@ -2639,7 +2687,12 @@ export default function Learner() {
                         "px-2 py-1 rounded border text-xs",
                         singleIrRatings[ir.filename] === r ? "border-green-500" : "border-zinc-600"
                       )}
-                      onClick={() => setSingleIrRatings(prev => ({ ...prev, [ir.filename]: r }))}
+                      onClick={() => {
+                        setSingleIrRatings(prev => ({ ...prev, [ir.filename]: r }));
+                        if (singleIrTags[ir.filename]?.length) {
+                          setSingleIrTags(prev => ({ ...prev, [ir.filename]: [] }));
+                        }
+                      }}
                       data-testid={`button-single-ir-${r}-${idx}`}
                     >
                       {r.toUpperCase()}
@@ -2647,22 +2700,26 @@ export default function Learner() {
                   ))}
                 </div>
 
-                <div className="mt-2 text-xs opacity-80">Tags:</div>
-                <div className="flex gap-2 flex-wrap mt-1">
-                  {ISSUE_TAGS.map(tag => (
-                    <button
-                      key={tag}
-                      className={cn(
-                        "px-2 py-1 rounded border text-xs",
-                        (singleIrTags[ir.filename] ?? []).includes(tag) ? "border-amber-400" : "border-zinc-600"
-                      )}
-                      onClick={() => toggleSingleTag(ir.filename, tag)}
-                      data-testid={`button-single-ir-tag-${tag}-${idx}`}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
+                {activeTagBank && tagLabel && (
+                  <>
+                    <div className="mt-2 text-xs opacity-80">{tagLabel}</div>
+                    <div className="flex gap-2 flex-wrap mt-1">
+                      {activeTagBank.map(tag => (
+                        <button
+                          key={tag}
+                          className={cn(
+                            "px-2 py-1 rounded border text-xs",
+                            (singleIrTags[ir.filename] ?? []).includes(tag) ? "border-amber-400" : "border-zinc-600"
+                          )}
+                          onClick={() => toggleSingleTag(ir.filename, tag)}
+                          data-testid={`button-single-ir-tag-${tag}-${idx}`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 <div className="mt-2 text-xs opacity-80">Notes (stored only, not training):</div>
                 <textarea
@@ -2674,9 +2731,10 @@ export default function Learner() {
                   data-testid={`textarea-single-ir-notes-${idx}`}
                 />
               </div>
-            ))}
+              );
+            })}
 
-            <div className="flex gap-2">
+            {singleIrUndecided.length > 0 && <div className="flex gap-2">
               <button
                 className="px-3 py-1 rounded border border-zinc-600"
                 data-testid="button-submit-single-ir"
@@ -2740,6 +2798,44 @@ export default function Learner() {
                     if (serverSignals.length > 0) {
                       submitSignalsMutation.mutate(serverSignals);
                     }
+
+                    const newDecided = new Set(singleIrDecided);
+                    const newPrevRatings = { ...singleIrPrevRatings };
+                    for (const r of rated) {
+                      newDecided.add(r.filename);
+                      const prev = newPrevRatings[r.filename];
+                      if (prev) {
+                        newPrevRatings[r.filename] = { action: r.action, count: prev.count + 1 };
+                      } else {
+                        newPrevRatings[r.filename] = { action: r.action, count: 1 };
+                      }
+                    }
+                    setSingleIrDecided(newDecided);
+                    setSingleIrPrevRatings(newPrevRatings);
+                    setSingleIrReassessing(false);
+
+                    const ratedFilenames = new Set(rated.map(r => r.filename));
+                    setSingleIrRatings(prev => {
+                      const next: Record<string, "love" | "like" | "meh" | "nope"> = {};
+                      for (const [k, v] of Object.entries(prev)) {
+                        if (!ratedFilenames.has(k)) next[k] = v;
+                      }
+                      return next;
+                    });
+                    setSingleIrTags(prev => {
+                      const next: Record<string, string[]> = {};
+                      for (const [k, v] of Object.entries(prev)) {
+                        if (!ratedFilenames.has(k)) next[k] = v;
+                      }
+                      return next;
+                    });
+                    setSingleIrNotes(prev => {
+                      const next: Record<string, string> = {};
+                      for (const [k, v] of Object.entries(prev)) {
+                        if (!ratedFilenames.has(k)) next[k] = v;
+                      }
+                      return next;
+                    });
                   } catch {}
                 }}
               >
@@ -2757,10 +2853,10 @@ export default function Learner() {
               >
                 Clear
               </button>
-            </div>
-            <div className="text-xs opacity-70">
+            </div>}
+            {singleIrUndecided.length > 0 && <div className="text-xs opacity-70">
               Notes: Single-IR ratings train only the singleIR model. Tags/notes are stored; notes do NOT train.
-            </div>
+            </div>}
           </div>
         )}
 
