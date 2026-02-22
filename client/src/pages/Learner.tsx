@@ -1157,6 +1157,9 @@ export default function Learner() {
     "less_fizz",
     "less_mud",
     "too_scooped",
+    "too_dark",
+    "not_scooped_enough",
+    "mid_heavy",
   ]), []);
 
   const SOLO_WHY_TAGS = useMemo(() => ([
@@ -1213,6 +1216,8 @@ export default function Learner() {
     "lacks_cut",
     "lacks_punch",
     "smooth_but_dull",
+    "not_scooped_enough",
+    "mid_heavy",
   ]), []);
 
   const toggleSingleTag = useCallback((filename: string, tag: string) => {
@@ -1894,7 +1899,11 @@ export default function Learner() {
         learnedProfile || undefined,
       );
 
-      if (!keepGoing || nextRound >= tasteCheckPhase.maxRounds) {
+      const binaryDone = newHistory.filter(h => h.roundType === "binary").length;
+      const minBinary = tasteCheckPhase.confidence === "low" ? 3 : 2;
+      const needsMoreBinary = binaryDone < minBinary;
+
+      if ((!keepGoing && !needsMoreBinary) || (nextRound >= tasteCheckPhase.maxRounds && !needsMoreBinary)) {
         modeTriggeredTasteCheck.current = false;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
@@ -3633,6 +3642,9 @@ export default function Learner() {
                                     { tag: "more_bite", label: "More bite" },
                                     { tag: "tighter", label: "Tighter" },
                                     { tag: "more_air", label: "More air" },
+                                    { tag: "too_dark", label: "Too dark" },
+                                    { tag: "not_scooped_enough", label: "Not scooped enough" },
+                                    { tag: "mid_heavy", label: "Mid heavy" },
                                   ]
                                 : [
                                     { tag: "thin", label: "Thin" },
@@ -3641,6 +3653,8 @@ export default function Learner() {
                                     { tag: "dull", label: "Dull" },
                                     { tag: "boomy", label: "Boomy" },
                                     { tag: "fizzy", label: "Fizzy" },
+                                    { tag: "not_scooped_enough", label: "Not scooped enough" },
+                                    { tag: "mid_heavy", label: "Mid heavy" },
                                   ]
                               ).map(({ tag, label }) => (
                                 <Button

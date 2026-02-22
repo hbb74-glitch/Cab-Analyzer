@@ -908,10 +908,13 @@ export function getTasteConfidence(learned?: LearnedProfileData): TasteConfidenc
 }
 
 export function getTasteCheckRounds(confidence: TasteConfidence, poolSize: number): number {
-  const maxByPool = Math.min(7, Math.max(2, Math.floor(poolSize / 2)));
-  if (confidence === "high") return Math.min(maxByPool, 4);
-  if (confidence === "moderate") return Math.min(maxByPool, 5);
-  return Math.min(maxByPool, 7);
+  const quadCount = confidence === "high" ? 1 : confidence === "moderate" ? 2 : 3;
+  const minBinary = confidence === "high" ? 2 : confidence === "moderate" ? 2 : 3;
+  const minNeeded = quadCount + minBinary;
+  const maxByPool = Math.min(10, Math.max(minNeeded, Math.floor(poolSize / 2)));
+  if (confidence === "high") return Math.min(maxByPool, 6);
+  if (confidence === "moderate") return Math.min(maxByPool, 7);
+  return Math.min(maxByPool, 10);
 }
 
 export function shouldContinueTasteCheck(
@@ -1609,18 +1612,41 @@ export function pickTasteCheckCandidates(
   const sessionRounds = history?.length ?? 0;
   const eloEntryCount = eloRatings ? Object.keys(eloRatings).length : 0;
   const totalRounds = Math.max(sessionRounds, eloEntryCount);
+  const soloSet = new Map<string, "love" | "like">();
+  if (learned?.standaloneWorthy) {
+    for (const sw of learned.standaloneWorthy) {
+      soloSet.set(sw.filename, sw.rating);
+    }
+  }
+
   const allCombos: ComboWithMeta[] = [];
   for (let i = 0; i < irs.length; i++) {
     for (let j = i + 1; j < irs.length; j++) {
       const ck = [irs[i].filename, irs[j].filename].sort().join("||");
       if (excludePairs && excludePairs.has(ck)) continue;
-      const blended = blendFeatures(irs[i].features, irs[j].features, 0.5, 0.5);
-      const result = learned
-        ? scoreWithAvoidPenalty(blended, profiles, learned)
-        : scoreAgainstAllProfiles(blended, profiles);
-      const bq = learned
-        ? scoreBlendWithAvoidPenalty(blended, profiles, learned)
-        : scoreBlendQuality(blended, profiles);
+
+      const soloI = soloSet.get(irs[i].filename);
+      const soloJ = soloSet.get(irs[j].filename);
+      const hasSolo = !!soloI || !!soloJ;
+
+      const ratiosToBlend: { base: number; feature: number; soloWeighted: boolean }[] = [
+        { base: 0.5, feature: 0.5, soloWeighted: false }
+      ];
+      if (hasSolo) {
+        if (soloI && !soloJ) {
+          ratiosToBlend.push(
+            { base: 0.6, feature: 0.4, soloWeighted: true },
+            { base: 0.7, feature: 0.3, soloWeighted: true },
+            { base: 0.8, feature: 0.2, soloWeighted: true }
+          );
+        } else if (soloJ && !soloI) {
+          ratiosToBlend.push(
+            { base: 0.4, feature: 0.6, soloWeighted: true },
+            { base: 0.3, feature: 0.7, soloWeighted: true },
+            { base: 0.2, feature: 0.8, soloWeighted: true }
+          );
+        }
+      }
 
       let exposurePenalty = 0;
       const persistedEntry = persistedShownPairs?.[ck];
@@ -1634,9 +1660,6 @@ export function pickTasteCheckCandidates(
         exposurePenalty += ((baseExp + featExp) / (maxSessionExposure * 2)) * 12;
       }
 
-      const prior = intentPriorScore(blended, intent as any);
-      const feedback = tasteFeedbackScore(blended, tasteSignal);
-
       const eloEntry = eloRatings?.[ck];
       const ucb = ucbScore(eloEntry, totalRounds);
 
@@ -1645,26 +1668,45 @@ export function pickTasteCheckCandidates(
       const roleBonus = intent ? scoreRolePairForIntent(roleA, roleB, intent) : 0;
       const rolePairKey = [roleA, roleB].sort().join("+");
 
-      const baseScore = (bq.blendScore - exposurePenalty) + prior + feedback;
+      for (const r of ratiosToBlend) {
+        const blended = blendFeatures(irs[i].features, irs[j].features, r.base, r.feature);
+        const result = learned
+          ? scoreWithAvoidPenalty(blended, profiles, learned)
+          : scoreAgainstAllProfiles(blended, profiles);
+        const bq = learned
+          ? scoreBlendWithAvoidPenalty(blended, profiles, learned)
+          : scoreBlendQuality(blended, profiles);
 
-      allCombos.push({
-        baseFilename: irs[i].filename,
-        featureFilename: irs[j].filename,
-        blendBands: blended.bandsPercent,
-        bestMatch: result.best,
-        blendScore: bq.blendScore,
-        blendLabel: bq.blendLabel,
-        score: baseScore + ucb * 3,
-        rank: 0,
-        _features: blended,
-        _roleBonus: roleBonus,
-        _roleA: roleA,
-        _roleB: roleB,
-        _rolePairKey: rolePairKey,
-        _ucb: ucb,
-        _uncertainty: eloEntry?.uncertainty ?? 1.0,
-        _isBoundary: false,
-      });
+        const prior = intentPriorScore(blended, intent as any);
+        const feedback = tasteFeedbackScore(blended, tasteSignal);
+        const baseScore = (bq.blendScore - exposurePenalty) + prior + feedback;
+
+        const soloBase = r.base > 0.5 && soloI ? true : r.feature > 0.5 && soloJ ? true : undefined;
+        const soloFeature = r.base < 0.5 && soloJ ? true : r.feature < 0.5 && soloI ? true : undefined;
+
+        allCombos.push({
+          baseFilename: irs[i].filename,
+          featureFilename: irs[j].filename,
+          blendBands: blended.bandsPercent,
+          bestMatch: result.best,
+          blendScore: bq.blendScore,
+          blendLabel: bq.blendLabel,
+          score: baseScore + ucb * 3,
+          rank: 0,
+          suggestedRatio: r.base !== 0.5 ? { base: r.base, feature: r.feature } : undefined,
+          soloBase: soloBase || undefined,
+          soloFeature: soloFeature || undefined,
+          soloRatioAdjusted: r.soloWeighted || undefined,
+          _features: blended,
+          _roleBonus: roleBonus,
+          _roleA: roleA,
+          _roleB: roleB,
+          _rolePairKey: rolePairKey,
+          _ucb: ucb,
+          _uncertainty: eloEntry?.uncertainty ?? 1.0,
+          _isBoundary: false,
+        });
+      }
     }
   }
 
