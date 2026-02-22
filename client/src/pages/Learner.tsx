@@ -1119,6 +1119,42 @@ export default function Learner() {
     "too_scooped",
   ]), []);
 
+  const SOLO_WHY_TAGS = useMemo(() => ([
+    "balanced_standalone",
+    "full_range",
+    "usable_solo",
+    "no_partner_needed",
+    "punchy",
+    "articulate",
+    "warm",
+    "tight",
+  ]), []);
+
+  const SOLO_IMPROVE_TAGS = useMemo(() => ([
+    "needs_more_body",
+    "needs_more_cut",
+    "almost_solo",
+    "close_but_thin",
+    "close_but_dark",
+    "close_but_bright",
+    "good_with_help",
+  ]), []);
+
+  const SOLO_ISSUE_TAGS = useMemo(() => ([
+    "needs_partner",
+    "too_narrow",
+    "too_scooped",
+    "one_dimensional",
+    "harsh_solo",
+    "muddy_solo",
+    "fizzy_solo",
+    "thin_solo",
+    "honky_solo",
+    "lacks_presence",
+    "no_low_end",
+    "no_top_end",
+  ]), []);
+
   const ISSUE_TAGS = useMemo(() => ([
     "thin",
     "muddy",
@@ -2608,13 +2644,15 @@ export default function Learner() {
         {singleIrLearnOpen && (
           <div className="border rounded p-3 space-y-2" data-testid="single-ir-learning-panel">
             <div className="flex items-center justify-between">
-              <div className="font-semibold">Single IR Learning (Rate 4)</div>
+              <div className="font-semibold">Solo IR Eval — Standalone Viability</div>
               <button className="px-2 py-1 rounded border border-zinc-600" onClick={() => setSingleIrLearnOpen(false)} data-testid="button-close-single-ir">
                 Close
               </button>
             </div>
-            <div className="text-xs opacity-80">
-              Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}
+            <div className="text-xs opacity-70 space-y-0.5">
+              <div>Could this IR carry a tone on its own, or does it need a partner?</div>
+              <div>Love = great standalone · Like = close, minor gaps · Meh = needs help · Nope = not viable solo</div>
+              <div className="opacity-60">Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}</div>
             </div>
 
             {singleIrUndecided.length > 0 && (
@@ -2641,7 +2679,7 @@ export default function Learner() {
 
             {singleIrUndecided.length === 0 ? (
               <div className="border rounded p-4 text-center" data-testid="single-ir-all-evaluated">
-                <div className="text-sm mb-2">You have evaluated all {pairingPool.length} IRs on this page.</div>
+                <div className="text-sm mb-2">You've assessed all {pairingPool.length} IRs for standalone viability.</div>
                 <button
                   className="px-3 py-1 rounded border border-amber-500 text-amber-400 text-xs"
                   data-testid="button-single-ir-reassess"
@@ -2660,14 +2698,14 @@ export default function Learner() {
               const rating = singleIrRatings[ir.filename];
               const prevDecision = singleIrPrevRatings[ir.filename];
               const activeTagBank =
-                rating === "love" ? WHY_TAGS :
-                rating === "like" ? IMPROVE_TAGS :
-                (rating === "meh" || rating === "nope") ? ISSUE_TAGS :
+                rating === "love" ? SOLO_WHY_TAGS :
+                rating === "like" ? SOLO_IMPROVE_TAGS :
+                (rating === "meh" || rating === "nope") ? SOLO_ISSUE_TAGS :
                 null;
               const tagLabel =
-                rating === "love" ? "Why it's great:" :
-                rating === "like" ? "What could improve:" :
-                (rating === "meh" || rating === "nope") ? "What's wrong:" :
+                rating === "love" ? "Standalone strengths:" :
+                rating === "like" ? "What's missing for solo use:" :
+                (rating === "meh" || rating === "nope") ? "Why it needs a partner:" :
                 null;
               return (
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
@@ -2855,7 +2893,7 @@ export default function Learner() {
               </button>
             </div>}
             {singleIrUndecided.length > 0 && <div className="text-xs opacity-70">
-              Notes: Single-IR ratings train only the singleIR model. Tags/notes are stored; notes do NOT train.
+              Ratings learn: (1) which IRs work standalone vs need a partner, (2) your tonal preferences. Tags are stored and inform pairing suggestions.
             </div>}
           </div>
         )}

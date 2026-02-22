@@ -1587,6 +1587,44 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     aggressive:  { highMid: 1, presence: 0.5, ratio: 0.1 },
     perfect:     {},
     balanced:    {},
+    articulate:  { highMid: 0.5, presence: 0.3 },
+    fast_attack: { highMid: 0.5, mid: 0.3 },
+    more_mids:   { mid: 1.5, lowMid: 0.5 },
+    less_fizz:   { presence: -1.5, highMid: -0.5 },
+    less_mud:    { lowMid: -1.5, bass: -1 },
+    too_scooped: { mid: -2, highMid: 0.5, bass: 0.5 },
+    too_bright:  { highMid: 2, presence: 1.5 },
+    too_dark:    { highMid: -2, presence: -1.5 },
+    too_fizzy:   { presence: 2, highMid: 1.5 },
+    too_thick:   { lowMid: 2, mid: 1.5, bass: 1 },
+    too_thin:    { bass: -2, lowMid: -1.5, mid: -1 },
+    too_honky:   { mid: 2.5, lowMid: 1 },
+    harsh_attack:{ highMid: 2, presence: 1.5 },
+    lacks_cut:   { highMid: -1.5, presence: -1 },
+    lacks_punch: { highMid: -1, mid: -0.5 },
+    smooth_but_dull: { highMid: -1, presence: -1.5 },
+    balanced_standalone: {},
+    full_range:  {},
+    usable_solo: {},
+    no_partner_needed: {},
+    needs_more_body:   { bass: 1, lowMid: 1, mid: 0.5 },
+    needs_more_cut:    { highMid: 1.5, presence: 1 },
+    almost_solo: {},
+    close_but_thin:    { bass: -1.5, lowMid: -1 },
+    close_but_dark:    { highMid: -1.5, presence: -1 },
+    close_but_bright:  { highMid: 1.5, presence: 1 },
+    good_with_help:    {},
+    needs_partner:     {},
+    too_narrow:        { mid: 1.5, highMid: -0.5, bass: -0.5 },
+    one_dimensional:   {},
+    harsh_solo:        { highMid: 2, presence: 1 },
+    muddy_solo:        { lowMid: 2, bass: 1.5 },
+    fizzy_solo:        { presence: 2, highMid: 1 },
+    thin_solo:         { bass: -2, lowMid: -1 },
+    honky_solo:        { mid: 2, lowMid: 1 },
+    lacks_presence:    { presence: -2, highMid: -1 },
+    no_low_end:        { bass: -2.5, lowMid: -1.5 },
+    no_top_end:        { presence: -2, highMid: -1.5 },
   };
   const textKeywordMap: Record<string, Partial<typeof feedbackNudges>> = {
     bright: { highMid: 1, presence: 0.5 },
@@ -2159,6 +2197,37 @@ function buildTonalSummary(
       if (avoidPositions.length > 0) {
         lines.push(`Positions you tend to avoid: ${avoidPositions.map(p => p.name).join(", ")}.`);
       }
+    }
+  }
+
+  const soloSignals = allSignals.filter(s => s.baseFilename === s.featureFilename && s.baseFilename);
+  if (soloSignals.length >= 2) {
+    const soloLoved = soloSignals.filter(s => s.action === "love");
+    const soloLiked = soloSignals.filter(s => s.action === "like");
+    const soloMeh = soloSignals.filter(s => s.action === "meh");
+    const soloNoped = soloSignals.filter(s => s.action === "nope");
+    const soloTags = soloSignals.flatMap(s => s.feedback ? s.feedback.split(",").map(t => t.trim()) : []).filter(Boolean);
+    const standaloneReady = soloLoved.length + soloLiked.length;
+    const needsPartner = soloMeh.length + soloNoped.length;
+
+    lines.push("");
+    lines.push("**Standalone viability:**");
+    lines.push(`${soloSignals.length} IRs assessed solo: ${soloLoved.length} love, ${soloLiked.length} like, ${soloMeh.length} meh, ${soloNoped.length} nope.`);
+    if (standaloneReady > 0 && needsPartner > 0) {
+      const pct = Math.round((standaloneReady / soloSignals.length) * 100);
+      lines.push(`${pct}% of your IRs work standalone; ${100 - pct}% need a pairing partner.`);
+    } else if (standaloneReady > 0) {
+      lines.push("All assessed IRs work well standalone.");
+    } else {
+      lines.push("None of your assessed IRs work well standalone -- they all benefit from pairing.");
+    }
+    const partnerTags = soloTags.filter(t =>
+      ["needs_partner", "too_narrow", "one_dimensional", "needs_more_body", "needs_more_cut", "no_low_end", "no_top_end"].includes(t)
+    );
+    if (partnerTags.length > 0) {
+      const tagCounts = partnerTags.reduce((m, t) => { m[t] = (m[t] || 0) + 1; return m; }, {} as Record<string, number>);
+      const topReasons = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t.replace(/_/g, " "));
+      lines.push(`Common gaps: ${topReasons.join(", ")}.`);
     }
   }
 
