@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { StandaloneBadge } from "@/components/StandaloneBadge";
@@ -767,6 +767,7 @@ export default function Learner() {
   });
   const [tasteTieMode, setTasteTieMode] = useState(false);
   const [tasteTieSelected, setTasteTieSelected] = useState<Set<number>>(new Set());
+  const [blindMode, setBlindMode] = useState(false);
   const [resetAllConfirm, setResetAllConfirm] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
   const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
@@ -2817,7 +2818,7 @@ export default function Learner() {
               <div key={ir.filename} className="border rounded p-2" data-testid={`single-ir-card-${idx}`}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</span>
-                  <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                  {!blindMode && <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />}
                   <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                   {prevDecision && (
                     <span className="text-xs opacity-60">(prev: {prevDecision.action} x{prevDecision.count})</span>
@@ -3109,6 +3110,19 @@ export default function Learner() {
                   Ratio
                 </button>
               </div>
+              <button
+                onClick={() => setBlindMode(prev => !prev)}
+                className={cn(
+                  "px-2.5 py-1.5 text-xs font-medium transition-colors rounded-md border",
+                  blindMode
+                    ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
+                    : "border-zinc-600/40 bg-zinc-700/20 text-muted-foreground hover-elevate"
+                )}
+                data-testid="button-blind-mode"
+                title={blindMode ? "Blind mode ON — tonal data hidden to avoid bias" : "Blind mode OFF — tonal data visible"}
+              >
+                {blindMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={() => setRefinementEnabled(prev => !prev)}
                 className={cn(
@@ -3466,8 +3480,12 @@ export default function Learner() {
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
                           {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                         </p>
-                        <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
-                        <ShotIntentBadge filename={pair.baseFilename} />
+                        {!blindMode && (
+                          <>
+                            <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                            <ShotIntentBadge filename={pair.baseFilename} />
+                          </>
+                        )}
                         <StandaloneBadge filename={pair.baseFilename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                       </div>
                       <p className="text-[10px] text-muted-foreground">
@@ -3479,11 +3497,15 @@ export default function Learner() {
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-feature-${idx}`}>
                           {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
                         </p>
-                        <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
-                        <ShotIntentBadge filename={pair.featureFilename} />
+                        {!blindMode && (
+                          <>
+                            <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                            <ShotIntentBadge filename={pair.featureFilename} />
+                          </>
+                        )}
                         <StandaloneBadge filename={pair.featureFilename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                       </div>
-                      {tasteStatus.nVotes > 0 && (() => {
+                      {!blindMode && tasteStatus.nVotes > 0 && (() => {
                         const anchor = suggestedPairs?.[0];
                         const meanVec = (() => {
                           try {
@@ -3543,19 +3565,22 @@ export default function Learner() {
 
                     {!isDismissed && (
                       <>
-                        <BandChart bands={pair.blendBands} height={12} compact />
-
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
-                          <span className={cn(
-                            "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                            hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                            hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                            "bg-amber-500/20 text-amber-400"
-                          )}>
-                            {hiMidMidRatio.toFixed(2)}
-                          </span>
-                        </div>
+                        {!blindMode && (
+                          <>
+                            <BandChart bands={pair.blendBands} height={12} compact />
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <BlendQualityBadge score={pair.blendScore} label={pair.blendLabel} />
+                              <span className={cn(
+                                "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                                hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                                "bg-amber-500/20 text-amber-400"
+                              )}>
+                                {hiMidMidRatio.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        )}
 
                         <div className="flex items-center gap-1.5 pt-1">
                           {[
@@ -3800,7 +3825,7 @@ export default function Learner() {
                               <p className="text-[10px] font-mono text-foreground truncate">
                                 {pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}
                               </p>
-                              <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                              {!blindMode && <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />}
                             </div>
                             <p className="text-[10px] text-muted-foreground">
                               + {pair.suggestedRatio
@@ -3811,19 +3836,23 @@ export default function Learner() {
                               <p className="text-[10px] font-mono text-foreground truncate">
                                 {pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}
                               </p>
-                              <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                              {!blindMode && <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />}
                             </div>
-                            <BandChart bands={pair.blendBands} height={10} compact />
-                            <div className="flex items-center justify-end gap-1 flex-wrap">
-                              <span className={cn(
-                                "text-[10px] font-mono px-1.5 py-0.5 rounded",
-                                hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
-                                hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
-                                "bg-amber-500/20 text-amber-400"
-                              )}>
-                                HiMid/Mid: {hiMidMidRatio.toFixed(2)}
-                              </span>
-                            </div>
+                            {!blindMode && (
+                              <>
+                                <BandChart bands={pair.blendBands} height={10} compact />
+                                <div className="flex items-center justify-end gap-1 flex-wrap">
+                                  <span className={cn(
+                                    "text-[10px] font-mono px-1.5 py-0.5 rounded",
+                                    hiMidMidRatio < 1.0 ? "bg-blue-500/20 text-blue-400" :
+                                    hiMidMidRatio <= 2.0 ? "bg-green-500/20 text-green-400" :
+                                    "bg-amber-500/20 text-amber-400"
+                                  )}>
+                                    HiMid/Mid: {hiMidMidRatio.toFixed(2)}
+                                  </span>
+                                </div>
+                              </>
+                            )}
                           </button>
                         );
                       })}
@@ -3947,14 +3976,14 @@ export default function Learner() {
                           </div>
                           <div className="flex items-center gap-1 flex-wrap">
                             <p className="text-xs font-mono text-foreground truncate">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
-                            <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                            {!blindMode && <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />}
                           </div>
                           <p className="text-[10px] text-muted-foreground">+ (50/50)</p>
                           <div className="flex items-center gap-1 flex-wrap">
                             <p className="text-xs font-mono text-foreground truncate">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</p>
-                            <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                            {!blindMode && <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />}
                           </div>
-                          <BandChart bands={cand.pair.blendBands} height={8} compact />
+                          {!blindMode && <BandChart bands={cand.pair.blendBands} height={8} compact />}
                         </button>
                       ))}
                     </div>
@@ -3968,10 +3997,10 @@ export default function Learner() {
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                         <span className="font-mono text-foreground">{cand.pair.baseFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
-                        <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
+                        {!blindMode && <MusicalRoleBadgeFromFeatures filename={cand.pair.baseFilename} features={featuresByFilename.get(cand.pair.baseFilename)} speakerStatsMap={speakerStatsMap} />}
                         <span>+</span>
                         <span className="font-mono text-foreground">{cand.pair.featureFilename.replace(/(_\d{13})?\.wav$/, "")}</span>
-                        <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
+                        {!blindMode && <MusicalRoleBadgeFromFeatures filename={cand.pair.featureFilename} features={featuresByFilename.get(cand.pair.featureFilename)} speakerStatsMap={speakerStatsMap} />}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         {(["a", "b"] as const).map((side) => {
@@ -3984,10 +4013,18 @@ export default function Learner() {
                               className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
                               data-testid={`button-pick-${side}`}
                             >
-                              <p className="text-sm font-mono text-foreground text-center">
-                                {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
-                              </p>
-                              <BandChart bands={bands} height={10} compact />
+                              {blindMode ? (
+                                <p className="text-lg font-mono text-foreground text-center py-2">
+                                  {side === "a" ? "A" : "B"}
+                                </p>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-mono text-foreground text-center">
+                                    {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                                  </p>
+                                  <BandChart bands={bands} height={10} compact />
+                                </>
+                              )}
                             </button>
                           );
                         })}
@@ -4189,6 +4226,7 @@ export default function Learner() {
                   return (
                     <div key={ir.filename} className={cn(
                       "p-3 rounded-xl border",
+                      blindMode ? "bg-white/[0.02] border-white/5" :
                       match.best.label === "strong" ? "bg-emerald-500/[0.03] border-emerald-500/20" :
                       match.best.label === "close" ? "bg-sky-500/[0.03] border-sky-500/20" :
                       "bg-white/[0.02] border-white/5"
@@ -4198,12 +4236,16 @@ export default function Learner() {
                           <span className="text-xs font-mono text-foreground truncate">
                             {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                           </span>
-                          <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
-                          <ShotIntentBadge filename={ir.filename} />
+                          {!blindMode && (
+                            <>
+                              <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                              <ShotIntentBadge filename={ir.filename} />
+                            </>
+                          )}
                           <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                         </div>
                       </div>
-                      <TonalReadouts features={ir.features} centroid={centroid} />
+                      {!blindMode && <TonalReadouts features={ir.features} centroid={centroid} />}
                     </div>
                   );
                 })}
@@ -4256,10 +4298,18 @@ export default function Learner() {
                           className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
                           data-testid={`button-standalone-pick-${side}`}
                         >
-                          <p className="text-sm font-mono text-foreground text-center">
-                            {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
-                          </p>
-                          <BandChart bands={bands} height={10} compact />
+                          {blindMode ? (
+                            <p className="text-lg font-mono text-foreground text-center py-2">
+                              {side === "a" ? "A" : "B"}
+                            </p>
+                          ) : (
+                            <>
+                              <p className="text-sm font-mono text-foreground text-center">
+                                {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                              </p>
+                              <BandChart bands={bands} height={10} compact />
+                            </>
+                          )}
                         </button>
                       );
                     })}
