@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { scoreIndividualIR, applyLearnedAdjustments, computeSpeakerRelativeProfiles, DEFAULT_PROFILES, getGearContext, parseGearFromFilename, featuresFromBands, type TonalBands, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { Brain, Sparkles } from "lucide-react";
 import { ShotIntentBadge, extractGearFromFilename } from "@/components/ShotIntentBadge";
+import { StandaloneBadge } from "@/components/StandaloneBadge";
 import { lookupMicRole } from "@shared/knowledge/mic-role-map";
 import { SummaryCopyButton } from "@/components/SummaryCopyButton";
 import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeakerIdFromFilename, zScore, roleBadgeClass, setClassifyDebugFilename, type SpeakerStats } from "@/lib/musical-roles";
@@ -4218,6 +4219,7 @@ export default function Analyzer() {
                                 return null;
                               })()}
                               <ShotIntentBadge filename={ir.file.name} />
+                              <StandaloneBadge filename={ir.file.name} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                               {ir.metrics?.hasClipping && (
                                 <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded flex-shrink-0">
                                   CLIPPING
@@ -4923,6 +4925,7 @@ export default function Analyzer() {
                                   </span>
                                 )}
                                 <ShotIntentBadge filename={r.filename} hideRole />
+                                <StandaloneBadge filename={r.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                               </div>
                             )}
                           </div>
@@ -5356,6 +5359,7 @@ export default function Analyzer() {
                                         );
                                       })()}
                                       <ShotIntentBadge filename={member.filename} />
+                                      <StandaloneBadge filename={member.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                                       {group.selectedToKeep === member.filename && (
                                         <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                                       )}
@@ -5474,6 +5478,7 @@ export default function Analyzer() {
                                 {m.filename}
                               </span>
                               <ShotIntentBadge filename={m.filename} />
+                              <StandaloneBadge filename={m.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                               <div className="flex items-center gap-2 text-xs">
                                 {m.tonalHint && m.tonalHint !== 'neutral' && (
                                   <span className="text-muted-foreground/70 italic">{m.tonalHint}</span>
@@ -5671,6 +5676,7 @@ export default function Analyzer() {
                                 {blend.filename}
                               </p>
                               <ShotIntentBadge filename={blend.filename} />
+                              <StandaloneBadge filename={blend.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                               <span className={cn(
                                 "text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0",
                                 blend.verdict === 'essential'
@@ -6072,6 +6078,7 @@ export default function Analyzer() {
                                     {ir.filename}
                                   </p>
                                   <ShotIntentBadge filename={ir.filename} />
+                                  <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <p className="text-xs text-muted-foreground">{ir.reason}</p>
                                     {ir.preferenceRole && (
@@ -6179,6 +6186,7 @@ export default function Analyzer() {
                                     {ir.filename}
                                   </p>
                                   <ShotIntentBadge filename={ir.filename} />
+                                  <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                                     <p className="text-xs text-muted-foreground">
                                       {ir.reason}
@@ -6506,6 +6514,7 @@ export default function Analyzer() {
                       {file.name}
                     </p>
                     <ShotIntentBadge filename={file.name} />
+                    <StandaloneBadge filename={file.name} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                   </div>
                   <span className="text-xs text-muted-foreground block">
                     {(file.size / 1024).toFixed(1)} KB • Click to change
