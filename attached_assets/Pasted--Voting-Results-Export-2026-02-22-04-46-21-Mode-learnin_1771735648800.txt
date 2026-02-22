@@ -1,0 +1,100 @@
+=== Voting Results Export — 2026-02-22 04:46:21 ===
+Mode: learning | Intent: rhythm | Live
+Pairing rounds completed: 9
+Taste check votes (all time): 0
+Profile status: mastered | Signals: 403 | Liked: 398 | Noped: 1
+
+--- Pairing Ratings (all rounds) ---
+round	base_ir	feature_ir	rating	tags	text_feedback	blend_score	profile_match
+1	G12T75_SM57_Cap_Cone_Tr_1in.wav	G12T75_M160_CapEdge_3in.wav	Like	more_bite		0	Warmth
+1	G12T75_SM57_Cap_Cone_Tr_1in.wav	G12T75_M88_Cap_2.5in.wav	Like	more_bite, less_mud		0	Warmth
+1	G12T75_SM57_Cap_1in.wav	G12T75_SM57_R121_Balanced_A_6in.wav	Meh	harsh, fizzy, too_bright		0	Warmth
+1	G12T75_R121_Cap_6in.wav	G12T75_MD421_Cap_2in.wav	Love	punchy		0	Warmth
+2	G12T75_SM57_Cone_1in.wav	G12T75_M160_CapEdge_3in.wav	Meh	muddy, lacks_cut, lacks_punch		0	Warmth
+2	G12T75_R92_Cap_5.25in.wav	G12T75_M160_CapEdge_3in.wav	Like	less_mud, more_air		0	Warmth
+2	G12T75_e906_Presence_Cap_2in.wav	G12T75_SM57_CapEdge_Br_4in.wav	Meh	too_fizzy, too_bright, too_thin, harsh		0	Warmth
+2	G12T75_Roswell_Cap_6in.wav	G12T75_M201_Cap_3in.wav	Like	more_bottom		0	Warmth
+3	G12T75_Roswell_Cap_6in.wav	G12T75_M160_CapOffCenter_3in.wav	Like			0	Warmth
+3	G12T75_Roswell_Cap_6in.wav	G12T75_M201_CapEdge_3in.wav	Meh	dull		0	Warmth
+3	G12T75_SM57_CapEdge_Br_4in.wav	G12T75_SM57_R121_Balanced_A_6in.wav	Like	more_bottom, less_harsh		0	Presence
+3	G12T75_PR30_Cap_Cone_Tr_2in.wav	G12T75_MD421_Cap_2in.wav	Like			0	Warmth
+4	G12T75_R92_Cap_5.25in.wav	G12T75_MD421_Cap_2in.wav	Like	more_bottom		0	Warmth
+4	G12T75_R121_Cap_6in.wav	G12T75_M201_CapEdge_3in.wav	Like	more_bite		0	Warmth
+4	G12T75_SM57_Cap_1in.wav	G12T75_SM57_CapEdge_Br_4in.wav	Like	less_harsh		0	Presence
+4	G12T75_M160_CapEdge_3in.wav	G12T75_SM57_Cap_1in.wav	Meh	too_fizzy, muddy		0	Warmth
+5	G12T75_SM57_Cone_1in.wav	G12T75_M88_Cap_2.5in.wav	Meh	dull		0	Warmth
+5	G12T75_R92_Cap_5.25in.wav	G12T75_M160_CapOffCenter_3in.wav	Like	more_bite, less_mud		0	Warmth
+5	G12T75_C414_Cap_6in.wav	G12T75_SM57_CapEdge_Br_4in.wav	Love			0	Presence
+5	G12T75_PR30_Cap_Cone_Tr_2in.wav	G12T75_SM57_CapOffCenter_4in.wav	Love			0	Warmth
+6	G12T75_SM57_Cone_1in.wav	G12T75_SM57_CapOffCenter_3in.wav	Like	less_harsh		0	Warmth
+6	G12T75_SM57_Cap_Cone_Tr_1in.wav	G12T75_MD421_Cap_2in.wav	Like	less_harsh		0	Warmth
+6	G12T75_M88_Cap_2.5in.wav	G12T75_SM57_CapEdge_Br_4in.wav	Love			0	Presence
+6	G12T75_M160_CapEdge_3in.wav	G12T75_M160_CapOffCenter_3in.wav	Like	less_mud, more_air		0	Warmth
+7	G12T75_R92_Cap_5.25in.wav	G12T75_SM57_CapOffCenter_3in.wav	Love			0	Presence
+7	G12T75_R121_Cap_6in.wav	G12T75_e906_Presence_Cap_2in.wav	Love			0	Warmth
+7	G12T75_M88_Cap_2.5in.wav	G12T75_M160_CapOffCenter_3in.wav	Like	less_harsh, less_fizz		0	Warmth
+7	G12T75_SM57_Cap_Cone_Tr_1in.wav	G12T75_SM57_CapOffCenter_4in.wav	Like	more_bite, tighter, less_mud		0	Warmth
+8	G12T75_R92_Cap_5.25in.wav	G12T75_M201_CapEdge_3in.wav	Like	tighter, more_bite		0	Warmth
+8	G12T75_R92_Cap_5.25in.wav	G12T75_SM57_CapOffCenter_4in.wav	Love	aggressive		0	Presence
+8	G12T75_M160_CapOffCenter_3in.wav	G12T75_SM57_CapEdge_Br_4in.wav	Love	punchy		0	Warmth
+8	G12T75_SM57_Cap_Cone_Tr_1in.wav	G12T75_SM57_CapEdge_3in.wav	Like	less_mud		0	Warmth
+9	G12T75_R92_Cap_5.25in.wav	G12T75_e906_Presence_Cap_2in.wav	Love	balanced		0	Warmth
+9	G12T75_MD421_Cap_2in.wav	G12T75_SM57_R121_Tight_D_4in.wav	Love	punchy, cut		0	Presence
+9	G12T75_M160_CapOffCenter_3in.wav	G12T75_SM57_R121_Balanced_A_6in.wav	Love	aggressive		0	Warmth
+9	G12T75_PR30_Cap_Cone_Tr_2in.wav	G12T75_M201_CapEdge_3in.wav	Meh	dull, lacks_cut		0	Warmth
+
+--- Individual IR Ratings ---
+filename	rating
+G12T75_C414_Cap_6in.wav	like
+G12T75_e906_Presence_Cap_2in.wav	like
+G12T75_M88_Cap_2.5in.wav	love
+G12T75_M160_CapEdge_3in.wav	love
+
+--- Preference Corrections Applied ---
+1. tonal feedback applied: balanced, dull, lacks_cut, aggressive, punchy, cut, less_mud, tighter, more_bite, less_harsh, less_fizz, more_air, too_fizzy, muddy, more_bottom, too_bright, too_thin, harsh, lacks_punch, fizzy, thin, perfect, warm, boomy
+
+--- IR Win/Loss Records ---
+ir	wins	losses	both_count	net
+G12T75_SM57_CapEdge_Br_4in.wav	16	2	0	+14
+G12T75_MD421_Cap_2in.wav	14	1	0	+13
+G12T75_R92_Cap_5.25in.wav	17	4	0	+13
+G12T75_R121_Cap_6in.wav	9	0	0	+9
+G12T75_M160_CapOffCenter_3in.wav	13	5	0	+8
+G12T75_M160_CapEdge_3in.wav	14	7	0	+7
+G12T75_M88_Cap_2.5in.wav	12	6	0	+6
+G12T75_SM57_CapOffCenter_4in.wav	7	2	0	+5
+G12T75_SM57_CapOffCenter_3in.wav	5	1	0	+4
+G12T75_e906_Presence_Cap_2in.wav	9	6	0	+3
+G12T75_SM57_R121_Balanced_A_6in.wav	6	3	0	+3
+G12T75_Roswell_Cap_6in.wav	6	3	0	+3
+G12T75_M201_Cap_3in.wav	3	0	0	+3
+G12T75_PR30_Cap_Cone_Tr_2in.wav	6	3	0	+3
+G12T75_SM57_R121_Tight_D_4in.wav	3	0	0	+3
+G12T75_C414_Cap_6in.wav	5	4	0	+1
+G12T75_SM57_Cap_Cone_Tr_1in.wav	8	7	0	+1
+G12T75_SM57_CapEdge_3in.wav	1	2	0	-1
+G12T75_SM57_Cap_1in.wav	3	6	0	-3
+G12T75_SM57_Cone_1in.wav	3	6	0	-3
+G12T75_M201_CapEdge_3in.wav	4	8	0	-4
+
+--- Tonal Preferences (learned from votes) ---
+Model votes: 39 | Model confidence: 100%
+band	weight	direction	strength
+subBass	-0.245	avoids	moderate
+bass	-0.755	avoids	strong
+lowMid	-0.548	avoids	strong
+mid	-0.071	avoids	mild
+highMid	-0.111	avoids	mild
+presence	0.193	favors	mild
+air	-0.029	avoids	mild
+tilt	0.247	favors	moderate
+smoothness	0.066	favors	mild
+
+--- Tonal Profile Summary ---
+Favors: tilt (moderate), presence (mild), smoothness (mild)
+Avoids: bass (strong), lowMid (strong), subBass (moderate), highMid (mild), mid (mild), air (mild)
+
+--- Taste Learning Summary ---
+Total votes: 39 | Confidence: 100%
+
+=== End of Voting Results ===

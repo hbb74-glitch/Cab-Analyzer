@@ -1695,14 +1695,13 @@ export default function Learner() {
       }
     }
 
-    if ((tasteCheckMode === "learning" || tasteCheckMode === "ratio") && tasteCheckPhase) {
+    if (tasteCheckMode === "ratio" && tasteCheckPhase) {
       modeTriggeredTasteCheck.current = false;
       if (tasteCheckTimeoutRef.current) {
         clearTimeout(tasteCheckTimeoutRef.current);
         tasteCheckTimeoutRef.current = null;
       }
       setTasteCheckPhase(null);
-      if (tasteCheckMode === "learning") setTasteCheckPassed(true);
     }
   }, [tasteCheckMode, pairingPool, activeProfiles, learnedProfile, evaluatedPairs, tasteCheckPhase, ratioRefinePhase, proceedToRatioRefine, tasteIntent]);
 
@@ -2688,8 +2687,8 @@ export default function Learner() {
                       const action = singleIrRatings[ir.filename];
                       if (!action) return null;
                       if (!ir?.features) return null;
-                      return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features), filename: ir.filename as string };
-                    }).filter(Boolean) as { action: string; strength: number; x: number[]; filename: string }[];
+                      return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features), filename: ir.filename as string, bands: ir.bands as TonalBands };
+                    }).filter(Boolean) as { action: string; strength: number; x: number[]; filename: string; bands: TonalBands }[];
 
                     if (rated.length >= 2) {
                       const mean = meanVector(rated.map(r => r.x));
@@ -2715,6 +2714,31 @@ export default function Learner() {
                         }
                       }
                       setTasteVersion(v => v + 1);
+                    }
+
+                    const serverSignals = rated.map(r => {
+                      const tags = singleIrTags[r.filename];
+                      const fb = tags && tags.length > 0 ? tags.join(",") : null;
+                      const ratio = r.bands.mid > 0 ? r.bands.highMid / r.bands.mid : 1.4;
+                      return {
+                        action: r.action,
+                        feedback: fb,
+                        feedbackText: null,
+                        baseFilename: r.filename,
+                        featureFilename: r.filename,
+                        subBass: r.bands.subBass,
+                        bass: r.bands.bass,
+                        lowMid: r.bands.lowMid,
+                        mid: r.bands.mid,
+                        highMid: r.bands.highMid,
+                        presence: r.bands.presence,
+                        ratio: Math.round(ratio * 100) / 100,
+                        score: 0,
+                        profileMatch: getRoleForFilename(r.filename),
+                      };
+                    });
+                    if (serverSignals.length > 0) {
+                      submitSignalsMutation.mutate(serverSignals);
                     }
                   } catch {}
                 }}
