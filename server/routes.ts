@@ -1463,6 +1463,24 @@ interface RatioPreference {
   perProfile?: Record<string, { preferredRatio: number; confidence: number }>;
 }
 
+interface StandaloneWorthyIR {
+  filename: string;
+  rating: "love" | "like";
+  tags: string[];
+  mic?: string;
+  position?: string;
+  distance?: string;
+  speaker?: string;
+}
+
+interface StandaloneRecipe {
+  mic: string;
+  position: string;
+  distance?: string;
+  count: number;
+  avgRating: number;
+}
+
 interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -1475,11 +1493,13 @@ interface LearnedProfileData {
   gearInsights: GearInsights | null;
   ratioPreference: RatioPreference | null;
   tonalSummary: string | null;
+  standaloneWorthy: StandaloneWorthyIR[];
+  standaloneRecipes: StandaloneRecipe[];
 }
 
 async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<LearnedProfileData> {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null, standaloneWorthy: [], standaloneRecipes: [] };
   }
 
   const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "correction" || s.action === "taste_pick");
@@ -2055,9 +2075,71 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     };
   }
 
+  const soloSignals = signals.filter(s =>
+    s.baseFilename === s.featureFilename &&
+    s.baseFilename &&
+    s.score === 0 &&
+    (s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "nope")
+  );
+  const standaloneWorthy: StandaloneWorthyIR[] = [];
+  const standaloneRecipes: StandaloneRecipe[] = [];
+
+  if (soloSignals.length > 0) {
+    const soloByFile = new Map<string, { action: string; feedback: string | null }[]>();
+    for (const s of soloSignals) {
+      const arr = soloByFile.get(s.baseFilename) || [];
+      arr.push({ action: s.action, feedback: s.feedback });
+      soloByFile.set(s.baseFilename, arr);
+    }
+
+    const parseDistance = (fn: string): string | undefined => {
+      const m = fn.match(/[\-_](\d+(?:\.\d+)?)\s*(?:in|inch|"|\b)/i) || fn.match(/[\-_](\d+(?:\.\d+)?)[\-_]/);
+      return m ? m[1] : undefined;
+    };
+
+    const recipeMap = new Map<string, { count: number; ratingSum: number }>();
+    for (const [filename, ratings] of soloByFile) {
+      const lastRating = ratings[ratings.length - 1];
+      if (lastRating.action === "love" || lastRating.action === "like") {
+        const gear = parseGearFromFilename(filename);
+        const dist = parseDistance(filename);
+        const allTags = ratings.flatMap(r => r.feedback ? r.feedback.split(",").map(t => t.trim()) : []).filter(Boolean);
+        standaloneWorthy.push({
+          filename,
+          rating: lastRating.action as "love" | "like",
+          tags: [...new Set(allTags)],
+          mic: gear.mic,
+          position: gear.position,
+          distance: dist,
+          speaker: gear.speaker,
+        });
+
+        if (gear.mic && gear.position) {
+          const key = `${gear.mic}|${gear.position}${dist ? `|${dist}` : ""}`;
+          const existing = recipeMap.get(key) || { count: 0, ratingSum: 0 };
+          existing.count += 1;
+          existing.ratingSum += lastRating.action === "love" ? 2 : 1;
+          recipeMap.set(key, existing);
+        }
+      }
+    }
+
+    for (const [key, data] of recipeMap) {
+      const parts = key.split("|");
+      standaloneRecipes.push({
+        mic: parts[0],
+        position: parts[1],
+        distance: parts[2],
+        count: data.count,
+        avgRating: data.ratingSum / data.count,
+      });
+    }
+    standaloneRecipes.sort((a, b) => b.avgRating - a.avgRating || b.count - a.count);
+  }
+
   const tonalSummary = buildTonalSummary(adjustments, perProfileAdjustments, avoidZones, gearInsights, ratioPreference, courseCorrections, status, liked, noped, signals);
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference, tonalSummary };
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference, tonalSummary, standaloneWorthy, standaloneRecipes };
 }
 
 function buildTonalSummary(
@@ -2200,7 +2282,12 @@ function buildTonalSummary(
     }
   }
 
-  const soloSignals = allSignals.filter(s => s.baseFilename === s.featureFilename && s.baseFilename);
+  const soloSignals = allSignals.filter(s =>
+    s.baseFilename === s.featureFilename &&
+    s.baseFilename &&
+    s.score === 0 &&
+    (s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "nope")
+  );
   if (soloSignals.length >= 2) {
     const soloLoved = soloSignals.filter(s => s.action === "love");
     const soloLiked = soloSignals.filter(s => s.action === "like");
@@ -2228,6 +2315,33 @@ function buildTonalSummary(
       const tagCounts = partnerTags.reduce((m, t) => { m[t] = (m[t] || 0) + 1; return m; }, {} as Record<string, number>);
       const topReasons = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t.replace(/_/g, " "));
       lines.push(`Common gaps: ${topReasons.join(", ")}.`);
+    }
+
+    const soloWorthy = soloSignals.filter(s => s.action === "love" || s.action === "like");
+    if (soloWorthy.length > 0) {
+      const recipeMap = new Map<string, { count: number; ratingSum: number }>();
+      for (const s of soloWorthy) {
+        const gear = parseGearFromFilename(s.baseFilename);
+        if (gear.mic && gear.position) {
+          const key = `${gear.mic} @ ${gear.position}`;
+          const ex = recipeMap.get(key) || { count: 0, ratingSum: 0 };
+          ex.count += 1;
+          ex.ratingSum += s.action === "love" ? 2 : 1;
+          recipeMap.set(key, ex);
+        }
+      }
+      const recipes = [...recipeMap.entries()]
+        .sort((a, b) => b[1].ratingSum / b[1].count - a[1].ratingSum / a[1].count || b[1].count - a[1].count)
+        .slice(0, 5);
+      if (recipes.length > 0) {
+        lines.push("");
+        lines.push("**Standalone shot recipes** (mic + position combos that work solo):");
+        for (const [combo, data] of recipes) {
+          const avg = data.ratingSum / data.count;
+          const stars = avg >= 1.8 ? "★★" : avg >= 1.3 ? "★" : "·";
+          lines.push(`${stars} ${combo} (${data.count} IR${data.count > 1 ? "s" : ""} standalone-worthy)`);
+        }
+      }
     }
   }
 

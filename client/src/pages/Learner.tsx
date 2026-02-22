@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, BarChart3, RefreshCw, Clock } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { StandaloneBadge } from "@/components/StandaloneBadge";
 import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } from "@/components/MusicalRoleBadge";
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
@@ -578,6 +579,42 @@ function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings }: { learn
                   </div>
                 );
               })()}
+
+              {learnedProfile.standaloneRecipes && learnedProfile.standaloneRecipes.length > 0 && (
+                <div className="space-y-2" data-testid="standalone-recipes-section">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-xs font-medium text-foreground">Standalone Shot Recipes</span>
+                    <span className="text-[10px] text-muted-foreground">(mic + position combos that work solo)</span>
+                  </div>
+                  <div className="rounded-lg bg-card/50 border border-border/50 divide-y divide-border/30">
+                    {learnedProfile.standaloneRecipes.slice(0, 6).map((recipe, i) => {
+                      const stars = recipe.avgRating >= 1.8 ? "★★" : recipe.avgRating >= 1.3 ? "★" : "·";
+                      return (
+                        <div key={i} className="flex items-center gap-3 px-3 py-2" data-testid={`standalone-recipe-${i}`}>
+                          <span className={cn(
+                            "text-xs font-bold w-5 text-center",
+                            recipe.avgRating >= 1.8 ? "text-emerald-400" : recipe.avgRating >= 1.3 ? "text-teal-400" : "text-muted-foreground"
+                          )}>
+                            {stars}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-mono text-foreground truncate">
+                              {recipe.mic} @ {recipe.position}{recipe.distance ? ` (${recipe.distance}")` : ""}
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {recipe.count} IR{recipe.count > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    These mic+position combos produced IRs that work well on their own without blending.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
@@ -2712,6 +2749,7 @@ export default function Learner() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</span>
                   <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
+                  <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                   {prevDecision && (
                     <span className="text-xs opacity-60">(prev: {prevDecision.action} x{prevDecision.count})</span>
                   )}
@@ -3361,6 +3399,7 @@ export default function Learner() {
                         </p>
                         <MusicalRoleBadgeFromFeatures filename={pair.baseFilename} features={featuresByFilename.get(pair.baseFilename)} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={pair.baseFilename} />
+                        <StandaloneBadge filename={pair.baseFilename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                       </div>
                       <p className="text-[10px] text-muted-foreground">
                         + ({pair.suggestedRatio
@@ -3373,6 +3412,7 @@ export default function Learner() {
                         </p>
                         <MusicalRoleBadgeFromFeatures filename={pair.featureFilename} features={featuresByFilename.get(pair.featureFilename)} speakerStatsMap={speakerStatsMap} />
                         <ShotIntentBadge filename={pair.featureFilename} />
+                        <StandaloneBadge filename={pair.featureFilename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                       </div>
                       {tasteStatus.nVotes > 0 && (() => {
                         const anchor = suggestedPairs?.[0];
@@ -4032,6 +4072,7 @@ export default function Learner() {
                           </span>
                           <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                           <ShotIntentBadge filename={ir.filename} />
+                          <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
                         </div>
                       </div>
                       <TonalReadouts features={ir.features} centroid={centroid} />

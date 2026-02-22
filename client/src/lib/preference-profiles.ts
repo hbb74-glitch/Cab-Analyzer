@@ -473,6 +473,24 @@ export interface RatioPreference {
   perProfile?: Record<string, { preferredRatio: number; confidence: number }>;
 }
 
+export interface StandaloneWorthyIR {
+  filename: string;
+  rating: "love" | "like";
+  tags: string[];
+  mic?: string;
+  position?: string;
+  distance?: string;
+  speaker?: string;
+}
+
+export interface StandaloneRecipe {
+  mic: string;
+  position: string;
+  distance?: string;
+  count: number;
+  avgRating: number;
+}
+
 export interface LearnedProfileData {
   signalCount: number;
   likedCount: number;
@@ -485,6 +503,8 @@ export interface LearnedProfileData {
   gearInsights?: GearInsights | null;
   ratioPreference?: RatioPreference | null;
   tonalSummary?: string | null;
+  standaloneWorthy?: StandaloneWorthyIR[];
+  standaloneRecipes?: StandaloneRecipe[];
 }
 
 export function applyLearnedAdjustments(
