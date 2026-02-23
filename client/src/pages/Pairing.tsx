@@ -12,6 +12,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES } from "@/lib/preference-profiles";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, type TasteContext } from "@/lib/tasteStore";
 import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
 
 const GENRES = [
@@ -126,6 +127,41 @@ export default function Pairing() {
       intent?: "rhythm" | "lead" | "clean" | "versatile",
       count?: number
     }) => {
+      const tasteIntent = intentVal && intentVal !== "versatile" ? intentVal as "rhythm" | "lead" | "clean" : "rhythm" as const;
+      const soloRatings = getSoloCategoriesForPairing();
+
+      const intents: Array<"rhythm" | "lead" | "clean"> = intentVal === "versatile" ? ["rhythm", "lead", "clean"] : [tasteIntent];
+      let mergedWinRecords: Record<string, { wins: number; losses: number; bothCount: number }> = {};
+      let mergedEloRatings: Record<string, { rating: number; matchCount: number; uncertainty: number }> = {};
+      let allSettledWinners: string[] = [];
+      let allSettledLosers: string[] = [];
+
+      for (const ti of intents) {
+        const ctx: TasteContext = { intent: ti, speakerPrefix: "", mode: "blend" };
+        const winRecs = getIRWinRecordsPlain(ctx);
+        for (const [k, v] of Object.entries(winRecs)) {
+          if (!mergedWinRecords[k]) mergedWinRecords[k] = { wins: 0, losses: 0, bothCount: 0 };
+          mergedWinRecords[k].wins += v.wins;
+          mergedWinRecords[k].losses += v.losses;
+          mergedWinRecords[k].bothCount += v.bothCount;
+        }
+        const elo = getEloRatingsPlain(ctx);
+        for (const [k, v] of Object.entries(elo)) {
+          if (!mergedEloRatings[k] || v.matchCount > mergedEloRatings[k].matchCount) {
+            mergedEloRatings[k] = v;
+          }
+        }
+        const { winners, losers } = getSettledCombos(ctx);
+        allSettledWinners.push(...winners);
+        allSettledLosers.push(...losers);
+      }
+      allSettledWinners = Array.from(new Set(allSettledWinners));
+      allSettledLosers = Array.from(new Set(allSettledLosers));
+
+      const hasLearnerData = Object.keys(soloRatings).length > 0 || 
+        Object.keys(mergedWinRecords).length > 0 || 
+        Object.keys(mergedEloRatings).length > 0;
+
       const validated = api.pairing.analyze.input.parse({ 
         irs, 
         irs2, 
@@ -133,6 +169,13 @@ export default function Pairing() {
         mixedMode,
         intent: intentVal,
         pairingCount: count,
+        learnerInsights: hasLearnerData ? {
+          soloRatings: Object.keys(soloRatings).length > 0 ? soloRatings : undefined,
+          irWinRecords: Object.keys(mergedWinRecords).length > 0 ? mergedWinRecords : undefined,
+          eloRatings: Object.keys(mergedEloRatings).length > 0 ? mergedEloRatings : undefined,
+          settledWinners: allSettledWinners.length > 0 ? allSettledWinners : undefined,
+          settledLosers: allSettledLosers.length > 0 ? allSettledLosers : undefined,
+        } : undefined,
       });
       const res = await fetch(api.pairing.analyze.path, {
         method: "POST",

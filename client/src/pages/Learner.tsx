@@ -9,7 +9,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -770,7 +770,7 @@ export default function Learner() {
   const [blindMode, setBlindMode] = useState(false);
   const [resetAllConfirm, setResetAllConfirm] = useState(false);
   const [singleIrLearnOpen, setSingleIrLearnOpen] = useState(false);
-  const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>({});
+  const [singleIrRatings, setSingleIrRatings] = useState<Record<string, "love" | "like" | "meh" | "nope">>(() => loadSoloRatings());
   const [singleIrPage, setSingleIrPage] = useState(0);
   const [singleIrTags, setSingleIrTags] = useState<Record<string, string[]>>({});
   const [singleIrNotes, setSingleIrNotes] = useState<Record<string, string>>({});
@@ -802,6 +802,10 @@ export default function Learner() {
     downgraded: boolean;
     pendingLoadTopPick: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    persistSoloRatings(singleIrRatings);
+  }, [singleIrRatings]);
 
   const ratioRefineRef = useRef<HTMLDivElement>(null);
   const pairingSectionRef = useRef<HTMLDivElement>(null);

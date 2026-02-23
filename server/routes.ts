@@ -4788,7 +4788,7 @@ Output JSON:
   app.post(api.pairing.analyze.path, async (req, res) => {
     try {
       const input = api.pairing.analyze.input.parse(req.body);
-      const { irs, irs2, tonePreferences, mixedMode } = input;
+      const { irs, irs2, tonePreferences, mixedMode, learnerInsights } = input;
       const intent = input.intent || 'versatile';
       const pairingCount = input.pairingCount || 5;
 
@@ -4989,6 +4989,59 @@ Output JSON:
         return bonus;
       };
 
+      // ─── Learner-driven scoring boost ───
+      const computeLearnerBonus = (a: typeof irs[0], b: typeof irs[0]): number => {
+        if (!learnerInsights) return 0;
+        let bonus = 0;
+
+        const { soloRatings, irWinRecords, eloRatings, settledWinners, settledLosers } = learnerInsights;
+
+        if (soloRatings) {
+          const soloA = soloRatings[a.filename];
+          const soloB = soloRatings[b.filename];
+          if (soloA === "solo") bonus += 6;
+          else if (soloA === "needs_work") bonus -= 8;
+          if (soloB === "solo") bonus += 6;
+          else if (soloB === "needs_work") bonus -= 8;
+          if (soloA === "blend_only" && soloB === "solo") bonus += 3;
+          if (soloB === "blend_only" && soloA === "solo") bonus += 3;
+        }
+
+        if (irWinRecords) {
+          const recA = irWinRecords[a.filename];
+          const recB = irWinRecords[b.filename];
+          if (recA) {
+            const winRate = recA.wins / Math.max(recA.wins + recA.losses, 1);
+            bonus += (winRate - 0.5) * 12;
+          }
+          if (recB) {
+            const winRate = recB.wins / Math.max(recB.wins + recB.losses, 1);
+            bonus += (winRate - 0.5) * 12;
+          }
+        }
+
+        if (eloRatings) {
+          const comboKey = [a.filename, b.filename].sort().join("||");
+          const elo = eloRatings[comboKey];
+          if (elo && elo.matchCount >= 2) {
+            const eloBonus = (elo.rating - 1500) / 10;
+            const conf = Math.min(elo.matchCount / 5, 1) * (1 - elo.uncertainty);
+            bonus += eloBonus * conf;
+          }
+        }
+
+        if (settledWinners) {
+          const comboKey = [a.filename, b.filename].sort().join("||");
+          if (settledWinners.includes(comboKey)) bonus += 15;
+        }
+        if (settledLosers) {
+          const comboKey = [a.filename, b.filename].sort().join("||");
+          if (settledLosers.includes(comboKey)) bonus -= 12;
+        }
+
+        return Math.max(-20, Math.min(20, bonus));
+      };
+
       // ─── Score and rank all candidate pairs ───
       interface ScoredPair {
         ir1: typeof irs[0];
@@ -4999,6 +5052,7 @@ Output JSON:
         roleCompat: number;
         intentBonus: number;
         prefAlignment: number;
+        learnerBonus: number;
         totalScore: number;
         set1Label?: string;
         set2Label?: string;
@@ -5007,7 +5061,6 @@ Output JSON:
       const scoredPairs: ScoredPair[] = [];
 
       if (isMixedPairing) {
-        // Cross-speaker pairs only
         for (let i = 0; i < irs.length; i++) {
           for (let j = 0; j < irs2!.length; j++) {
             const role1 = classifyRole(irs[i]);
@@ -5016,18 +5069,18 @@ Output JSON:
             const roleCompat = getRoleCompat(role1, role2);
             const intentBonus = getIntentBonus(role1, role2, intent);
             const prefAlignment = computePreferenceAlignment(irs[i], irs2![j]);
+            const learnerBonus = computeLearnerBonus(irs[i], irs2![j]);
 
-            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment) * intentBonus;
+            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment + learnerBonus) * intentBonus;
 
             scoredPairs.push({
               ir1: irs[i], ir2: irs2![j],
-              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, totalScore,
+              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, learnerBonus, totalScore,
               set1Label: `Set1`, set2Label: `Set2`,
             });
           }
         }
       } else {
-        // All unique pairs within the same set
         for (let i = 0; i < irs.length; i++) {
           for (let j = i + 1; j < irs.length; j++) {
             const role1 = classifyRole(irs[i]);
@@ -5036,12 +5089,13 @@ Output JSON:
             const roleCompat = getRoleCompat(role1, role2);
             const intentBonus = getIntentBonus(role1, role2, intent);
             const prefAlignment = computePreferenceAlignment(irs[i], irs[j]);
+            const learnerBonus = computeLearnerBonus(irs[i], irs[j]);
 
-            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment) * intentBonus;
+            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment + learnerBonus) * intentBonus;
 
             scoredPairs.push({
               ir1: irs[i], ir2: irs[j],
-              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, totalScore,
+              role1, role2, complementarity, roleCompat, intentBonus, prefAlignment, learnerBonus, totalScore,
             });
           }
         }

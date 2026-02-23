@@ -777,6 +777,73 @@ export function resetTaste(ctx?: TasteContext) {
   saveState(state);
 }
 
+const SOLO_RATINGS_KEY = "irscope.soloRatings";
+
+export type SoloRating = "love" | "like" | "meh" | "nope";
+export type SoloCategory = "solo" | "blend_only" | "needs_work";
+
+function soloRatingToCategory(r: SoloRating): SoloCategory {
+  if (r === "love" || r === "like") return "solo";
+  if (r === "meh") return "blend_only";
+  return "needs_work";
+}
+
+export function persistSoloRatings(ratings: Record<string, SoloRating>): void {
+  try {
+    localStorage.setItem(SOLO_RATINGS_KEY, JSON.stringify(ratings));
+  } catch {}
+}
+
+export function loadSoloRatings(): Record<string, SoloRating> {
+  try {
+    const raw = localStorage.getItem(SOLO_RATINGS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, SoloRating>;
+  } catch {
+    return {};
+  }
+}
+
+export function getSoloCategoriesForPairing(): Record<string, SoloCategory> {
+  const ratings = loadSoloRatings();
+  const result: Record<string, SoloCategory> = {};
+  for (const [fn, r] of Object.entries(ratings)) {
+    result[fn] = soloRatingToCategory(r);
+  }
+  return result;
+}
+
+export function getSettledCombos(ctx: TasteContext): { winners: string[]; losers: string[] } {
+  const elo = getEloRatings(ctx);
+  const winners: string[] = [];
+  const losers: string[] = [];
+  for (const [key, entry] of Object.entries(elo)) {
+    if (entry.matchCount >= 3 && entry.uncertainty < 0.5) {
+      if (entry.rating >= 1520) winners.push(key);
+      else if (entry.rating <= 1490) losers.push(key);
+    }
+  }
+  return { winners, losers };
+}
+
+export function getIRWinRecordsPlain(ctx: TasteContext): Record<string, { wins: number; losses: number; bothCount: number }> {
+  const records = getIRWinRecords(ctx);
+  const result: Record<string, { wins: number; losses: number; bothCount: number }> = {};
+  for (const [fn, rec] of Object.entries(records)) {
+    result[fn] = { wins: rec.wins, losses: rec.losses, bothCount: rec.bothCount };
+  }
+  return result;
+}
+
+export function getEloRatingsPlain(ctx: TasteContext): Record<string, { rating: number; matchCount: number; uncertainty: number }> {
+  const elo = getEloRatings(ctx);
+  const result: Record<string, { rating: number; matchCount: number; uncertainty: number }> = {};
+  for (const [key, entry] of Object.entries(elo)) {
+    result[key] = { rating: entry.rating, matchCount: entry.matchCount, uncertainty: entry.uncertainty };
+  }
+  return result;
+}
+
 const WEIGHT_LABELS: string[] = [
   "subBass",
   "bass",

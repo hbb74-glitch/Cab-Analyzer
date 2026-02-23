@@ -149,6 +149,26 @@ export const irMetricsSchema = z.object({
   frequencySmoothness: z.number().optional(),
 });
 
+const irWinRecordSchema = z.object({
+  wins: z.number(),
+  losses: z.number(),
+  bothCount: z.number(),
+});
+
+const eloEntrySchema = z.object({
+  rating: z.number(),
+  matchCount: z.number(),
+  uncertainty: z.number(),
+});
+
+const learnerInsightsSchema = z.object({
+  soloRatings: z.record(z.string(), z.enum(["solo", "blend_only", "needs_work"])).optional(),
+  irWinRecords: z.record(z.string(), irWinRecordSchema).optional(),
+  eloRatings: z.record(z.string(), eloEntrySchema).optional(),
+  settledWinners: z.array(z.string()).optional(),
+  settledLosers: z.array(z.string()).optional(),
+}).optional();
+
 export const pairingInputSchema = z.object({
   irs: z.array(irMetricsSchema).min(1, "Need at least 1 IR"),
   irs2: z.array(irMetricsSchema).optional(),
@@ -156,6 +176,7 @@ export const pairingInputSchema = z.object({
   mixedMode: z.boolean().optional(),
   intent: z.enum(["rhythm", "lead", "clean", "versatile"]).optional(),
   pairingCount: z.number().min(1).max(20).optional(),
+  learnerInsights: learnerInsightsSchema,
 });
 
 export const pairingResultSchema = z.object({
