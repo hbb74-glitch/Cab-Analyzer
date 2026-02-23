@@ -4853,27 +4853,79 @@ Output JSON:
         const roles = new Set([r1, r2]);
         switch (intent) {
           case 'rhythm':
-            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.15;
-            if (roles.has('Mid Thickener') && roles.has('Cut Layer')) return 1.10;
-            if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.05;
-            if (roles.has('Lead Polish')) return 0.85;
-            if (roles.has('Dark Specialty')) return 0.80;
+            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.35;
+            if (roles.has('Mid Thickener') && roles.has('Cut Layer')) return 1.25;
+            if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.15;
+            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.10;
+            if (roles.has('Lead Polish')) return 0.65;
+            if (roles.has('Dark Specialty')) return 0.60;
             return 1.0;
           case 'lead':
-            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.15;
-            if (roles.has('Cut Layer') && roles.has('Lead Polish')) return 1.10;
-            if (roles.has('Mid Thickener') && roles.has('Lead Polish')) return 1.05;
-            if (roles.has('Dark Specialty')) return 0.80;
-            if (roles.has('Fizz Tamer')) return 0.90;
+            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.35;
+            if (roles.has('Cut Layer') && roles.has('Lead Polish')) return 1.30;
+            if (roles.has('Mid Thickener') && roles.has('Lead Polish')) return 1.15;
+            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.05;
+            if (roles.has('Dark Specialty')) return 0.55;
+            if (roles.has('Fizz Tamer')) return 0.70;
+            if (roles.has('Mid Thickener') && roles.has('Fizz Tamer')) return 0.65;
             return 1.0;
           case 'clean':
-            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.12;
-            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.10;
-            if (roles.has('Cut Layer')) return 0.85;
-            if (roles.has('Dark Specialty')) return 0.80;
+            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.30;
+            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.25;
+            if (roles.has('Lead Polish') && roles.has('Fizz Tamer')) return 1.15;
+            if (roles.has('Cut Layer') && !roles.has('Fizz Tamer')) return 0.60;
+            if (roles.has('Dark Specialty')) return 0.55;
             return 1.0;
           default: return 1.0;
         }
+      };
+
+      const computeIntentSpectralBonus = (a: typeof irs[0], b: typeof irs[0], intent: string): number => {
+        const has6a = a.midEnergy6 != null && a.highMidEnergy != null && a.presenceEnergy != null;
+        const has6b = b.midEnergy6 != null && b.highMidEnergy != null && b.presenceEnergy != null;
+        if (!has6a || !has6b) return 0;
+
+        let bonus = 0;
+        const avgMid = ((a.midEnergy6 ?? 0) + (b.midEnergy6 ?? 0)) / 2;
+        const avgHiMid = ((a.highMidEnergy ?? 0) + (b.highMidEnergy ?? 0)) / 2;
+        const avgPres = ((a.presenceEnergy ?? 0) + (b.presenceEnergy ?? 0)) / 2;
+        const avgLowMid = ((a.lowMidEnergy ?? 0) + (b.lowMidEnergy ?? 0)) / 2;
+        const avgRatio = avgHiMid / Math.max(avgMid, 0.001);
+        const avgCentroid = (a.spectralCentroid + b.spectralCentroid) / 2;
+
+        switch (intent) {
+          case 'rhythm':
+            if (avgMid > 25 && avgMid < 35) bonus += 6;
+            if (avgLowMid > 8 && avgLowMid < 18) bonus += 4;
+            if (avgPres < 20) bonus += 4;
+            else if (avgPres > 30) bonus -= 6;
+            if (avgRatio < 1.3) bonus += 4;
+            else if (avgRatio > 1.8) bonus -= 6;
+            if (avgCentroid < 2800) bonus += 3;
+            else if (avgCentroid > 3500) bonus -= 4;
+            break;
+          case 'lead':
+            if (avgHiMid > 20) bonus += 6;
+            if (avgPres > 18 && avgPres < 30) bonus += 5;
+            if (avgMid > 20 && avgMid < 30) bonus += 3;
+            if (avgRatio > 1.2) bonus += 4;
+            if (avgCentroid > 2500) bonus += 3;
+            else if (avgCentroid < 1800) bonus -= 5;
+            if (avgLowMid > 15) bonus -= 3;
+            break;
+          case 'clean':
+            const smoothA = a.frequencySmoothness ?? 50;
+            const smoothB = b.frequencySmoothness ?? 50;
+            const avgSmooth = (smoothA + smoothB) / 2;
+            if (avgSmooth > 60) bonus += 5;
+            if (avgPres > 15 && avgPres < 25) bonus += 4;
+            if (avgMid > 20 && avgMid < 30) bonus += 3;
+            if (avgLowMid < 12) bonus += 3;
+            else if (avgLowMid > 18) bonus -= 4;
+            if (avgRatio > 0.9 && avgRatio < 1.5) bonus += 3;
+            break;
+        }
+        return bonus;
       };
 
       // ─── Compute spectral complementarity between two IRs ───
@@ -5070,8 +5122,9 @@ Output JSON:
             const intentBonus = getIntentBonus(role1, role2, intent);
             const prefAlignment = computePreferenceAlignment(irs[i], irs2![j]);
             const learnerBonus = computeLearnerBonus(irs[i], irs2![j]);
+            const intentSpectral = computeIntentSpectralBonus(irs[i], irs2![j], intent);
 
-            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment + learnerBonus) * intentBonus;
+            const totalScore = (complementarity * 0.35 + roleCompat * 0.35 + intentSpectral + prefAlignment + learnerBonus) * intentBonus;
 
             scoredPairs.push({
               ir1: irs[i], ir2: irs2![j],
@@ -5090,8 +5143,9 @@ Output JSON:
             const intentBonus = getIntentBonus(role1, role2, intent);
             const prefAlignment = computePreferenceAlignment(irs[i], irs[j]);
             const learnerBonus = computeLearnerBonus(irs[i], irs[j]);
+            const intentSpectral = computeIntentSpectralBonus(irs[i], irs[j], intent);
 
-            const totalScore = (complementarity * 0.4 + roleCompat * 0.4 + prefAlignment + learnerBonus) * intentBonus;
+            const totalScore = (complementarity * 0.35 + roleCompat * 0.35 + intentSpectral + prefAlignment + learnerBonus) * intentBonus;
 
             scoredPairs.push({
               ir1: irs[i], ir2: irs[j],
