@@ -751,6 +751,7 @@ export default function Learner() {
     confidence: TasteConfidence;
     userPick: number | null;
     showingResult: boolean;
+    listeningContext?: string;
     history: TasteCheckRoundResult[];
     pendingRefineCandidates: { pair: SuggestedPairing; rank: number; baseFeatures: TonalFeatures; featFeatures: TonalFeatures }[];
     pendingLoadTopPick: boolean;
@@ -1121,6 +1122,50 @@ export default function Learner() {
     setTasteIntent(learnerContext === "clean" ? "clean" : "rhythm");
   }, [learnerContext]);
 
+  const mirrorTasteContext: TasteContext | null = useMemo(() => {
+    if (learnerContext !== "dirty") return null;
+    const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+    return { speakerPrefix, mode: "blend", intent: "lead" as const };
+  }, [pairingPool, learnerContext]);
+
+  const mirrorSingleIrContext: TasteContext | null = useMemo(() => {
+    if (learnerContext !== "dirty") return null;
+    const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+    return { speakerPrefix, mode: "singleIR", intent: "lead" as const };
+  }, [pairingPool, learnerContext]);
+
+  const DIRTY_LISTENING_CONTEXTS = useMemo(() => [
+    { label: "Rhythm — think power chords, chugs, riffing", intent: "rhythm" as const },
+    { label: "Lead — think sustain, bends, melodic lines", intent: "lead" as const },
+    { label: "All-around — whatever sounds best overall", intent: "versatile" as const },
+  ], []);
+
+  const dirtyContextIndex = useRef(0);
+  const pickListeningContext = useCallback((): string | undefined => {
+    if (learnerContext !== "dirty") return undefined;
+    const ctx = DIRTY_LISTENING_CONTEXTS[dirtyContextIndex.current % DIRTY_LISTENING_CONTEXTS.length];
+    dirtyContextIndex.current++;
+    return ctx.label;
+  }, [learnerContext, DIRTY_LISTENING_CONTEXTS]);
+
+  const mirrorRecordOutcome = useCallback((ctx: TasteContext, xA: number[], xB: number[], outcome: any, opts?: any) => {
+    recordOutcome(ctx, xA, xB, outcome, opts);
+    const mirror = ctx.mode === "singleIR" ? mirrorSingleIrContext : mirrorTasteContext;
+    if (mirror) recordOutcome(mirror, xA, xB, outcome, opts);
+  }, [mirrorTasteContext, mirrorSingleIrContext]);
+
+  const mirrorRecordIROutcome = useCallback((ctx: TasteContext, winners: string[], losers: string[], isBoth?: boolean) => {
+    recordIROutcome(ctx, winners, losers, isBoth);
+    const mirror = ctx.mode === "singleIR" ? mirrorSingleIrContext : mirrorTasteContext;
+    if (mirror) recordIROutcome(mirror, winners, losers, isBoth);
+  }, [mirrorTasteContext, mirrorSingleIrContext]);
+
+  const mirrorRecordEloOutcome = useCallback((ctx: TasteContext, w: [string, string], l: [string, string], isDraw?: boolean, round?: number) => {
+    recordEloOutcome(ctx, w, l, isDraw, round);
+    const mirror = ctx.mode === "singleIR" ? mirrorSingleIrContext : mirrorTasteContext;
+    if (mirror) recordEloOutcome(mirror, w, l, isDraw, round);
+  }, [mirrorTasteContext, mirrorSingleIrContext]);
+
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
     const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename)).length;
@@ -1180,6 +1225,9 @@ export default function Learner() {
     "articulate",
     "warm",
     "tight",
+    "great_for_rhythm",
+    "great_for_lead",
+    "great_all_around",
   ]), []);
 
   const SOLO_IMPROVE_TAGS = useMemo(() => ([
@@ -1190,6 +1238,9 @@ export default function Learner() {
     "close_but_dark",
     "close_but_bright",
     "good_with_help",
+    "great_for_rhythm",
+    "great_for_lead",
+    "great_all_around",
   ]), []);
 
   const SOLO_ISSUE_TAGS = useMemo(() => ([
@@ -1791,6 +1842,7 @@ export default function Learner() {
           confidence: tastePick.confidence,
           userPick: null,
           showingResult: false,
+          listeningContext: pickListeningContext(),
           history: [],
           pendingRefineCandidates: [],
           pendingLoadTopPick: false,
@@ -1842,8 +1894,8 @@ export default function Learner() {
           const lRatio = loser.suggestedRatio?.base ?? 0.5;
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
-          recordOutcome(tasteContext, xW, xL, "a", { source });
-          recordIROutcome(
+          mirrorRecordOutcome(tasteContext, xW, xL, "a", { source });
+          mirrorRecordIROutcome(
             tasteContext,
             [winner.baseFilename, winner.featureFilename],
             [loser.baseFilename, loser.featureFilename]
@@ -1851,24 +1903,20 @@ export default function Learner() {
           loserPairs.push([loser.baseFilename, loser.featureFilename]);
         }
         if (tasteCheckPhase.roundType === "quad" && loserPairs.length > 0) {
-          recordEloQuadOutcome(
-            tasteContext,
-            [winner.baseFilename, winner.featureFilename],
-            loserPairs
-          );
+          recordEloQuadOutcome(tasteContext, [winner.baseFilename, winner.featureFilename], loserPairs);
+          if (mirrorTasteContext) recordEloQuadOutcome(mirrorTasteContext, [winner.baseFilename, winner.featureFilename], loserPairs);
         } else if (tasteCheckPhase.roundType === "binary" && loserPairs.length === 1) {
-          recordEloOutcome(
-            tasteContext,
-            [winner.baseFilename, winner.featureFilename],
-            loserPairs[0]
-          );
+          recordEloOutcome(tasteContext, [winner.baseFilename, winner.featureFilename], loserPairs[0]);
+          if (mirrorTasteContext) recordEloOutcome(mirrorTasteContext, [winner.baseFilename, winner.featureFilename], loserPairs[0]);
         }
 
         const shownKeys = tasteCheckPhase.candidates.map(c =>
           [c.baseFilename, c.featureFilename].sort().join("||")
         );
         recordShownPairs(tasteContext, shownKeys, tasteCheckPhase.round);
+        if (mirrorTasteContext) recordShownPairs(mirrorTasteContext, shownKeys, tasteCheckPhase.round);
         recordTasteVote(tasteContext);
+        if (mirrorTasteContext) recordTasteVote(mirrorTasteContext);
 
         const bands = winner.blendBands;
         const hiMidMidRatio = bands.mid > 0 ? bands.highMid / bands.mid : 1.4;
@@ -1950,6 +1998,7 @@ export default function Learner() {
         confidence: tasteCheckPhase.confidence,
         userPick: null,
         showingResult: false,
+        listeningContext: pickListeningContext(),
         history: newHistory,
         pendingRefineCandidates: tasteCheckPhase.pendingRefineCandidates,
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
@@ -1972,15 +2021,15 @@ export default function Learner() {
       if (!aB || !aF || !bB || !bF) return;
       const xA = featurizeBlend(aB, aF, aR);
       const xB = featurizeBlend(bB, bF, bR);
-      recordOutcome(tasteContext, xA, xB, "tie", { source: "ab" });
-      recordIROutcome(
+      mirrorRecordOutcome(tasteContext, xA, xB, "tie", { source: "ab" });
+      mirrorRecordIROutcome(
         tasteContext,
         [a.baseFilename, a.featureFilename, b.baseFilename, b.featureFilename],
         []
       );
       setTasteVersion(v => v + 1);
     } catch {}
-  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+  }, [tasteCheckPhase, featuresByFilename, tasteContext, mirrorRecordOutcome, mirrorRecordIROutcome]);
 
   const handleTasteCheckBothUseful = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -1998,8 +2047,8 @@ export default function Learner() {
       const xA = featurizeBlend(aB, aF, aR);
       const xB = featurizeBlend(bB, bF, bR);
       const pairKey = `${a.baseFilename}__${a.featureFilename}__${b.baseFilename}__${b.featureFilename}`;
-      recordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ab" });
-      recordIROutcome(
+      mirrorRecordOutcome(tasteContext, xA, xB, "both", { pairKey, source: "ab" });
+      mirrorRecordIROutcome(
         tasteContext,
         [a.baseFilename, a.featureFilename, b.baseFilename, b.featureFilename],
         [],
@@ -2007,7 +2056,7 @@ export default function Learner() {
       );
       setTasteVersion(v => v + 1);
     } catch {}
-  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+  }, [tasteCheckPhase, featuresByFilename, tasteContext, mirrorRecordOutcome, mirrorRecordIROutcome]);
 
   const handleTasteCheckMultiTie = useCallback((selectedIndices: Set<number>) => {
     if (!tasteCheckPhase || selectedIndices.size < 2) return;
@@ -2033,7 +2082,7 @@ export default function Learner() {
           if (!aB || !aF || !bB || !bF) continue;
           const xA = featurizeBlend(aB, aF, aR);
           const xB = featurizeBlend(bB, bF, bR);
-          recordOutcome(tasteContext, xA, xB, "tie", { source: "pick4" });
+          mirrorRecordOutcome(tasteContext, xA, xB, "tie", { source: "pick4" });
         }
       }
 
@@ -2051,13 +2100,13 @@ export default function Learner() {
           const lRatio = loser.suggestedRatio?.base ?? 0.5;
           if (!lBase || !lFeat) continue;
           const xL = featurizeBlend(lBase, lFeat, lRatio);
-          recordOutcome(tasteContext, xW, xL, "a", { source: "pick4" });
+          mirrorRecordOutcome(tasteContext, xW, xL, "a", { source: "pick4" });
           allFeatures.push([loser.baseFilename, loser.featureFilename]);
         }
       }
 
       const allWinnerFilenames = selectedCandidates.flatMap(c => [c.baseFilename, c.featureFilename]);
-      recordIROutcome(
+      mirrorRecordIROutcome(
         tasteContext,
         allWinnerFilenames,
         [],
@@ -2068,11 +2117,13 @@ export default function Learner() {
         [c.baseFilename, c.featureFilename].sort().join("||")
       );
       recordShownPairs(tasteContext, shownKeys, tasteCheckPhase.round);
+      if (mirrorTasteContext) recordShownPairs(mirrorTasteContext, shownKeys, tasteCheckPhase.round);
       recordTasteVote(tasteContext);
+      if (mirrorTasteContext) recordTasteVote(mirrorTasteContext);
 
       setTasteVersion(v => v + 1);
     } catch {}
-  }, [tasteCheckPhase, featuresByFilename, tasteContext]);
+  }, [tasteCheckPhase, featuresByFilename, tasteContext, mirrorRecordOutcome, mirrorRecordIROutcome, mirrorTasteContext]);
 
   const skipTasteCheck = useCallback(() => {
     if (!tasteCheckPhase) return;
@@ -2289,6 +2340,7 @@ export default function Learner() {
           confidence: tastePick.confidence,
           userPick: null,
           showingResult: false,
+          listeningContext: pickListeningContext(),
           history: [],
           pendingRefineCandidates: disableAutoRatioRefine ? [] : refineCandidates,
           pendingLoadTopPick: loadTopPick,
@@ -2911,26 +2963,48 @@ export default function Learner() {
                     if (rated.length >= 2) {
                       const mean = meanVector(rated.map(r => r.x));
                       const centered = rated.map(r => ({ ...r, xc: centerVector(r.x, mean) }));
-                      for (let i = 0; i < centered.length; i++) {
-                        for (let j = i + 1; j < centered.length; j++) {
-                          const a = centered[i];
-                          const b = centered[j];
-                          const diff = a.strength - b.strength;
-                          if (diff === 0) {
-                            recordOutcome(singleIrTasteContext, a.xc, b.xc, "tie", { source: "learning" });
-                            recordIROutcome(singleIrTasteContext, [a.filename, b.filename], []);
-                          } else {
-                            const lr = 0.06 * Math.min(2, Math.abs(diff));
-                            if (diff > 0) {
-                              recordOutcome(singleIrTasteContext, a.xc, b.xc, "a", { lr, source: "learning" });
-                              recordIROutcome(singleIrTasteContext, [a.filename], [b.filename]);
+
+                      const recordToCtx = (ctx: TasteContext) => {
+                        for (let i = 0; i < centered.length; i++) {
+                          for (let j = i + 1; j < centered.length; j++) {
+                            const a = centered[i];
+                            const b = centered[j];
+                            const diff = a.strength - b.strength;
+                            if (diff === 0) {
+                              recordOutcome(ctx, a.xc, b.xc, "tie", { source: "learning" });
+                              recordIROutcome(ctx, [a.filename, b.filename], []);
                             } else {
-                              recordOutcome(singleIrTasteContext, b.xc, a.xc, "a", { lr, source: "learning" });
-                              recordIROutcome(singleIrTasteContext, [b.filename], [a.filename]);
+                              const lr = 0.06 * Math.min(2, Math.abs(diff));
+                              if (diff > 0) {
+                                recordOutcome(ctx, a.xc, b.xc, "a", { lr, source: "learning" });
+                                recordIROutcome(ctx, [a.filename], [b.filename]);
+                              } else {
+                                recordOutcome(ctx, b.xc, a.xc, "a", { lr, source: "learning" });
+                                recordIROutcome(ctx, [b.filename], [a.filename]);
+                              }
                             }
                           }
                         }
+                      };
+
+                      recordToCtx(singleIrTasteContext);
+                      if (mirrorSingleIrContext) recordToCtx(mirrorSingleIrContext);
+
+                      const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+                      for (const r of rated) {
+                        const tags = singleIrTags[r.filename] ?? [];
+                        const hasRhythm = tags.includes("great_for_rhythm") || tags.includes("great_all_around");
+                        const hasLead = tags.includes("great_for_lead") || tags.includes("great_all_around");
+                        if (hasRhythm && r.strength > 0) {
+                          const rhythmCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "rhythm" };
+                          recordIROutcome(rhythmCtx, [r.filename], []);
+                        }
+                        if (hasLead && r.strength > 0) {
+                          const leadCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "lead" };
+                          recordIROutcome(leadCtx, [r.filename], []);
+                        }
                       }
+
                       setTasteVersion(v => v + 1);
                     }
 
@@ -3800,6 +3874,12 @@ export default function Learner() {
 
                 {!tasteCheckPhase.showingResult && (
                   <>
+                    {tasteCheckPhase.listeningContext && (
+                      <div className="flex items-center gap-2 rounded-md bg-accent/30 px-3 py-1.5" data-testid="listening-context-hint">
+                        <span className="text-xs font-medium text-accent-foreground/80">🎧 Listen for:</span>
+                        <span className="text-xs text-accent-foreground">{tasteCheckPhase.listeningContext}</span>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {tasteTieMode
                         ? "Tap the options you like equally, then confirm."
