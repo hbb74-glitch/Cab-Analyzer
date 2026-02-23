@@ -895,6 +895,172 @@ export function getTonalPreferences(ctx: TasteContext): { preferences: TonalPref
   return { preferences, nVotes, confidence };
 }
 
+export type ValidatedShotInsight = {
+  mic: string;
+  position: string;
+  distance?: string;
+  soloScore: number;
+  blendScore: number;
+  sampleSize: number;
+  topBlendPartners: string[];
+  evidence: string;
+};
+
+export function getValidatedShotInsights(): ValidatedShotInsight[] {
+  const soloRatings = loadSoloRatings();
+  const state = loadState();
+
+  const micPattern = /\b(sm57|sm7b|md421k?|md441|e906|pr30|m88|m201|r121|r10|r92|m160|roswell|c414)\b/i;
+  const posPattern = /\b(capedge|cap_edge|cap edge|cone|cap)\b/i;
+  const distPattern = /(?:_|\b)(\d+(?:\.\d+)?)\s*(?:in|"|'')?(?=[\s_.\-]|$)/i;
+
+  const posNormalize: Record<string, string> = {
+    'capedge': 'CapEdge', 'cap_edge': 'CapEdge', 'cap edge': 'CapEdge',
+    'cone': 'Cone', 'cap': 'Cap',
+  };
+
+  type ShotBucket = {
+    mic: string;
+    position: string;
+    distance?: string;
+    soloLove: number;
+    soloLike: number;
+    soloMeh: number;
+    soloNope: number;
+    wins: number;
+    losses: number;
+    bothCount: number;
+    filenames: string[];
+    blendPartners: Record<string, number>;
+  };
+
+  const buckets: Record<string, ShotBucket> = {};
+
+  function parseFile(fn: string): { mic?: string; position?: string; distance?: string } {
+    const lower = fn.toLowerCase();
+    const mMatch = lower.match(micPattern);
+    const pMatch = lower.match(posPattern);
+    const dMatch = fn.match(distPattern);
+    return {
+      mic: mMatch ? mMatch[1].toUpperCase() : undefined,
+      position: pMatch ? posNormalize[pMatch[1].toLowerCase()] || pMatch[1] : undefined,
+      distance: dMatch ? dMatch[1] : undefined,
+    };
+  }
+
+  function bucketKey(mic: string, pos: string, dist?: string): string {
+    return `${mic}__${pos}${dist ? `__${dist}` : ''}`;
+  }
+
+  function ensureBucket(mic: string, pos: string, dist?: string): ShotBucket {
+    const key = bucketKey(mic, pos, dist);
+    if (!buckets[key]) {
+      buckets[key] = {
+        mic, position: pos, distance: dist,
+        soloLove: 0, soloLike: 0, soloMeh: 0, soloNope: 0,
+        wins: 0, losses: 0, bothCount: 0,
+        filenames: [], blendPartners: {},
+      };
+    }
+    return buckets[key];
+  }
+
+  for (const [fn, rating] of Object.entries(soloRatings)) {
+    const parsed = parseFile(fn);
+    if (!parsed.mic || !parsed.position) continue;
+    const bucket = ensureBucket(parsed.mic, parsed.position, parsed.distance);
+    bucket.filenames.push(fn);
+    if (rating === 'love') bucket.soloLove++;
+    else if (rating === 'like') bucket.soloLike++;
+    else if (rating === 'meh') bucket.soloMeh++;
+    else if (rating === 'nope') bucket.soloNope++;
+  }
+
+  const allIrWins = state.irWins ?? {};
+  for (const contextRecs of Object.values(allIrWins)) {
+    for (const [fn, rec] of Object.entries(contextRecs)) {
+      const parsed = parseFile(fn);
+      if (!parsed.mic || !parsed.position) continue;
+      const bucket = ensureBucket(parsed.mic, parsed.position, parsed.distance);
+      bucket.wins += rec.wins;
+      bucket.losses += rec.losses;
+      bucket.bothCount += rec.bothCount;
+    }
+  }
+
+  const allElo = state.elo ?? {};
+  for (const contextElo of Object.values(allElo)) {
+    for (const [ck, entry] of Object.entries(contextElo)) {
+      if (entry.matchCount < 2) continue;
+      if (entry.rating < 1510) continue;
+      const files = ck.split('||');
+      if (files.length !== 2) continue;
+      const p0 = parseFile(files[0]);
+      const p1 = parseFile(files[1]);
+      if (p0.mic && p0.position && p1.mic && p1.position) {
+        const b0 = ensureBucket(p0.mic, p0.position, p0.distance);
+        const partnerLabel = `${p1.mic}@${p1.position}`;
+        b0.blendPartners[partnerLabel] = (b0.blendPartners[partnerLabel] ?? 0) + 1;
+        const b1 = ensureBucket(p1.mic, p1.position, p1.distance);
+        const partnerLabel2 = `${p0.mic}@${p0.position}`;
+        b1.blendPartners[partnerLabel2] = (b1.blendPartners[partnerLabel2] ?? 0) + 1;
+      }
+    }
+  }
+
+  const insights: ValidatedShotInsight[] = [];
+  for (const bucket of Object.values(buckets)) {
+    const totalSolo = bucket.soloLove + bucket.soloLike + bucket.soloMeh + bucket.soloNope;
+    const totalWinLoss = bucket.wins + bucket.losses;
+    const sampleSize = totalSolo + totalWinLoss;
+    if (sampleSize < 2) continue;
+
+    const soloScore = totalSolo > 0
+      ? ((bucket.soloLove * 1.0 + bucket.soloLike * 0.6 - bucket.soloMeh * 0.2 - bucket.soloNope * 0.8) / totalSolo)
+      : 0;
+
+    const winRate = totalWinLoss > 0 ? bucket.wins / totalWinLoss : 0.5;
+    const blendScore = totalWinLoss >= 2
+      ? (winRate * 2 - 1)
+      : 0;
+
+    const topPartners = Object.entries(bucket.blendPartners)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([label]) => label);
+
+    const evidenceParts: string[] = [];
+    if (totalSolo > 0) {
+      evidenceParts.push(`solo: ${bucket.soloLove}L/${bucket.soloLike}l/${bucket.soloMeh}m/${bucket.soloNope}n`);
+    }
+    if (totalWinLoss > 0) {
+      evidenceParts.push(`A/B: ${bucket.wins}W/${bucket.losses}L`);
+    }
+    if (bucket.bothCount > 0) {
+      evidenceParts.push(`both-good: ${bucket.bothCount}`);
+    }
+
+    insights.push({
+      mic: bucket.mic,
+      position: bucket.position,
+      distance: bucket.distance,
+      soloScore: Math.round(soloScore * 100) / 100,
+      blendScore: Math.round(blendScore * 100) / 100,
+      sampleSize,
+      topBlendPartners: topPartners,
+      evidence: evidenceParts.join(', '),
+    });
+  }
+
+  insights.sort((a, b) => {
+    const scoreA = a.soloScore * 0.5 + a.blendScore * 0.5;
+    const scoreB = b.soloScore * 0.5 + b.blendScore * 0.5;
+    return scoreB - scoreA;
+  });
+
+  return insights;
+}
+
 export function getTasteStatus(ctx: TasteContext): { nVotes: number; confidence: number } {
   const state = loadState();
   const key = makeTasteKey(ctx);

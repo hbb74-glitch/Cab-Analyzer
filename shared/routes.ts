@@ -625,6 +625,16 @@ export const api = {
           lead: z.number().min(0).max(20).optional(),
           clean: z.number().min(0).max(20).optional(),
         }).optional(),
+        validatedInsights: z.array(z.object({
+          mic: z.string(),
+          position: z.string(),
+          distance: z.string().optional(),
+          soloScore: z.number(),
+          blendScore: z.number(),
+          sampleSize: z.number(),
+          topBlendPartners: z.array(z.string()),
+          evidence: z.string(),
+        })).optional(),
       }),
       responses: {
         200: z.any(),

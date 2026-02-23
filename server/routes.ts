@@ -6295,6 +6295,34 @@ CLEAN: Foundation + Lead Polish + Fizz Tamer (balanced, smooth, detailed)
 
 A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary intents.` : '';
 
+      const validatedInsightsSection = (() => {
+        const vi = input.validatedInsights;
+        if (!vi || vi.length === 0) return '';
+        const promoted = vi.filter(i => i.soloScore > 0.3 || i.blendScore > 0.3);
+        const demoted = vi.filter(i => i.soloScore < -0.3 || i.blendScore < -0.3);
+        if (promoted.length === 0 && demoted.length === 0) return '';
+        let section = '\n=== USER-VALIDATED SHOT PREFERENCES (from taste learning) ===\n';
+        section += 'These mic/position/distance combos have been validated through the user\'s listening tests.\n';
+        section += 'PRIORITIZE promoted shots and DEPRIORITIZE demoted ones in the design.\n\n';
+        if (promoted.length > 0) {
+          section += 'PROMOTED (user-validated as excellent):\n';
+          for (const ins of promoted) {
+            const dist = ins.distance ? `_${ins.distance}"` : '';
+            const partners = ins.topBlendPartners.length > 0 ? ` | blends well with: ${ins.topBlendPartners.join(', ')}` : '';
+            section += `  ★ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)} (${ins.sampleSize} samples, ${ins.evidence})${partners}\n`;
+          }
+        }
+        if (demoted.length > 0) {
+          section += 'DEMOTED (user-validated as unsatisfactory):\n';
+          for (const ins of demoted) {
+            const dist = ins.distance ? `_${ins.distance}"` : '';
+            section += `  ✗ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)} (${ins.sampleSize} samples, ${ins.evidence})\n`;
+          }
+        }
+        section += '\nUse this data to prioritize positions/distances the user has proven to like, and avoid ones they consistently reject.\n';
+        return section;
+      })();
+
       const designPrompt = `You are an expert audio engineer designing an IR capture session.
 You have REAL tonal data from previously analyzed IRs AND a knowledge base of mic/position role predictions.
 Use BOTH data sources to design an accurate, role-aware collection plan.
@@ -6303,6 +6331,7 @@ Use BOTH data sources to design an accurate, role-aware collection plan.
 ${profileSummary}
 ${extrapolationSection}
 ${knowledgeBaseSection}
+${validatedInsightsSection}
 
 ${roleDefinitions}
 
@@ -6562,6 +6591,9 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         designResult.intentCoverage = coverage;
       }
 
+      const viPromoted = (input.validatedInsights ?? []).filter(i => i.soloScore > 0.3 || i.blendScore > 0.3).length;
+      const viDemoted = (input.validatedInsights ?? []).filter(i => i.soloScore < -0.3 || i.blendScore < -0.3).length;
+
       res.json({
         ...designResult,
         profileCount: profiles.length,
@@ -6572,6 +6604,9 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         requestedCount: effectiveTargetCount,
         roleBudgets: hasIntentCounts ? roleBudgets : null,
         extrapolatedCount: extrapolatedProfiles.length,
+        validatedInsightCount: (input.validatedInsights ?? []).length,
+        promotedShotCount: viPromoted,
+        demotedShotCount: viDemoted,
       });
     } catch (err) {
       console.error('Shot design error:', err);

@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse, type AmpRecommendationsResponse, type PositionImportResponse } from "@shared/routes";
 import { analyzeAudioFile } from "@/hooks/use-analyses";
 import { MIC_ROLE_KB } from "@shared/knowledge/mic-role-map";
+import { getValidatedShotInsights } from "@/lib/tasteStore";
 
 // Ambiguous speaker patterns that need clarification
 const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: string }[]; question: string }> = {
@@ -458,6 +459,10 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
       payload.intentCounts = { rhythm: rhythmCount, lead: leadCount, clean: cleanCount };
     } else {
       payload.targetCount = targetCount;
+    }
+    const insights = getValidatedShotInsights();
+    if (insights.length > 0) {
+      payload.validatedInsights = insights;
     }
     designMutation.mutate(payload);
   };
@@ -1033,6 +1038,14 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                 {designResult.intentMode && (
                   <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">
                     Intent-Aware
+                  </span>
+                )}
+                {(designResult.promotedShotCount > 0 || designResult.demotedShotCount > 0) && (
+                  <span className="text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-400" data-testid="badge-validated-insights">
+                    {designResult.promotedShotCount > 0 ? `${designResult.promotedShotCount} promoted` : ''}
+                    {designResult.promotedShotCount > 0 && designResult.demotedShotCount > 0 ? ' / ' : ''}
+                    {designResult.demotedShotCount > 0 ? `${designResult.demotedShotCount} demoted` : ''}
+                    {' '}from taste learning
                   </span>
                 )}
                 <button
