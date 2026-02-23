@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +64,20 @@ export default function Pairing() {
   const { pairingResult: result, setPairingResult: setResult } = useResults();
   const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [passed, setPassed] = useState<Set<number>>(new Set());
+  const [replacementQueue, setReplacementQueue] = useState<PairingResult[]>([]);
+  const [savedFavorites, setSavedFavorites] = useState<PairingResult[]>(() => {
+    try {
+      const stored = localStorage.getItem("irscope_blend_favorites");
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [showSavedFavorites, setShowSavedFavorites] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("irscope_blend_favorites", JSON.stringify(savedFavorites));
+    } catch {}
+  }, [savedFavorites]);
 
   const isMixedMode = speaker1IRs.length > 0 && speaker2IRs.length > 0;
 
@@ -118,14 +132,13 @@ export default function Pairing() {
   }, [buildTasteContext, lookupFeatures]);
 
   const handleFavorite = useCallback((index: number, pairing: PairingResult) => {
+    const wasAlreadyFav = favorites.has(index);
     setFavorites(prev => {
       const next = new Set(prev);
       if (next.has(index)) {
         next.delete(index);
       } else {
         next.add(index);
-        recordBlendFeedback(pairing, true);
-        toast({ title: "Blend favorited", description: `${pairing.ir1} + ${pairing.ir2} saved. This helps the AI learn your preferences.` });
       }
       return next;
     });
@@ -134,22 +147,43 @@ export default function Pairing() {
       next.delete(index);
       return next;
     });
-  }, [recordBlendFeedback, toast]);
+    if (!wasAlreadyFav) {
+      recordBlendFeedback(pairing, true);
+      setSavedFavorites(prev => {
+        const key = `${pairing.ir1}||${pairing.ir2}||${pairing.mixRatio}`;
+        if (prev.some(f => `${f.ir1}||${f.ir2}||${f.mixRatio}` === key)) return prev;
+        return [...prev, pairing];
+      });
+      toast({ title: "Blend favorited", description: `${pairing.ir1} + ${pairing.ir2} saved permanently.` });
+    } else {
+      setSavedFavorites(prev => prev.filter(f => !(f.ir1 === pairing.ir1 && f.ir2 === pairing.ir2 && f.mixRatio === pairing.mixRatio)));
+    }
+  }, [favorites, recordBlendFeedback, toast]);
 
   const handlePass = useCallback((index: number, pairing: PairingResult) => {
-    setPassed(prev => {
-      const next = new Set(prev);
-      next.add(index);
-      return next;
-    });
+    recordBlendFeedback(pairing, false);
+
+    if (result && replacementQueue.length > 0) {
+      const replacement = replacementQueue[0];
+      setReplacementQueue(prev => prev.slice(1));
+      const newPairings = [...result.pairings];
+      newPairings[index] = replacement;
+      setResult({ ...result, pairings: newPairings });
+      toast({ title: "Blend replaced", description: `Swapped in: ${replacement.ir1} + ${replacement.ir2}` });
+    } else {
+      setPassed(prev => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+      });
+      toast({ title: "Blend passed", description: "No more replacements available." });
+    }
     setFavorites(prev => {
       const next = new Set(prev);
       next.delete(index);
       return next;
     });
-    recordBlendFeedback(pairing, false);
-    toast({ title: "Blend passed", description: "Feedback recorded — the AI will learn from this." });
-  }, [recordBlendFeedback, toast]);
+  }, [recordBlendFeedback, toast, result, replacementQueue, setResult]);
 
   const copyPairings = () => {
     if (!result) return;
@@ -254,7 +288,7 @@ export default function Pairing() {
         tonePreferences: tonePrefs,
         mixedMode,
         intent: intentVal,
-        pairingCount: count,
+        pairingCount: Math.min((count ?? 5) + 3, 20),
         learnerInsights: hasLearnerData ? {
           soloRatings: Object.keys(soloRatings).length > 0 ? soloRatings : undefined,
           irWinRecords: Object.keys(mergedWinRecords).length > 0 ? mergedWinRecords : undefined,
@@ -272,7 +306,16 @@ export default function Pairing() {
       return api.pairing.analyze.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
-      setResult(data);
+      const requestedCount = pairingCount;
+      if (data.pairings.length > requestedCount) {
+        const visible = data.pairings.slice(0, requestedCount);
+        const extras = data.pairings.slice(requestedCount);
+        setResult({ ...data, pairings: visible });
+        setReplacementQueue(extras);
+      } else {
+        setResult(data);
+        setReplacementQueue([]);
+      }
       setFavorites(new Set());
       setPassed(new Set());
     },
@@ -1000,6 +1043,72 @@ export default function Pairing() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {savedFavorites.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowSavedFavorites(!showSavedFavorites)}
+              className="flex items-center gap-2 text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors mb-3"
+              data-testid="button-toggle-saved-favorites"
+            >
+              <Star className="w-4 h-4 fill-current" />
+              Saved Favorites ({savedFavorites.length})
+              <span className="text-xs text-muted-foreground">{showSavedFavorites ? "▲" : "▼"}</span>
+            </button>
+            {showSavedFavorites && (
+              <div className="space-y-2">
+                {savedFavorites.map((fav, idx) => (
+                  <div
+                    key={`${fav.ir1}-${fav.ir2}-${idx}`}
+                    className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/15 flex items-center justify-between gap-3"
+                    data-testid={`saved-favorite-${idx}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-1.5 py-0.5 bg-primary/20 text-primary text-xs font-mono rounded">{fav.ir1}</span>
+                        <span className="text-muted-foreground text-xs">+</span>
+                        <span className="px-1.5 py-0.5 bg-secondary/20 text-secondary text-xs font-mono rounded">{fav.ir2}</span>
+                        <span className="text-xs text-muted-foreground">{fav.mixRatio}</span>
+                        <span className={cn(
+                          "text-xs px-1.5 py-0.5 rounded",
+                          fav.score >= 85 ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-muted-foreground"
+                        )}>{fav.score}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{fav.expectedTone}</p>
+                    </div>
+                    <button
+                      onClick={() => setSavedFavorites(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                      title="Remove from favorites"
+                      data-testid={`button-remove-saved-fav-${idx}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const text = savedFavorites.map((f, i) =>
+                      `${i + 1}. ${f.ir1} + ${f.ir2} (${f.mixRatio}) — Score: ${f.score}\n   ${f.expectedTone}\n   Best for: ${f.bestFor}`
+                    ).join("\n\n");
+                    navigator.clipboard.writeText(text);
+                    toast({ title: "Copied", description: "Favorites list copied to clipboard." });
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                  data-testid="button-copy-saved-favorites"
+                >
+                  <Copy className="w-3 h-3" /> Copy all favorites
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {replacementQueue.length > 0 && result && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            {replacementQueue.length} replacement{replacementQueue.length !== 1 ? "s" : ""} available
+          </p>
+        )}
       </div>
     </div>
   );
