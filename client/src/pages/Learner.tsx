@@ -759,6 +759,7 @@ export default function Learner() {
   const [tasteCheckMode, setTasteCheckMode] = useState<"learning" | "acquisition" | "tester" | "ratio">("learning");
   const [refinementEnabled, setRefinementEnabled] = useState(true);
   const [tasteIntent, setTasteIntent] = useState<"rhythm" | "lead" | "clean">("rhythm");
+  const [learnerContext, setLearnerContext] = useState<"dirty" | "clean">("dirty");
   const [tasteVersion, setTasteVersion] = useState(0);
   const [trainingMode, setTrainingMode] = useState(() => {
     const persisted = loadPersistedTrainingMode();
@@ -1116,6 +1117,10 @@ export default function Learner() {
     } catch {}
   }, [tasteIntent]);
 
+  useEffect(() => {
+    setTasteIntent(learnerContext === "clean" ? "clean" : "rhythm");
+  }, [learnerContext]);
+
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
     const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename)).length;
@@ -1448,7 +1453,7 @@ export default function Learner() {
     const lines: string[] = [];
     const ts = new Date().toISOString().replace("T", " ").slice(0, 19);
     lines.push(`=== Voting Results Export — ${ts} ===`);
-    lines.push(`Mode: ${tasteCheckMode} | Intent: ${tasteIntent} | ${trainingMode ? "Sandbox" : "Live"}`);
+    lines.push(`Mode: ${tasteCheckMode} | Context: ${learnerContext} | ${trainingMode ? "Sandbox" : "Live"}`);
     lines.push(`Pairing rounds completed: ${totalRoundsCompleted}`);
     const allTimeVotes = getTasteVoteCount(tasteContext);
     const currentSessionVotes = tasteCheckPhase?.history?.length ?? 0;
@@ -2637,19 +2642,19 @@ export default function Learner() {
 
       <div className="flex items-center gap-2 flex-wrap" data-testid="taste-control-buttons">
         <div className="flex items-center gap-0.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-0.5" data-testid="intent-selector">
-          {(["rhythm", "lead", "clean"] as const).map((intent) => (
+          {(["dirty", "clean"] as const).map((ctx) => (
             <Button
-              key={intent}
+              key={ctx}
               size="sm"
-              variant={tasteIntent === intent ? "secondary" : "ghost"}
+              variant={learnerContext === ctx ? "secondary" : "ghost"}
               className={cn(
                 "text-xs h-7 capitalize",
-                tasteIntent === intent && "bg-indigo-500/25 text-indigo-300"
+                learnerContext === ctx && "bg-indigo-500/25 text-indigo-300"
               )}
-              onClick={() => setTasteIntent(intent)}
-              data-testid={`button-intent-${intent}`}
+              onClick={() => setLearnerContext(ctx)}
+              data-testid={`button-context-${ctx}`}
             >
-              {intent}
+              {ctx === "dirty" ? "Dirty" : "Clean"}
             </Button>
           ))}
         </div>
@@ -2768,7 +2773,7 @@ export default function Learner() {
             <div className="text-xs opacity-70 space-y-0.5">
               <div>Could this IR carry a tone on its own, or does it need a partner?</div>
               <div>Love = great standalone · Like = close, minor gaps · Meh = needs help · Nope = not viable solo</div>
-              <div className="opacity-60">Context: {singleIrTasteContext.speakerPrefix}/singleIR/{singleIrTasteContext.intent}</div>
+              <div className="opacity-60">Context: {singleIrTasteContext.speakerPrefix}/singleIR/{learnerContext}</div>
             </div>
 
             {singleIrUndecided.length > 0 && (
