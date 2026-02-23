@@ -2245,10 +2245,11 @@ export default function Learner() {
 
     const disableAutoRatioRefine = true;
 
-    const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
-      (ir) => (newExposure.get(ir.filename) ?? 0) === 0
-    );
-    const shouldTasteCheck = (tasteCheckMode !== "learning") || !tasteCheckPassed || hasUnseenIRs;
+    const shouldTasteCheck = tasteCheckMode === "learning"
+      ? true
+      : !tasteCheckPassed || (pairingPool.length > 0 && pairingPool.some(
+          (ir) => (newExposure.get(ir.filename) ?? 0) === 0
+        ));
 
     if (shouldTasteCheck) {
       const tastePick = pickTasteCheckCandidates(
