@@ -2244,59 +2244,54 @@ export default function Learner() {
     setPairingFeedbackText({});
 
     const disableAutoRatioRefine = true;
-    if (disableAutoRatioRefine) {
-      return;
+
+    const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
+      (ir) => (newExposure.get(ir.filename) ?? 0) === 0
+    );
+    const shouldTasteCheck = (tasteCheckMode !== "learning") || !tasteCheckPassed || hasUnseenIRs;
+
+    if (shouldTasteCheck) {
+      const tastePick = pickTasteCheckCandidates(
+        pairingPool,
+        activeProfiles,
+        learnedProfile || undefined,
+        newEvaluated.size > 0 ? newEvaluated : undefined,
+        undefined,
+        tasteCheckMode as "acquisition" | "tester" | "learning",
+        tasteIntent as "rhythm" | "lead" | "clean",
+        getIRWinRecords(tasteContext),
+        getEloRatings(tasteContext),
+        getShownPairs(tasteContext),
+        !refinementEnabled
+      );
+      if (tastePick) {
+        const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
+        if (refineCandidates.length > 0) {
+          refineCandidates.sort((a, b) => a.rank - b.rank);
+        }
+        setTasteCheckPhase({
+          candidates: rerankTasteCandidatesForContext(tastePick.candidates),
+          roundType: tastePick.roundType,
+          axisName: tastePick.axisName,
+          axisLabels: tastePick.axisLabels,
+          round: 0,
+          maxRounds,
+          confidence: tastePick.confidence,
+          userPick: null,
+          showingResult: false,
+          history: [],
+          pendingRefineCandidates: disableAutoRatioRefine ? [] : refineCandidates,
+          pendingLoadTopPick: loadTopPick,
+        });
+        return;
+      } else {
+        if (!tasteCheckPassed) setTasteCheckPassed(true);
+      }
     }
 
-    if (refineCandidates.length > 0) {
+    if (!disableAutoRatioRefine && refineCandidates.length > 0) {
       refineCandidates.sort((a, b) => a.rank - b.rank);
-
-      if (tasteCheckMode === "ratio") {
-        proceedToRatioRefine(refineCandidates, loadTopPick);
-      } else {
-        const hasUnseenIRs = pairingPool.length > 0 && pairingPool.some(
-          (ir) => (newExposure.get(ir.filename) ?? 0) === 0
-        );
-        const shouldTasteCheck = (tasteCheckMode !== "learning") || !tasteCheckPassed || hasUnseenIRs;
-
-        if (shouldTasteCheck) {
-          const tastePick = pickTasteCheckCandidates(
-            pairingPool,
-            activeProfiles,
-            learnedProfile || undefined,
-            newEvaluated.size > 0 ? newEvaluated : undefined,
-            undefined,
-            tasteCheckMode as "acquisition" | "tester" | "learning",
-            tasteIntent as "rhythm" | "lead" | "clean",
-            getIRWinRecords(tasteContext),
-            getEloRatings(tasteContext),
-            getShownPairs(tasteContext),
-            !refinementEnabled
-          );
-          if (tastePick) {
-            const maxRounds = getTasteCheckRounds(tastePick.confidence, pairingPool.length);
-            setTasteCheckPhase({
-              candidates: rerankTasteCandidatesForContext(tastePick.candidates),
-              roundType: tastePick.roundType,
-              axisName: tastePick.axisName,
-              axisLabels: tastePick.axisLabels,
-              round: 0,
-              maxRounds,
-              confidence: tastePick.confidence,
-              userPick: null,
-              showingResult: false,
-              history: [],
-              pendingRefineCandidates: refineCandidates,
-              pendingLoadTopPick: loadTopPick,
-            });
-          } else {
-            if (!tasteCheckPassed) setTasteCheckPassed(true);
-            proceedToRatioRefine(refineCandidates, loadTopPick);
-          }
-        } else {
-          proceedToRatioRefine(refineCandidates, loadTopPick);
-        }
-      }
+      proceedToRatioRefine(refineCandidates, loadTopPick);
     } else {
       finishRound(loadTopPick, null);
     }
