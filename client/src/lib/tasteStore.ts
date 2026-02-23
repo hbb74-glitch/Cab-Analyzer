@@ -4,7 +4,7 @@ import type { IRWinRecord } from "@/lib/musical-roles";
 
 export type TasteMode = "singleIR" | "blend";
 export type TasteIntent = "rhythm" | "lead" | "clean";
-export type VoteSource = "learning" | "pick4" | "ab" | "ratio";
+export type VoteSource = "learning" | "pick4" | "ab" | "ratio" | "favorite" | "pass";
 
 export type TasteContext = {
   speakerPrefix: string;
@@ -447,6 +447,8 @@ function sourceWeight(source?: VoteSource): number {
   if (source === "pick4") return 0.6;
   if (source === "ab") return 0.6;
   if (source === "ratio") return 0.25;
+  if (source === "favorite") return 1.2;
+  if (source === "pass") return 0.8;
   return 0.6;
 }
 

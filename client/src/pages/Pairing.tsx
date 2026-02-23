@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -11,9 +11,9 @@ import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
-import { DEFAULT_PROFILES } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, type TasteContext } from "@/lib/tasteStore";
-import { api, type PairingResponse, type IRMetrics } from "@shared/routes";
+import { DEFAULT_PROFILES, type TonalFeatures } from "@/lib/preference-profiles";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext } from "@/lib/tasteStore";
+import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
 const GENRES = [
   { value: "", label: "Any / General" },
@@ -62,8 +62,94 @@ export default function Pairing() {
   const [pairingCount, setPairingCount] = useState<number>(5);
   const { toast } = useToast();
   const { pairingResult: result, setPairingResult: setResult } = useResults();
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
+  const [passed, setPassed] = useState<Set<number>>(new Set());
 
   const isMixedMode = speaker1IRs.length > 0 && speaker2IRs.length > 0;
+
+  const irFeaturesMap = useMemo(() => {
+    const map = new Map<string, BlendPreviewIR>();
+    for (const ir of [...speaker1IRs, ...speaker2IRs]) {
+      if (ir.features && ir.bands) {
+        map.set(ir.file.name, { filename: ir.file.name, features: ir.features, bands: ir.bands });
+        const nameNoExt = ir.file.name.replace(/\.wav$/i, "");
+        map.set(nameNoExt, { filename: ir.file.name, features: ir.features, bands: ir.bands });
+      }
+    }
+    return map;
+  }, [speaker1IRs, speaker2IRs]);
+
+  const buildTasteContext = useCallback((): TasteContext => {
+    const allIRs = [...speaker1IRs, ...speaker2IRs];
+    const speakerPrefix = (allIRs[0]?.file.name ?? "unknown").split("_")[0] ?? "unknown";
+    return { speakerPrefix, mode: "blend" as const, intent: intent === "versatile" ? "rhythm" : intent };
+  }, [speaker1IRs, speaker2IRs, intent]);
+
+  const lookupFeatures = useCallback((irName: string): TonalFeatures | null => {
+    const data = irFeaturesMap.get(irName) || irFeaturesMap.get(irName.replace(/\.wav$/i, ""));
+    return data?.features ?? null;
+  }, [irFeaturesMap]);
+
+  const recordBlendFeedback = useCallback((pairing: PairingResult, positive: boolean) => {
+    const ir1Feat = lookupFeatures(pairing.ir1);
+    const ir2Feat = lookupFeatures(pairing.ir2);
+    if (!ir1Feat || !ir2Feat) return;
+
+    const ctx = buildTasteContext();
+    const ratioMatch = pairing.mixRatio.match(/(\d+)\s*[/:]\s*(\d+)/);
+    let baseRatio = 0.5;
+    if (ratioMatch) {
+      const a = parseInt(ratioMatch[1], 10);
+      const b = parseInt(ratioMatch[2], 10);
+      if (a + b > 0) baseRatio = a / (a + b);
+    }
+
+    const xBlend = featurizeBlend(ir1Feat, ir2Feat, baseRatio);
+    const zeroVec = new Array(xBlend.length).fill(0);
+
+    if (positive) {
+      recordOutcome(ctx, xBlend, zeroVec, "a", { lr: 0.12, source: "favorite" });
+      recordIROutcome(ctx, [pairing.ir1, pairing.ir2], []);
+      recordEloOutcome(ctx, [pairing.ir1, pairing.ir2], ["__anchor__", "__anchor__"], true);
+    } else {
+      recordOutcome(ctx, zeroVec, xBlend, "a", { lr: 0.08, source: "pass" });
+      recordIROutcome(ctx, [], [pairing.ir1, pairing.ir2]);
+    }
+  }, [buildTasteContext, lookupFeatures]);
+
+  const handleFavorite = useCallback((index: number, pairing: PairingResult) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+        recordBlendFeedback(pairing, true);
+        toast({ title: "Blend favorited", description: `${pairing.ir1} + ${pairing.ir2} saved. This helps the AI learn your preferences.` });
+      }
+      return next;
+    });
+    setPassed(prev => {
+      const next = new Set(prev);
+      next.delete(index);
+      return next;
+    });
+  }, [recordBlendFeedback, toast]);
+
+  const handlePass = useCallback((index: number, pairing: PairingResult) => {
+    setPassed(prev => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+    setFavorites(prev => {
+      const next = new Set(prev);
+      next.delete(index);
+      return next;
+    });
+    recordBlendFeedback(pairing, false);
+    toast({ title: "Blend passed", description: "Feedback recorded — the AI will learn from this." });
+  }, [recordBlendFeedback, toast]);
 
   const copyPairings = () => {
     if (!result) return;
@@ -187,6 +273,8 @@ export default function Pairing() {
     },
     onSuccess: (data) => {
       setResult(data);
+      setFavorites(new Set());
+      setPassed(new Set());
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to analyze IR pairings", variant: "destructive" });
@@ -349,18 +437,6 @@ export default function Pairing() {
   const canAnalyze = isMixedMode 
     ? (valid1Count >= 1 && valid2Count >= 1 && totalAnalyzing === 0)
     : (valid1Count >= 2 && totalAnalyzing === 0);
-
-  const irFeaturesMap = useMemo(() => {
-    const map = new Map<string, BlendPreviewIR>();
-    for (const ir of [...speaker1IRs, ...speaker2IRs]) {
-      if (ir.features && ir.bands) {
-        map.set(ir.file.name, { filename: ir.file.name, features: ir.features, bands: ir.bands });
-        const nameNoExt = ir.file.name.replace(/\.wav$/i, "");
-        map.set(nameNoExt, { filename: ir.file.name, features: ir.features, bands: ir.bands });
-      }
-    }
-    return map;
-  }, [speaker1IRs, speaker2IRs]);
 
   const IRList = ({ 
     irs, 
@@ -752,11 +828,47 @@ export default function Pairing() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3"
+                      className={cn(
+                        "p-4 rounded-xl border space-y-3 transition-colors",
+                        favorites.has(index)
+                          ? "bg-emerald-500/10 border-emerald-500/30"
+                          : passed.has(index)
+                          ? "bg-white/[0.02] border-white/5 opacity-50"
+                          : "bg-white/5 border-white/10"
+                      )}
                       data-testid={`pairing-result-${index}`}
                     >
-                      {/* Pairing Title */}
-                      <h3 className="text-lg font-bold text-foreground">{pairing.title}</h3>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-lg font-bold text-foreground flex-1">{pairing.title}</h3>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleFavorite(index, pairing)}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-all",
+                              favorites.has(index)
+                                ? "bg-emerald-500/20 text-emerald-400"
+                                : "bg-white/5 text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"
+                            )}
+                            title={favorites.has(index) ? "Unfavorite" : "Favorite this blend"}
+                            data-testid={`button-favorite-pairing-${index}`}
+                          >
+                            <Heart className={cn("w-4 h-4", favorites.has(index) && "fill-current")} />
+                          </button>
+                          <button
+                            onClick={() => handlePass(index, pairing)}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-all",
+                              passed.has(index)
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-white/5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                            )}
+                            title="Pass on this blend"
+                            data-testid={`button-pass-pairing-${index}`}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                       
                       <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="flex-1 min-w-0">
@@ -855,6 +967,28 @@ export default function Pairing() {
                     </motion.div>
                   ))}
                 </div>
+
+                {favorites.size > 0 && (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mt-4">
+                    <p className="text-xs text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <Heart className="w-3 h-3 fill-current" /> Favorites ({favorites.size})
+                    </p>
+                    <div className="space-y-1">
+                      {Array.from(favorites).sort().map(idx => {
+                        const p = result.pairings[idx];
+                        if (!p) return null;
+                        return (
+                          <p key={idx} className="text-sm text-foreground/80">
+                            <span className="font-mono text-xs">{p.ir1}</span>
+                            {" + "}
+                            <span className="font-mono text-xs">{p.ir2}</span>
+                            <span className="text-muted-foreground"> — {p.mixRatio}</span>
+                          </p>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {result.speakerRoleAnalysis && (
                   <div className="p-4 rounded-xl bg-white/5 border border-white/10 mt-4">
