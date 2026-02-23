@@ -288,7 +288,7 @@ export default function Pairing() {
         tonePreferences: tonePrefs,
         mixedMode,
         intent: intentVal,
-        pairingCount: Math.min((count ?? 5) + 3, 20),
+        pairingCount: Math.min((count ?? 5) + 5, 20),
         learnerInsights: hasLearnerData ? {
           soloRatings: Object.keys(soloRatings).length > 0 ? soloRatings : undefined,
           irWinRecords: Object.keys(mergedWinRecords).length > 0 ? mergedWinRecords : undefined,
@@ -743,7 +743,7 @@ export default function Pairing() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[3, 5, 7, 10, 15, 20].map((n) => (
+                  {[3, 4, 5, 7, 10, 15, 20].map((n) => (
                     <SelectItem key={n} value={String(n)} data-testid={`option-count-${n}`}>
                       {n} pairings
                     </SelectItem>
