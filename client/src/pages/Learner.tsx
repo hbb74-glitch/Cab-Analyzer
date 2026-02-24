@@ -1806,7 +1806,7 @@ export default function Learner() {
   const activePairings = suggestedPairs.filter((p) => !dismissedPairings.has(pairKey(p)));
   const canConfirm = hasAnyRank || dismissedPairings.size === suggestedPairs.length;
 
-  const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
+  const RATIO_GRID = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
   const snapToGrid = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
 
   const buildInitialRatioState = useCallback(() => {

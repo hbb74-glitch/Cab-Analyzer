@@ -5233,7 +5233,7 @@ These preferences are ALREADY factored into the pre-scoring. Use them to inform 
             const topRatios = rp.distribution.slice(0, 3).map(d => `${Math.round(d.ratio * 100)}/${Math.round((1 - d.ratio) * 100)} (${d.count}× rated, sentiment ${d.sentiment})`);
             learnedPrefsSection += `\n- Top rated ratios: ${topRatios.join(', ')}`;
           }
-          learnedPrefsSection += `\nIMPORTANT: Use these learned ratio preferences to assign mix ratios. Do NOT default to 50:50 or 70:30 for every pairing. Vary ratios based on role dominance AND user's ratio history. Consider 55:45, 60:40, 65:35, 45:55, 40:60 etc.`;
+          learnedPrefsSection += `\nIMPORTANT: Use these learned ratio preferences to assign mix ratios. Do NOT default to 50:50 or 70:30 for every pairing. Vary ratios based on role dominance AND user's ratio history. Use ratios from this set: 50:50, 60:40, 40:60, 70:30, 30:70, 80:20, 20:80. Nothing above 80:20 — beyond that it's effectively just one IR.`;
         }
       }
 
@@ -5287,7 +5287,7 @@ CRITICAL RULES:
 - Two bright/forward mics together is NEVER a good pairing
 - Two dark/warm mics together is NEVER a good pairing
 - Same mic type on both sides is generally bad unless positions differ dramatically
-- Mix ratio MUST vary across pairings and reflect the dominant role: Foundation/body IR typically gets 55-70%, color/accent IR 30-45%. But also consider 55:45, 45:55, 60:40, 40:60, 65:35 etc. based on how dominant each IR's character should be. NEVER assign the same ratio to more than 2 pairings in one batch.
+- Mix ratio MUST vary across pairings and reflect the dominant role. Use ratios from: 50:50, 60:40, 40:60, 70:30, 30:70, 80:20, 20:80. Nothing above 80:20. Foundation/body IR typically gets 60-80%, color/accent IR 20-40%. NEVER assign the same ratio to more than 2 pairings in one batch.
 - ROLE ACCURACY: You MUST use the exact role shown in each candidate's "Role:" field for ir1Role and ir2Role. Do NOT reassign roles based on your own judgment — the roles come from a validated knowledge base and spectral analysis. If a mic is labeled Foundation, it IS Foundation. If labeled Lead Polish, it IS Lead Polish.
 
 DIVERSITY RULES (MANDATORY):
@@ -6137,7 +6137,7 @@ Band definitions:
 - presence (4000-8000Hz): sizzle, air, brightness, sparkle
 - ratio (highMid/mid): >1.5 = bright/scooped, <1.2 = warm/mid-heavy
 
-When blending IRs, a ratio like 55/45 means 55% base, 45% feature. The resulting tone is approximately a weighted average of the two IRs' band values.
+When blending IRs, a ratio like 60/40 means 60% base, 40% feature. The resulting tone is approximately a weighted average of the two IRs' band values. Use ratios from: 50/50, 60/40, 40/60, 70/30, 30/70, 80/20, 20/80. Nothing above 80/20.
 
 Consider:
 1. Which IR would make the best BASE (foundation) for this tone
@@ -6151,7 +6151,7 @@ Return JSON:
     {
       "baseIR": "filename of base IR",
       "featureIR": "filename of feature IR",
-      "ratio": "55/45" (base/feature format),
+      "ratio": "60/40" (base/feature format),
       "expectedTone": "brief description of what this blend would sound like",
       "reasoning": "why this combination achieves the requested tone",
       "confidence": number (0.0 to 1.0, how well this matches the request)

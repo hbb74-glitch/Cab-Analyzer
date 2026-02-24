@@ -13,11 +13,13 @@ import {
 } from "@/lib/preference-profiles";
 
 export const BLEND_RATIOS = [
+  { label: "80/20", base: 0.8, feature: 0.2 },
   { label: "70/30", base: 0.7, feature: 0.3 },
   { label: "60/40", base: 0.6, feature: 0.4 },
   { label: "50/50", base: 0.5, feature: 0.5 },
   { label: "40/60", base: 0.4, feature: 0.6 },
   { label: "30/70", base: 0.3, feature: 0.7 },
+  { label: "20/80", base: 0.2, feature: 0.8 },
 ];
 
 export const BAND_COLORS = [
