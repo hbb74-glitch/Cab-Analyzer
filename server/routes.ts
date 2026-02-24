@@ -5217,6 +5217,24 @@ ${parts.join('\n')}
 ${learnedProfile.avoidZones.length > 0 ? `Avoid zones: ${learnedProfile.avoidZones.map(z => `${z.band} ${z.direction} ${z.threshold}`).join(', ')}` : ''}
 ${learnedProfile.courseCorrections.length > 0 ? `User corrections: ${learnedProfile.courseCorrections.join('; ')}` : ''}
 These preferences are ALREADY factored into the pre-scoring. Use them to inform your rationale and mix ratio recommendations.`;
+
+        if (learnedProfile.ratioPreference) {
+          const rp = learnedProfile.ratioPreference;
+          const pct = Math.round(rp.preferredRatio * 100);
+          learnedPrefsSection += `\n\nBLEND RATIO PREFERENCES (confidence: ${(rp.confidence * 100).toFixed(0)}%):`;
+          learnedPrefsSection += `\n- Overall preferred ratio: ${pct}/${100 - pct} base-to-feature`;
+          if (rp.perProfile) {
+            for (const [name, pr] of Object.entries(rp.perProfile)) {
+              const ppct = Math.round(pr.preferredRatio * 100);
+              learnedPrefsSection += `\n- ${name} profile preferred: ${ppct}/${100 - ppct}`;
+            }
+          }
+          if (rp.distribution.length > 0) {
+            const topRatios = rp.distribution.slice(0, 3).map(d => `${Math.round(d.ratio * 100)}/${Math.round((1 - d.ratio) * 100)} (${d.count}× rated, sentiment ${d.sentiment})`);
+            learnedPrefsSection += `\n- Top rated ratios: ${topRatios.join(', ')}`;
+          }
+          learnedPrefsSection += `\nIMPORTANT: Use these learned ratio preferences to assign mix ratios. Do NOT default to 50:50 or 70:30 for every pairing. Vary ratios based on role dominance AND user's ratio history. Consider 55:45, 60:40, 65:35, 45:55, 40:60 etc.`;
+        }
       }
 
       // ─── Describe pre-scored candidates for AI ───
@@ -5269,16 +5287,22 @@ CRITICAL RULES:
 - Two bright/forward mics together is NEVER a good pairing
 - Two dark/warm mics together is NEVER a good pairing
 - Same mic type on both sides is generally bad unless positions differ dramatically
-- Mix ratio must reflect the dominant role: Foundation/body IR gets 55-70%, color/accent IR gets 30-45%
+- Mix ratio MUST vary across pairings and reflect the dominant role: Foundation/body IR typically gets 55-70%, color/accent IR 30-45%. But also consider 55:45, 45:55, 60:40, 40:60, 65:35 etc. based on how dominant each IR's character should be. NEVER assign the same ratio to more than 2 pairings in one batch.
 - ROLE ACCURACY: You MUST use the exact role shown in each candidate's "Role:" field for ir1Role and ir2Role. Do NOT reassign roles based on your own judgment — the roles come from a validated knowledge base and spectral analysis. If a mic is labeled Foundation, it IS Foundation. If labeled Lead Polish, it IS Lead Polish.
 
 DIVERSITY RULES (MANDATORY):
 - No single IR filename should appear in more than 3 of your ${pairingCount} selected pairings
 - Spread selections across DIFFERENT mics, positions, and distances — showcase the breadth of the collection
 - If multiple candidates use the same IR, pick the BEST one and skip the rest
-- Titles must be CREATIVE and DISTINCT. BANNED patterns: "Warm X + Bright Y", "Smooth X + Crisp Y", "[adjective] Body + [adjective] Edge/Top/Detail".
-  Instead use evocative musical language like: "Velvet Hammer", "Midnight Crunch", "Singing Steel", "Growl & Gloss", "Sunday Sermon", "The Negotiator", "Thick & Quick", "Honey Bite", "Satin Punch", "Glass Cannon".
-  Each title should feel like a preset name a guitarist would actually save — memorable, personality-driven, referencing the FEEL or VIBE of the blend, not its technical properties.
+- Titles must be CREATIVE, DISTINCT, and NEVER RECYCLED. BANNED patterns: "Warm X + Bright Y", "Smooth X + Crisp Y", "[adjective] Body + [adjective] Edge/Top/Detail", "Velvet X", "Glass X", "Midnight X", "Honey X", "Satin X", "Silk X".
+  Draw from DIVERSE naming vocabularies — rotate through these categories and never repeat a title across sessions:
+  • Guitar culture: amp/pedal vibes, playing techniques, stage energy (e.g. "Cranked to Eleven", "Pinch Harmonic", "The Greenback Growl", "Fretboard Fire")
+  • Texture/sensation: physical feelings the tone evokes (e.g. "Broken Glass", "Molten Core", "Razor Suede", "Burnt Sugar")
+  • Attitude/character: personality the tone projects (e.g. "The Brawler", "Quiet Riot", "Mean Swagger", "Sunday Driver")
+  • Musical imagery: scenes, moods, moments (e.g. "Neon Rainstorm", "Desert Highway", "Basement Demo", "Stadium Anthem")
+  • Playful/witty: tongue-in-cheek preset humor (e.g. "Who Needs Bass?", "The Un-Scooped", "Dial Tone Deluxe", "Neighbor Complaint")
+  Each title must feel like a preset name a guitarist would actually save — memorable, personality-driven, referencing the FEEL or VIBE of the blend, not technical properties.
+  CRITICAL: Every single title in this batch MUST be completely unique. No two titles should use the same adjective, noun, or naming pattern.
 - GENRE DIVERSITY in "bestFor": Each pairing should suggest DIFFERENT playing contexts and styles. Do NOT repeat the same genre/style for every pairing. Consider: rhythm (tight chugs, gallop riffs, chord work), lead (singing sustain, shred, bluesy bends), cleans, crunch, rock, metal sub-genres, blues, fusion, etc. Match the genre to the actual tonal character of each blend.
 
 ${intentGuide}
@@ -5288,7 +5312,7 @@ Output EXACTLY ${pairingCount} pairings as JSON:
 {
   "pairings": [
     {
-      "title": "Creative preset-style name (e.g. 'Velvet Hammer', 'Glass Cannon') — NO 'X + Y' format",
+      "title": "Unique creative preset name — draw from guitar culture, textures, attitudes, imagery, or witty humor. NEVER use generic 'X + Y' format or recycle names.",
       "ir1": "exact filename of first IR",
       "ir2": "exact filename of second IR",
       "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",

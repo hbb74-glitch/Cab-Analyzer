@@ -642,11 +642,26 @@ export function suggestPairings(
 
   const RATIO_GRID = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7];
   const snapRatio = (v: number) => RATIO_GRID.reduce((best, g) => Math.abs(g - v) < Math.abs(best - v) ? g : best, 0.5);
-  const ratiosToTry: { base: number; feature: number }[] = [{ base: 0.5, feature: 0.5 }];
+  const ratiosToTry: { base: number; feature: number }[] = [
+    { base: 0.5, feature: 0.5 },
+    { base: 0.6, feature: 0.4 },
+    { base: 0.4, feature: 0.6 },
+    { base: 0.65, feature: 0.35 },
+    { base: 0.55, feature: 0.45 },
+  ];
   if (learned?.ratioPreference && learned.ratioPreference.confidence >= 0.3) {
     const pr = snapRatio(learned.ratioPreference.preferredRatio);
-    if (pr !== 0.5) {
-      ratiosToTry.push({ base: pr, feature: Math.round((1 - pr) * 100) / 100 });
+    const existing = ratiosToTry.some(r => Math.abs(r.base - pr) < 0.01);
+    if (!existing) {
+      ratiosToTry.unshift({ base: pr, feature: Math.round((1 - pr) * 100) / 100 });
+    }
+    if (learned.ratioPreference.perProfile) {
+      for (const [, ppr] of Object.entries(learned.ratioPreference.perProfile)) {
+        const pRatio = snapRatio(ppr.preferredRatio);
+        if (!ratiosToTry.some(r => Math.abs(r.base - pRatio) < 0.01)) {
+          ratiosToTry.push({ base: pRatio, feature: Math.round((1 - pRatio) * 100) / 100 });
+        }
+      }
     }
   }
 

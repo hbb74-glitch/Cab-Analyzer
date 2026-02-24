@@ -13,6 +13,7 @@ import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, type TonalFeatures } from "@/lib/preference-profiles";
 import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext } from "@/lib/tasteStore";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
 const GENRES = [
@@ -129,6 +130,44 @@ export default function Pairing() {
       recordOutcome(ctx, zeroVec, xBlend, "a", { lr: 0.08, source: "pass" });
       recordIROutcome(ctx, [], [pairing.ir1, pairing.ir2]);
     }
+
+    const b1 = ir1Feat.bandsPercent ?? ir1Feat.bandsRaw;
+    const b2 = ir2Feat.bandsPercent ?? ir2Feat.bandsRaw;
+    if (!b1 || !b2) return;
+    const blendBands = {
+      subBass: (b1.subBass ?? 0) * baseRatio + (b2.subBass ?? 0) * (1 - baseRatio),
+      bass: (b1.bass ?? 0) * baseRatio + (b2.bass ?? 0) * (1 - baseRatio),
+      lowMid: (b1.lowMid ?? 0) * baseRatio + (b2.lowMid ?? 0) * (1 - baseRatio),
+      mid: (b1.mid ?? 0) * baseRatio + (b2.mid ?? 0) * (1 - baseRatio),
+      highMid: (b1.highMid ?? 0) * baseRatio + (b2.highMid ?? 0) * (1 - baseRatio),
+      presence: (b1.presence ?? 0) * baseRatio + (b2.presence ?? 0) * (1 - baseRatio),
+    };
+    const blendRatio = blendBands.mid > 0 ? blendBands.highMid / blendBands.mid : 1.4;
+
+    const signal = {
+      action: positive ? "love" : "nope",
+      baseFilename: pairing.ir1,
+      featureFilename: pairing.ir2,
+      subBass: blendBands.subBass,
+      bass: blendBands.bass,
+      lowMid: blendBands.lowMid,
+      mid: blendBands.mid,
+      highMid: blendBands.highMid,
+      presence: blendBands.presence,
+      ratio: blendRatio,
+      score: pairing.score,
+      blendRatio: baseRatio,
+      feedback: positive ? "Favorited from pairing module" : "Passed from pairing module",
+    };
+
+    apiRequest("POST", "/api/preferences/signals", { signals: [signal] })
+      .then(() => {
+        queryClient.invalidateQueries({ predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === "string" && key.startsWith("/api/preferences/learned");
+        }});
+      })
+      .catch(() => {});
   }, [buildTasteContext, lookupFeatures]);
 
   const handleFavorite = useCallback((index: number, pairing: PairingResult) => {

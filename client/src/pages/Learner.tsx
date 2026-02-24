@@ -377,7 +377,7 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
   );
 }
 
-function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry> }) {
+function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings, predictedBlends }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry>; predictedBlends?: { baseFilename: string; featureFilename: string; score: number; suggestedRatio?: { base: number; feature: number } }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
   const [recentOnly, setRecentOnly] = useState<number | null>(null);
@@ -579,6 +579,47 @@ function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings }: { learn
                   </div>
                 );
               })()}
+
+              {predictedBlends && predictedBlends.length > 0 && (
+                <div className="space-y-2" data-testid="predicted-blends-section">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                    <span className="text-xs font-medium text-foreground">Predicted Blends You'd Love</span>
+                    <span className="text-[10px] text-muted-foreground">(based on your taste profile)</span>
+                  </div>
+                  <div className="rounded-lg bg-card/50 border border-border/50 divide-y divide-border/30">
+                    {predictedBlends.slice(0, 5).map((blend, i) => {
+                      const cleanName = (f: string) => f.replace(/(_\d+)?\.wav$/i, "");
+                      const ratio = blend.suggestedRatio
+                        ? `${Math.round(blend.suggestedRatio.base * 100)}/${Math.round(blend.suggestedRatio.feature * 100)}`
+                        : "50/50";
+                      return (
+                        <div key={i} className="flex items-center gap-3 px-3 py-2" data-testid={`predicted-blend-${i}`}>
+                          <span className={cn(
+                            "text-xs font-bold tabular-nums w-5 text-center",
+                            i === 0 ? "text-violet-400" : i === 1 ? "text-violet-300" : "text-muted-foreground"
+                          )}>
+                            {i + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] font-mono text-foreground truncate">{cleanName(blend.baseFilename)}</p>
+                            <p className="text-[10px] font-mono text-muted-foreground truncate">+ {cleanName(blend.featureFilename)} ({ratio})</p>
+                          </div>
+                          <span className={cn(
+                            "text-[11px] font-mono font-medium tabular-nums",
+                            blend.score >= 40 ? "text-emerald-400" : blend.score >= 25 ? "text-teal-400" : "text-amber-400"
+                          )}>
+                            {Math.round(blend.score)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Blend combinations predicted to match your tonal preferences. Try these in the Taste Check or Pairing module.
+                  </p>
+                </div>
+              )}
 
               {learnedProfile.standaloneRecipes && learnedProfile.standaloneRecipes.length > 0 && (
                 <div className="space-y-2" data-testid="standalone-recipes-section">
@@ -3379,6 +3420,7 @@ export default function Learner() {
           <TonalInsightsPanel
             learnedProfile={learnedProfile}
             eloRatings={getEloRatings(tasteContext)}
+            predictedBlends={suggestedPairsRaw?.top}
           />
         )}
 
