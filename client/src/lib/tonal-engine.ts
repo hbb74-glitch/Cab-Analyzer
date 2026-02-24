@@ -41,7 +41,7 @@ export const BAND_KEYS: BandKey[] = [
 const DB_FLOOR = -120;
 
 export function distanceToScore(distance: number): number {
-  return Math.max(0, Math.round(100 - distance * 3));
+  return Math.max(0, Math.round(100 - distance * 2.5));
 }
 
 export function scoreToLabel(score: number): "strong" | "close" | "partial" | "miss" {

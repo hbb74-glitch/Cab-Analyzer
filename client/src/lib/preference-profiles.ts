@@ -289,8 +289,9 @@ export function scoreBlendQuality(features: TonalFeatures, profiles: PreferenceP
   blendSummary: string;
 } {
   const results = profiles.map((p) => scoreAgainstProfile(features, p));
-  const avg = results.reduce((sum, r) => sum + r.score, 0) / results.length;
-  const blendScore = Math.round(avg);
+  const best = results.reduce((a, b) => (a.score > b.score ? a : b));
+  const secondBest = results.filter(r => r !== best).reduce((a, b) => (a.score > b.score ? a : b), results[0]);
+  const blendScore = Math.round(best.score * 0.75 + secondBest.score * 0.25);
   const blendLabel = scoreToLabel(blendScore);
   const blendSummary = blendLabel === "strong" ? "Strong usable blend"
     : blendLabel === "close" ? "Good usable blend"
