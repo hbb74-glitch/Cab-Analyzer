@@ -1,6 +1,6 @@
 
 import { db } from "./db";
-import { analyses, preferenceSignals, tonalProfiles, customMods, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile, type CustomMod, type InsertCustomMod } from "@shared/schema";
+import { analyses, preferenceSignals, tonalProfiles, customMods, tasteBackups, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile, type CustomMod, type InsertCustomMod, type TasteBackup } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
@@ -23,6 +23,10 @@ export interface IStorage {
   createCustomMod(mod: InsertCustomMod): Promise<CustomMod>;
   getCustomMods(): Promise<CustomMod[]>;
   deleteCustomMod(id: number): Promise<void>;
+
+  saveTasteBackup(slotName: string, tasteData: any, soloRatings: any, meta: any): Promise<TasteBackup>;
+  getTasteBackup(slotName: string): Promise<TasteBackup | null>;
+  listTasteBackups(): Promise<TasteBackup[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -123,6 +127,26 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCustomMod(id: number): Promise<void> {
     await db.delete(customMods).where(eq(customMods.id, id));
+  }
+
+  async saveTasteBackup(slotName: string, tasteData: any, soloRatings: any, meta: any): Promise<TasteBackup> {
+    await db.delete(tasteBackups).where(eq(tasteBackups.slotName, slotName));
+    const [row] = await db.insert(tasteBackups).values({
+      slotName,
+      tasteData,
+      soloRatings,
+      meta,
+    }).returning();
+    return row;
+  }
+
+  async getTasteBackup(slotName: string): Promise<TasteBackup | null> {
+    const rows = await db.select().from(tasteBackups).where(eq(tasteBackups.slotName, slotName)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async listTasteBackups(): Promise<TasteBackup[]> {
+    return await db.select().from(tasteBackups).orderBy(desc(tasteBackups.createdAt));
   }
 }
 

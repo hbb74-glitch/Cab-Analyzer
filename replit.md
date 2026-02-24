@@ -21,7 +21,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage
 - **Database**: PostgreSQL via Drizzle ORM.
-- **Schema**: `analyses` table stores IR filenames, mic configurations, audio metrics, AI feedback, quality scores, and timestamps.
+- **Schema**: `analyses` table stores IR filenames, mic configurations, audio metrics, AI feedback, quality scores, and timestamps. `taste_backups` table stores server-side backups of client taste data (Elo ratings, solo evaluations, blend preferences) for persistence across deployments.
+- **Taste Persistence**: Client-side taste data auto-backs up to server after each vote (10s debounce). On page load, if localStorage is empty, automatically restores from server backup. Manual backup/restore buttons available in Learner UI.
 
 ### AI Integration
 - **Provider**: OpenAI API for advanced analysis.
@@ -48,7 +49,7 @@ Preferred communication style: Simple, everyday language.
 - **Tonal Insights Panel**: Displays a human-readable summary of learned tonal preferences, including likes, avoid zones, gear tendencies, and tonal balance. Features refresh button and "recent only" filter (Last 50/100/200 ratings) to view evolving taste. Ratio reporting suppressed unless sufficient dedicated ratio refinement data exists; falls back to median-based dark/bright tonal balance analysis.
 - **Preference Corrections**: User input to correct learned preferences, immediately steering the learned profile.
 - **Tone Request / Find Me This Tone**: Users describe a desired tone, and the system suggests IR blend combinations using AI, incorporating learned preferences.
-- **Test AI**: Diagnostic tool for users to query the AI about loaded IRs, verifying its tonal understanding.
+- **Test AI**: Diagnostic tool for users to query the AI about loaded IRs, verifying its tonal understanding. Supports blend queries — asking about IR combinations, pairings, or mixes triggers blend analysis mode with specific IR pair suggestions, ratios, per-IR role descriptions, and expected blended band values.
 - **Tonal Intelligence System**: Stores running averages of 6-band tonal data, ratio, centroid, and smoothness, keyed by mic+position+distance+speaker.
 - **Shot Designer**: Uses learned tonal profiles to design shot lists.
 - **Gap Finder**: Analyzes loaded IRs to identify tonal gaps, flag redundancies, and suggest new shots.

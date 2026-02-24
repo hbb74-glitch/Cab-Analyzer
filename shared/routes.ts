@@ -604,6 +604,39 @@ export const api = {
       },
     },
   },
+  tasteBackup: {
+    save: {
+      method: 'POST' as const,
+      path: '/api/taste-backup/save',
+      input: z.object({
+        slotName: z.string().min(1).max(100).default("auto"),
+        tasteData: z.any(),
+        soloRatings: z.any(),
+        meta: z.any().optional(),
+      }),
+      responses: {
+        200: z.any(),
+        500: errorSchemas.internal,
+      },
+    },
+    load: {
+      method: 'GET' as const,
+      path: '/api/taste-backup/load',
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+        500: errorSchemas.internal,
+      },
+    },
+    list: {
+      method: 'GET' as const,
+      path: '/api/taste-backup/list',
+      responses: {
+        200: z.any(),
+        500: errorSchemas.internal,
+      },
+    },
+  },
   tonalProfiles: {
     list: {
       method: 'GET' as const,

@@ -224,6 +224,7 @@ export function loadState(): StoreState {
 function saveState(state: StoreState) {
   try {
     localStorage.setItem(activeStorageKey(), JSON.stringify(state));
+    if (!_sandboxMode) scheduleAutoBackup();
   } catch {
   }
 }
@@ -793,6 +794,7 @@ function soloRatingToCategory(r: SoloRating): SoloCategory {
 export function persistSoloRatings(ratings: Record<string, SoloRating>): void {
   try {
     localStorage.setItem(SOLO_RATINGS_KEY, JSON.stringify(ratings));
+    scheduleAutoBackup();
   } catch {}
 }
 
@@ -1093,5 +1095,52 @@ export function simulateVotes(ctx: TasteContext, vectors: number[][], count = 20
     const loser  = winner === a ? b : a;
 
     recordPreference(ctx, winner, loser, { lr: 0.06 });
+  }
+}
+
+let _autoBackupTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function scheduleAutoBackup(debounceMs = 10000): void {
+  if (_autoBackupTimer) clearTimeout(_autoBackupTimer);
+  _autoBackupTimer = setTimeout(() => {
+    _autoBackupTimer = null;
+    backupTasteToServer().catch(() => {});
+  }, debounceMs);
+}
+
+export async function backupTasteToServer(): Promise<boolean> {
+  try {
+    const tasteData = loadStateFrom(STORAGE_KEY);
+    const soloRatings = loadSoloRatings();
+    const totalVotes = Object.values(tasteData.models).reduce((sum, m) => sum + (m.nVotes ?? 0), 0);
+    if (totalVotes === 0 && Object.keys(soloRatings).length === 0) return false;
+    const meta = { totalVotes, soloCount: Object.keys(soloRatings).length, savedAt: new Date().toISOString() };
+    const res = await fetch("/api/taste-backup/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotName: "auto", tasteData, soloRatings, meta }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function restoreTasteFromServer(): Promise<{ restored: boolean; totalVotes: number; soloCount: number }> {
+  try {
+    const res = await fetch("/api/taste-backup/load?slot=auto");
+    if (!res.ok) return { restored: false, totalVotes: 0, soloCount: 0 };
+    const data = await res.json();
+    if (data.tasteData) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data.tasteData));
+    }
+    if (data.soloRatings) {
+      localStorage.setItem(SOLO_RATINGS_KEY, JSON.stringify(data.soloRatings));
+    }
+    const totalVotes = data.meta?.totalVotes ?? 0;
+    const soloCount = data.meta?.soloCount ?? 0;
+    return { restored: true, totalVotes, soloCount };
+  } catch {
+    return { restored: false, totalVotes: 0, soloCount: 0 };
   }
 }

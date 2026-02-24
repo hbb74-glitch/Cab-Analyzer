@@ -6205,6 +6205,8 @@ Suggest the best blend combinations to achieve this tone. Return as JSON.`
         `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)}`
       ).join('\n');
 
+      const isBlendQuery = /blend|mix|pair|combin|together|merge|layer/i.test(query);
+
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -6216,6 +6218,36 @@ Your job: classify and rank the IRs according to the query. The user might ask f
 - A single tonal quality (e.g., "dark tight tones") — rank all IRs by how well they match
 - A comparison (e.g., "scooped vs balanced") — sort IRs into the compared categories
 - A specific characteristic (e.g., "which ones have the most bite") — identify the best matches
+- A BLEND query (e.g., "which IRs would blend well for metal rhythm") — suggest IR combinations${isBlendQuery ? `
+
+BLEND ANALYSIS MODE:
+When the user asks about blends, combinations, pairings, or mixing IRs:
+1. Think about which IRs would COMPLEMENT each other (different tonal characters work best — warm + bright, thick + cutting, etc.)
+2. Suggest specific IR pairs with mix ratios from: 50/50, 60/40, 40/60, 70/30, 30/70, 80/20, 20/80
+3. Explain WHY each pairing works — what each IR contributes to the blend
+4. Estimate the blended tone by computing weighted averages of the band values
+5. Avoid pairing two IRs with similar frequency profiles — they'd just make a louder version of the same tone
+
+For blend queries, return this format instead:
+{
+  "interpretation": "How you interpreted the blend request",
+  "results": [
+    {
+      "filename": "IR1 + IR2",
+      "score": number (0-100, how good this blend would be),
+      "category": "blend type or purpose",
+      "reasoning": "What each IR brings and why the combination works. Reference specific band values.",
+      "blend": {
+        "ir1": "filename1",
+        "ir2": "filename2",
+        "ratio": "60/40",
+        "ir1Role": "What IR1 provides (e.g., 'warm foundation — strong bass/lowMid')",
+        "ir2Role": "What IR2 provides (e.g., 'bright cut — high presence/highMid')",
+        "expectedBands": { "subBass": X, "bass": X, "lowMid": X, "mid": X, "highMid": X, "presence": X }
+      }
+    }
+  ]
+}` : ''}
 
 Band definitions:
 - subBass (20-120Hz): rumble, sub-lows
@@ -6238,7 +6270,7 @@ Tonal vocabulary reference:
 - "Fizzy" = excessive presence (>25%+)
 - "Boxy" = mid-heavy with weak highs and lows
 
-For each IR, provide:
+${!isBlendQuery ? `For each IR, provide:
 - A match score (0-100) for the queried quality
 - A brief explanation of WHY it matches or doesn't, referencing specific band values
 - If it's a comparison query, which category it falls into
@@ -6254,7 +6286,7 @@ Return JSON:
       "reasoning": "1-2 sentences explaining the classification based on actual band data"
     }
   ]
-}
+}` : ''}
 
 Sort results by score descending. Be honest — if an IR doesn't match, give it a low score and explain why.`
           },
@@ -6265,7 +6297,7 @@ Sort results by score descending. Be honest — if an IR doesn't match, give it 
 IRs to classify:
 ${irSummary}
 
-Classify and rank these IRs according to the query. Return as JSON.`
+${isBlendQuery ? 'Suggest the best IR blend combinations based on the query. Return as JSON.' : 'Classify and rank these IRs according to the query. Return as JSON.'}`
           }
         ],
         response_format: { type: "json_object" },
@@ -6283,6 +6315,44 @@ Classify and rank these IRs according to the query. Return as JSON.`
     } catch (err) {
       console.error('Test AI error:', err);
       res.status(500).json({ message: "Failed to process test query" });
+    }
+  });
+
+  // ── Taste Backup / Restore ────────────────────────
+  app.post(api.tasteBackup.save.path, async (req, res) => {
+    try {
+      const { slotName, tasteData, soloRatings, meta } = api.tasteBackup.save.input.parse(req.body);
+      const backup = await storage.saveTasteBackup(slotName || "auto", tasteData, soloRatings, meta);
+      console.log(`[TasteBackup] Saved slot "${slotName}" (id=${backup.id})`);
+      res.json({ success: true, id: backup.id, slot: backup.slotName, createdAt: backup.createdAt });
+    } catch (err) {
+      console.error('Taste backup save error:', err);
+      res.status(500).json({ message: "Failed to save taste backup" });
+    }
+  });
+
+  app.get(api.tasteBackup.load.path, async (req, res) => {
+    try {
+      const slot = (req.query.slot as string) || "auto";
+      const backup = await storage.getTasteBackup(slot);
+      if (!backup) {
+        return res.status(404).json({ message: "No backup found" });
+      }
+      console.log(`[TasteBackup] Loaded slot "${slot}" (id=${backup.id})`);
+      res.json({ tasteData: backup.tasteData, soloRatings: backup.soloRatings, meta: backup.meta, createdAt: backup.createdAt });
+    } catch (err) {
+      console.error('Taste backup load error:', err);
+      res.status(500).json({ message: "Failed to load taste backup" });
+    }
+  });
+
+  app.get(api.tasteBackup.list.path, async (_req, res) => {
+    try {
+      const backups = await storage.listTasteBackups();
+      res.json(backups.map(b => ({ id: b.id, slot: b.slotName, createdAt: b.createdAt })));
+    } catch (err) {
+      console.error('Taste backup list error:', err);
+      res.status(500).json({ message: "Failed to list taste backups" });
     }
   });
 

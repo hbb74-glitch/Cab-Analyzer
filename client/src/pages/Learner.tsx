@@ -9,7 +9,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +97,14 @@ interface TestAIResult {
   score: number;
   category: string;
   reasoning: string;
+  blend?: {
+    ir1: string;
+    ir2: string;
+    ratio: string;
+    ir1Role: string;
+    ir2Role: string;
+    expectedBands?: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+  };
 }
 
 function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
@@ -154,7 +162,7 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
               testMutation.mutate(query.trim());
             }
           }}
-          placeholder='e.g. "dark tight tones" or "scooped vs balanced" or "which have the most bite"'
+          placeholder='e.g. "dark tight tones", "scooped vs balanced", "which blend well for metal rhythm"'
           className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           disabled={testMutation.isPending}
           data-testid="input-test-ai"
@@ -222,11 +230,28 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
                       {r.score}
                     </span>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
-                        <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
+                      {r.blend ? (
+                        <>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Blend className="w-3 h-3 text-purple-400" />
+                            <span className="text-xs font-medium text-foreground">{r.blend.ir1.replace(/\.wav$/i, '')} + {r.blend.ir2.replace(/\.wav$/i, '')}</span>
+                            <Badge variant="outline" className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">{r.blend.ratio}</Badge>
+                          </div>
+                          <div className="mt-0.5 flex gap-3 text-[9px] text-muted-foreground">
+                            <span className="text-purple-300">{r.blend.ir1Role}</span>
+                            <span className="text-cyan-300">{r.blend.ir2Role}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{r.reasoning}</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
+                            <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -849,6 +874,22 @@ export default function Learner() {
   useEffect(() => {
     persistSoloRatings(singleIrRatings);
   }, [singleIrRatings]);
+
+  const [backupStatus, setBackupStatus] = useState<"idle" | "saving" | "restoring" | "saved" | "restored">("idle");
+  useEffect(() => {
+    const state = loadSoloRatings();
+    const tasteStatus = getTasteStatus({ speakerPrefix: "", mode: "blend", intent: "rhythm" });
+    const hasLocal = Object.keys(state).length > 0 || tasteStatus.nVotes > 0;
+    if (!hasLocal) {
+      restoreTasteFromServer().then(result => {
+        if (result.restored && (result.totalVotes > 0 || result.soloCount > 0)) {
+          setSingleIrRatings(loadSoloRatings());
+          setTasteVersion(v => v + 1);
+          toast({ title: "Taste data restored", description: `Recovered ${result.totalVotes} votes and ${result.soloCount} solo ratings from server backup.` });
+        }
+      });
+    }
+  }, []);
 
   const ratioRefineRef = useRef<HTMLDivElement>(null);
   const pairingSectionRef = useRef<HTMLDivElement>(null);
@@ -2700,6 +2741,50 @@ export default function Learner() {
           </Button>
         </div>
       )}
+
+      <div className="flex items-center gap-2 flex-wrap" data-testid="taste-backup-controls">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-xs h-7 text-muted-foreground"
+          disabled={backupStatus === "saving" || backupStatus === "restoring"}
+          onClick={async () => {
+            setBackupStatus("saving");
+            const ok = await backupTasteToServer();
+            setBackupStatus(ok ? "saved" : "idle");
+            toast({ title: ok ? "Backup saved" : "Backup failed", description: ok ? "Your taste data has been saved to the server." : "Could not save backup.", variant: ok ? "default" : "destructive" });
+            if (ok) setTimeout(() => setBackupStatus("idle"), 3000);
+          }}
+          data-testid="button-backup-taste"
+        >
+          {backupStatus === "saving" ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Upload className="w-3 h-3 mr-1" />}
+          {backupStatus === "saved" ? "Saved!" : "Backup to Server"}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-xs h-7 text-muted-foreground"
+          disabled={backupStatus === "saving" || backupStatus === "restoring"}
+          onClick={async () => {
+            setBackupStatus("restoring");
+            const result = await restoreTasteFromServer();
+            if (result.restored) {
+              setSingleIrRatings(loadSoloRatings());
+              setTasteVersion(v => v + 1);
+              setBackupStatus("restored");
+              toast({ title: "Restored", description: `Recovered ${result.totalVotes} votes and ${result.soloCount} solo ratings.` });
+              setTimeout(() => setBackupStatus("idle"), 3000);
+            } else {
+              setBackupStatus("idle");
+              toast({ title: "No backup found", description: "No server backup available to restore.", variant: "destructive" });
+            }
+          }}
+          data-testid="button-restore-taste"
+        >
+          {backupStatus === "restoring" ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <RefreshCw className="w-3 h-3 mr-1" />}
+          {backupStatus === "restored" ? "Restored!" : "Restore from Server"}
+        </Button>
+      </div>
 
       {!trainingMode && sandboxVotes > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300" data-testid="sandbox-orphan-banner">

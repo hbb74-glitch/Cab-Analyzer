@@ -134,3 +134,14 @@ export const insertCustomModSchema = createInsertSchema(customMods).omit({
 
 export type CustomMod = typeof customMods.$inferSelect;
 export type InsertCustomMod = z.infer<typeof insertCustomModSchema>;
+
+export const tasteBackups = pgTable("taste_backups", {
+  id: serial("id").primaryKey(),
+  slotName: text("slot_name").notNull().default("auto"),
+  tasteData: jsonb("taste_data").notNull(),
+  soloRatings: jsonb("solo_ratings"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type TasteBackup = typeof tasteBackups.$inferSelect;
