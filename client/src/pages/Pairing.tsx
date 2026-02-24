@@ -86,11 +86,11 @@ export default function Pairing() {
 
   const activeProfiles = useMemo(() => {
     const allIRs = [...speaker1IRs, ...speaker2IRs];
-    const allFeatures = allIRs
-      .filter((ir) => ir.features)
-      .map((ir) => ir.features!);
-    const baseProfiles = allFeatures.length >= 4
-      ? computeSpeakerRelativeProfiles(allFeatures)
+    const withFeatures = allIRs
+      .filter((ir): ir is UploadedIR & { features: TonalFeatures } => ir.features != null)
+      .map((ir) => ({ features: ir.features }));
+    const baseProfiles = withFeatures.length >= 4
+      ? computeSpeakerRelativeProfiles(withFeatures)
       : DEFAULT_PROFILES;
     if (!learnedProfile || learnedProfile.status === "no_data") return baseProfiles;
     return applyLearnedAdjustments(baseProfiles, learnedProfile);
