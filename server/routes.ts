@@ -2050,7 +2050,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     const ratioConfidence = Math.min(ratioSignals.length / 6, 1);
 
     const perProfileRatio: Record<string, { preferredRatio: number; confidence: number }> = {};
-    for (const profileName of ["Presence", "Warmth"]) {
+    for (const profileName of ["Cut & Clarity", "Presence", "Weight & Body", "Warmth"]) {
       const profileRatioSignals = ratioSignals.filter((s) => s.profileMatch === profileName);
       if (profileRatioSignals.length >= 2) {
         let pws = 0, pwt = 0;
@@ -2230,8 +2230,8 @@ function buildTonalSummary(
   }
 
   if (Object.keys(perProfileAdj).length > 0) {
-    const cutAdj = perProfileAdj["Presence"];
-    const warmAdj = perProfileAdj["Warmth"];
+    const cutAdj = perProfileAdj["Cut & Clarity"] || perProfileAdj["Presence"];
+    const warmAdj = perProfileAdj["Weight & Body"] || perProfileAdj["Warmth"];
     if (cutAdj && warmAdj) {
       const cutPres = cutAdj.presence.shift;
       const warmPres = warmAdj.presence.shift;
@@ -5318,7 +5318,7 @@ Output EXACTLY ${pairingCount} pairings as JSON:
       "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
       "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
       "mixRatio": "e.g. '60:40' (ir1:ir2) — MUST reflect which role is dominant",
-      "score": 0-100,
+      "score": "0-100 calibrated: 90+ = exceptional (top-tier studio quality blend), 80-89 = great (would use this in a mix), 70-79 = good (solid usable blend), 60-69 = decent (workable with minor compromise), <60 = weak. Most good complementary pairings should score 75-90. Don't be conservative — if the spectral data shows genuine complementarity and good role pairing, score it 80+.",
       "rationale": "Why these complement each other psychoacoustically — reference specific band differences",
       "expectedTone": "Psychoacoustic description of the blend using real descriptors",
       "bestFor": "Playing contexts and styles this blend excels at",
@@ -6074,7 +6074,7 @@ Use larger values than normal -- corrections should have strong impact since the
         presence: 23 + nudges.presence * nudges.strength,
         ratio: 1.4 + nudges.ratio * nudges.strength,
         score: 100,
-        profileMatch: "Presence",
+        profileMatch: "Cut & Clarity",
         blendRatio: null,
       };
 

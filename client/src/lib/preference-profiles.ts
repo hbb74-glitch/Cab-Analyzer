@@ -59,8 +59,8 @@ export interface FoundationScore {
 }
 
 export const FEATURED_PROFILE: PreferenceProfile = {
-  name: "Presence",
-  description: "Cut, air, articulation. For lead/featured parts.",
+  name: "Cut & Clarity",
+  description: "Articulation, cut, note separation. Lead Polish / Cut Layer roles.",
   targetShapeDb: {
     subBass: -18,
     bass: -10,
@@ -75,8 +75,8 @@ export const FEATURED_PROFILE: PreferenceProfile = {
 };
 
 export const BODY_PROFILE: PreferenceProfile = {
-  name: "Warmth",
-  description: "Weight, warmth, sit-in-the-mix. For rhythm/foundation parts.",
+  name: "Weight & Body",
+  description: "Fullness, warmth, mix weight. Foundation / Mid Thickener roles.",
   targetShapeDb: {
     subBass: -14,
     bass: -6,
@@ -178,7 +178,7 @@ export function computeSpeakerRelativeProfiles(
 
   return [
     {
-      name: "Presence",
+      name: "Cut & Clarity",
       description: FEATURED_PROFILE.description,
       targetShapeDb: {
         subBass: makeBandTarget("subBass", false),
@@ -193,7 +193,7 @@ export function computeSpeakerRelativeProfiles(
       targetTiltDbPerOct: Math.round(tiltP25 * 10) / 10,
     },
     {
-      name: "Warmth",
+      name: "Weight & Body",
       description: BODY_PROFILE.description,
       targetShapeDb: {
         subBass: makeBandTarget("subBass", true),

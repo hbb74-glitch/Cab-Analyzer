@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,7 @@ import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
-import { DEFAULT_PROFILES, type TonalFeatures } from "@/lib/preference-profiles";
+import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
@@ -79,6 +79,22 @@ export default function Pairing() {
       localStorage.setItem("irscope_blend_favorites", JSON.stringify(savedFavorites));
     } catch {}
   }, [savedFavorites]);
+
+  const { data: learnedProfile } = useQuery<LearnedProfileData>({
+    queryKey: ["/api/preferences/learned"],
+  });
+
+  const activeProfiles = useMemo(() => {
+    const allIRs = [...speaker1IRs, ...speaker2IRs];
+    const allFeatures = allIRs
+      .filter((ir) => ir.features)
+      .map((ir) => ir.features!);
+    const baseProfiles = allFeatures.length >= 4
+      ? computeSpeakerRelativeProfiles(allFeatures)
+      : DEFAULT_PROFILES;
+    if (!learnedProfile || learnedProfile.status === "no_data") return baseProfiles;
+    return applyLearnedAdjustments(baseProfiles, learnedProfile);
+  }, [speaker1IRs, speaker2IRs, learnedProfile]);
 
   const isMixedMode = speaker1IRs.length > 0 && speaker2IRs.length > 0;
 
@@ -1039,7 +1055,7 @@ export default function Pairing() {
                             <PairingBlendPreview
                               ir1={ir1Data}
                               ir2={ir2Data}
-                              profiles={DEFAULT_PROFILES}
+                              profiles={activeProfiles}
                               defaultRatioLabel={pairing.mixRatio}
                             />
                           );
