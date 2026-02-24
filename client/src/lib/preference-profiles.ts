@@ -270,7 +270,7 @@ export function scoreWithIntent(
 
   const intentBonus = Math.round(8 * intent.confidence);
   const adjusted = results.map((r) => {
-    const profileRole = r.profile === "Presence" ? "featured" : r.profile === "Warmth" ? "body" : "neutral";
+    const profileRole = (r.profile === "Presence" || r.profile === "Cut & Clarity") ? "featured" : (r.profile === "Warmth" || r.profile === "Weight & Body") ? "body" : "neutral";
     if (profileRole === intent.role) {
       const boosted = Math.min(100, r.score + intentBonus);
       return { ...r, score: boosted, summary: r.summary + " (intended)" };
@@ -307,8 +307,8 @@ export function findFoundationIR(
 ): FoundationScore[] {
   if (irs.length === 0) return [];
 
-  const bodyProfile = profiles.find((p) => p.name === "Warmth") || profiles[1];
-  const featuredProfile = profiles.find((p) => p.name === "Presence") || profiles[0];
+  const bodyProfile = profiles.find((p) => p.name === "Weight & Body" || p.name === "Warmth") || profiles[1];
+  const featuredProfile = profiles.find((p) => p.name === "Cut & Clarity" || p.name === "Presence") || profiles[0];
 
   const soloSet = new Map<string, "love" | "like">();
   if (learned?.standaloneWorthy) {

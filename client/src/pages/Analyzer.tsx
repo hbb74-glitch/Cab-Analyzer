@@ -3646,11 +3646,11 @@ export default function Analyzer() {
           fizz: 0,
         };
         const { results: matchResults, best } = scoreIndividualIR(featuresFromBands(bands), activeProfiles, learnedProfile);
-        const featured = matchResults.find((r) => r.profile === "Presence");
-        const body = matchResults.find((r) => r.profile === "Warmth");
+        const featured = matchResults.find((r) => r.profile === "Cut & Clarity" || r.profile === "Presence");
+        const body = matchResults.find((r) => r.profile === "Weight & Body" || r.profile === "Warmth");
         const fScore = featured?.score ?? 0;
         const bScore = body?.score ?? 0;
-        const bestProfile = fScore >= bScore ? "Presence" : "Warmth";
+        const bestProfile = fScore >= bScore ? "Cut & Clarity" : "Weight & Body";
         const bestScore = Math.max(fScore, bScore);
         const avoidPenalty = bestScore - best.score;
         
