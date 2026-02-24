@@ -6205,53 +6205,26 @@ Suggest the best blend combinations to achieve this tone. Return as JSON.`
         `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)}`
       ).join('\n');
 
-      const isBlendQuery = /blend|mix|pair|combin|together|merge|layer/i.test(query);
-
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `You are a guitar tone expert analyzing impulse responses. You receive a set of IRs with their 6-band spectral data and a user query describing a tonal quality or comparison.
+            content: `You are a guitar tone expert analyzing impulse responses in a BLEND context. All tones are built from IR blends (two IRs mixed together at a ratio). You receive a set of IRs with their 6-band spectral data and a user query.
 
-Your job: classify and rank the IRs according to the query. The user might ask for:
-- A single tonal quality (e.g., "dark tight tones") — rank all IRs by how well they match
-- A comparison (e.g., "scooped vs balanced") — sort IRs into the compared categories
-- A specific characteristic (e.g., "which ones have the most bite") — identify the best matches
-- A BLEND query (e.g., "which IRs would blend well for metal rhythm") — suggest IR combinations${isBlendQuery ? `
+Your job: suggest the best IR blend combinations to achieve the queried tone. Always think in terms of PAIRS — which IRs complement each other to create the desired result.
 
-BLEND ANALYSIS MODE:
-When the user asks about blends, combinations, pairings, or mixing IRs:
+BLEND ANALYSIS RULES:
 1. Think about which IRs would COMPLEMENT each other (different tonal characters work best — warm + bright, thick + cutting, etc.)
-2. Suggest specific IR pairs with mix ratios from: 50/50, 60/40, 40/60, 70/30, 30/70, 80/20, 20/80
+2. Suggest specific IR pairs with mix ratios from: 50/50, 60/40, 40/60, 70/30, 30/70, 80/20, 20/80. Nothing above 80/20.
 3. Explain WHY each pairing works — what each IR contributes to the blend
-4. Estimate the blended tone by computing weighted averages of the band values
+4. Compute the blended tone as weighted averages of band values at the suggested ratio
 5. Avoid pairing two IRs with similar frequency profiles — they'd just make a louder version of the same tone
-
-For blend queries, return this format instead:
-{
-  "interpretation": "How you interpreted the blend request",
-  "results": [
-    {
-      "filename": "IR1 + IR2",
-      "score": number (0-100, how good this blend would be),
-      "category": "blend type or purpose",
-      "reasoning": "What each IR brings and why the combination works. Reference specific band values.",
-      "blend": {
-        "ir1": "filename1",
-        "ir2": "filename2",
-        "ratio": "60/40",
-        "ir1Role": "What IR1 provides (e.g., 'warm foundation — strong bass/lowMid')",
-        "ir2Role": "What IR2 provides (e.g., 'bright cut — high presence/highMid')",
-        "expectedBands": { "subBass": X, "bass": X, "lowMid": X, "mid": X, "highMid": X, "presence": X }
-      }
-    }
-  ]
-}` : ''}
+6. Each IR in a pair should have a clear role: foundation (body/warmth), cut layer (bite/presence), mid thickener, fizz tamer, etc.
 
 Band definitions:
 - subBass (20-120Hz): rumble, sub-lows
-- bass (120-250Hz): low-end weight, proximity effect  
+- bass (120-250Hz): low-end weight, proximity effect
 - lowMid (250-500Hz): warmth, body, can get muddy if excessive
 - mid (500-2000Hz): body, fundamental guitar tone, punch
 - highMid (2000-4000Hz): bite, articulation, cut, aggression
@@ -6270,34 +6243,37 @@ Tonal vocabulary reference:
 - "Fizzy" = excessive presence (>25%+)
 - "Boxy" = mid-heavy with weak highs and lows
 
-${!isBlendQuery ? `For each IR, provide:
-- A match score (0-100) for the queried quality
-- A brief explanation of WHY it matches or doesn't, referencing specific band values
-- If it's a comparison query, which category it falls into
-
 Return JSON:
 {
-  "interpretation": "How you interpreted the query — what tonal characteristics you're looking for",
+  "interpretation": "How you interpreted the query — what tonal blend you're building toward",
   "results": [
     {
-      "filename": "IR filename",
-      "score": number (0-100, how well it matches the query),
-      "category": "category name if comparison query, otherwise the primary tonal quality",
-      "reasoning": "1-2 sentences explaining the classification based on actual band data"
+      "filename": "IR1 + IR2",
+      "score": number (0-100, how good this blend would be for the query),
+      "category": "blend character or purpose (e.g., 'tight modern rhythm', 'warm vintage lead')",
+      "reasoning": "What each IR brings and why the combination works. Reference specific band values.",
+      "blend": {
+        "ir1": "filename1",
+        "ir2": "filename2",
+        "ratio": "60/40",
+        "ir1Role": "What IR1 provides (e.g., 'warm foundation — bass 22%, lowMid 19%')",
+        "ir2Role": "What IR2 provides (e.g., 'bright cut — highMid 24%, presence 18%')",
+        "expectedBands": { "subBass": X, "bass": X, "lowMid": X, "mid": X, "highMid": X, "presence": X }
+      }
     }
   ]
-}` : ''}
+}
 
-Sort results by score descending. Be honest — if an IR doesn't match, give it a low score and explain why.`
+Suggest 3-5 blend combinations, sorted by score descending. Vary the ratios across suggestions. Be honest — explain trade-offs.`
           },
           {
             role: "user",
             content: `Query: "${query}"
 
-IRs to classify:
+Available IRs:
 ${irSummary}
 
-${isBlendQuery ? 'Suggest the best IR blend combinations based on the query. Return as JSON.' : 'Classify and rank these IRs according to the query. Return as JSON.'}`
+Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
           }
         ],
         response_format: { type: "json_object" },
