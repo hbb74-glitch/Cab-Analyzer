@@ -186,7 +186,7 @@ export const pairingResultSchema = z.object({
   ir1Role: z.string().optional(),
   ir2Role: z.string().optional(),
   mixRatio: z.string(),
-  score: z.number(),
+  score: z.coerce.number(),
   rationale: z.string(),
   expectedTone: z.string(),
   bestFor: z.string(),

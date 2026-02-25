@@ -5308,6 +5308,14 @@ DIVERSITY RULES (MANDATORY):
 ${intentGuide}
 ${learnedPrefsSection}
 
+SCORE CALIBRATION (integer 0-100):
+- 90+ = exceptional, top-tier studio quality blend
+- 80-89 = great, would use this in a real mix
+- 70-79 = good, solid usable blend
+- 60-69 = decent, workable with minor compromise
+- <60 = weak
+Most pre-validated complementary pairings should score 75-90. Don't be conservative — if spectral data shows genuine complementarity and good role pairing, score it 80+. Score must be an integer, not a string.
+
 Output EXACTLY ${pairingCount} pairings as JSON:
 {
   "pairings": [
@@ -5318,7 +5326,7 @@ Output EXACTLY ${pairingCount} pairings as JSON:
       "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
       "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
       "mixRatio": "e.g. '60:40' (ir1:ir2) — MUST reflect which role is dominant",
-      "score": "0-100 calibrated: 90+ = exceptional (top-tier studio quality blend), 80-89 = great (would use this in a mix), 70-79 = good (solid usable blend), 60-69 = decent (workable with minor compromise), <60 = weak. Most good complementary pairings should score 75-90. Don't be conservative — if the spectral data shows genuine complementarity and good role pairing, score it 80+.",
+      "score": 85,
       "rationale": "Why these complement each other psychoacoustically — reference specific band differences",
       "expectedTone": "Psychoacoustic description of the blend using real descriptors",
       "bestFor": "Playing contexts and styles this blend excels at",
@@ -5372,6 +5380,12 @@ ${tonePreferences ? `\nUSER'S TONAL GOALS: "${tonePreferences.trim()}"` : ''}`;
         }
       }
 
+      if (finalResult?.pairings) {
+        for (const p of finalResult.pairings) {
+          if (typeof p.score === "string") p.score = parseFloat(p.score) || 0;
+          p.score = Math.round(p.score);
+        }
+      }
       res.json(finalResult);
     } catch (err) {
       console.error('Pairing analysis error:', err);
