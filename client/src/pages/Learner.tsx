@@ -1265,33 +1265,29 @@ export default function Learner() {
   }, [singleIrRatings, serverSoloRatings]);
 
   const evaluatedSpeakers = useMemo(() => {
-    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; soloTotal: number; blendSignals: number }> = {};
+    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; soloTotal: number; blendScore: { loved: number; liked: number; noped: number } }> = {};
     const allSoloRatings: Record<string, "love" | "like" | "meh" | "nope"> = { ...serverSoloRatings, ...singleIrRatings };
     for (const [filename, action] of Object.entries(allSoloRatings)) {
       const gear = parseGearFromFilename(filename);
       const speaker = gear.speaker || filename.split("_")[0] || "Unknown";
-      if (!speakerMap[speaker]) speakerMap[speaker] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendSignals: 0 };
+      if (!speakerMap[speaker]) speakerMap[speaker] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendScore: { loved: 0, liked: 0, noped: 0 } };
       speakerMap[speaker][action]++;
       speakerMap[speaker].soloTotal++;
     }
-    if (existingSignals) {
-      const seenFiles = new Set<string>();
-      for (const s of existingSignals) {
-        if (s.baseFilename === s.featureFilename) continue;
-        for (const fn of [s.baseFilename, s.featureFilename]) {
-          if (seenFiles.has(fn)) continue;
-          seenFiles.add(fn);
-          const gear = parseGearFromFilename(fn);
-          const speaker = gear.speaker || fn.split("_")[0] || "Unknown";
-          if (!speakerMap[speaker]) speakerMap[speaker] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendSignals: 0 };
-          speakerMap[speaker].blendSignals++;
-        }
+    if (learnedProfile?.gearInsights?.speakers) {
+      for (const sp of learnedProfile.gearInsights.speakers) {
+        if (!speakerMap[sp.name]) speakerMap[sp.name] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendScore: { loved: 0, liked: 0, noped: 0 } };
+        speakerMap[sp.name].blendScore = { loved: sp.score.loved, liked: sp.score.liked, noped: sp.score.noped };
       }
     }
     return Object.entries(speakerMap)
-      .sort((a, b) => (b[1].soloTotal + b[1].blendSignals) - (a[1].soloTotal + a[1].blendSignals))
+      .sort((a, b) => {
+        const aTotal = a[1].soloTotal + a[1].blendScore.loved + a[1].blendScore.liked;
+        const bTotal = b[1].soloTotal + b[1].blendScore.loved + b[1].blendScore.liked;
+        return bTotal - aTotal;
+      })
       .map(([name, counts]) => ({ name, ...counts }));
-  }, [singleIrRatings, serverSoloRatings, existingSignals]);
+  }, [singleIrRatings, serverSoloRatings, learnedProfile]);
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
@@ -3011,20 +3007,27 @@ export default function Learner() {
 
         {evaluatedSpeakers.length > 0 && (
           <div className="border border-zinc-700 rounded p-2 mb-3" data-testid="evaluated-speakers-list">
-            <div className="text-xs font-medium opacity-80 mb-1">Speakers Evaluated</div>
+            <div className="text-xs font-medium opacity-80 mb-1">Speakers Evaluated ({evaluatedSpeakers.length})</div>
             <div className="flex flex-wrap gap-1.5">
               {evaluatedSpeakers.map(sp => (
                 <div key={sp.name} className="flex items-center gap-1 text-[11px] bg-zinc-800 rounded px-1.5 py-0.5 border border-zinc-700" data-testid={`evaluated-speaker-${sp.name}`}>
                   <span className="font-medium">{sp.name}</span>
-                  {sp.soloTotal > 0 ? (
+                  {sp.soloTotal > 0 && (
+                    <span className="text-cyan-400 text-[10px]" title={`${sp.soloTotal} solo-rated`}>S:{sp.soloTotal}</span>
+                  )}
+                  {sp.soloTotal > 0 && (
                     <>
                       {sp.love > 0 && <span className="text-green-400">♥{sp.love}</span>}
-                      {sp.like > 0 && <span className="text-blue-400">👍{sp.like}</span>}
+                      {sp.like > 0 && <span className="text-blue-400">+{sp.like}</span>}
                       {sp.meh > 0 && <span className="text-yellow-400">~{sp.meh}</span>}
                       {sp.nope > 0 && <span className="text-red-400">✗{sp.nope}</span>}
                     </>
-                  ) : (
-                    <span className="opacity-50 italic">blend only</span>
+                  )}
+                  {(sp.blendScore.loved > 0 || sp.blendScore.liked > 0) && (
+                    <span className="opacity-50 text-[10px]" title={`${sp.blendScore.loved} loved + ${sp.blendScore.liked} liked in blends`}>B:{sp.blendScore.loved + sp.blendScore.liked}</span>
+                  )}
+                  {sp.soloTotal === 0 && sp.blendScore.loved === 0 && sp.blendScore.liked === 0 && (
+                    <span className="opacity-40 italic">no data</span>
                   )}
                 </div>
               ))}
