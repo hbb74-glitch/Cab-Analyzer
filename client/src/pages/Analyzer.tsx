@@ -1259,7 +1259,7 @@ function cullIRs(
     if (idx === selected[0]) {
       reason = `Best capture (score ${ir.score || 85})`;
       if (isCombo && blend) {
-        reason += ` — SM57+R121 ${blend} blend`;
+        reason += ` — SM57+R121 ${(COMBO_BLEND_INFO as any)[blend]?.label || blend} (${(COMBO_BLEND_INFO as any)[blend]?.sm57 || '?'}:${(COMBO_BLEND_INFO as any)[blend]?.r121 || '?'})`;
       } else if (mic !== 'unknown') {
         reason += ` — ${mic.toUpperCase()}`;
       }
@@ -1269,7 +1269,7 @@ function cullIRs(
       
       // Describe what makes this IR unique
       if (isCombo && blend) {
-        parts.push(`SM57+R121 ${blend}`);
+        parts.push(`SM57+R121 ${(COMBO_BLEND_INFO as any)[blend]?.label || blend}`);
       } else if (mic !== 'unknown') {
         parts.push(mic.toUpperCase());
       }
@@ -1320,7 +1320,7 @@ function cullIRs(
     // Build descriptive reason
     let irDesc = '';
     if (isCombo && blend) {
-      irDesc = `SM57+R121 ${blend}`;
+      irDesc = `SM57+R121 ${(COMBO_BLEND_INFO as any)[blend]?.label || blend}`;
     } else if (mic !== 'unknown') {
       irDesc = mic.toUpperCase();
     }

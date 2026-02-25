@@ -1101,7 +1101,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
-                    {shot.mic}@{shot.position}_{shot.distance}"
+                    {shot.mic}@{shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio.split(/\s+/)[0] : shot.position}_{shot.distance}"
                   </code>
                   {shot.musicalRole && (
                     <span className={cn("text-xs px-2 py-0.5 rounded font-medium", roleBadgeColor(shot.musicalRole))}>
@@ -1535,7 +1535,8 @@ export default function Recommendations() {
         }
         
         console.log(`Shot ${i}: micLabel="${shot.micLabel}", baseMic="${baseMic}", switchSetting="${switchSetting}"`);
-        const posPart = formatPosition(shot.position || shot.bestFor);
+        const rawPos = shot.position || shot.bestFor;
+        const posPart = shot.blendRatio && rawPos?.toLowerCase() === 'blend' ? shot.blendRatio.split(/\s+/)[0] : formatPosition(rawPos);
         const distPart = `${shot.distance}in`;
         
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
@@ -1543,7 +1544,7 @@ export default function Recommendations() {
         const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
         console.log(`  -> shorthand="${shorthand}"`);
         text += `${i + 1}. ${shorthand}`;
-        if (shot.blendRatio) text += ` [${shot.blendRatio}]`;
+        if (shot.blendRatio && rawPos?.toLowerCase() !== 'blend') text += ` [${shot.blendRatio}]`;
         text += `\n`;
         text += `   Rationale: ${shot.rationale}\n\n`;
       });
@@ -1553,14 +1554,15 @@ export default function Recommendations() {
         // Schema: Speaker_Mic_Setting_Position_distance (setting after mic if present)
         const speakerPart = getSpeakerShorthand(speakerResult.speaker);
         const { baseMic, switchSetting } = formatMicForShorthand(rec.micLabel);
-        const posPart = formatPosition(rec.position);
+        const rawRecPos = rec.position;
+        const posPart = rec.blendRatio && rawRecPos?.toLowerCase() === 'blend' ? rec.blendRatio.split(/\s+/)[0] : formatPosition(rawRecPos);
         const distPart = `${rec.distance}in`;
         
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
         const micPart = switchSetting ? `${baseMic}_${switchSetting}` : baseMic;
         const shorthand = `${speakerPart}_${micPart}_${posPart}_${distPart}`;
         text += `${i + 1}. ${shorthand}`;
-        if (rec.blendRatio) text += ` [${rec.blendRatio}]`;
+        if (rec.blendRatio && rawRecPos?.toLowerCase() !== 'blend') text += ` [${rec.blendRatio}]`;
         text += `\n`;
         text += `   Tone: ${rec.expectedTone}\n\n`;
       });
@@ -1668,7 +1670,8 @@ export default function Recommendations() {
           }
         }
         
-        const posPart = formatPosition(shot.position || shot.bestFor);
+        const rawShotPos = shot.position || shot.bestFor;
+        const posPart = shot.blendRatio && rawShotPos?.toLowerCase() === 'blend' ? shot.blendRatio.split(/\s+/)[0] : formatPosition(rawShotPos);
         const distPart = `${shot.distance}in`;
         const dist = parseFloat(shot.distance) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
@@ -1687,7 +1690,8 @@ export default function Recommendations() {
       items = speakerResult.micRecommendations.map((rec) => {
         const speakerPart = getSpeakerShorthand(speakerResult.speaker);
         const { baseMic, switchSetting } = formatMicLabel(rec.micLabel);
-        const posPart = formatPosition(rec.position);
+        const rawRecPos2 = rec.position;
+        const posPart = rec.blendRatio && rawRecPos2?.toLowerCase() === 'blend' ? rec.blendRatio.split(/\s+/)[0] : formatPosition(rawRecPos2);
         const distPart = `${rec.distance}in`;
         const dist = parseFloat(String(rec.distance)) || 0;
         // Put switch setting after mic name: K100_MD441_Presence_CapEdge_2in
@@ -3614,7 +3618,7 @@ Or written out:
                           </span>
                         </div>
                       )}
-                      {shot.blendRatio && (
+                      {shot.blendRatio && shot.position?.toLowerCase() !== 'blend' && (
                         <div className="flex items-center gap-2 bg-violet-500/20 px-3 py-1.5 rounded-full border border-violet-500/30">
                           <Settings2 className="w-4 h-4 text-violet-400" />
                           <span className="text-sm font-medium text-violet-400">
@@ -3625,7 +3629,7 @@ Or written out:
                       {shot.position && (
                         <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                           <Target className="w-4 h-4 text-secondary" />
-                          <span className="text-sm font-medium text-secondary">{POSITION_LABELS[shot.position] || shot.position}</span>
+                          <span className="text-sm font-medium text-secondary">{shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio : (POSITION_LABELS[shot.position] || shot.position)}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
@@ -3754,7 +3758,7 @@ Or written out:
                           </span>
                         </div>
                       )}
-                      {rec.blendRatio && (
+                      {rec.blendRatio && rec.position?.toLowerCase() !== 'blend' && (
                         <div className="flex items-center gap-2 bg-violet-500/20 px-3 py-1.5 rounded-full border border-violet-500/30">
                           <Settings2 className="w-4 h-4 text-violet-400" />
                           <span className="text-sm font-medium text-violet-400">
@@ -3764,7 +3768,7 @@ Or written out:
                       )}
                       <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                         <Target className="w-4 h-4 text-secondary" />
-                        <span className="text-sm font-medium text-secondary">{POSITION_LABELS[rec.position] || rec.position}</span>
+                        <span className="text-sm font-medium text-secondary">{rec.blendRatio && rec.position?.toLowerCase() === 'blend' ? rec.blendRatio : (POSITION_LABELS[rec.position] || rec.position)}</span>
                       </div>
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
                         <Ruler className="w-4 h-4 text-muted-foreground" />
