@@ -49,14 +49,15 @@ const BLEND_MICS = [
 ];
 
 const formatComboShotDisplay = (mic: string | null | undefined, position: string | null | undefined, blendRatio?: string | null): { mic: string; position: string } => {
-  const micClean = (mic || '').replace(/[_\s]?[Bb]lend$/i, '');
+  let micClean = (mic || '').replace(/[_\s]?[Bb]lend$/i, '');
+  micClean = micClean.replace(/SM57[_\s]R121/i, 'SM57+R121');
   const pos = position || '';
   const isBlendPos = pos.toLowerCase() === 'blend';
   if (isBlendPos && blendRatio) {
     return { mic: micClean, position: blendRatio.split(/\s+/)[0] };
   }
   if (isBlendPos) {
-    return { mic: micClean, position: 'SM57+R121' };
+    return { mic: micClean, position: 'Blend' };
   }
   return { mic: micClean, position: pos };
 };
@@ -3643,7 +3644,7 @@ Or written out:
                       {shot.position && (
                         <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                           <Target className="w-4 h-4 text-secondary" />
-                          <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(shot.mic, shot.position, shot.blendRatio); return d.position === 'SM57+R121' ? d.position : (shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio : (POSITION_LABELS[shot.position] || shot.position)); })()}</span>
+                          <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(shot.mic, shot.position, shot.blendRatio); return shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio : (POSITION_LABELS[d.position] || d.position); })()}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
@@ -3782,7 +3783,7 @@ Or written out:
                       )}
                       <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                         <Target className="w-4 h-4 text-secondary" />
-                        <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(rec.mic, rec.position, rec.blendRatio); return d.position === 'SM57+R121' ? d.position : (rec.blendRatio && rec.position?.toLowerCase() === 'blend' ? rec.blendRatio : (POSITION_LABELS[rec.position] || rec.position)); })()}</span>
+                        <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(rec.mic, rec.position, rec.blendRatio); return rec.blendRatio && rec.position?.toLowerCase() === 'blend' ? rec.blendRatio : (POSITION_LABELS[d.position] || d.position); })()}</span>
                       </div>
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
                         <Ruler className="w-4 h-4 text-muted-foreground" />
