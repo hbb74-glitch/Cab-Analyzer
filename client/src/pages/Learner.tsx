@@ -1264,30 +1264,54 @@ export default function Learner() {
     return !!(singleIrRatings[filename] || serverSoloRatings[filename]);
   }, [singleIrRatings, serverSoloRatings]);
 
+  const { data: tonalProfilesList } = useQuery<any[]>({
+    queryKey: ["/api/tonal-profiles"],
+  });
+
   const evaluatedSpeakers = useMemo(() => {
-    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; soloTotal: number; blendScore: { loved: number; liked: number; noped: number } }> = {};
+    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; soloTotal: number; profileCount: number; blendScore: { loved: number; liked: number; noped: number } }> = {};
+    const init = () => ({ love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, profileCount: 0, blendScore: { loved: 0, liked: 0, noped: 0 } });
     const allSoloRatings: Record<string, "love" | "like" | "meh" | "nope"> = { ...serverSoloRatings, ...singleIrRatings };
     for (const [filename, action] of Object.entries(allSoloRatings)) {
       const gear = parseGearFromFilename(filename);
       const speaker = gear.speaker || filename.split("_")[0] || "Unknown";
-      if (!speakerMap[speaker]) speakerMap[speaker] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendScore: { loved: 0, liked: 0, noped: 0 } };
+      if (!speakerMap[speaker]) speakerMap[speaker] = init();
       speakerMap[speaker][action]++;
       speakerMap[speaker].soloTotal++;
     }
     if (learnedProfile?.gearInsights?.speakers) {
       for (const sp of learnedProfile.gearInsights.speakers) {
-        if (!speakerMap[sp.name]) speakerMap[sp.name] = { love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, blendScore: { loved: 0, liked: 0, noped: 0 } };
+        if (!speakerMap[sp.name]) speakerMap[sp.name] = init();
         speakerMap[sp.name].blendScore = { loved: sp.score.loved, liked: sp.score.liked, noped: sp.score.noped };
+      }
+    }
+    if (tonalProfilesList) {
+      const speakerCounts = new Map<string, number>();
+      for (const p of tonalProfilesList) {
+        const s = (p.speaker || "").toLowerCase();
+        if (!s) continue;
+        speakerCounts.set(s, (speakerCounts.get(s) || 0) + 1);
+      }
+      const PROFILE_SPEAKER_NAMES: Record<string, string> = {
+        "v30": "V30-China", "v30bc": "V30-Blackcat", "greenback": "G12M25", "g12m": "G12M25",
+        "cream": "Celestion-Cream", "g12h": "G12H", "g12t75": "G12T75",
+        "k100": "K100", "ga12-sc64": "GA12-SC64", "ga10-sc64": "GA10-SC64",
+        "g12-65": "G12-65", "karnivore": "Karnivore", "g12h30": "G12H30-Anniversary",
+      };
+      for (const [raw, count] of speakerCounts) {
+        const name = PROFILE_SPEAKER_NAMES[raw] || raw;
+        if (!speakerMap[name]) speakerMap[name] = init();
+        speakerMap[name].profileCount = count;
       }
     }
     return Object.entries(speakerMap)
       .sort((a, b) => {
-        const aTotal = a[1].soloTotal + a[1].blendScore.loved + a[1].blendScore.liked;
-        const bTotal = b[1].soloTotal + b[1].blendScore.loved + b[1].blendScore.liked;
+        const aTotal = a[1].profileCount + a[1].soloTotal;
+        const bTotal = b[1].profileCount + b[1].soloTotal;
         return bTotal - aTotal;
       })
       .map(([name, counts]) => ({ name, ...counts }));
-  }, [singleIrRatings, serverSoloRatings, learnedProfile]);
+  }, [singleIrRatings, serverSoloRatings, learnedProfile, tonalProfilesList]);
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
@@ -3012,22 +3036,18 @@ export default function Learner() {
               {evaluatedSpeakers.map(sp => (
                 <div key={sp.name} className="flex items-center gap-1 text-[11px] bg-zinc-800 rounded px-1.5 py-0.5 border border-zinc-700" data-testid={`evaluated-speaker-${sp.name}`}>
                   <span className="font-medium">{sp.name}</span>
-                  {sp.soloTotal > 0 && (
-                    <span className="text-cyan-400 text-[10px]" title={`${sp.soloTotal} solo-rated`}>S:{sp.soloTotal}</span>
-                  )}
+                  <span className="opacity-50 text-[10px]">{sp.profileCount} shots</span>
                   {sp.soloTotal > 0 && (
                     <>
+                      <span className="text-cyan-400 text-[10px]">solo:{sp.soloTotal}</span>
                       {sp.love > 0 && <span className="text-green-400">♥{sp.love}</span>}
                       {sp.like > 0 && <span className="text-blue-400">+{sp.like}</span>}
                       {sp.meh > 0 && <span className="text-yellow-400">~{sp.meh}</span>}
                       {sp.nope > 0 && <span className="text-red-400">✗{sp.nope}</span>}
                     </>
                   )}
-                  {(sp.blendScore.loved > 0 || sp.blendScore.liked > 0) && (
-                    <span className="opacity-50 text-[10px]" title={`${sp.blendScore.loved} loved + ${sp.blendScore.liked} liked in blends`}>B:{sp.blendScore.loved + sp.blendScore.liked}</span>
-                  )}
-                  {sp.soloTotal === 0 && sp.blendScore.loved === 0 && sp.blendScore.liked === 0 && (
-                    <span className="opacity-40 italic">no data</span>
+                  {sp.soloTotal === 0 && (
+                    <span className="text-amber-400/70 text-[10px]">needs solo eval</span>
                   )}
                 </div>
               ))}
