@@ -5347,7 +5347,7 @@ DIVERSITY RULES (MANDATORY):
 - If multiple candidates use the same IR, pick the BEST one and skip the rest
 - Titles must be CREATIVE, DISTINCT, and NEVER RECYCLED. BANNED patterns: "Warm X + Bright Y", "Smooth X + Crisp Y", "[adjective] Body + [adjective] Edge/Top/Detail", "Velvet X", "Glass X", "Midnight X", "Honey X", "Satin X", "Silk X".
   Draw from DIVERSE naming vocabularies — rotate through these categories and never repeat a title across sessions:
-  • Guitar culture: amp/pedal vibes, playing techniques, stage energy (e.g. "Cranked to Eleven", "Pinch Harmonic", "The Greenback Growl", "Fretboard Fire")
+  • Guitar culture: amp/pedal vibes, playing techniques, stage energy (e.g. "Cranked to Eleven", "Pinch Harmonic", "Fretboard Fire", "Power Chord Punch")
   • Texture/sensation: physical feelings the tone evokes (e.g. "Broken Glass", "Molten Core", "Razor Suede", "Burnt Sugar")
   • Attitude/character: personality the tone projects (e.g. "The Brawler", "Quiet Riot", "Mean Swagger", "Sunday Driver")
   • Musical imagery: scenes, moods, moments (e.g. "Neon Rainstorm", "Desert Highway", "Basement Demo", "Stadium Anthem")
@@ -5528,6 +5528,7 @@ MANDATORY RULES:
       - Cream (Celestion Cream), V30 (Vintage 30), V30BC (V30 Black Cat)
       - G12M (Greenback), G12H (G12H30 Anniversary), G12-65 (G12-65 Heritage)
       - GA12-SC64, GA10-SC64, K100 (G12K-100), G12T75 (G12T-75), Karnivore
+      IMPORTANT: G12M (Greenback) and G12-65 are COMPLETELY DIFFERENT speakers with distinct tonal characters. Never apply Greenback traits to G12-65 or vice versa. G12-65 is warm/punchy/neutral; Greenback is woody/mid-forward/bright.
       
       Mic Shorthand:
       - SM57, R121, R10, MD421, MD421K (or MD421Kompakt), M201, M88, Roswell, M160, e906, C414, R92, PR30
@@ -6031,8 +6032,13 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     try {
       const signals = await storage.getPreferenceSignals();
       const SPEAKER_MAP: Record<string, string> = {
-        'G12M': 'G12M25', 'V30': 'V30-China', 'Cream': 'Celestion-Cream',
-        'G1265': 'G12-65', 'V30BC': 'V30-Blackcat',
+        'g12m': 'G12M25', 'greenback': 'G12M25', 'gb': 'G12M25',
+        'v30': 'V30-China', 'cream': 'Celestion-Cream',
+        'g1265': 'G12-65', 'g12-65': 'G12-65',
+        'v30bc': 'V30-Blackcat', 'v30blackcat': 'V30-Blackcat',
+        'g12h': 'G12H', 'g12t75': 'G12T75', 'k100': 'K100',
+        'ga12-sc64': 'GA12-SC64', 'ga10-sc64': 'GA10-SC64',
+        'karnivore': 'Karnivore', 'g12h30': 'G12H30-Anniversary',
       };
       const stats: Record<string, { love: number; like: number; meh: number; nope: number; total: number }> = {};
       for (const s of signals) {
@@ -6040,7 +6046,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
           const action = s.action;
           if (action === 'love' || action === 'like' || action === 'meh' || action === 'nope') {
             const prefix = (s.baseFilename || '').split('_')[0] || 'Unknown';
-            const speaker = SPEAKER_MAP[prefix] || prefix;
+            const speaker = SPEAKER_MAP[prefix.toLowerCase()] || prefix;
             if (!stats[speaker]) stats[speaker] = { love: 0, like: 0, meh: 0, nope: 0, total: 0 };
             (stats[speaker] as any)[action]++;
             stats[speaker].total++;
