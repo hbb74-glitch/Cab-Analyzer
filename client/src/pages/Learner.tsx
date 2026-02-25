@@ -37,6 +37,7 @@ import {
   computeSpeakerRelativeProfiles,
   DEFAULT_PROFILES,
   getSpeakerFilenamePrefix,
+  parseGearFromFilename,
 } from "@/lib/preference-profiles";
 
 interface AnalyzedIR {
@@ -1261,6 +1262,21 @@ export default function Learner() {
 
   const isIrSoloRated = useCallback((filename: string) => {
     return !!(singleIrRatings[filename] || serverSoloRatings[filename]);
+  }, [singleIrRatings, serverSoloRatings]);
+
+  const evaluatedSpeakers = useMemo(() => {
+    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; total: number }> = {};
+    const allRatings: Record<string, "love" | "like" | "meh" | "nope"> = { ...serverSoloRatings, ...singleIrRatings };
+    for (const [filename, action] of Object.entries(allRatings)) {
+      const gear = parseGearFromFilename(filename);
+      const speaker = gear.speaker || filename.split("_")[0] || "Unknown";
+      if (!speakerMap[speaker]) speakerMap[speaker] = { love: 0, like: 0, meh: 0, nope: 0, total: 0 };
+      speakerMap[speaker][action]++;
+      speakerMap[speaker].total++;
+    }
+    return Object.entries(speakerMap)
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([name, counts]) => ({ name, ...counts }));
   }, [singleIrRatings, serverSoloRatings]);
 
   const SINGLE_IR_PAGE_SIZE = 4;
@@ -2993,6 +3009,24 @@ export default function Learner() {
               <div className="text-cyan-400/80 font-medium">Do this FIRST — solo ratings are the strongest teaching signal for the AI. They tell it exactly which shots to recommend and reveal your true tonal preferences.</div>
               <div className="opacity-60">Context: {singleIrTasteContext.speakerPrefix}/singleIR/{learnerContext}</div>
             </div>
+
+            {evaluatedSpeakers.length > 0 && (
+              <div className="border border-zinc-700 rounded p-2" data-testid="evaluated-speakers-list">
+                <div className="text-xs font-medium opacity-80 mb-1">Speakers Evaluated ({evaluatedSpeakers.reduce((s, sp) => s + sp.total, 0)} IRs across {evaluatedSpeakers.length} speaker{evaluatedSpeakers.length !== 1 ? "s" : ""})</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {evaluatedSpeakers.map(sp => (
+                    <div key={sp.name} className="flex items-center gap-1 text-[11px] bg-zinc-800 rounded px-1.5 py-0.5 border border-zinc-700" data-testid={`evaluated-speaker-${sp.name}`}>
+                      <span className="font-medium">{sp.name}</span>
+                      <span className="opacity-60">({sp.total})</span>
+                      {sp.love > 0 && <span className="text-green-400">♥{sp.love}</span>}
+                      {sp.like > 0 && <span className="text-blue-400">👍{sp.like}</span>}
+                      {sp.meh > 0 && <span className="text-yellow-400">~{sp.meh}</span>}
+                      {sp.nope > 0 && <span className="text-red-400">✗{sp.nope}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {singleIrUndecided.length > 0 && (
             <div className="flex items-center gap-2 text-xs opacity-80">
