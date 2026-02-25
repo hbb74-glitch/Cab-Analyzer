@@ -44,9 +44,22 @@ const SINGLE_MICS = [
 ];
 
 const BLEND_MICS = [
-  { value: "sm57_r121_blend", label: "SM57+R121 Blend" },
+  { value: "sm57_r121_blend", label: "SM57+R121" },
   { value: "fredman", label: "Fredman (Dual SM57)" },
 ];
+
+const formatComboShotDisplay = (mic: string | null | undefined, position: string | null | undefined, blendRatio?: string | null): { mic: string; position: string } => {
+  const micClean = (mic || '').replace(/[_\s]?[Bb]lend$/i, '');
+  const pos = position || '';
+  const isBlendPos = pos.toLowerCase() === 'blend';
+  if (isBlendPos && blendRatio) {
+    return { mic: micClean, position: blendRatio.split(/\s+/)[0] };
+  }
+  if (isBlendPos) {
+    return { mic: micClean, position: 'SM57+R121' };
+  }
+  return { mic: micClean, position: pos };
+};
 
 const MICS = [...SINGLE_MICS, ...BLEND_MICS];
 const BLEND_MIC_VALUES = BLEND_MICS.map(m => m.value);
@@ -522,7 +535,8 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
       const intentStr = intents.length > 0 ? ` (${intents.join(', ')})` : '';
       const conf = s.confidence ? ` [${s.confidence}]` : '';
       const dist = String(s.distance || '').replace(/"/g, '');
-      lines.push(`${i + 1}. ${s.mic}@${s.position}_${dist}"  ${roleStr}${intentStr}${conf}`);
+      const sd = formatComboShotDisplay(s.mic, s.position, s.blendRatio);
+      lines.push(`${i + 1}. ${sd.mic}@${sd.position}_${dist}"  ${roleStr}${intentStr}${conf}`);
       if (s.whyIncluded) lines.push(`   → ${s.whyIncluded}`);
     });
     if (designResult.mixingPairs?.length) {
@@ -1101,7 +1115,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <code className="text-sm font-mono bg-black/30 px-2 py-1 rounded text-primary">
-                    {shot.mic}@{shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio.split(/\s+/)[0] : shot.position}_{shot.distance}"
+                    {(() => { const d = formatComboShotDisplay(shot.mic, shot.position, shot.blendRatio); return `${d.mic}@${d.position}_${shot.distance}"`; })()}
                   </code>
                   {shot.musicalRole && (
                     <span className={cn("text-xs px-2 py-0.5 rounded font-medium", roleBadgeColor(shot.musicalRole))}>
@@ -3629,7 +3643,7 @@ Or written out:
                       {shot.position && (
                         <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                           <Target className="w-4 h-4 text-secondary" />
-                          <span className="text-sm font-medium text-secondary">{shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio : (POSITION_LABELS[shot.position] || shot.position)}</span>
+                          <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(shot.mic, shot.position, shot.blendRatio); return d.position === 'SM57+R121' ? d.position : (shot.blendRatio && shot.position?.toLowerCase() === 'blend' ? shot.blendRatio : (POSITION_LABELS[shot.position] || shot.position)); })()}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
@@ -3768,7 +3782,7 @@ Or written out:
                       )}
                       <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-full border border-secondary/30">
                         <Target className="w-4 h-4 text-secondary" />
-                        <span className="text-sm font-medium text-secondary">{rec.blendRatio && rec.position?.toLowerCase() === 'blend' ? rec.blendRatio : (POSITION_LABELS[rec.position] || rec.position)}</span>
+                        <span className="text-sm font-medium text-secondary">{(() => { const d = formatComboShotDisplay(rec.mic, rec.position, rec.blendRatio); return d.position === 'SM57+R121' ? d.position : (rec.blendRatio && rec.position?.toLowerCase() === 'blend' ? rec.blendRatio : (POSITION_LABELS[rec.position] || rec.position)); })()}</span>
                       </div>
                       <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
                         <Ruler className="w-4 h-4 text-muted-foreground" />
