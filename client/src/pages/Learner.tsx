@@ -2044,8 +2044,13 @@ export default function Learner() {
 
       if ((!keepGoing && !needsMoreBinary) || (nextRound >= tasteCheckPhase.maxRounds && !needsMoreBinary)) {
         modeTriggeredTasteCheck.current = false;
+        const pending = tasteCheckPhase.pendingRefineCandidates;
+        const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
+        if (pending && pending.length > 0) {
+          proceedToRatioRefine(pending, pendingLoad);
+        }
         return;
       }
 
@@ -2065,8 +2070,13 @@ export default function Learner() {
 
       if (!nextPick) {
         modeTriggeredTasteCheck.current = false;
+        const pending = tasteCheckPhase.pendingRefineCandidates;
+        const pendingLoad = tasteCheckPhase.pendingLoadTopPick;
         setTasteCheckPhase(null);
         setTasteCheckPassed(true);
+        if (pending && pending.length > 0) {
+          proceedToRatioRefine(pending, pendingLoad);
+        }
         return;
       }
 
