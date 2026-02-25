@@ -2921,7 +2921,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
             "micLabel": "REQUIRED: Display name WITH switch setting for MD441/e906 (e.g. 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'). For other mics, use standard label.",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
+            "blendRatio": "REQUIRED for SM57+R121 Blend shots: MUST be one of: 'Tight (67:33)', 'Balanced (60:40)', 'Thick (51:49)', 'Smooth (45:55)', or 'Ribbon Dom (24:76)'. NEVER omit for blend mics.",
             "rationale": "Why THIS specific position+distance combo works${genre ? ` for '${genre}'` : ''} - be specific about both factors",
             "expectedTone": "How this exact shot sounds",
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this shot is ideal for'}"
@@ -3023,6 +3023,18 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
         }
       }
       
+      if (result.shots && Array.isArray(result.shots)) {
+        for (const shot of result.shots) {
+          const micLower = (shot.mic || shot.micLabel || '').toLowerCase();
+          const posLower = (shot.position || '').toLowerCase();
+          if ((micLower.includes('sm57') && micLower.includes('r121')) || micLower.includes('sm57_r121')) {
+            if (!shot.blendRatio && posLower === 'blend') {
+              shot.blendRatio = 'Balanced (60:40)';
+            }
+          }
+        }
+      }
+
       // Enforce exact shot count if specified
       if (targetShotCount && result.shots && Array.isArray(result.shots)) {
         if (result.shots.length > targetShotCount) {
@@ -3316,7 +3328,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
             "micLabel": "Display name - MUST include switch setting for MD441/e906: 'MD441 (Presence)', 'MD441 (Flat)', 'e906 (Presence)', 'e906 (Flat)'",
             "position": "Cap|Cap_OffCenter|CapEdge|CapEdge_BR|CapEdge_DK|Cap_Cone_Tr|Cone|Blend",
             "distance": "distance in inches as string (e.g. '1' or '2.5')",
-            "blendRatio": "ONLY for SM57+R121 Blend shots: recommended voicing and ratio, e.g. 'Tight (67:33)' or 'Smooth (45:55)'. Omit for non-blend mics.",
+            "blendRatio": "REQUIRED for SM57+R121 Blend shots: MUST be one of: 'Tight (67:33)', 'Balanced (60:40)', 'Thick (51:49)', 'Smooth (45:55)', or 'Ribbon Dom (24:76)'. NEVER omit for blend mics.",
             "rationale": "Why this combination achieves the user's tonal goal${genre ? ` ('${genre}')` : ''} - be specific",
             "expectedTone": "How this sounds${genre ? ` and how it delivers '${genre}'` : ''}",
             "bestFor": "${genre ? `'${genre}' and related sounds` : 'What styles/sounds this is ideal for'}"
@@ -6517,6 +6529,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         "mid": 24, "highMid": 22, "presence": 14, "ratio": 1.0, "centroid": 2200,
         "character": "Balanced, punchy, sits well in any mix"
       },
+      "blendRatio": "REQUIRED for SM57+R121 Blend shots only — one of: 'Tight (67:33)', 'Balanced (60:40)', 'Thick (51:49)', 'Smooth (45:55)', 'Ribbon Dom (24:76)'. Omit for non-blend mics.",
       "confidence": "high",
       "confidenceReason": "Knowledge base: Foundation@CapEdge (high), 12 learned samples confirm",
       "blendsWith": ["R121@CapEdge_4 (classic smooth+punch pair)"],
@@ -6704,6 +6717,13 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         if (kbLookup) {
           shot.knowledgeBaseRole = kbLookup.predictedRole;
           shot.knowledgeBaseConfidence = kbLookup.confidence;
+        }
+        const micLower = (shot.mic || '').toLowerCase();
+        const posLower = (shot.position || '').toLowerCase();
+        if ((micLower.includes('sm57') && micLower.includes('r121')) || micLower.includes('sm57_r121')) {
+          if (!shot.blendRatio && posLower === 'blend') {
+            shot.blendRatio = 'Balanced (60:40)';
+          }
         }
       }
 
