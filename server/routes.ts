@@ -2107,18 +2107,22 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
         const gear = parseGearFromFilename(filename);
         const dist = parseDistance(filename);
         const allTags = ratings.flatMap(r => r.feedback ? r.feedback.split(",").map(t => t.trim()) : []).filter(Boolean);
+        const worthyMic = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
+        const worthyPos = gear.position || (gear.mic2 ? "Blend" : undefined);
         standaloneWorthy.push({
           filename,
           rating: lastRating.action as "love" | "like",
           tags: [...new Set(allTags)],
-          mic: gear.mic,
-          position: gear.position,
+          mic: worthyMic,
+          position: worthyPos,
           distance: dist,
           speaker: gear.speaker,
         });
 
-        if (gear.mic && gear.position) {
-          const key = `${gear.mic}|${gear.position}${dist ? `|${dist}` : ""}`;
+        const micLabel = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
+        const posLabel = gear.position || (gear.mic2 ? "Blend" : undefined);
+        if (micLabel && posLabel) {
+          const key = `${micLabel}|${posLabel}${dist ? `|${dist}` : ""}`;
           const existing = recipeMap.get(key) || { count: 0, ratingSum: 0, speakers: new Set<string>(), loveCount: 0, likeCount: 0 };
           existing.count += 1;
           existing.ratingSum += lastRating.action === "love" ? 2 : 1;
