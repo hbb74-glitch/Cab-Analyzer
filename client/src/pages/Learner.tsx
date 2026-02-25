@@ -1285,7 +1285,12 @@ export default function Learner() {
       "g12-65": "G12-65", "karnivore": "Karnivore", "g12h30": "G12H30-Anniversary",
     };
 
-    if (serverSoloStats) {
+    const resolveSpeaker = (filename: string): string => {
+      const gear = parseGearFromFilename(filename);
+      return gear.speaker || filename.split("_")[0] || "Unknown";
+    };
+
+    if (serverSoloStats && Object.keys(serverSoloStats).length > 0) {
       for (const [speaker, counts] of Object.entries(serverSoloStats)) {
         if (!speakerMap[speaker]) speakerMap[speaker] = init();
         speakerMap[speaker].love = counts.love;
@@ -1294,11 +1299,22 @@ export default function Learner() {
         speakerMap[speaker].nope = counts.nope;
         speakerMap[speaker].soloTotal = counts.total;
       }
+    } else if (existingSignals) {
+      for (const s of existingSignals) {
+        if (s.baseFilename === s.featureFilename) {
+          const action = s.action as string;
+          if (action === "love" || action === "like" || action === "meh" || action === "nope") {
+            const speaker = resolveSpeaker(s.baseFilename);
+            if (!speakerMap[speaker]) speakerMap[speaker] = init();
+            (speakerMap[speaker] as any)[action]++;
+            speakerMap[speaker].soloTotal++;
+          }
+        }
+      }
     }
 
     for (const [filename, action] of Object.entries(singleIrRatings)) {
-      const gear = parseGearFromFilename(filename);
-      const speaker = gear.speaker || filename.split("_")[0] || "Unknown";
+      const speaker = resolveSpeaker(filename);
       if (!speakerMap[speaker]) speakerMap[speaker] = init();
       speakerMap[speaker][action]++;
       speakerMap[speaker].soloTotal++;
@@ -1318,7 +1334,7 @@ export default function Learner() {
       }
     }
 
-    return Object.entries(speakerMap)
+    const result = Object.entries(speakerMap)
       .filter(([_, v]) => v.profileCount > 0 || v.soloTotal > 0)
       .sort((a, b) => {
         const aTotal = a[1].profileCount + a[1].soloTotal;
@@ -1326,7 +1342,8 @@ export default function Learner() {
         return bTotal - aTotal;
       })
       .map(([name, counts]) => ({ name, ...counts }));
-  }, [singleIrRatings, serverSoloStats, tonalProfilesList]);
+    return result;
+  }, [singleIrRatings, serverSoloStats, existingSignals, tonalProfilesList]);
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
