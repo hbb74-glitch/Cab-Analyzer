@@ -701,5 +701,12 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    provenShots: {
+      method: 'GET' as const,
+      path: '/api/tonal-profiles/proven-shots',
+      responses: {
+        200: z.any(),
+      },
+    },
   },
 };

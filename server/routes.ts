@@ -1479,6 +1479,9 @@ interface StandaloneRecipe {
   distance?: string;
   count: number;
   avgRating: number;
+  speakers?: string[];
+  loveCount?: number;
+  likeCount?: number;
 }
 
 interface LearnedProfileData {
@@ -2097,7 +2100,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
       return m ? m[1] : undefined;
     };
 
-    const recipeMap = new Map<string, { count: number; ratingSum: number }>();
+    const recipeMap = new Map<string, { count: number; ratingSum: number; speakers: Set<string>; loveCount: number; likeCount: number }>();
     for (const [filename, ratings] of soloByFile) {
       const lastRating = ratings[ratings.length - 1];
       if (lastRating.action === "love" || lastRating.action === "like") {
@@ -2116,15 +2119,18 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
 
         if (gear.mic && gear.position) {
           const key = `${gear.mic}|${gear.position}${dist ? `|${dist}` : ""}`;
-          const existing = recipeMap.get(key) || { count: 0, ratingSum: 0 };
+          const existing = recipeMap.get(key) || { count: 0, ratingSum: 0, speakers: new Set<string>(), loveCount: 0, likeCount: 0 };
           existing.count += 1;
           existing.ratingSum += lastRating.action === "love" ? 2 : 1;
+          if (lastRating.action === "love") existing.loveCount += 1;
+          else existing.likeCount += 1;
+          if (gear.speaker) existing.speakers.add(gear.speaker);
           recipeMap.set(key, existing);
         }
       }
     }
 
-    for (const [key, data] of recipeMap) {
+    for (const [key, data] of Array.from(recipeMap.entries())) {
       const parts = key.split("|");
       standaloneRecipes.push({
         mic: parts[0],
@@ -2132,6 +2138,9 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
         distance: parts[2],
         count: data.count,
         avgRating: data.ratingSum / data.count,
+        speakers: Array.from(data.speakers),
+        loveCount: data.loveCount,
+        likeCount: data.likeCount,
       });
     }
     standaloneRecipes.sort((a, b) => b.avgRating - a.avgRating || b.count - a.count);
@@ -6909,6 +6918,42 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
   }
 
   // ── Gap Finder (Audio-Aware Shot Suggestions) ────────────────────────
+  app.get(api.tonalProfiles.provenShots.path, async (_req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+      if (signals.length === 0) {
+        return res.json({ recipes: [], worthy: [], noped: [] });
+      }
+      const learned = await computeLearnedProfile(signals);
+      const soloSignals = signals.filter(s => s.baseFilename === s.featureFilename);
+      const nopedByFile = new Map<string, { filename: string; mic?: string; position?: string; distance?: string; speaker?: string }>();
+      for (const s of soloSignals) {
+        if (s.action === "nope" || s.action === "meh") {
+          const gear = parseGearFromFilename(s.baseFilename);
+          const distMatch = s.baseFilename.match(/[\-_](\d+(?:\.\d+)?)\s*(?:in|inch|"|\b)/i) || s.baseFilename.match(/[\-_](\d+(?:\.\d+)?)[\-_]/);
+          nopedByFile.set(s.baseFilename, {
+            filename: s.baseFilename,
+            mic: gear.mic,
+            position: gear.position,
+            distance: distMatch ? distMatch[1] : undefined,
+            speaker: gear.speaker,
+          });
+        }
+      }
+      for (const w of learned.standaloneWorthy) {
+        nopedByFile.delete(w.filename);
+      }
+      res.json({
+        recipes: learned.standaloneRecipes,
+        worthy: learned.standaloneWorthy,
+        noped: Array.from(nopedByFile.values()),
+      });
+    } catch (err) {
+      console.error('Proven shots error:', err);
+      res.status(500).json({ message: "Failed to retrieve proven shots" });
+    }
+  });
+
   app.post(api.tonalProfiles.gapFinder.path, async (req, res) => {
     try {
       const input = api.tonalProfiles.gapFinder.input.parse(req.body);

@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useDropzone } from "react-dropzone";
-import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2, ChevronDown, ChevronUp, Database, Info } from "lucide-react";
+import { Loader2, Lightbulb, Mic2, Speaker, Ruler, Music, Target, ListFilter, Zap, Copy, Check, FileText, ArrowRight, CheckCircle, PlusCircle, RefreshCw, AlertCircle, Trash2, List, Upload, X, BarChart3, Settings2, ChevronDown, ChevronUp, Database, Info, Trophy, Star, ThumbsDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -448,6 +448,16 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
   const { data: profileData, isLoading: profilesLoading } = useQuery({
     queryKey: ['/api/tonal-profiles'],
   });
+
+  const { data: provenData } = useQuery<{
+    recipes: { mic: string; position: string; distance?: string; count: number; avgRating: number; speakers?: string[]; loveCount?: number; likeCount?: number }[];
+    worthy: { filename: string; rating: string; tags: string[]; mic?: string; position?: string; distance?: string; speaker?: string }[];
+    noped: { filename: string; mic?: string; position?: string; distance?: string; speaker?: string }[];
+  }>({
+    queryKey: ['/api/tonal-profiles/proven-shots'],
+  });
+
+  const [showProvenShots, setShowProvenShots] = useState(true);
 
   const designMutation = useMutation({
     mutationFn: async (input: { speaker: string; genre?: string; targetCount?: number; intentCounts?: { rhythm?: number; lead?: number; clean?: number } }) => {
@@ -1014,6 +1024,123 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
           </button>
         </div>
       </form>
+
+      {provenData && (provenData.recipes.length > 0 || provenData.noped.length > 0) && (
+        <div className="glass-panel p-5 rounded-2xl space-y-4" data-testid="proven-shots-panel">
+          <button
+            type="button"
+            onClick={() => setShowProvenShots(!showProvenShots)}
+            className="w-full flex items-center justify-between text-left"
+            data-testid="button-toggle-proven-shots"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/20">
+                <Trophy className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Your Proven Shots</h3>
+                <p className="text-xs text-muted-foreground">
+                  {provenData.recipes.length} mic/position combo{provenData.recipes.length !== 1 ? "s" : ""} consistently rated well in solo eval
+                  {provenData.noped.length > 0 && ` · ${provenData.noped.length} avoided`}
+                </p>
+              </div>
+            </div>
+            {showProvenShots ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+
+          {showProvenShots && (
+            <div className="space-y-4 pt-2">
+              {provenData.recipes.length > 0 && (
+                <div className="space-y-2">
+                  {provenData.recipes.map((recipe, i) => {
+                    const hearts = recipe.loveCount || 0;
+                    const likes = recipe.likeCount || 0;
+                    const ratingLabel = recipe.avgRating >= 1.8 ? "Loved" : recipe.avgRating >= 1.3 ? "Strong" : "Liked";
+                    const ratingColor = recipe.avgRating >= 1.8 ? "text-rose-400" : recipe.avgRating >= 1.3 ? "text-amber-400" : "text-emerald-400";
+                    const bgColor = recipe.avgRating >= 1.8 ? "bg-rose-500/10 border-rose-500/20" : recipe.avgRating >= 1.3 ? "bg-amber-500/10 border-amber-500/20" : "bg-emerald-500/10 border-emerald-500/20";
+                    const speakerList = recipe.speakers && recipe.speakers.length > 0 ? recipe.speakers : [];
+                    const crossSpeaker = speakerList.length > 1;
+
+                    return (
+                      <div key={i} className={cn("border rounded-xl p-3 flex items-start justify-between gap-3", bgColor)} data-testid={`proven-shot-${i}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground">
+                              {recipe.mic}
+                            </span>
+                            <span className="text-xs text-muted-foreground">@</span>
+                            <span className="text-sm text-foreground">{recipe.position}</span>
+                            {recipe.distance && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">{recipe.distance}"</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className={cn("text-xs font-medium", ratingColor)}>
+                              {ratingLabel}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {hearts > 0 && `${hearts} ♥`}{hearts > 0 && likes > 0 && " · "}{likes > 0 && `${likes} ★`}
+                              {" · "}{recipe.count} IR{recipe.count !== 1 ? "s" : ""} rated
+                            </span>
+                          </div>
+                          {speakerList.length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {crossSpeaker && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/20">
+                                  Cross-Speaker
+                                </span>
+                              )}
+                              {speakerList.map((sp, si) => (
+                                <span key={si} className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-muted-foreground">
+                                  {sp}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {Array.from({ length: Math.min(5, Math.round(recipe.avgRating * 2.5)) }).map((_, si) => (
+                            <Star key={si} className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {provenData.noped.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                    <ThumbsDown className="w-3 h-3" />
+                    <span>Combos you consistently avoid</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(() => {
+                      const nopedRecipes = new Map<string, { mic: string; position: string; count: number; speakers: Set<string> }>();
+                      for (const n of provenData.noped) {
+                        if (!n.mic || !n.position) continue;
+                        const key = `${n.mic}|${n.position}`;
+                        const existing = nopedRecipes.get(key) || { mic: n.mic, position: n.position, count: 0, speakers: new Set<string>() };
+                        existing.count += 1;
+                        if (n.speaker) existing.speakers.add(n.speaker);
+                        nopedRecipes.set(key, existing);
+                      }
+                      return Array.from(nopedRecipes.values())
+                        .sort((a, b) => b.count - a.count)
+                        .map((nr, i) => (
+                          <span key={i} className="text-xs px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-400" data-testid={`noped-combo-${i}`}>
+                            {nr.mic} @ {nr.position} ({nr.count})
+                          </span>
+                        ));
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {designResult && designResult.shots && designResult.shots.length > 0 && (
         <motion.div
