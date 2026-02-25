@@ -1057,8 +1057,8 @@ export function getValidatedShotInsights(): ValidatedShotInsight[] {
   }
 
   insights.sort((a, b) => {
-    const scoreA = a.soloScore * 0.5 + a.blendScore * 0.5;
-    const scoreB = b.soloScore * 0.5 + b.blendScore * 0.5;
+    const scoreA = a.soloScore * 0.65 + a.blendScore * 0.35;
+    const scoreB = b.soloScore * 0.65 + b.blendScore * 0.35;
     return scoreB - scoreA;
   });
 

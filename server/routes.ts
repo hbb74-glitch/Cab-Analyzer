@@ -2478,11 +2478,20 @@ function buildGearPreferencePrompt(learned: LearnedProfileData, micType?: string
     lines.push(`Tonal avoid zones: ${zoneDescs.join(', ')}`);
   }
 
+  if (learned.standaloneWorthy && learned.standaloneWorthy.length > 0) {
+    const soloLines = learned.standaloneWorthy.slice(0, 10).map(s =>
+      `${s.filename} (${s.rating})`
+    );
+    lines.push(`Solo-proven IRs (standalone worthy): ${soloLines.join('; ')}`);
+    lines.push(`Solo-proven IRs are the user's strongest signal — these mic/position/distance combos are confirmed to sound great on their own and should be prioritized.`);
+  }
+
   if (lines.length === 0) return '';
 
-  return `\n\n=== USER'S LEARNED GEAR PREFERENCES (from ${learned.signalCount} rated blends) ===
-These preferences were learned from the user's actual ratings of IR blends.
-Use them to bias your recommendations toward gear/positions/combos the user has historically preferred.
+  return `\n\n=== USER'S LEARNED GEAR PREFERENCES (from ${learned.signalCount} ratings, solo + blends) ===
+These preferences include solo IR evaluations (strongest signal) and blend ratings.
+Solo-proven data is the most reliable — the user listened to each IR alone and judged it directly.
+Use solo-proven shots as your primary guide for recommendations. Blend data supplements solo findings.
 If a mic or position is listed as "avoided", deprioritize it unless there's a strong technical reason.
 If a mic or position is listed as "preferred", favor it when multiple options are equally valid.
 ${lines.join('\n')}`;
@@ -5063,12 +5072,13 @@ Output JSON:
         if (soloRatings) {
           const soloA = soloRatings[a.filename];
           const soloB = soloRatings[b.filename];
-          if (soloA === "solo") bonus += 6;
-          else if (soloA === "needs_work") bonus -= 8;
-          if (soloB === "solo") bonus += 6;
-          else if (soloB === "needs_work") bonus -= 8;
-          if (soloA === "blend_only" && soloB === "solo") bonus += 3;
-          if (soloB === "blend_only" && soloA === "solo") bonus += 3;
+          if (soloA === "solo") bonus += 10;
+          else if (soloA === "needs_work") bonus -= 10;
+          if (soloB === "solo") bonus += 10;
+          else if (soloB === "needs_work") bonus -= 10;
+          if (soloA === "solo" && soloB === "solo") bonus += 5;
+          if (soloA === "blend_only" && soloB === "solo") bonus += 4;
+          if (soloB === "blend_only" && soloA === "solo") bonus += 4;
         }
 
         if (irWinRecords) {
@@ -6448,28 +6458,72 @@ A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary i
       const validatedInsightsSection = (() => {
         const vi = input.validatedInsights;
         if (!vi || vi.length === 0) return '';
-        const promoted = vi.filter(i => i.soloScore > 0.3 || i.blendScore > 0.3);
+        const soloProven = vi.filter(i => i.soloScore > 0.3);
+        const blendProven = vi.filter(i => i.blendScore > 0.3 && i.soloScore <= 0.3);
         const demoted = vi.filter(i => i.soloScore < -0.3 || i.blendScore < -0.3);
-        if (promoted.length === 0 && demoted.length === 0) return '';
+        if (soloProven.length === 0 && blendProven.length === 0 && demoted.length === 0) return '';
         let section = '\n=== USER-VALIDATED SHOT PREFERENCES (from taste learning) ===\n';
-        section += 'These mic/position/distance combos have been validated through the user\'s listening tests.\n';
-        section += 'PRIORITIZE promoted shots and DEPRIORITIZE demoted ones in the design.\n\n';
-        if (promoted.length > 0) {
-          section += 'PROMOTED (user-validated as excellent):\n';
-          for (const ins of promoted) {
+        section += 'Solo evaluations are the STRONGEST signal — the user listened to each IR alone and judged it.\n';
+        section += 'Solo-proven IRs work standalone AND blend well with almost anything. These are your safest recommendations.\n\n';
+        if (soloProven.length > 0) {
+          section += 'SOLO-PROVEN (highest priority — user confirmed these sound great on their own):\n';
+          section += 'These shots need NO guessing or extrapolation. Recommend these positions/distances FIRST.\n';
+          for (const ins of soloProven) {
+            const dist = ins.distance ? `_${ins.distance}"` : '';
+            const partners = ins.topBlendPartners.length > 0 ? ` | blends well with: ${ins.topBlendPartners.join(', ')}` : '';
+            const blendNote = ins.blendScore > 0.3 ? ' (also proven in blends)' : ins.blendScore < -0.3 ? ' (solo-only — struggles in blends)' : '';
+            section += `  ★★ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)}${blendNote} (${ins.sampleSize} samples, ${ins.evidence})${partners}\n`;
+          }
+          section += '\n';
+        }
+        if (blendProven.length > 0) {
+          section += 'BLEND-PROVEN (good in mixes but not solo-tested or solo-neutral):\n';
+          for (const ins of blendProven) {
             const dist = ins.distance ? `_${ins.distance}"` : '';
             const partners = ins.topBlendPartners.length > 0 ? ` | blends well with: ${ins.topBlendPartners.join(', ')}` : '';
             section += `  ★ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)} (${ins.sampleSize} samples, ${ins.evidence})${partners}\n`;
           }
+          section += '\n';
         }
         if (demoted.length > 0) {
-          section += 'DEMOTED (user-validated as unsatisfactory):\n';
+          section += 'DEMOTED (user-validated as unsatisfactory — avoid these):\n';
           for (const ins of demoted) {
             const dist = ins.distance ? `_${ins.distance}"` : '';
             section += `  ✗ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)} (${ins.sampleSize} samples, ${ins.evidence})\n`;
           }
         }
-        section += '\nUse this data to prioritize positions/distances the user has proven to like, and avoid ones they consistently reject.\n';
+        section += '\nPRIORITY ORDER: Solo-proven > Blend-proven > Untested. Solo-proven shots are the cleanest, most direct user preference data.\n';
+        section += 'If a solo-proven IR has LOW blend scores, note it may be too dominant for blending — still recommend the position but flag it as a solo/lead choice.\n';
+        return section;
+      })();
+
+      const soloTonalSection = (() => {
+        const vi = input.validatedInsights;
+        if (!vi || vi.length === 0) return '';
+        const soloLoved = vi.filter(i => i.soloScore > 0.3);
+        if (soloLoved.length === 0) return '';
+        const allProfiles = speakerProfiles.length > 0 ? speakerProfiles : profiles;
+        const matchedFingerprints: string[] = [];
+        for (const ins of soloLoved) {
+          const matched = allProfiles.filter(p => {
+            const micMatch = p.mic.toLowerCase().includes(ins.mic.toLowerCase()) || ins.mic.toLowerCase().includes(p.mic.toLowerCase());
+            const posMatch = p.position.toLowerCase() === ins.position.toLowerCase();
+            const distMatch = !ins.distance || p.distance === ins.distance;
+            return micMatch && posMatch && distMatch;
+          });
+          for (const p of matched) {
+            matchedFingerprints.push(
+              `  ${p.mic}@${p.position}_${p.distance}" on ${p.speaker}: Mid=${p.mid.toFixed(1)}% HiMid=${p.highMid.toFixed(1)}% Pres=${p.presence.toFixed(1)}% Ratio=${p.ratio.toFixed(2)} Centroid=${Math.round(p.centroid)}Hz Smooth=${p.smoothness.toFixed(0)} ← SOLO LOVED`
+            );
+          }
+        }
+        if (matchedFingerprints.length === 0) return '';
+        let section = '\n=== TONAL FINGERPRINTS OF SOLO-LOVED IRs ===\n';
+        section += 'These are the EXACT tonal profiles of IRs the user rated Love/Like when listening solo.\n';
+        section += 'Study these values — they reveal the user\'s preferred frequency balance, tilt, and rolloff.\n';
+        section += 'New shot recommendations should aim for similar tonal characteristics.\n\n';
+        section += matchedFingerprints.join('\n');
+        section += '\n';
         return section;
       })();
 
@@ -6482,6 +6536,7 @@ ${profileSummary}
 ${extrapolationSection}
 ${knowledgeBaseSection}
 ${validatedInsightsSection}
+${soloTonalSection}
 
 ${roleDefinitions}
 

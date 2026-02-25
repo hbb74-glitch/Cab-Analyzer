@@ -2961,6 +2961,7 @@ export default function Learner() {
             <div className="text-xs opacity-70 space-y-0.5">
               <div>Could this IR carry a tone on its own, or does it need a partner?</div>
               <div>Love = great standalone · Like = close, minor gaps · Meh = needs help · Nope = not viable solo</div>
+              <div className="text-cyan-400/80 font-medium">Do this FIRST — solo ratings are the strongest teaching signal for the AI. They tell it exactly which shots to recommend and reveal your true tonal preferences.</div>
               <div className="opacity-60">Context: {singleIrTasteContext.speakerPrefix}/singleIR/{learnerContext}</div>
             </div>
 
