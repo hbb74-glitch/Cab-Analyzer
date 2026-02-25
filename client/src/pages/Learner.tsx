@@ -1250,14 +1250,14 @@ export default function Learner() {
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
-    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename)).length;
+    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !singleIrRatings[ir.filename]).length;
     return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
-  }, [pairingPool, singleIrDecided, singleIrReassessing]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing, singleIrRatings]);
 
   const singleIrUndecided = useMemo(() => {
     if (singleIrReassessing) return pairingPool;
-    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename));
-  }, [pairingPool, singleIrDecided, singleIrReassessing]);
+    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !singleIrRatings[ir.filename]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing, singleIrRatings]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
@@ -2996,7 +2996,7 @@ export default function Learner() {
                 Next
               </button>
               <span className="ml-2">
-                Page {singleIrPage + 1} / {singleIrTotalPages} ({singleIrDecided.size} decided, {singleIrUndecided.length} remaining)
+                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || singleIrRatings[ir.filename]).length} decided, {singleIrUndecided.length} remaining)
               </span>
             </div>
             )}
@@ -3200,13 +3200,6 @@ export default function Learner() {
                     setSingleIrReassessing(false);
 
                     const ratedFilenames = new Set(rated.map(r => r.filename));
-                    setSingleIrRatings(prev => {
-                      const next: Record<string, "love" | "like" | "meh" | "nope"> = {};
-                      for (const [k, v] of Object.entries(prev)) {
-                        if (!ratedFilenames.has(k)) next[k] = v;
-                      }
-                      return next;
-                    });
                     setSingleIrTags(prev => {
                       const next: Record<string, string[]> = {};
                       for (const [k, v] of Object.entries(prev)) {
