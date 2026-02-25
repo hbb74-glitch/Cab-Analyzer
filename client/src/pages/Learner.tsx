@@ -2872,10 +2872,24 @@ export default function Learner() {
           variant="ghost"
           className="text-xs h-8"
           onClick={() => setSingleIrLearnOpen(true)}
-          title="Rate individual IRs"
+          title="Rate individual IRs — do this FIRST for the strongest AI learning"
           data-testid="button-single-ir-learning"
         >
           Single IR Eval
+          {(() => {
+            const totalLoaded = pairingPool.length;
+            if (totalLoaded === 0) return null;
+            const ratedCount = pairingPool.filter(ir => singleIrRatings[ir.filename]).length;
+            if (ratedCount === 0) return (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/30 text-amber-400 border border-amber-500/30">NEW</span>
+            );
+            if (ratedCount < totalLoaded) return (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400">{ratedCount}/{totalLoaded}</span>
+            );
+            return (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">{ratedCount}/{totalLoaded}</span>
+            );
+          })()}
         </Button>
 
         <DropdownMenu>
