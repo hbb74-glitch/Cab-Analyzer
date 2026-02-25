@@ -6471,7 +6471,7 @@ A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary i
           for (const ins of soloProven) {
             const dist = ins.distance ? `_${ins.distance}"` : '';
             const partners = ins.topBlendPartners.length > 0 ? ` | blends well with: ${ins.topBlendPartners.join(', ')}` : '';
-            const blendNote = ins.blendScore > 0.3 ? ' (also proven in blends)' : ins.blendScore < -0.3 ? ' (solo-only — struggles in blends)' : '';
+            const blendNote = ins.blendScore > 0.3 ? ' (also proven in blends)' : ins.blendScore < -0.3 ? ' (some blend partners failed — investigate partner IRs, not this one)' : '';
             section += `  ★★ ${ins.mic}@${ins.position}${dist} — solo=${ins.soloScore.toFixed(2)} blend=${ins.blendScore.toFixed(2)}${blendNote} (${ins.sampleSize} samples, ${ins.evidence})${partners}\n`;
           }
           section += '\n';
@@ -6493,7 +6493,7 @@ A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary i
           }
         }
         section += '\nPRIORITY ORDER: Solo-proven > Blend-proven > Untested. Solo-proven shots are the cleanest, most direct user preference data.\n';
-        section += 'If a solo-proven IR has LOW blend scores, note it may be too dominant for blending — still recommend the position but flag it as a solo/lead choice.\n';
+        section += 'IMPORTANT: If a solo-proven IR has failed blends, the solo IR is NOT the problem — the PARTNER IR is the issue. A solo-proven IR is a known good quantity. When it fails in a blend, investigate the other IR: it may be too niche, redundant, or only useful in very specific circumstances. The solo-proven IR remains a safe, reliable choice.\n';
         return section;
       })();
 
