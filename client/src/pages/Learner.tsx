@@ -908,6 +908,17 @@ export default function Learner() {
     queryKey: ["/api/preferences/signals"],
   });
 
+  const serverSoloRatings = useMemo(() => {
+    const map: Record<string, "love" | "like" | "meh" | "nope"> = {};
+    if (!existingSignals) return map;
+    for (const s of existingSignals) {
+      if (s.baseFilename === s.featureFilename && (s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "nope")) {
+        map[s.baseFilename] = s.action;
+      }
+    }
+    return map;
+  }, [existingSignals]);
+
   useEffect(() => {
     if (!existingSignals || historyLoaded) return;
     const pairs = new Set<string>();
@@ -1248,16 +1259,20 @@ export default function Learner() {
     if (mirror) recordEloOutcome(mirror, w, l, isDraw, round);
   }, [mirrorTasteContext, mirrorSingleIrContext]);
 
+  const isIrSoloRated = useCallback((filename: string) => {
+    return !!(singleIrRatings[filename] || serverSoloRatings[filename]);
+  }, [singleIrRatings, serverSoloRatings]);
+
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
-    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !singleIrRatings[ir.filename]).length;
+    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !isIrSoloRated(ir.filename)).length;
     return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
-  }, [pairingPool, singleIrDecided, singleIrReassessing, singleIrRatings]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing, isIrSoloRated]);
 
   const singleIrUndecided = useMemo(() => {
     if (singleIrReassessing) return pairingPool;
-    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !singleIrRatings[ir.filename]);
-  }, [pairingPool, singleIrDecided, singleIrReassessing, singleIrRatings]);
+    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !isIrSoloRated(ir.filename));
+  }, [pairingPool, singleIrDecided, singleIrReassessing, isIrSoloRated]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
@@ -2879,7 +2894,7 @@ export default function Learner() {
           {(() => {
             const totalLoaded = pairingPool.length;
             if (totalLoaded === 0) return null;
-            const ratedCount = pairingPool.filter(ir => singleIrRatings[ir.filename]).length;
+            const ratedCount = pairingPool.filter(ir => isIrSoloRated(ir.filename)).length;
             if (ratedCount === 0) return (
               <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/30 text-amber-400 border border-amber-500/30">NEW</span>
             );
@@ -2996,7 +3011,7 @@ export default function Learner() {
                 Next
               </button>
               <span className="ml-2">
-                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || singleIrRatings[ir.filename]).length} decided, {singleIrUndecided.length} remaining)
+                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || isIrSoloRated(ir.filename)).length} decided, {singleIrUndecided.length} remaining)
               </span>
             </div>
             )}
@@ -3019,8 +3034,8 @@ export default function Learner() {
                 </button>
               </div>
             ) : singleIrPageItems.map((ir: any, idx: number) => {
-              const rating = singleIrRatings[ir.filename];
-              const prevDecision = singleIrPrevRatings[ir.filename];
+              const rating = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename];
+              const prevDecision = singleIrPrevRatings[ir.filename] || (serverSoloRatings[ir.filename] ? { action: serverSoloRatings[ir.filename], count: 1 } : undefined);
               const activeTagBank =
                 rating === "love" ? SOLO_WHY_TAGS :
                 rating === "like" ? SOLO_IMPROVE_TAGS :
@@ -3048,7 +3063,7 @@ export default function Learner() {
                       key={r}
                       className={cn(
                         "px-2 py-1 rounded border text-xs",
-                        singleIrRatings[ir.filename] === r ? "border-green-500" : "border-zinc-600"
+                        rating === r ? "border-green-500" : "border-zinc-600"
                       )}
                       onClick={() => {
                         setSingleIrRatings(prev => ({ ...prev, [ir.filename]: r }));
