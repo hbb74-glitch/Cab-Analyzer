@@ -6027,6 +6027,33 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     }
   });
 
+  app.get('/api/preferences/solo-stats', async (_req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+      const SPEAKER_MAP: Record<string, string> = {
+        'G12M': 'G12M25', 'V30': 'V30-China', 'Cream': 'Celestion-Cream',
+        'G1265': 'G12-65', 'V30BC': 'V30-Blackcat',
+      };
+      const stats: Record<string, { love: number; like: number; meh: number; nope: number; total: number }> = {};
+      for (const s of signals) {
+        if (s.baseFilename === s.featureFilename) {
+          const action = s.action;
+          if (action === 'love' || action === 'like' || action === 'meh' || action === 'nope') {
+            const prefix = (s.baseFilename || '').split('_')[0] || 'Unknown';
+            const speaker = SPEAKER_MAP[prefix] || prefix;
+            if (!stats[speaker]) stats[speaker] = { love: 0, like: 0, meh: 0, nope: 0, total: 0 };
+            (stats[speaker] as any)[action]++;
+            stats[speaker].total++;
+          }
+        }
+      }
+      res.json(stats);
+    } catch (err) {
+      console.error('Solo stats error:', err);
+      res.status(500).json({});
+    }
+  });
+
   app.delete(api.preferences.clearSpeaker.path, async (req, res) => {
     try {
       const { speakerPrefix } = api.preferences.clearSpeaker.input.parse(req.body);

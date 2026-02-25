@@ -1268,23 +1268,42 @@ export default function Learner() {
     queryKey: ["/api/tonal-profiles"],
   });
 
+  type SoloStatsMap = Record<string, { love: number; like: number; meh: number; nope: number; total: number }>;
+  const { data: serverSoloStats } = useQuery<SoloStatsMap>({
+    queryKey: ["/api/preferences/solo-stats"],
+  });
+
   const evaluatedSpeakers = useMemo(() => {
-    const speakerMap: Record<string, { love: number; like: number; meh: number; nope: number; soloTotal: number; profileCount: number; blendScore: { loved: number; liked: number; noped: number } }> = {};
-    const init = () => ({ love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, profileCount: 0, blendScore: { loved: 0, liked: 0, noped: 0 } });
-    const allSoloRatings: Record<string, "love" | "like" | "meh" | "nope"> = { ...serverSoloRatings, ...singleIrRatings };
-    for (const [filename, action] of Object.entries(allSoloRatings)) {
+    type SpeakerEntry = { love: number; like: number; meh: number; nope: number; soloTotal: number; profileCount: number };
+    const speakerMap: Record<string, SpeakerEntry> = {};
+    const init = (): SpeakerEntry => ({ love: 0, like: 0, meh: 0, nope: 0, soloTotal: 0, profileCount: 0 });
+
+    const PROFILE_SPEAKER_NAMES: Record<string, string> = {
+      "v30": "V30-China", "v30bc": "V30-Blackcat", "greenback": "G12M25", "g12m": "G12M25",
+      "cream": "Celestion-Cream", "g12h": "G12H", "g12t75": "G12T75",
+      "k100": "K100", "ga12-sc64": "GA12-SC64", "ga10-sc64": "GA10-SC64",
+      "g12-65": "G12-65", "karnivore": "Karnivore", "g12h30": "G12H30-Anniversary",
+    };
+
+    if (serverSoloStats) {
+      for (const [speaker, counts] of Object.entries(serverSoloStats)) {
+        if (!speakerMap[speaker]) speakerMap[speaker] = init();
+        speakerMap[speaker].love = counts.love;
+        speakerMap[speaker].like = counts.like;
+        speakerMap[speaker].meh = counts.meh;
+        speakerMap[speaker].nope = counts.nope;
+        speakerMap[speaker].soloTotal = counts.total;
+      }
+    }
+
+    for (const [filename, action] of Object.entries(singleIrRatings)) {
       const gear = parseGearFromFilename(filename);
       const speaker = gear.speaker || filename.split("_")[0] || "Unknown";
       if (!speakerMap[speaker]) speakerMap[speaker] = init();
       speakerMap[speaker][action]++;
       speakerMap[speaker].soloTotal++;
     }
-    if (learnedProfile?.gearInsights?.speakers) {
-      for (const sp of learnedProfile.gearInsights.speakers) {
-        if (!speakerMap[sp.name]) speakerMap[sp.name] = init();
-        speakerMap[sp.name].blendScore = { loved: sp.score.loved, liked: sp.score.liked, noped: sp.score.noped };
-      }
-    }
+
     if (tonalProfilesList) {
       const speakerCounts = new Map<string, number>();
       for (const p of tonalProfilesList) {
@@ -1292,26 +1311,22 @@ export default function Learner() {
         if (!s) continue;
         speakerCounts.set(s, (speakerCounts.get(s) || 0) + 1);
       }
-      const PROFILE_SPEAKER_NAMES: Record<string, string> = {
-        "v30": "V30-China", "v30bc": "V30-Blackcat", "greenback": "G12M25", "g12m": "G12M25",
-        "cream": "Celestion-Cream", "g12h": "G12H", "g12t75": "G12T75",
-        "k100": "K100", "ga12-sc64": "GA12-SC64", "ga10-sc64": "GA10-SC64",
-        "g12-65": "G12-65", "karnivore": "Karnivore", "g12h30": "G12H30-Anniversary",
-      };
       for (const [raw, count] of speakerCounts) {
         const name = PROFILE_SPEAKER_NAMES[raw] || raw;
         if (!speakerMap[name]) speakerMap[name] = init();
         speakerMap[name].profileCount = count;
       }
     }
+
     return Object.entries(speakerMap)
+      .filter(([_, v]) => v.profileCount > 0 || v.soloTotal > 0)
       .sort((a, b) => {
         const aTotal = a[1].profileCount + a[1].soloTotal;
         const bTotal = b[1].profileCount + b[1].soloTotal;
         return bTotal - aTotal;
       })
       .map(([name, counts]) => ({ name, ...counts }));
-  }, [singleIrRatings, serverSoloRatings, learnedProfile, tonalProfilesList]);
+  }, [singleIrRatings, serverSoloStats, tonalProfilesList]);
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
