@@ -2385,7 +2385,7 @@ export default function Learner() {
     setPairingFeedback({});
     setPairingFeedbackText({});
 
-    const disableAutoRatioRefine = true;
+    const disableAutoRatioRefine = false;
 
     const shouldTasteCheck = tasteCheckMode === "learning"
       ? true
