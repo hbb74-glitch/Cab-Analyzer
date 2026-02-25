@@ -1365,14 +1365,21 @@ const GEAR_POSITION_PATTERNS: Record<string, string> = {
   "cone": "Cone",
 };
 
-function parseGearFromFilename(filename: string): { mic?: string; mic2?: string; speaker?: string; position?: string } {
+const BLEND_TYPE_PATTERNS: Record<string, string> = {
+  "tight": "Tight", "balanced": "Balanced", "balance": "Balanced",
+  "thick": "Thick", "smooth": "Smooth",
+  "ribbondom": "Ribbon Dom", "ribbon_dom": "Ribbon Dom", "ribbon": "Ribbon Dom",
+};
+
+function parseGearFromFilename(filename: string): { mic?: string; mic2?: string; speaker?: string; position?: string; blendType?: string } {
   const name = filename.toLowerCase().replace('.wav', '');
   const parts = name.split(/[_\-\s]+/);
-  const result: { mic?: string; mic2?: string; speaker?: string; position?: string } = {};
+  const result: { mic?: string; mic2?: string; speaker?: string; position?: string; blendType?: string } = {};
 
   const speakerKeys = Object.keys(GEAR_SPEAKER_PATTERNS).sort((a, b) => b.length - a.length);
   const micKeys = Object.keys(GEAR_MIC_PATTERNS).sort((a, b) => b.length - a.length);
   const posKeys = Object.keys(GEAR_POSITION_PATTERNS).sort((a, b) => b.length - a.length);
+  const blendTypeKeys = Object.keys(BLEND_TYPE_PATTERNS).sort((a, b) => b.length - a.length);
 
   for (const part of parts) {
     if (!result.speaker) {
@@ -1385,6 +1392,10 @@ function parseGearFromFilename(filename: string): { mic?: string; mic2?: string;
       if (!result.mic) { result.mic = micName; }
       else if (!result.mic2 && micName !== result.mic) { result.mic2 = micName; }
       continue;
+    }
+    if (!result.blendType) {
+      const bk = blendTypeKeys.find((k) => part === k);
+      if (bk) { result.blendType = BLEND_TYPE_PATTERNS[bk]; continue; }
     }
     if (!result.position) {
       const pk = posKeys.find((k) => part === k);
@@ -1407,6 +1418,11 @@ function parseGearFromFilename(filename: string): { mic?: string; mic2?: string;
   if (!result.speaker) {
     for (const sk of speakerKeys) {
       if (joined.includes(sk)) { result.speaker = GEAR_SPEAKER_PATTERNS[sk]; break; }
+    }
+  }
+  if (!result.blendType && result.mic2) {
+    for (const bk of blendTypeKeys) {
+      if (joined.includes(bk)) { result.blendType = BLEND_TYPE_PATTERNS[bk]; break; }
     }
   }
   if (!result.position) {
@@ -2108,7 +2124,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
         const dist = parseDistance(filename);
         const allTags = ratings.flatMap(r => r.feedback ? r.feedback.split(",").map(t => t.trim()) : []).filter(Boolean);
         const worthyMic = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
-        const worthyPos = gear.position || (gear.mic2 ? "Blend" : undefined);
+        const worthyPos = gear.mic2 ? (gear.blendType || "Blend") : gear.position;
         standaloneWorthy.push({
           filename,
           rating: lastRating.action as "love" | "like",
@@ -2120,7 +2136,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
         });
 
         const micLabel = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
-        const posLabel = gear.position || (gear.mic2 ? "Blend" : undefined);
+        const posLabel = gear.mic2 ? (gear.blendType || "Blend") : gear.position;
         if (micLabel && posLabel) {
           const key = `${micLabel}|${posLabel}${dist ? `|${dist}` : ""}`;
           const existing = recipeMap.get(key) || { count: 0, ratingSum: 0, speakers: new Set<string>(), loveCount: 0, likeCount: 0 };
@@ -6935,10 +6951,12 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         if (s.action === "nope" || s.action === "meh") {
           const gear = parseGearFromFilename(s.baseFilename);
           const distMatch = s.baseFilename.match(/[\-_](\d+(?:\.\d+)?)\s*(?:in|inch|"|\b)/i) || s.baseFilename.match(/[\-_](\d+(?:\.\d+)?)[\-_]/);
+          const nopedMic = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
+          const nopedPos = gear.mic2 ? (gear.blendType || "Blend") : gear.position;
           nopedByFile.set(s.baseFilename, {
             filename: s.baseFilename,
-            mic: gear.mic,
-            position: gear.position,
+            mic: nopedMic,
+            position: nopedPos,
             distance: distMatch ? distMatch[1] : undefined,
             speaker: gear.speaker,
           });
