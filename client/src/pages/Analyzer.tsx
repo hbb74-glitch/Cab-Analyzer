@@ -1653,6 +1653,11 @@ export default function Analyzer() {
     queryKey: ["/api/preferences/learned"],
   });
 
+  type UsefulnessEntry = { score: number; soloAction: string | null; soloTags: string[]; blendLoves: number; blendLikes: number; blendMehs: number; blendNopes: number; partnerCount: number; tier: string | null };
+  const { data: usefulnessScores } = useQuery<Record<string, UsefulnessEntry>>({
+    queryKey: ["/api/preferences/usefulness-scores"],
+  });
+
   const fmt = (v: any, digits = 1) => {
     const n = typeof v === "number" ? v : Number(v);
     return Number.isFinite(n) ? n.toFixed(digits) : "";
@@ -2036,6 +2041,29 @@ export default function Analyzer() {
       if (role) roleCounts[role] = (roleCounts[role] ?? 0) + 1;
     });
 
+    const usefulnessLabeled: { mostLikely: IRDescriptor[]; leastLikely: IRDescriptor[] } = { mostLikely: [], leastLikely: [] };
+    if (usefulnessScores) {
+      const scored = descriptors
+        .filter(d => usefulnessScores[results[d.index]?.filename])
+        .map(d => ({ ...d, uScore: usefulnessScores[results[d.index]?.filename]?.score ?? 0, uTier: usefulnessScores[results[d.index]?.filename]?.tier }))
+        .sort((a, b) => b.uScore - a.uScore);
+
+      const topN = scored.filter(s => s.uScore > 0).slice(0, 3);
+      usefulnessLabeled.mostLikely = topN;
+
+      const bottomCandidates = scored
+        .filter(s => {
+          const entry = usefulnessScores[results[s.index]?.filename];
+          if (!entry) return false;
+          const hasNegativeSolo = entry.soloAction === 'meh' || entry.soloAction === 'nope';
+          const noPositiveBlends = entry.blendLoves === 0 && entry.blendLikes === 0;
+          return hasNegativeSolo && noPositiveBlends;
+        })
+        .reverse()
+        .slice(0, 2);
+      usefulnessLabeled.leastLikely = bottomCandidates;
+    }
+
     return {
       mostVersatile: byVersatility[0],
       brightest: byTilt[0],
@@ -2047,8 +2075,9 @@ export default function Analyzer() {
       redundancyHeat,
       avgSimilarity,
       roleCounts,
+      usefulnessLabeled,
     };
-  }, [batchResult, getMusicalRoleForRow, speakerStatsMap]);
+  }, [batchResult, getMusicalRoleForRow, speakerStatsMap, usefulnessScores]);
 
   const collectionCoverage = useMemo(() => {
     if (!batchMusicalSummary) return null;
@@ -4517,6 +4546,48 @@ export default function Analyzer() {
                           </button>
                         ))}
                       </div>
+
+                      {(batchMusicalSummary.usefulnessLabeled.mostLikely.length > 0 || batchMusicalSummary.usefulnessLabeled.leastLikely.length > 0) && (
+                        <div className="mt-3 pt-3 border-t border-white/5">
+                          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Based on Your Taste Learning</h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                            {batchMusicalSummary.usefulnessLabeled.mostLikely.map((item, i) => {
+                              const labels = ["Most likely to use", "2nd most likely", "3rd most likely"];
+                              return (
+                                <button
+                                  key={`most-${i}`}
+                                  className="flex flex-col gap-1 p-2.5 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/20 text-left hover-elevate transition-colors"
+                                  onClick={() => {
+                                    const el = document.querySelector(`[data-testid="batch-result-${item.index}"]`);
+                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  }}
+                                  data-testid={`summary-most-likely-${i + 1}`}
+                                >
+                                  <span className="text-[10px] uppercase tracking-wider text-emerald-400">{labels[i]}</span>
+                                  <span className="text-xs font-mono text-foreground truncate w-full">{item.filename.replace('.wav', '')}</span>
+                                </button>
+                              );
+                            })}
+                            {batchMusicalSummary.usefulnessLabeled.leastLikely.map((item, i) => {
+                              const labels = ["Least likely to use", "2nd least likely"];
+                              return (
+                                <button
+                                  key={`least-${i}`}
+                                  className="flex flex-col gap-1 p-2.5 rounded-lg bg-red-500/[0.06] border border-red-500/20 text-left hover-elevate transition-colors"
+                                  onClick={() => {
+                                    const el = document.querySelector(`[data-testid="batch-result-${item.index}"]`);
+                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  }}
+                                  data-testid={`summary-least-likely-${i + 1}`}
+                                >
+                                  <span className="text-[10px] uppercase tracking-wider text-red-400">{labels[i]}</span>
+                                  <span className="text-xs font-mono text-foreground truncate w-full">{item.filename.replace('.wav', '')}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -4894,6 +4965,23 @@ export default function Analyzer() {
                                     )}
                                     {!rolesAgree && <ShotIntentBadge filename={r.filename} hideIntents />}
                                   </div>
+                                );
+                              })()}
+                              {batchMusicalSummary && (() => {
+                                const mostIdx = batchMusicalSummary.usefulnessLabeled.mostLikely.findIndex(d => d.index === index);
+                                const leastIdx = batchMusicalSummary.usefulnessLabeled.leastLikely.findIndex(d => d.index === index);
+                                const tierLabel = mostIdx === 0 ? 'Most Likely' : mostIdx === 1 ? '2nd Most Likely' : mostIdx === 2 ? '3rd Most Likely' : leastIdx === 0 ? 'Least Likely' : leastIdx === 1 ? '2nd Least Likely' : null;
+                                if (!tierLabel) return null;
+                                const isPositive = mostIdx >= 0;
+                                const u = usefulnessScores?.[r.filename];
+                                return (
+                                  <span
+                                    className={cn("px-1.5 py-0.5 text-[11px] rounded font-bold", isPositive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400")}
+                                    data-testid={`badge-usefulness-${index}`}
+                                    title={u ? `Usefulness score: ${u.score} | Solo: ${u.soloAction ?? 'unrated'} | Blend: ${u.blendLoves}L/${u.blendLikes}l/${u.blendMehs}m/${u.blendNopes}n` : tierLabel}
+                                  >
+                                    {tierLabel}
+                                  </span>
                                 );
                               })()}
                             </div>

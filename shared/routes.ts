@@ -603,6 +603,14 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    usefulnessScores: {
+      method: 'GET' as const,
+      path: '/api/preferences/usefulness-scores',
+      responses: {
+        200: z.any(),
+        500: errorSchemas.internal,
+      },
+    },
   },
   tasteBackup: {
     save: {

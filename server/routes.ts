@@ -6060,6 +6060,95 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
     }
   });
 
+  app.get(api.preferences.usefulnessScores.path, async (_req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+
+      const irData: Record<string, {
+        soloAction: string | null;
+        soloTags: string[];
+        blendLoves: number;
+        blendLikes: number;
+        blendMehs: number;
+        blendNopes: number;
+        blendPartners: Set<string>;
+      }> = {};
+
+      function ensureIR(name: string) {
+        if (!irData[name]) {
+          irData[name] = { soloAction: null, soloTags: [], blendLoves: 0, blendLikes: 0, blendMehs: 0, blendNopes: 0, blendPartners: new Set() };
+        }
+        return irData[name];
+      }
+
+      for (const s of signals) {
+        const isSolo = s.baseFilename === s.featureFilename;
+        const action = s.action;
+
+        if (isSolo && (action === 'love' || action === 'like' || action === 'meh' || action === 'nope')) {
+          const ir = ensureIR(s.baseFilename);
+          ir.soloAction = action;
+          if (s.feedback) ir.soloTags = s.feedback.split(',').map((t: string) => t.trim()).filter(Boolean);
+        } else if (!isSolo && (action === 'love' || action === 'like' || action === 'meh' || action === 'nope')) {
+          const base = ensureIR(s.baseFilename);
+          const feat = ensureIR(s.featureFilename);
+          if (action === 'love') { base.blendLoves++; feat.blendLoves++; }
+          if (action === 'like') { base.blendLikes++; feat.blendLikes++; }
+          if (action === 'meh') { base.blendMehs++; feat.blendMehs++; }
+          if (action === 'nope') { base.blendNopes++; feat.blendNopes++; }
+          base.blendPartners.add(s.featureFilename);
+          feat.blendPartners.add(s.baseFilename);
+        }
+      }
+
+      const scores: Record<string, {
+        score: number;
+        soloAction: string | null;
+        soloTags: string[];
+        blendLoves: number;
+        blendLikes: number;
+        blendMehs: number;
+        blendNopes: number;
+        partnerCount: number;
+        tier: string | null;
+      }> = {};
+
+      for (const [filename, ir] of Object.entries(irData)) {
+        let score = 0;
+
+        if (ir.soloAction === 'love') score += 10;
+        else if (ir.soloAction === 'like') score += 6;
+        else if (ir.soloAction === 'meh') score -= 3;
+        else if (ir.soloAction === 'nope') score -= 8;
+
+        score += ir.blendLoves * 2;
+        score += ir.blendLikes * 1;
+        score += ir.blendMehs * -1;
+        score += ir.blendNopes * -3;
+
+        if (ir.blendPartners.size >= 3) score += 3;
+        else if (ir.blendPartners.size >= 2) score += 1;
+
+        scores[filename] = {
+          score,
+          soloAction: ir.soloAction,
+          soloTags: ir.soloTags,
+          blendLoves: ir.blendLoves,
+          blendLikes: ir.blendLikes,
+          blendMehs: ir.blendMehs,
+          blendNopes: ir.blendNopes,
+          partnerCount: ir.blendPartners.size,
+          tier: null,
+        };
+      }
+
+      res.json(scores);
+    } catch (err) {
+      console.error('Usefulness scores error:', err);
+      res.status(500).json({ message: "Failed to compute usefulness scores" });
+    }
+  });
+
   app.delete(api.preferences.clearSpeaker.path, async (req, res) => {
     try {
       const { speakerPrefix } = api.preferences.clearSpeaker.input.parse(req.body);

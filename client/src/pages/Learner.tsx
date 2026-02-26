@@ -950,6 +950,8 @@ export default function Learner() {
         return typeof key === "string" && key.startsWith("/api/preferences/learned");
       }});
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/usefulness-scores"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/solo-stats"] });
       toast({ title: `${variables.length} rating${variables.length !== 1 ? "s" : ""} saved`, duration: 2000 });
     },
     onError: (error: Error) => {
@@ -968,6 +970,8 @@ export default function Learner() {
         return typeof key === "string" && key.startsWith("/api/preferences/learned");
       }});
       queryClient.invalidateQueries({ queryKey: ["/api/preferences/signals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/usefulness-scores"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/preferences/solo-stats"] });
       setTasteCheckPassed(false);
       setTotalRoundsCompleted(0);
       setClearSpeakerConfirm(null);
@@ -1273,6 +1277,11 @@ export default function Learner() {
     queryKey: ["/api/preferences/solo-stats"],
   });
 
+  type UsefulnessEntry = { score: number; soloAction: string | null; soloTags: string[]; blendLoves: number; blendLikes: number; blendMehs: number; blendNopes: number; partnerCount: number; tier: string | null };
+  const { data: usefulnessScores } = useQuery<Record<string, UsefulnessEntry>>({
+    queryKey: ["/api/preferences/usefulness-scores"],
+  });
+
   const evaluatedSpeakers = useMemo(() => {
     type SpeakerEntry = { love: number; like: number; meh: number; nope: number; soloTotal: number; profileCount: number };
     const speakerMap: Record<string, SpeakerEntry> = {};
@@ -1360,6 +1369,31 @@ export default function Learner() {
     const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
     if (singleIrPage > maxPage) setSingleIrPage(maxPage);
   }, [singleIrUndecided.length, singleIrPage]);
+
+  const usefulnessTiers = useMemo<Record<string, string>>(() => {
+    if (!usefulnessScores || pairingPool.length < 2) return {};
+    const poolFilenames = pairingPool.map((ir: any) => ir.filename as string);
+    const scored = poolFilenames
+      .filter(f => usefulnessScores[f])
+      .map(f => ({ filename: f, ...usefulnessScores[f] }))
+      .sort((a, b) => b.score - a.score);
+    const tiers: Record<string, string> = {};
+    const topN = scored.filter(s => s.score > 0).slice(0, 3);
+    if (topN.length >= 1) tiers[topN[0].filename] = 'most-likely-1';
+    if (topN.length >= 2) tiers[topN[1].filename] = 'most-likely-2';
+    if (topN.length >= 3) tiers[topN[2].filename] = 'most-likely-3';
+    const bottomCandidates = scored
+      .filter(s => {
+        const hasNegativeSolo = s.soloAction === 'meh' || s.soloAction === 'nope';
+        const noPositiveBlends = s.blendLoves === 0 && s.blendLikes === 0;
+        return hasNegativeSolo && noPositiveBlends;
+      })
+      .reverse()
+      .slice(0, 2);
+    if (bottomCandidates.length >= 1) tiers[bottomCandidates[0].filename] = 'least-likely-1';
+    if (bottomCandidates.length >= 2) tiers[bottomCandidates[1].filename] = 'least-likely-2';
+    return tiers;
+  }, [usefulnessScores, pairingPool]);
 
   const singleIrPageItems = useMemo(() => {
     const start = singleIrPage * SINGLE_IR_PAGE_SIZE;
@@ -3160,6 +3194,23 @@ export default function Learner() {
                   <span className="text-sm font-medium break-words">{idx + 1}. {ir.filename}</span>
                   {!blindMode && <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />}
                   <StandaloneBadge filename={ir.filename} standaloneWorthy={learnedProfile?.standaloneWorthy} compact />
+                  {(() => {
+                    const tier = usefulnessTiers[ir.filename];
+                    if (!tier) return null;
+                    const tierLabel = tier === 'most-likely-1' ? 'Most Likely' : tier === 'most-likely-2' ? '2nd Most Likely' : tier === 'most-likely-3' ? '3rd Most Likely' : tier === 'least-likely-1' ? 'Least Likely' : tier === 'least-likely-2' ? '2nd Least Likely' : null;
+                    if (!tierLabel) return null;
+                    const isPositive = tier.startsWith('most');
+                    const u = usefulnessScores?.[ir.filename];
+                    return (
+                      <span
+                        className={cn("px-1.5 py-0.5 text-[11px] rounded font-bold", isPositive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400")}
+                        data-testid={`badge-usefulness-solo-${idx}`}
+                        title={u ? `Score: ${u.score} | Solo: ${u.soloAction ?? 'unrated'} | Blend: ${u.blendLoves}L/${u.blendLikes}l` : tierLabel}
+                      >
+                        {tierLabel}
+                      </span>
+                    );
+                  })()}
                   {prevDecision && (
                     <span className="text-xs opacity-60">(prev: {prevDecision.action} x{prevDecision.count})</span>
                   )}
