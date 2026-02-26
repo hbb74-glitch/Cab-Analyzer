@@ -1347,14 +1347,14 @@ export default function Learner() {
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
-    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !isIrSoloRated(ir.filename)).length;
+    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !serverSoloRatings[ir.filename]).length;
     return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
-  }, [pairingPool, singleIrDecided, singleIrReassessing, isIrSoloRated]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing, serverSoloRatings]);
 
   const singleIrUndecided = useMemo(() => {
     if (singleIrReassessing) return pairingPool;
-    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !isIrSoloRated(ir.filename));
-  }, [pairingPool, singleIrDecided, singleIrReassessing, isIrSoloRated]);
+    return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !serverSoloRatings[ir.filename]);
+  }, [pairingPool, singleIrDecided, singleIrReassessing, serverSoloRatings]);
 
   useEffect(() => {
     const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
@@ -3119,7 +3119,7 @@ export default function Learner() {
                 Next
               </button>
               <span className="ml-2">
-                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || isIrSoloRated(ir.filename)).length} decided, {singleIrUndecided.length} remaining)
+                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || serverSoloRatings[ir.filename]).length} decided, {singleIrUndecided.length} remaining)
               </span>
             </div>
             )}
