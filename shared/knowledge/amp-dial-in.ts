@@ -403,7 +403,8 @@ const FRIEDMAN_BE_LAYOUT: AmpControlLayout = {
   switches: [
     { id: "bright", label: "Bright", type: "toggle" },
     { id: "sat", label: "SAT", type: "toggle" },
-    { id: "voicing", label: "Voicing", type: "multi", options: ["Fat", "Tight"] },
+    { id: "fat", label: "Fat", type: "toggle" },
+    { id: "voicing", label: "Voicing", type: "multi", options: ["V1", "V2", "V3"] },
   ],
 };
 
@@ -2303,11 +2304,13 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "friedman-be-rock",
         style: "Hot Rod Marshall",
-        settings: { gain: 4, bass: 4, mid: 7, treble: 6, master: 3, presence: 5, bright: false, sat: false, voicing: "Tight" },
+        settings: { gain: 4, bass: 4, mid: 7, treble: 6, master: 3, presence: 5, bright: false, sat: false, fat: false, voicing: "V1" },
         tips: [
           "Dave Friedman's amps are hot-rodded Marshalls with modern refinements",
           "Lower gain (3.5-5) and LOW master (3-3.5) is the Friedman sweet spot — the low MV opens up the tone",
           "SAT switch changes gain structure — OFF is more open and dynamic, ON is more saturated and compressed",
+          "Voicing switch (V1/V2/V3) selects different circuit voicings — V1 is the original, V2 is refined, V3 is the most modern",
+          "Fat switch adds low-end depth and midrange body — great for drop tuning",
           "Dynamic Presence at +2.00 in Fractal Advanced is the 'money control' for articulation",
           "The HBE has even more gain — for when the BE isn't enough",
           "The Smallbox is more Marshall-like with a tighter, more vintage character"
@@ -2321,13 +2324,14 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "friedman-be-heavy",
         style: "Modern High Gain",
-        settings: { gain: 5, bass: 3, mid: 7, treble: 7, master: 3, presence: 5, bright: false, sat: true, voicing: "Tight" },
+        settings: { gain: 5, bass: 3, mid: 7, treble: 7, master: 3, presence: 5, bright: false, sat: true, fat: false, voicing: "V1" },
         tips: [
           "SAT ON adds clipping for more compression and sustain",
           "Even with SAT, keep gain moderate (4-6) — the amp has tons of gain already",
-          "Fat voicing opens up the low end — great for drop tuning",
+          "Try Fat switch ON for drop tuning — adds low-end depth without muddiness",
           "Keep bass very low (3-4) with SAT ON to maintain tightness",
-          "The HBE versions have even more gain on tap for extreme metal"
+          "Try V2 or V3 voicing for a more refined, modern feel",
+          "The HBE model has even more gain on tap for extreme metal"
         ],
         whatToListenFor: [
           "Saturated, compressed high-gain with excellent note definition",
