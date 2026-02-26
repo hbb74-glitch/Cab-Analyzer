@@ -3159,21 +3159,54 @@ export default function Learner() {
             )}
 
             {singleIrUndecided.length === 0 ? (
-              <div className="border rounded p-4 text-center" data-testid="single-ir-all-evaluated">
-                <div className="text-sm mb-2">You've assessed all {pairingPool.length} IRs for standalone viability.</div>
-                <button
-                  className="px-3 py-1 rounded border border-amber-500 text-amber-400 text-xs"
-                  data-testid="button-single-ir-reassess"
-                  onClick={() => {
-                    setSingleIrReassessing(true);
-                    setSingleIrRatings({});
-                    setSingleIrTags({});
-                    setSingleIrNotes({});
-                    setSingleIrPage(0);
-                  }}
-                >
-                  Reassess — votes will be averaged with previous
-                </button>
+              <div className="border rounded p-4 space-y-3" data-testid="single-ir-all-evaluated">
+                <div className="text-sm text-center mb-2">You've assessed all {pairingPool.length} IRs for standalone viability.</div>
+
+                {Object.keys(usefulnessTiers).length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Usefulness Ranking (this batch)</div>
+                    <div className="space-y-1">
+                      {(() => {
+                        const tierOrder = ['most-likely-1', 'most-likely-2', 'most-likely-3', 'least-likely-2', 'least-likely-1'];
+                        const tierLabels: Record<string, string> = { 'most-likely-1': 'Most Likely to Use', 'most-likely-2': '2nd Most Likely', 'most-likely-3': '3rd Most Likely', 'least-likely-1': 'Least Likely to Use', 'least-likely-2': '2nd Least Likely' };
+                        const entries = Object.entries(usefulnessTiers).sort((a, b) => tierOrder.indexOf(a[1]) - tierOrder.indexOf(b[1]));
+                        return entries.map(([filename, tier]) => {
+                          const isPositive = tier.startsWith('most');
+                          const u = usefulnessScores?.[filename];
+                          return (
+                            <div key={filename} className={cn("flex items-center gap-2 px-2 py-1.5 rounded text-xs", isPositive ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-red-500/10 border border-red-500/20")}>
+                              <span className={cn("font-bold min-w-[130px]", isPositive ? "text-emerald-400" : "text-red-400")} data-testid={`text-usefulness-tier-${tier}`}>
+                                {tierLabels[tier]}
+                              </span>
+                              <span className="font-mono truncate">{filename.replace('.wav', '')}</span>
+                              {u && (
+                                <span className="ml-auto text-muted-foreground whitespace-nowrap">
+                                  Score: {u.score} | Solo: {u.soloAction ?? '—'} | Blend: {u.blendLoves}L/{u.blendLikes}l
+                                </span>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <button
+                    className="px-3 py-1 rounded border border-amber-500 text-amber-400 text-xs"
+                    data-testid="button-single-ir-reassess"
+                    onClick={() => {
+                      setSingleIrReassessing(true);
+                      setSingleIrRatings({});
+                      setSingleIrTags({});
+                      setSingleIrNotes({});
+                      setSingleIrPage(0);
+                    }}
+                  >
+                    Reassess — votes will be averaged with previous
+                  </button>
+                </div>
               </div>
             ) : singleIrPageItems.map((ir: any, idx: number) => {
               const rating = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename];
