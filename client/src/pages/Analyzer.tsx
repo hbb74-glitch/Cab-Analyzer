@@ -4510,6 +4510,42 @@ export default function Analyzer() {
                           Batch Overview
                         </h3>
                         <div className="flex items-center gap-2">
+                          <button
+                            className="flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                            data-testid="button-copy-batch-overview"
+                            onClick={() => {
+                              const s = batchMusicalSummary;
+                              const strip = (f: string) => f.replace('.wav', '');
+                              const lines: string[] = [];
+                              lines.push(`BATCH OVERVIEW (${results.length} IRs)`);
+                              lines.push(`Variety: ${s.redundancyHeat === "low" ? "High" : s.redundancyHeat === "medium" ? "Medium" : "Low"}`);
+                              lines.push('');
+                              lines.push(`Most Versatile: ${strip(s.mostVersatile.filename)}`);
+                              lines.push(`Brightest: ${strip(s.brightest.filename)}`);
+                              lines.push(`Darkest: ${strip(s.darkest.filename)}`);
+                              lines.push(`Thickest: ${strip(s.thickest.filename)}`);
+                              lines.push(`Most Cutting: ${strip(s.mostCutting.filename)}`);
+                              lines.push(`Smoothest: ${strip(s.smoothest.filename)}`);
+                              lines.push(`Most Comb-Risk: ${strip(s.mostCombRisk.filename)}`);
+                              if (s.usefulnessLabeled.mostLikely.length > 0 || s.usefulnessLabeled.leastLikely.length > 0) {
+                                lines.push('');
+                                lines.push('BASED ON TASTE LEARNING:');
+                                const mostLabels = ["Most Likely to Use", "2nd Most Likely", "3rd Most Likely"];
+                                s.usefulnessLabeled.mostLikely.forEach((item: any, i: number) => {
+                                  lines.push(`  ${mostLabels[i]}: ${strip(item.filename)} (score: ${item.score})`);
+                                });
+                                const leastLabels = ["Least Likely to Use", "2nd Least Likely"];
+                                s.usefulnessLabeled.leastLikely.forEach((item: any, i: number) => {
+                                  lines.push(`  ${leastLabels[i]}: ${strip(item.filename)} (score: ${item.score})`);
+                                });
+                              }
+                              navigator.clipboard.writeText(lines.join('\n'));
+                              toast({ title: "Batch overview copied", duration: 2000 });
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                            Copy Overview
+                          </button>
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Variety:</span>
                           <span className={cn(
                             "text-xs font-semibold px-2 py-0.5 rounded",
