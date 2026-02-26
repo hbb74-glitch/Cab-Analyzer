@@ -4392,18 +4392,10 @@ export default function Learner() {
                               className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
                               data-testid={`button-pick-${side}`}
                             >
-                              {blindMode ? (
-                                <p className="text-lg font-mono text-foreground text-center py-2">
-                                  {side === "a" ? "A" : "B"}
-                                </p>
-                              ) : (
-                                <>
-                                  <p className="text-sm font-mono text-foreground text-center">
-                                    {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
-                                  </p>
-                                  <BandChart bands={bands} height={10} compact />
-                                </>
-                              )}
+                              <p className={cn("font-mono text-foreground text-center", blindMode ? "text-lg py-2" : "text-sm")}>
+                                {blindMode ? `${side === "a" ? "A" : "B"} — ` : ""}{Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                              </p>
+                              {!blindMode && <BandChart bands={bands} height={10} compact />}
                             </button>
                           );
                         })}
@@ -4677,18 +4669,10 @@ export default function Learner() {
                           className="p-3 rounded-lg border border-white/10 hover-elevate transition-all text-left space-y-2"
                           data-testid={`button-standalone-pick-${side}`}
                         >
-                          {blindMode ? (
-                            <p className="text-lg font-mono text-foreground text-center py-2">
-                              {side === "a" ? "A" : "B"}
-                            </p>
-                          ) : (
-                            <>
-                              <p className="text-sm font-mono text-foreground text-center">
-                                {Math.round(r * 100)}/{Math.round((1 - r) * 100)}
-                              </p>
-                              <BandChart bands={bands} height={10} compact />
-                            </>
-                          )}
+                          <p className={cn("font-mono text-foreground text-center", blindMode ? "text-lg py-2" : "text-sm")}>
+                            {blindMode ? `${side === "a" ? "A" : "B"} — ` : ""}{Math.round(r * 100)}/{Math.round((1 - r) * 100)}
+                          </p>
+                          {!blindMode && <BandChart bands={bands} height={10} compact />}
                         </button>
                       );
                     })}
