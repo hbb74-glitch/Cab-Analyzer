@@ -408,6 +408,21 @@ const FRIEDMAN_BE_LAYOUT: AmpControlLayout = {
   ],
 };
 
+const JVM_LAYOUT: AmpControlLayout = {
+  knobs: [
+    { id: "gain", label: "Gain" },
+    { id: "bass", label: "Bass" },
+    { id: "mid", label: "Mid" },
+    { id: "treble", label: "Treble" },
+    { id: "master", label: "Master" },
+    { id: "presence", label: "Presence" },
+  ],
+  switches: [
+    { id: "bright", label: "Bright", type: "toggle" },
+    { id: "mode", label: "Mode", type: "multi", options: ["Green", "Orange", "Red"] },
+  ],
+};
+
 const REVV_LAYOUT: AmpControlLayout = {
   knobs: [
     { id: "gain", label: "Gain" },
@@ -418,7 +433,7 @@ const REVV_LAYOUT: AmpControlLayout = {
     { id: "presence", label: "Presence" },
   ],
   switches: [
-    { id: "aggression", label: "Aggression", type: "multi", options: ["Off", "On"] },
+    { id: "aggression", label: "Aggression", type: "multi", options: ["1", "2", "3"] },
   ],
 };
 
@@ -1711,17 +1726,18 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
     familyId: "marshall-jvm",
     familyName: "Marshall JVM / Modern",
     modelPatterns: ["brit-jvm", "brit-ap", "brit-2020", "brit-pre", "jmpre-1", "js410"],
-    controlLayout: STANDARD_MV_BRIGHT,
+    controlLayout: JVM_LAYOUT,
     presets: [
       {
         id: "jvm-crunch",
         style: "Modern Crunch",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, bright: false, mode: "Orange" },
         tips: [
           "Modern Marshalls have more gain on tap and more versatile EQ",
-          "The JVM OD1 Orange channel is many players' favorite — classic 800-style crunch",
-          "The OD2 channels have more aggressive, modern voicing",
-          "Joe Satriani's JS410 models are tuned for expressive lead work",
+          "Mode switch (Green/Orange/Red) selects gain level within each channel",
+          "OD1 Orange is many players' favorite — classic 800-style crunch",
+          "OD1 Green is the most Plexi-like, Red is the most aggressive",
+          "OD2 modes are all more aggressive than their OD1 counterparts",
           "These amps respond well to the Bright switch at lower gain settings"
         ],
         whatToListenFor: [
@@ -1733,12 +1749,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "jvm-lead",
         style: "Modern Lead",
-        settings: { gain: 7, bass: 4, mid: 7, treble: 6, master: 6, presence: 5, bright: false },
+        settings: { gain: 7, bass: 4, mid: 7, treble: 6, master: 6, presence: 5, bright: false, mode: "Red" },
         tips: [
-          "OD2 Red mode is maximum gain — extreme saturation with tight response",
-          "The JMP-1 preamp models are the rack version — same Marshall voicing in rack format",
+          "Red mode is maximum gain within each channel — extreme saturation with tight response",
+          "OD2 Red is the highest gain JVM voicing — modern metal territory",
           "Pull bass back at higher gain to maintain tightness and articulation",
-          "Great for modern rock, metal, and progressive styles"
+          "Try Orange mode if Red feels too saturated — more controlled midrange"
         ],
         whatToListenFor: [
           "Saturated, aggressive lead tone with modern Marshall precision",
@@ -2868,12 +2884,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "revv-purple",
         style: "Modern High Gain",
-        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, aggression: "Off" },
+        settings: { gain: 5, bass: 5, mid: 6, treble: 6, master: 5, presence: 6, aggression: "1" },
         tips: [
           "REVV amps are extremely responsive and tight modern high-gain designs",
-          "The Aggression switch: OFF = tighter/more controlled, ON = more aggressive/scooped",
+          "Aggression switch (1/2/3) progressively increases gain and saturation within each channel",
           "Purple channel is the high-gain monster — incredibly detailed",
-          "Try Aggression ON for thrash/death metal, OFF for progressive/modern metal"
+          "Start at Aggression 1 for tighter control, move to 2 or 3 for more saturation"
         ],
         whatToListenFor: [
           "Pristine, detailed high-gain with excellent pick dynamics",
@@ -2884,11 +2900,12 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
       {
         id: "revv-aggressive",
         style: "Aggressive Metal",
-        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, presence: 7, aggression: "On" },
+        settings: { gain: 6, bass: 4, mid: 5, treble: 7, master: 5, presence: 7, aggression: "3" },
         tips: [
-          "Aggression ON scoops mids slightly and adds a more aggressive attack",
+          "Aggression 3 adds maximum saturation and a more aggressive attack",
           "Great for fast riffing and thrash styles",
-          "Keep bass low when Aggression is ON — it adds low-end energy"
+          "Keep bass low at higher Aggression — it adds low-end energy",
+          "Aggression 2 is a good middle ground if 3 feels too saturated"
         ],
         whatToListenFor: [
           "More aggressive, scooped character with faster attack",
@@ -4447,8 +4464,8 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     category: "high-gain",
     gainRange: [2, 9],
     intendedUse: ["modern metal", "progressive metal", "djent", "tight rhythm"],
-    channelNote: "Aggression switch: OFF = tighter/more controlled, ON = more aggressive/scooped. Purple channel = highest gain.",
-    sweetSpot: "Purple channel: Gain 5, Aggression OFF for prog. Aggression ON for thrash/death.",
+    channelNote: "Three channels (Green/Purple/Red), each with Aggression switch (1/2/3) that progressively increases gain and saturation. Purple and Red are the high-gain channels.",
+    sweetSpot: "Purple channel: Gain 5, Aggression 1 for prog. Aggression 3 for thrash/death. Red for leads.",
     historicalContext: "Modern Canadian high-gain design. Extremely responsive and tight."
   },
 
