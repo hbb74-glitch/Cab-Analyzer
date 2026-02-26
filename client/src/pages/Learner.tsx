@@ -1013,72 +1013,33 @@ export default function Learner() {
 
   const copyIRSummaryTSV = useCallback(() => {
     if (!allIRs.length) return;
-    const fmt = (v: any, digits = 1) => {
-      const n = typeof v === "number" ? v : Number(v);
-      return Number.isFinite(n) ? n.toFixed(digits) : "";
+    const strip = (f: string) => f.replace('.wav', '');
+    const tierLabels: Record<string, string> = {
+      'most-likely-1': '#1 Most Likely',
+      'most-likely-2': '#2 Likely',
+      'most-likely-3': '#3 Likely',
+      'least-likely-1': 'Least Likely',
+      'least-likely-2': '2nd Least',
     };
-    const header = [
-      "filename", "score",
-      "musical_role", "raw_role", "role_source",
-      "centroid_exported_hz", "centroid_computed_hz",
-      "spectral_tilt_db_per_oct", "rolloff_or_high_extension_hz",
-      "smooth_score", "hiMidMid_ratio",
-      "subBass_pct", "bass_pct", "lowMid_pct", "mid_pct", "highMid_pct", "presence_pct", "air_pct",
-      "notes",
-    ].join("\t");
-    if (allIRs.length > 0) {
-      const spk0 = inferSpeakerIdFromFilename(allIRs[0].filename);
-      const stats0 = speakerStatsMap.get(spk0);
-      console.log("[Learner TSV] speakerStats for", spk0, ":", stats0 ? JSON.stringify({ mean: stats0.mean, std: stats0.std }) : "NONE");
-    }
-    const rows = allIRs.map(ir => {
-      const tf = ir.features;
-      const bp = tf.bandsPercent;
+    const lines: string[] = [];
+    lines.push(`IR SUMMARY (${allIRs.length} IRs)`);
+    lines.push('');
+    allIRs.forEach(ir => {
       const spk = inferSpeakerIdFromFilename(ir.filename);
       const stats = speakerStatsMap.get(spk);
-      if (ir.filename.includes("R121_Cap_6in")) {
-        setClassifyDebugFilename("[Learner] " + ir.filename);
-      }
-      const role = classifyIR(tf, ir.filename, stats);
-      if (ir.filename.includes("R121_Cap_6in")) {
-        setClassifyDebugFilename(null);
-        console.log("[Learner TSV DEBUG] R121_Cap_6in role:", role);
-      }
-      const centroid = fmt(tf.spectralCentroidHz ?? 0, 0);
-      const tilt = fmt(tf.tiltDbPerOct ?? 0);
-      const rolloff = fmt(tf.rolloffFreq ?? 0, 1);
-      const smooth = fmt(tf.smoothScore ?? 0, 0);
-      const hiMidVal = bp.highMid ?? 0;
-      const midVal = bp.mid ?? 0;
-      const hiMidMid = midVal > 0 ? fmt(hiMidVal / midVal, 2) : "";
-      const scale = (bp.subBass + bp.bass + bp.lowMid + bp.mid + bp.highMid + bp.presence + (bp.air ?? 0)) < 2 ? 100 : 1;
-      return [
-        ir.filename,
-        "",
-        role,
-        "",
-        "computed",
-        centroid,
-        centroid,
-        tilt,
-        rolloff,
-        smooth,
-        hiMidMid,
-        fmt((bp.subBass ?? 0) * scale, 1),
-        fmt((bp.bass ?? 0) * scale, 1),
-        fmt((bp.lowMid ?? 0) * scale, 1),
-        fmt((bp.mid ?? 0) * scale, 1),
-        fmt((bp.highMid ?? 0) * scale, 1),
-        fmt((bp.presence ?? 0) * scale, 1),
-        fmt((bp.air ?? 0) * scale, 2),
-        "",
-      ].join("\t");
+      const role = classifyIR(ir.features, ir.filename, stats);
+      const solo = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename] || null;
+      const tier = usefulnessTiers[ir.filename];
+      const parts = [strip(ir.filename)];
+      parts.push(`Role: ${role}`);
+      if (solo) parts.push(`Solo: ${solo.charAt(0).toUpperCase() + solo.slice(1)}`);
+      if (tier) parts.push(tierLabels[tier] || tier);
+      lines.push(parts.join(' | '));
     });
-    const tsv = [header, ...rows].join("\n");
-    navigator.clipboard.writeText(tsv).then(() => {
-      toast({ title: "Copied", description: `${allIRs.length} IR summary rows copied to clipboard` });
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      toast({ title: "Copied", description: `${allIRs.length} IR summaries copied` });
     });
-  }, [allIRs, speakerStatsMap, toast]);
+  }, [allIRs, speakerStatsMap, singleIrRatings, serverSoloRatings, usefulnessTiers, toast]);
 
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
