@@ -4517,7 +4517,7 @@ export default function Analyzer() {
                               const s = batchMusicalSummary;
                               const strip = (f: string) => f.replace('.wav', '');
                               const lines: string[] = [];
-                              lines.push(`BATCH OVERVIEW (${results.length} IRs)`);
+                              lines.push(`BATCH OVERVIEW (${batchResult?.results?.length ?? 0} IRs)`);
                               lines.push(`Variety: ${s.redundancyHeat === "low" ? "High" : s.redundancyHeat === "medium" ? "Medium" : "Low"}`);
                               lines.push('');
                               lines.push(`Most Versatile: ${strip(s.mostVersatile.filename)}`);
