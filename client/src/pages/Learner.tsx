@@ -1011,36 +1011,6 @@ export default function Learner() {
     return classifyIR(ir.features, filename, st);
   }, [allIRs, speakerStatsMap]);
 
-  const copyIRSummaryTSV = useCallback(() => {
-    if (!allIRs.length) return;
-    const strip = (f: string) => f.replace('.wav', '');
-    const tierLabels: Record<string, string> = {
-      'most-likely-1': '#1 Most Likely',
-      'most-likely-2': '#2 Likely',
-      'most-likely-3': '#3 Likely',
-      'least-likely-1': 'Least Likely',
-      'least-likely-2': '2nd Least',
-    };
-    const lines: string[] = [];
-    lines.push(`IR SUMMARY (${allIRs.length} IRs)`);
-    lines.push('');
-    allIRs.forEach(ir => {
-      const spk = inferSpeakerIdFromFilename(ir.filename);
-      const stats = speakerStatsMap.get(spk);
-      const role = classifyIR(ir.features, ir.filename, stats);
-      const solo = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename] || null;
-      const tier = usefulnessTiers[ir.filename];
-      const parts = [strip(ir.filename)];
-      parts.push(`Role: ${role}`);
-      if (solo) parts.push(`Solo: ${solo.charAt(0).toUpperCase() + solo.slice(1)}`);
-      if (tier) parts.push(tierLabels[tier] || tier);
-      lines.push(parts.join(' | '));
-    });
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
-      toast({ title: "Copied", description: `${allIRs.length} IR summaries copied` });
-    });
-  }, [allIRs, speakerStatsMap, singleIrRatings, serverSoloRatings, usefulnessTiers, toast]);
-
   const activeProfiles = useMemo(() => {
     if (!learnedProfile || learnedProfile.status === "no_data") return speakerRelativeProfiles;
     return applyLearnedAdjustments(speakerRelativeProfiles, learnedProfile);
@@ -1355,6 +1325,36 @@ export default function Learner() {
     if (bottomCandidates.length >= 2) tiers[bottomCandidates[1].filename] = 'least-likely-2';
     return tiers;
   }, [usefulnessScores, pairingPool]);
+
+  const copyIRSummaryTSV = useCallback(() => {
+    if (!allIRs.length) return;
+    const strip = (f: string) => f.replace('.wav', '');
+    const tierLabels: Record<string, string> = {
+      'most-likely-1': '#1 Most Likely',
+      'most-likely-2': '#2 Likely',
+      'most-likely-3': '#3 Likely',
+      'least-likely-1': 'Least Likely',
+      'least-likely-2': '2nd Least',
+    };
+    const lines: string[] = [];
+    lines.push(`IR SUMMARY (${allIRs.length} IRs)`);
+    lines.push('');
+    allIRs.forEach(ir => {
+      const spk = inferSpeakerIdFromFilename(ir.filename);
+      const stats = speakerStatsMap.get(spk);
+      const role = classifyIR(ir.features, ir.filename, stats);
+      const solo = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename] || null;
+      const tier = usefulnessTiers[ir.filename];
+      const parts = [strip(ir.filename)];
+      parts.push(`Role: ${role}`);
+      if (solo) parts.push(`Solo: ${solo.charAt(0).toUpperCase() + solo.slice(1)}`);
+      if (tier) parts.push(tierLabels[tier] || tier);
+      lines.push(parts.join(' | '));
+    });
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      toast({ title: "Copied", description: `${allIRs.length} IR summaries copied` });
+    });
+  }, [allIRs, speakerStatsMap, singleIrRatings, serverSoloRatings, usefulnessTiers, toast]);
 
   const singleIrPageItems = useMemo(() => {
     const start = singleIrPage * SINGLE_IR_PAGE_SIZE;
