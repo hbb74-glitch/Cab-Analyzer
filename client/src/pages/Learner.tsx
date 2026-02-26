@@ -3767,14 +3767,24 @@ export default function Learner() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2 max-h-[300px] overflow-y-auto pr-1">
-                  {allIRs.map((ir) => (
-                    <div key={ir.filename} className={cn("flex items-center gap-1.5 py-0.5 px-2 rounded", "bg-white/[0.02]")} data-testid={`ir-role-summary-${ir.filename}`}>
+                  {allIRs.map((ir) => {
+                    const tier = usefulnessTiers[ir.filename];
+                    const tierLabel = tier === 'most-likely-1' ? '#1 Most Likely' : tier === 'most-likely-2' ? '#2 Likely' : tier === 'most-likely-3' ? '#3 Likely' : tier === 'least-likely-1' ? 'Least Likely' : tier === 'least-likely-2' ? '2nd Least' : null;
+                    const isPositive = tier?.startsWith('most');
+                    return (
+                    <div key={ir.filename} className={cn("flex items-center gap-1.5 py-0.5 px-2 rounded", tier ? (isPositive ? "bg-emerald-500/5 border border-emerald-500/15" : "bg-red-500/5 border border-red-500/15") : "bg-white/[0.02]")} data-testid={`ir-role-summary-${ir.filename}`}>
                       <span className="text-[10px] font-mono text-foreground truncate flex-1 min-w-0">
                         {ir.filename.replace(/(_\d{13})?\.wav$/, "")}
                       </span>
+                      {tierLabel && (
+                        <span className={cn("px-1 py-0.5 text-[9px] rounded font-bold whitespace-nowrap", isPositive ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400")} data-testid={`badge-usefulness-role-${ir.filename}`}>
+                          {tierLabel}
+                        </span>
+                      )}
                       <MusicalRoleBadgeFromFeatures filename={ir.filename} features={ir.features} speakerStatsMap={speakerStatsMap} />
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </details>
             </motion.div>
