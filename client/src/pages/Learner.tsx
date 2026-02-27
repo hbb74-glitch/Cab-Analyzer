@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye, Heart } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { StandaloneBadge } from "@/components/StandaloneBadge";
@@ -108,9 +108,236 @@ interface TestAIResult {
   };
 }
 
+const RATIO_OPTIONS = ["50/50", "60/40", "40/60", "70/30", "30/70", "80/20", "20/80"];
+const FAVORITES_KEY = "irscope.blendFavorites";
+
+interface BlendFavorite {
+  ir1: string;
+  ir2: string;
+  ratio: string;
+  ir1Role?: string;
+  ir2Role?: string;
+  source: string;
+  savedAt: string;
+}
+
+function loadBlendFavorites(): BlendFavorite[] {
+  try { return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]"); } catch { return []; }
+}
+
+function saveBlendFavorite(fav: BlendFavorite) {
+  const existing = loadBlendFavorites();
+  const isDuplicate = existing.some(e => e.ir1 === fav.ir1 && e.ir2 === fav.ir2 && e.ratio === fav.ratio);
+  if (!isDuplicate) {
+    existing.push(fav);
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(existing));
+  }
+}
+
+function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject, rating, refineOpen, onToggleRefine }: {
+  r: TestAIResult; idx: number; allIRs: AnalyzedIR[];
+  speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats>;
+  onFavorite: (idx: number) => void; onReject: (idx: number) => void;
+  rating?: 'favorite' | 'reject'; refineOpen: boolean; onToggleRefine: () => void;
+}) {
+  const { toast } = useToast();
+  const [refIr1, setRefIr1] = useState(r.blend?.ir1 || r.filename);
+  const [refIr2, setRefIr2] = useState(r.blend?.ir2 || "");
+  const [refRatio, setRefRatio] = useState(r.blend?.ratio || "50/50");
+  const [refSubmitted, setRefSubmitted] = useState(false);
+
+  const getMicSiblings = useCallback((filename: string) => {
+    const gear = parseGearFromFilename(filename);
+    const mic = gear.mic || '__unknown__';
+    return allIRs.filter(ir => {
+      const g = parseGearFromFilename(ir.filename);
+      return (g.mic || '__unknown__') === mic;
+    }).map(ir => ir.filename);
+  }, [allIRs]);
+
+  const ir1Siblings = useMemo(() => getMicSiblings(r.blend?.ir1 || r.filename), [getMicSiblings, r]);
+  const ir2Siblings = useMemo(() => r.blend ? getMicSiblings(r.blend.ir2) : [], [getMicSiblings, r]);
+
+  const submitRefinement = useCallback((improved: boolean) => {
+    if (r.blend) {
+      const ir1Data = allIRs.find(ir => ir.filename === (improved ? refIr1 : r.blend!.ir1));
+      const ir2Data = allIRs.find(ir => ir.filename === (improved ? refIr2 : r.blend!.ir2));
+      if (ir1Data && ir2Data) {
+        const parseRatio = (s: string) => { const [a] = s.split('/').map(Number); return a > 0 ? a / 100 : 0.5; };
+        const signals: any[] = [];
+        if (improved) {
+          signals.push({
+            baseFilename: refIr1, featureFilename: refIr2, action: 'love',
+            subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
+            mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
+            ratio: parseRatio(refRatio), score: 0, profileMatch: '',
+            tags: [`refined_from:${r.blend!.ir1}+${r.blend!.ir2}`, `refined_ratio:${refRatio}`],
+          });
+          saveBlendFavorite({
+            ir1: refIr1, ir2: refIr2, ratio: refRatio,
+            source: 'test-ai-refined', savedAt: new Date().toISOString(),
+          });
+        }
+        const origRatio = r.blend!.ratio ? parseRatio(r.blend!.ratio) : 0.5;
+        const origIr2Data = allIRs.find(ir => ir.filename === r.blend!.ir2);
+        const origBands = origIr2Data?.bands || ir2Data.bands;
+        signals.push({
+          baseFilename: r.blend!.ir1, featureFilename: r.blend!.ir2, action: improved ? 'meh' : 'nope',
+          subBass: origBands.subBass, bass: origBands.bass, lowMid: origBands.lowMid,
+          mid: origBands.mid, highMid: origBands.highMid, presence: origBands.presence,
+          ratio: origRatio, score: 0, profileMatch: '',
+          tags: improved ? ['ai_suggestion_improved'] : ['ai_suggestion_unfixable'],
+        });
+        apiRequest("POST", "/api/preferences/signals", { signals }).then(() => {
+          queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+          toast({ title: improved ? "Improved version saved" : "Marked as unfixable", duration: 2000 });
+        });
+      }
+    }
+    setRefSubmitted(true);
+  }, [r, refIr1, refIr2, refRatio, allIRs, toast]);
+
+  const isBlend = !!r.blend;
+  const strip = (f: string) => f.replace(/\.wav$/i, '');
+
+  return (
+    <div className={cn(
+      "rounded-lg border p-2.5 transition-colors",
+      rating === 'favorite' ? "border-pink-500/30 bg-pink-500/5" :
+      rating === 'reject' ? "border-red-500/20 bg-red-500/5" :
+      "border-white/5 bg-white/[0.02]"
+    )} data-testid={`test-ai-result-${idx}`}>
+      <div className="flex items-start gap-2">
+        <span className={cn(
+          "text-[10px] font-mono shrink-0 w-8 text-right pt-0.5",
+          r.score >= 70 ? "text-emerald-400" : r.score >= 40 ? "text-amber-400" : "text-red-400"
+        )}>
+          {r.score}
+        </span>
+        <div className="min-w-0 flex-1">
+          {isBlend ? (
+            <>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Blend className="w-3 h-3 text-purple-400" />
+                <span className="text-xs font-medium text-foreground">{strip(r.blend!.ir1)} + {strip(r.blend!.ir2)}</span>
+                <Badge variant="outline" className="text-[9px] h-4 font-bold text-purple-300 no-default-hover-elevate no-default-active-elevate">{r.blend!.ratio}</Badge>
+              </div>
+              <div className="mt-0.5 flex gap-3 text-[9px] text-muted-foreground">
+                <span className="text-purple-300">{r.blend!.ir1Role}</span>
+                <span className="text-cyan-300">{r.blend!.ir2Role}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs font-medium text-foreground">{strip(r.filename)}</span>
+              <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{r.reasoning}</p>
+        </div>
+        {!rating && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => onFavorite(idx)}
+              className="p-1.5 rounded hover:bg-pink-500/20 text-muted-foreground hover:text-pink-400 transition-colors"
+              title="Favorite"
+              data-testid={`button-favorite-${idx}`}
+            >
+              <Heart className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => { onReject(idx); if (isBlend) onToggleRefine(); }}
+              className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+              title="Reject"
+              data-testid={`button-reject-${idx}`}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {rating === 'favorite' && (
+          <Heart className="w-3.5 h-3.5 text-pink-400 fill-pink-400 shrink-0 mt-0.5" />
+        )}
+        {rating === 'reject' && !refineOpen && (
+          <X className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+        )}
+      </div>
+
+      {refineOpen && isBlend && !refSubmitted && (
+        <div className="mt-3 pt-3 border-t border-white/10 space-y-2.5">
+          <p className="text-[10px] text-muted-foreground">Refine this blend — swap IRs within the same mic family or adjust the ratio.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div>
+              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 1 ({parseGearFromFilename(r.blend!.ir1).mic || 'mic'})</label>
+              <select
+                value={refIr1}
+                onChange={(e) => setRefIr1(e.target.value)}
+                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                data-testid={`select-refine-ir1-${idx}`}
+              >
+                {ir1Siblings.map(f => (
+                  <option key={f} value={f}>{strip(f)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 2 ({parseGearFromFilename(r.blend!.ir2).mic || 'mic'})</label>
+              <select
+                value={refIr2}
+                onChange={(e) => setRefIr2(e.target.value)}
+                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                data-testid={`select-refine-ir2-${idx}`}
+              >
+                {ir2Siblings.map(f => (
+                  <option key={f} value={f}>{strip(f)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">Ratio</label>
+              <select
+                value={refRatio}
+                onChange={(e) => setRefRatio(e.target.value)}
+                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                data-testid={`select-refine-ratio-${idx}`}
+              >
+                {RATIO_OPTIONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="text-[10px] h-7 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+              onClick={() => submitRefinement(true)}
+              data-testid={`button-submit-improved-${idx}`}
+            >
+              <Check className="w-3 h-3 mr-1" /> Submit Improved
+            </Button>
+            <Button size="sm" variant="outline" className="text-[10px] h-7 border-red-500/30 text-red-400 hover:bg-red-500/10"
+              onClick={() => submitRefinement(false)}
+              data-testid={`button-couldnt-improve-${idx}`}
+            >
+              <X className="w-3 h-3 mr-1" /> Couldn't Improve
+            </Button>
+          </div>
+        </div>
+      )}
+      {refSubmitted && rating === 'reject' && (
+        <div className="mt-2 pt-2 border-t border-white/10">
+          <span className="text-[10px] text-muted-foreground italic">Feedback recorded</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ interpretation: string; results: TestAIResult[] } | null>(null);
+  const [ratings, setRatings] = useState<Record<number, 'favorite' | 'reject'>>({});
+  const [refineOpenIdx, setRefineOpenIdx] = useState<number | null>(null);
+  const [favCount, setFavCount] = useState(() => loadBlendFavorites().length);
   const { toast } = useToast();
 
   const testMutation = useMutation({
@@ -130,28 +357,84 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
     },
     onSuccess: (data: { interpretation: string; results: TestAIResult[] }) => {
       setResults(data);
+      setRatings({});
+      setRefineOpenIdx(null);
     },
     onError: () => {
       toast({ title: "Test failed", description: "AI couldn't process that query", variant: "destructive" });
     },
   });
 
-  const categories = useMemo(() => {
+  const handleFavorite = useCallback((idx: number) => {
+    const r = results?.results[idx];
+    if (!r) return;
+    setRatings(prev => ({ ...prev, [idx]: 'favorite' }));
+    if (r.blend) {
+      saveBlendFavorite({
+        ir1: r.blend.ir1, ir2: r.blend.ir2, ratio: r.blend.ratio,
+        ir1Role: r.blend.ir1Role, ir2Role: r.blend.ir2Role,
+        source: 'test-ai', savedAt: new Date().toISOString(),
+      });
+      setFavCount(loadBlendFavorites().length);
+      const ir2Data = allIRs.find(ir => ir.filename === r.blend!.ir2);
+      if (ir2Data) {
+        const ratio = ir2Data.bands.mid > 0 ? Math.round((ir2Data.bands.highMid / ir2Data.bands.mid) * 100) / 100 : 1;
+        apiRequest("POST", "/api/preferences/signals", { signals: [{
+          baseFilename: r.blend.ir1, featureFilename: r.blend.ir2, action: 'love',
+          subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
+          mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
+          ratio, score: r.score, profileMatch: '', tags: ['ai_suggestion_loved'],
+        }]}).then(() => {
+          queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+        });
+      }
+    }
+    toast({ title: "Saved as favorite", duration: 2000 });
+  }, [results, allIRs, toast]);
+
+  const handleReject = useCallback((idx: number) => {
+    setRatings(prev => ({ ...prev, [idx]: 'reject' }));
+    const r = results?.results[idx];
+    if (!r) return;
+    if (!r.blend) {
+      const irData = allIRs.find(ir => ir.filename === r.filename);
+      if (irData) {
+        apiRequest("POST", "/api/preferences/signals", { signals: [{
+          baseFilename: r.filename, featureFilename: r.filename, action: 'nope',
+          subBass: irData.bands.subBass, bass: irData.bands.bass, lowMid: irData.bands.lowMid,
+          mid: irData.bands.mid, highMid: irData.bands.highMid, presence: irData.bands.presence,
+          ratio: irData.bands.mid > 0 ? Math.round((irData.bands.highMid / irData.bands.mid) * 100) / 100 : 1,
+          score: 0, profileMatch: '', tags: ['ai_suggestion_rejected'],
+        }]}).then(() => {
+          queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+        });
+      }
+    }
+  }, [results, allIRs]);
+
+  const sortedResults = useMemo(() => {
     if (!results?.results) return [];
-    const cats = new Set(results.results.map(r => r.category));
-    return Array.from(cats);
+    return [...results.results].sort((a, b) => b.score - a.score);
   }, [results]);
 
-  const isComparison = categories.length > 1;
+  const ratedCount = Object.keys(ratings).length;
+  const totalCount = results?.results?.length ?? 0;
 
   return (
     <div className="mb-8 rounded-xl border border-orange-500/20 bg-orange-500/5 p-4" data-testid="test-ai-panel">
-      <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-        <Zap className="w-4 h-4 text-orange-400" />
-        Test AI
-      </h3>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Zap className="w-4 h-4 text-orange-400" />
+          Test AI
+        </h3>
+        {favCount > 0 && (
+          <span className="text-[10px] text-pink-400 flex items-center gap-1" data-testid="text-fav-count">
+            <Heart className="w-3 h-3 fill-pink-400" /> {favCount} favorite{favCount !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
       <p className="text-xs text-muted-foreground mb-3">
-        Test the AI's tonal understanding. Type a tonal description or comparison and see how it classifies your loaded IRs.
+        Test the AI's tonal understanding. Rate each suggestion — favorite the great ones, reject and refine the rest.
       </p>
       <div className="flex gap-2">
         <input
@@ -179,88 +462,129 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
       </div>
 
       <AnimatePresence>
-        {results && results.results && results.results.length > 0 && (
+        {sortedResults.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-4 space-y-3"
+            className="mt-4 space-y-2"
             data-testid="test-ai-results"
           >
-            <p className="text-[10px] text-muted-foreground italic">{results.interpretation}</p>
-
-            {isComparison ? (
-              <div className="space-y-3">
-                {categories.map(cat => {
-                  const catResults = results.results.filter(r => r.category === cat);
-                  return (
-                    <div key={cat} className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] no-default-hover-elevate no-default-active-elevate">{cat}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{catResults.length} IRs</span>
-                      </div>
-                      {catResults.sort((a, b) => b.score - a.score).map((r, i) => (
-                        <div key={i} className="flex items-start gap-2 pl-3">
-                          <span className={cn(
-                            "text-[10px] font-mono shrink-0 w-8 text-right",
-                            r.score >= 70 ? "text-emerald-400" : r.score >= 40 ? "text-amber-400" : "text-red-400"
-                          )}>
-                            {r.score}
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
-                              <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
-                            </div>
-                            <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {results.results.sort((a, b) => b.score - a.score).map((r, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <span className={cn(
-                      "text-[10px] font-mono shrink-0 w-8 text-right",
-                      r.score >= 70 ? "text-emerald-400" : r.score >= 40 ? "text-amber-400" : "text-red-400"
-                    )}>
-                      {r.score}
-                    </span>
-                    <div className="min-w-0">
-                      {r.blend ? (
-                        <>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Blend className="w-3 h-3 text-purple-400" />
-                            <span className="text-xs font-medium text-foreground">{r.blend.ir1.replace(/\.wav$/i, '')} + {r.blend.ir2.replace(/\.wav$/i, '')}</span>
-                            <Badge variant="outline" className="text-[9px] h-4 no-default-hover-elevate no-default-active-elevate">{r.blend.ratio}</Badge>
-                          </div>
-                          <div className="mt-0.5 flex gap-3 text-[9px] text-muted-foreground">
-                            <span className="text-purple-300">{r.blend.ir1Role}</span>
-                            <span className="text-cyan-300">{r.blend.ir2Role}</span>
-                          </div>
-                          <p className="text-[10px] text-muted-foreground leading-relaxed mt-0.5">{r.reasoning}</p>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-xs font-medium text-foreground">{r.filename.replace(/\.wav$/i, '')}</span>
-                            <MusicalRoleBadgeFromFeatures filename={r.filename} features={allIRs.find(ir => ir.filename === r.filename)?.features} speakerStatsMap={speakerStatsMap} />
-                          </div>
-                          <p className="text-[10px] text-muted-foreground leading-relaxed">{r.reasoning}</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground italic">{results!.interpretation}</p>
+              {ratedCount > 0 && (
+                <span className="text-[10px] text-muted-foreground">{ratedCount}/{totalCount} rated</span>
+              )}
+            </div>
+            {sortedResults.map((r, i) => {
+              const origIdx = results!.results.indexOf(r);
+              return (
+                <TestAIResultRow
+                  key={origIdx}
+                  r={r}
+                  idx={origIdx}
+                  allIRs={allIRs}
+                  speakerStatsMap={speakerStatsMap}
+                  onFavorite={handleFavorite}
+                  onReject={handleReject}
+                  rating={ratings[origIdx]}
+                  refineOpen={refineOpenIdx === origIdx}
+                  onToggleRefine={() => setRefineOpenIdx(prev => prev === origIdx ? null : origIdx)}
+                />
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function BlendFavoritesPanel() {
+  const [favorites, setFavorites] = useState<BlendFavorite[]>(() => loadBlendFavorites());
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = loadBlendFavorites();
+      if (current.length !== favorites.length) setFavorites(current);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [favorites.length]);
+
+  if (favorites.length === 0) return null;
+
+  const strip = (f: string) => f.replace(/(_\d{13})?\.wav$/i, '');
+
+  const removeFavorite = (idx: number) => {
+    const updated = [...favorites];
+    updated.splice(idx, 1);
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(updated));
+    setFavorites(updated);
+    toast({ title: "Removed from favorites", duration: 1500 });
+  };
+
+  const copyFavorites = () => {
+    const lines = favorites.map((f, i) =>
+      `${i + 1}. ${strip(f.ir1)} + ${strip(f.ir2)} (${f.ratio})${f.ir1Role ? ` — ${f.ir1Role} / ${f.ir2Role}` : ''}${f.source ? ` [${f.source}]` : ''}`
+    );
+    navigator.clipboard.writeText(lines.join('\n'));
+    toast({ title: "Copied favorites list", duration: 2000 });
+  };
+
+  return (
+    <div className="mb-6 rounded-xl border border-pink-500/20 bg-pink-500/5 p-4" data-testid="blend-favorites-panel">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between"
+        data-testid="button-toggle-favorites"
+      >
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Heart className="w-4 h-4 text-pink-400 fill-pink-400" />
+          Blend Favorites
+          <Badge variant="secondary" className="text-[10px] font-mono">{favorites.length}</Badge>
+        </h3>
+        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={copyFavorites} className="text-[10px] h-6" data-testid="button-copy-favorites">
+              <Copy className="w-3 h-3 mr-1" /> Copy List
+            </Button>
+          </div>
+          {favorites.map((fav, i) => (
+            <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/5" data-testid={`favorite-blend-${i}`}>
+              <Blend className="w-3 h-3 text-purple-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-mono text-foreground">{strip(fav.ir1)}</span>
+                  <span className="text-[10px] text-muted-foreground">+</span>
+                  <span className="text-xs font-mono text-foreground">{strip(fav.ir2)}</span>
+                  <Badge variant="outline" className="text-[9px] h-4 font-bold text-purple-300 no-default-hover-elevate no-default-active-elevate">{fav.ratio}</Badge>
+                </div>
+                {(fav.ir1Role || fav.ir2Role) && (
+                  <div className="flex gap-3 text-[9px] text-muted-foreground mt-0.5">
+                    {fav.ir1Role && <span className="text-purple-300">{fav.ir1Role}</span>}
+                    {fav.ir2Role && <span className="text-cyan-300">{fav.ir2Role}</span>}
+                  </div>
+                )}
+                <span className="text-[9px] text-muted-foreground">{fav.source}</span>
+              </div>
+              <button
+                onClick={() => removeFavorite(i)}
+                className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                title="Remove"
+                data-testid={`button-remove-fav-${i}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -3752,6 +4076,8 @@ export default function Learner() {
           )}
         </div>
 
+        <BlendFavoritesPanel />
+
         {allIRs.length >= 1 && (
           <TestAIPanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />
         )}
@@ -3874,18 +4200,52 @@ export default function Learner() {
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                           {isDismissed ? "Nope" : `Pairing ${idx + 1}`}
                         </p>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => dismissPairing(pk)}
-                          className={cn(
-                            "text-[10px] font-mono h-6 px-2",
-                            isDismissed ? "text-muted-foreground" : "text-red-400"
+                        <div className="flex items-center gap-1">
+                          {!isDismissed && (
+                            <button
+                              onClick={() => {
+                                const ratioStr = pair.suggestedRatio
+                                  ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+                                  : "50/50";
+                                saveBlendFavorite({
+                                  ir1: pair.baseFilename, ir2: pair.featureFilename,
+                                  ratio: ratioStr,
+                                  source: 'pairing', savedAt: new Date().toISOString(),
+                                });
+                                const featData = allIRs.find(ir => ir.filename === pair.featureFilename);
+                                if (featData) {
+                                  apiRequest("POST", "/api/preferences/signals", { signals: [{
+                                    baseFilename: pair.baseFilename, featureFilename: pair.featureFilename, action: 'love',
+                                    subBass: featData.bands.subBass, bass: featData.bands.bass, lowMid: featData.bands.lowMid,
+                                    mid: featData.bands.mid, highMid: featData.bands.highMid, presence: featData.bands.presence,
+                                    ratio: pair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '',
+                                    tags: ['pairing_favorited'],
+                                  }]}).then(() => {
+                                    queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+                                  });
+                                }
+                                toast({ title: "Saved to blend favorites", duration: 2000 });
+                              }}
+                              className="p-1 rounded hover:bg-pink-500/20 text-muted-foreground hover:text-pink-400 transition-colors"
+                              title="Save to favorites"
+                              data-testid={`button-fav-pairing-${idx}`}
+                            >
+                              <Heart className="w-3 h-3" />
+                            </button>
                           )}
-                          data-testid={`button-dismiss-${idx}`}
-                        >
-                          {isDismissed ? "Undo" : "Nope"}
-                        </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => dismissPairing(pk)}
+                            className={cn(
+                              "text-[10px] font-mono h-6 px-2",
+                              isDismissed ? "text-muted-foreground" : "text-red-400"
+                            )}
+                            data-testid={`button-dismiss-${idx}`}
+                          >
+                            {isDismissed ? "Undo" : "Nope"}
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-xs font-mono text-foreground truncate" data-testid={`text-pair-base-${idx}`}>
