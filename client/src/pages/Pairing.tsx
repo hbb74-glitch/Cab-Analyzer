@@ -1184,10 +1184,10 @@ export default function Pairing() {
                         return null;
                       })()}
 
-                      {pairRefine[idx] && !pairRefine[idx].submitted && (
-                        <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10 space-y-3" data-testid={`refine-panel-${idx}`}>
+                      {pairRefine[index] && !pairRefine[index].submitted && (
+                        <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10 space-y-3" data-testid={`refine-panel-${index}`}>
                           <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                            {favorites.has(idx) ? "Optional: save refined version" : "Try swapping IRs or adjusting ratio"}
+                            {favorites.has(index) ? "Optional: save refined version" : "Try swapping IRs or adjusting ratio"}
                           </p>
                           <div className="grid sm:grid-cols-2 gap-2">
                             {[
@@ -1195,13 +1195,13 @@ export default function Pairing() {
                               { label: "IR 2", key: "ir2" as const, original: pairing.ir2 },
                             ].map(({ label, key, original }) => {
                               const siblings = getSiblings(original);
-                              const current = pairRefine[idx][key];
+                              const current = pairRefine[index][key];
                               return (
                                 <div key={key}>
                                   <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
                                   {siblings.length > 0 ? (
-                                    <Select value={current} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [idx]: { ...prev[idx], [key]: v } }))}>
-                                      <SelectTrigger className="h-8 text-xs" data-testid={`refine-${key}-${idx}`}>
+                                    <Select value={current} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [index]: { ...prev[index], [key]: v } }))}>
+                                      <SelectTrigger className="h-8 text-xs" data-testid={`refine-${key}-${index}`}>
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -1218,8 +1218,8 @@ export default function Pairing() {
                           </div>
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">Ratio</label>
-                            <Select value={pairRefine[idx].ratio} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [idx]: { ...prev[idx], ratio: v } }))}>
-                              <SelectTrigger className="h-8 text-xs w-32" data-testid={`refine-ratio-${idx}`}>
+                            <Select value={pairRefine[index].ratio} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [index]: { ...prev[index], ratio: v } }))}>
+                              <SelectTrigger className="h-8 text-xs w-32" data-testid={`refine-ratio-${index}`}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -1230,30 +1230,30 @@ export default function Pairing() {
                           <div className="flex gap-2 flex-wrap">
                             <button
                               className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors"
-                              onClick={() => handleRefineSubmit(idx, pairing)}
-                              data-testid={`refine-submit-${idx}`}
+                              onClick={() => handleRefineSubmit(index, pairing)}
+                              data-testid={`refine-submit-${index}`}
                             >
                               Submit Improved
                             </button>
                             <button
                               className="px-3 py-1.5 rounded-md bg-red-600/80 hover:bg-red-500 text-white text-xs font-medium transition-colors"
-                              onClick={() => handleRefineCouldntImprove(idx, pairing)}
-                              data-testid={`refine-cant-improve-${idx}`}
+                              onClick={() => handleRefineCouldntImprove(index, pairing)}
+                              data-testid={`refine-cant-improve-${index}`}
                             >
                               Couldn't Improve
                             </button>
                             <button
                               className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-foreground/70 text-xs transition-colors"
-                              onClick={() => handleRefineSkip(idx)}
-                              data-testid={`refine-skip-${idx}`}
+                              onClick={() => handleRefineSkip(index)}
+                              data-testid={`refine-skip-${index}`}
                             >
                               Skip
                             </button>
                           </div>
                         </div>
                       )}
-                      {pairRefine[idx]?.submitted && (
-                        <p className="text-xs text-emerald-400 mt-2" data-testid={`refine-done-${idx}`}>
+                      {pairRefine[index]?.submitted && (
+                        <p className="text-xs text-emerald-400 mt-2" data-testid={`refine-done-${index}`}>
                           <Check className="w-3 h-3 inline mr-1" />
                           Refinement recorded
                         </p>
