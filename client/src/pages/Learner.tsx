@@ -134,6 +134,17 @@ function saveBlendFavorite(fav: BlendFavorite) {
   }
 }
 
+function getMicIdentity(filename: string): string {
+  const gear = parseGearFromFilename(filename);
+  const mic = gear.mic || '__unknown__';
+  const mic2 = gear.mic2;
+  const lowerName = filename.toLowerCase();
+  const hasFredman = lowerName.includes('fredman');
+  if (mic2) return `${mic}+${mic2}`;
+  if (hasFredman) return `${mic}_fredman`;
+  return mic;
+}
+
 function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject, rating, refineOpen, onToggleRefine }: {
   r: TestAIResult; idx: number; allIRs: AnalyzedIR[];
   speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats>;
@@ -147,12 +158,8 @@ function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject
   const [refSubmitted, setRefSubmitted] = useState(false);
 
   const getMicSiblings = useCallback((filename: string) => {
-    const gear = parseGearFromFilename(filename);
-    const mic = gear.mic || '__unknown__';
-    return allIRs.filter(ir => {
-      const g = parseGearFromFilename(ir.filename);
-      return (g.mic || '__unknown__') === mic;
-    }).map(ir => ir.filename);
+    const identity = getMicIdentity(filename);
+    return allIRs.filter(ir => getMicIdentity(ir.filename) === identity).map(ir => ir.filename);
   }, [allIRs]);
 
   const ir1Siblings = useMemo(() => getMicSiblings(r.blend?.ir1 || r.filename), [getMicSiblings, r]);
@@ -268,7 +275,7 @@ function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject
           <p className="text-[10px] text-muted-foreground">Refine this blend — swap IRs within the same mic family or adjust the ratio.</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 1 ({parseGearFromFilename(r.blend!.ir1).mic || 'mic'})</label>
+              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 1 ({getMicIdentity(r.blend!.ir1)})</label>
               <select
                 value={refIr1}
                 onChange={(e) => setRefIr1(e.target.value)}
@@ -281,7 +288,7 @@ function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject
               </select>
             </div>
             <div>
-              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 2 ({parseGearFromFilename(r.blend!.ir2).mic || 'mic'})</label>
+              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 2 ({getMicIdentity(r.blend!.ir2)})</label>
               <select
                 value={refIr2}
                 onChange={(e) => setRefIr2(e.target.value)}
@@ -1171,9 +1178,16 @@ export default function Learner() {
   const [singleIrPrevRatings, setSingleIrPrevRatings] = useState<Record<string, { action: string; count: number }>>({});
   const [singleIrReassessing, setSingleIrReassessing] = useState(false);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
+  const [tasteRefineOpen, setTasteRefineOpen] = useState(false);
+  const [tasteRefineIr1, setTasteRefineIr1] = useState("");
+  const [tasteRefineIr2, setTasteRefineIr2] = useState("");
+  const [tasteRefineRatio, setTasteRefineRatio] = useState("50/50");
+  const [tasteRefineSubmitted, setTasteRefineSubmitted] = useState(false);
+  const [tasteFavorited, setTasteFavorited] = useState(false);
 
   const tasteCheckRef = useRef<HTMLDivElement>(null);
   const tasteCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tasteAdvanceFnRef = useRef<(() => void) | null>(null);
   const tasteCheckModeRef = useRef(tasteCheckMode);
   tasteCheckModeRef.current = tasteCheckMode;
 
@@ -2363,6 +2377,9 @@ export default function Learner() {
 
     setTasteTieMode(false);
     setTasteTieSelected(new Set());
+    setTasteRefineOpen(false);
+    setTasteRefineSubmitted(false);
+    setTasteFavorited(false);
     setTasteCheckPhase({ ...tasteCheckPhase, userPick: pickedIndex, showingResult: true });
 
     const newHistory: TasteCheckRoundResult[] = [
@@ -2441,7 +2458,7 @@ export default function Learner() {
 
     const nextRound = tasteCheckPhase.round + 1;
 
-    tasteCheckTimeoutRef.current = setTimeout(() => {
+    const advanceFn = () => {
       tasteCheckTimeoutRef.current = null;
       if (tasteCheckModeRef.current === "ratio") {
         modeTriggeredTasteCheck.current = false;
@@ -2511,7 +2528,9 @@ export default function Learner() {
         pendingRefineCandidates: tasteCheckPhase.pendingRefineCandidates,
         pendingLoadTopPick: tasteCheckPhase.pendingLoadTopPick,
       });
-    }, 1500);
+    };
+    tasteAdvanceFnRef.current = advanceFn;
+    tasteCheckTimeoutRef.current = setTimeout(advanceFn, 1500);
   }, [tasteCheckPhase, proceedToRatioRefine, pairingPool, activeProfiles, learnedProfile, tasteCheckMode, featuresByFilename, tasteContext]);
 
   const handleTasteCheckTie = useCallback(() => {
@@ -4704,20 +4723,214 @@ export default function Learner() {
                   </>
                 )}
 
-                {tasteCheckPhase.showingResult && tasteCheckPhase.userPick !== null && (
-                  <div className="text-center py-2 space-y-1">
-                    <p className="text-xs text-teal-400 font-medium">
-                      {tasteCheckPhase.userPick === -1
-                        ? "No preference — noted, moving on."
-                        : "Got it — preference recorded."}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {tasteCheckPhase.round + 1 < tasteCheckPhase.maxRounds
-                        ? "Loading next comparison..."
-                        : "Taste profile complete — moving to ratio refinement..."}
-                    </p>
-                  </div>
-                )}
+                {tasteCheckPhase.showingResult && tasteCheckPhase.userPick !== null && (() => {
+                  const pickIdx = tasteCheckPhase.userPick;
+                  const winnerPair = pickIdx >= 0 && pickIdx < tasteCheckPhase.candidates.length
+                    ? tasteCheckPhase.candidates[pickIdx] : null;
+                  const strip = (f: string) => f.replace(/(_\d{13})?\.wav$/i, '');
+
+                  const handleTasteFavorite = () => {
+                    if (!winnerPair) return;
+                    setTasteFavorited(true);
+                    const ratioStr = winnerPair.suggestedRatio
+                      ? `${Math.round(winnerPair.suggestedRatio.base * 100)}/${Math.round(winnerPair.suggestedRatio.feature * 100)}`
+                      : "50/50";
+                    saveBlendFavorite({
+                      ir1: winnerPair.baseFilename, ir2: winnerPair.featureFilename,
+                      ratio: ratioStr, source: 'taste-check', savedAt: new Date().toISOString(),
+                    });
+                    const featData = allIRs.find(ir => ir.filename === winnerPair.featureFilename);
+                    if (featData) {
+                      submitSignalsMutation.mutate([{
+                        action: 'love',
+                        baseFilename: winnerPair.baseFilename, featureFilename: winnerPair.featureFilename,
+                        subBass: Math.round(featData.bands.subBass), bass: Math.round(featData.bands.bass),
+                        lowMid: Math.round(featData.bands.lowMid), mid: Math.round(featData.bands.mid),
+                        highMid: Math.round(featData.bands.highMid), presence: Math.round(featData.bands.presence),
+                        ratio: winnerPair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '',
+                        tags: ['taste_check_favorited'],
+                      }]);
+                    }
+                    toast({ title: "Saved to blend favorites", duration: 2000 });
+                  };
+
+                  const handleTasteReject = () => {
+                    if (!winnerPair) return;
+                    if (tasteCheckTimeoutRef.current) {
+                      clearTimeout(tasteCheckTimeoutRef.current);
+                      tasteCheckTimeoutRef.current = null;
+                    }
+                    setTasteRefineOpen(true);
+                    setTasteRefineIr1(winnerPair.baseFilename);
+                    setTasteRefineIr2(winnerPair.featureFilename);
+                    setTasteRefineRatio(winnerPair.suggestedRatio
+                      ? `${Math.round(winnerPair.suggestedRatio.base * 100)}/${Math.round(winnerPair.suggestedRatio.feature * 100)}`
+                      : "50/50");
+                  };
+
+                  const submitTasteRefinement = (improved: boolean) => {
+                    if (!winnerPair) return;
+                    const parseRatio = (s: string) => { const [a] = s.split('/').map(Number); return a > 0 ? a / 100 : 0.5; };
+                    const ir2Data = allIRs.find(ir => ir.filename === (improved ? tasteRefineIr2 : winnerPair.featureFilename));
+                    if (!ir2Data) return;
+                    const signals: any[] = [];
+                    if (improved) {
+                      signals.push({
+                        baseFilename: tasteRefineIr1, featureFilename: tasteRefineIr2, action: 'love',
+                        subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
+                        mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
+                        ratio: parseRatio(tasteRefineRatio), score: 0, profileMatch: '',
+                        tags: [`refined_from:${winnerPair.baseFilename}+${winnerPair.featureFilename}`, `refined_ratio:${tasteRefineRatio}`],
+                      });
+                      saveBlendFavorite({
+                        ir1: tasteRefineIr1, ir2: tasteRefineIr2, ratio: tasteRefineRatio,
+                        source: 'taste-check-refined', savedAt: new Date().toISOString(),
+                      });
+                    }
+                    const origRatio = winnerPair.suggestedRatio?.base ?? 0.5;
+                    signals.push({
+                      baseFilename: winnerPair.baseFilename, featureFilename: winnerPair.featureFilename,
+                      action: improved ? 'meh' : 'nope',
+                      subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
+                      mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
+                      ratio: origRatio, score: 0, profileMatch: '',
+                      tags: improved ? ['taste_check_improved'] : ['taste_check_unfixable'],
+                    });
+                    submitSignalsMutation.mutate(signals);
+                    setTasteRefineSubmitted(true);
+                    toast({ title: improved ? "Improved version saved" : "Marked as unfixable", duration: 2000 });
+                  };
+
+                  const ir1Siblings = winnerPair ? allIRs.filter(ir => getMicIdentity(ir.filename) === getMicIdentity(winnerPair.baseFilename)).map(ir => ir.filename) : [];
+                  const ir2Siblings = winnerPair ? allIRs.filter(ir => getMicIdentity(ir.filename) === getMicIdentity(winnerPair.featureFilename)).map(ir => ir.filename) : [];
+
+                  return (
+                    <div className="py-2 space-y-3">
+                      <div className="text-center space-y-1">
+                        <p className="text-xs text-teal-400 font-medium">
+                          {pickIdx === -1
+                            ? "No preference — noted, moving on."
+                            : "Got it — preference recorded."}
+                        </p>
+                        {!tasteRefineOpen && !tasteRefineSubmitted && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {tasteCheckPhase.round + 1 < tasteCheckPhase.maxRounds
+                              ? "Loading next comparison..."
+                              : "Taste profile complete — moving to ratio refinement..."}
+                          </p>
+                        )}
+                      </div>
+
+                      {winnerPair && !tasteFavorited && !tasteRefineOpen && !tasteRefineSubmitted && (
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={handleTasteFavorite}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-pink-500/30 bg-pink-500/5 hover:bg-pink-500/10 text-pink-400 text-xs transition-colors"
+                            data-testid="button-taste-favorite"
+                          >
+                            <Heart className="w-3.5 h-3.5" /> Favorite
+                          </button>
+                          <button
+                            onClick={handleTasteReject}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-red-500/30 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs transition-colors"
+                            data-testid="button-taste-reject"
+                          >
+                            <X className="w-3.5 h-3.5" /> Refine
+                          </button>
+                        </div>
+                      )}
+
+                      {tasteFavorited && (
+                        <div className="flex items-center justify-center gap-1.5 text-xs text-pink-400">
+                          <Heart className="w-3.5 h-3.5 fill-pink-400" /> Saved to favorites
+                        </div>
+                      )}
+
+                      {tasteRefineOpen && winnerPair && !tasteRefineSubmitted && (
+                        <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 space-y-2.5">
+                          <p className="text-[10px] text-muted-foreground">Refine — swap IRs within the same mic family or adjust the ratio.</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 1 ({getMicIdentity(winnerPair.baseFilename)})</label>
+                              <select
+                                value={tasteRefineIr1}
+                                onChange={(e) => setTasteRefineIr1(e.target.value)}
+                                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                                data-testid="select-taste-refine-ir1"
+                              >
+                                {ir1Siblings.map(f => (
+                                  <option key={f} value={f}>{strip(f)}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 2 ({getMicIdentity(winnerPair.featureFilename)})</label>
+                              <select
+                                value={tasteRefineIr2}
+                                onChange={(e) => setTasteRefineIr2(e.target.value)}
+                                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                                data-testid="select-taste-refine-ir2"
+                              >
+                                {ir2Siblings.map(f => (
+                                  <option key={f} value={f}>{strip(f)}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">Ratio</label>
+                              <select
+                                value={tasteRefineRatio}
+                                onChange={(e) => setTasteRefineRatio(e.target.value)}
+                                className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                                data-testid="select-taste-refine-ratio"
+                              >
+                                {RATIO_OPTIONS.map(r => (
+                                  <option key={r} value={r}>{r}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" className="text-[10px] h-7 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                              onClick={() => submitTasteRefinement(true)}
+                              data-testid="button-taste-submit-improved"
+                            >
+                              <Check className="w-3 h-3 mr-1" /> Submit Improved
+                            </Button>
+                            <Button size="sm" variant="outline" className="text-[10px] h-7 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                              onClick={() => submitTasteRefinement(false)}
+                              data-testid="button-taste-couldnt-improve"
+                            >
+                              <X className="w-3 h-3 mr-1" /> Couldn't Improve
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {tasteRefineSubmitted && (
+                        <div className="text-center space-y-2">
+                          <span className="text-[10px] text-muted-foreground italic">Feedback recorded</span>
+                          <div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-[10px] h-7 border-teal-500/30 text-teal-400 hover:bg-teal-500/10"
+                              onClick={() => {
+                                if (tasteAdvanceFnRef.current) {
+                                  tasteAdvanceFnRef.current();
+                                  tasteAdvanceFnRef.current = null;
+                                }
+                              }}
+                              data-testid="button-taste-continue"
+                            >
+                              Continue
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </motion.div>
             )}
 
