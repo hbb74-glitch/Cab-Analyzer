@@ -1178,6 +1178,7 @@ export default function Learner() {
   const [singleIrPrevRatings, setSingleIrPrevRatings] = useState<Record<string, { action: string; count: number }>>({});
   const [singleIrReassessing, setSingleIrReassessing] = useState(false);
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
+  const [pairRefine, setPairRefine] = useState<Record<string, { ir1: string; ir2: string; ratio: string; submitted: boolean }>>({});
   const [tasteRefineOpen, setTasteRefineOpen] = useState(false);
   const [tasteRefineIr1, setTasteRefineIr1] = useState("");
   const [tasteRefineIr2, setTasteRefineIr2] = useState("");
@@ -2216,17 +2217,24 @@ export default function Learner() {
   const pairKey = useCallback((p: SuggestedPairing) =>
     `${p.baseFilename}||${p.featureFilename}`, []);
 
-  const assignRank = useCallback((key: string, rank: number) => {
+  const assignRank = useCallback((key: string, rank: number, pair?: { baseFilename: string; featureFilename: string; suggestedRatio?: { base: number; feature: number } | null }) => {
     setPairingRankings((prev) => {
       const next = { ...prev };
       if (next[key] === rank) {
         delete next[key];
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
         setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
+        setPairRefine((pr) => { const n = { ...pr }; delete n[key]; return n; });
       } else {
         next[key] = rank;
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
         setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
+        if (pair) {
+          const ratioStr = pair.suggestedRatio
+            ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+            : "50/50";
+          setPairRefine((pr) => ({ ...pr, [key]: { ir1: pair.baseFilename, ir2: pair.featureFilename, ratio: ratioStr, submitted: false } }));
+        }
       }
       return next;
     });
@@ -4390,7 +4398,7 @@ export default function Learner() {
                               key={r}
                               size="sm"
                               variant={assignedRank === r ? "default" : "ghost"}
-                              onClick={() => assignRank(pk, r)}
+                              onClick={() => assignRank(pk, r, pair)}
                               className={cn(
                                 "text-xs flex-1",
                                 assignedRank === r && color
@@ -4468,6 +4476,118 @@ export default function Learner() {
                           </div>
                         )}
                       </>
+                    )}
+
+                    {pairRefine[pk] && !pairRefine[pk].submitted && assignedRank !== undefined && (
+                      <div className="mt-2 p-3 rounded-lg border border-teal-500/20 bg-teal-500/5 space-y-2.5">
+                        <p className="text-[10px] text-muted-foreground">
+                          {assignedRank === 1 ? "Optional: save a refined version to favorites." : "Try swapping IRs within the same mic family or adjusting the ratio."}
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 1 ({getMicIdentity(pair.baseFilename)})</label>
+                            <select
+                              value={pairRefine[pk].ir1}
+                              onChange={(e) => setPairRefine(prev => ({ ...prev, [pk]: { ...prev[pk], ir1: e.target.value } }))}
+                              className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                              data-testid={`select-pair-refine-ir1-${idx}`}
+                            >
+                              {allIRs.filter(ir => getMicIdentity(ir.filename) === getMicIdentity(pair.baseFilename)).map(ir => (
+                                <option key={ir.filename} value={ir.filename}>{ir.filename.replace(/(_\d{13})?\.wav$/i, '')}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IR 2 ({getMicIdentity(pair.featureFilename)})</label>
+                            <select
+                              value={pairRefine[pk].ir2}
+                              onChange={(e) => setPairRefine(prev => ({ ...prev, [pk]: { ...prev[pk], ir2: e.target.value } }))}
+                              className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                              data-testid={`select-pair-refine-ir2-${idx}`}
+                            >
+                              {allIRs.filter(ir => getMicIdentity(ir.filename) === getMicIdentity(pair.featureFilename)).map(ir => (
+                                <option key={ir.filename} value={ir.filename}>{ir.filename.replace(/(_\d{13})?\.wav$/i, '')}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">Ratio</label>
+                            <select
+                              value={pairRefine[pk].ratio}
+                              onChange={(e) => setPairRefine(prev => ({ ...prev, [pk]: { ...prev[pk], ratio: e.target.value } }))}
+                              className="w-full h-8 rounded border border-white/10 bg-background px-2 text-[11px] text-foreground"
+                              data-testid={`select-pair-refine-ratio-${idx}`}
+                            >
+                              {RATIO_OPTIONS.map(r => (
+                                <option key={r} value={r}>{r}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="text-[10px] h-7 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                            onClick={() => {
+                              const ref = pairRefine[pk];
+                              const parsedRatio = parseInt(ref.ratio.split("/")[0]) / 100;
+                              saveBlendFavorite({ ir1: ref.ir1, ir2: ref.ir2, ratio: ref.ratio, source: 'pairing', savedAt: new Date().toISOString() });
+                              const ir2Data = allIRs.find(ir => ir.filename === ref.ir2);
+                              const signals: any[] = [];
+                              if (ir2Data) {
+                                signals.push({
+                                  baseFilename: ref.ir1, featureFilename: ref.ir2, action: 'love',
+                                  subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
+                                  mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
+                                  ratio: parsedRatio, score: 0, profileMatch: '', tags: ['pairing_refined'],
+                                });
+                              }
+                              const origIr2Data = allIRs.find(ir => ir.filename === pair.featureFilename);
+                              if (origIr2Data) {
+                                signals.push({
+                                  baseFilename: pair.baseFilename, featureFilename: pair.featureFilename, action: 'meh',
+                                  subBass: origIr2Data.bands.subBass, bass: origIr2Data.bands.bass, lowMid: origIr2Data.bands.lowMid,
+                                  mid: origIr2Data.bands.mid, highMid: origIr2Data.bands.highMid, presence: origIr2Data.bands.presence,
+                                  ratio: pair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '', tags: ['pairing_improved'],
+                                });
+                              }
+                              if (signals.length > 0) submitSignalsMutation.mutate(signals);
+                              setPairRefine(prev => ({ ...prev, [pk]: { ...prev[pk], submitted: true } }));
+                              toast({ title: "Improved version saved", duration: 2000 });
+                            }}
+                            data-testid={`button-pair-submit-improved-${idx}`}
+                          >
+                            <Check className="w-3 h-3 mr-1" /> Submit Improved
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-[10px] h-7 border-red-500/30 text-red-400 hover:bg-red-500/10"
+                            onClick={() => {
+                              const origIr2Data = allIRs.find(ir => ir.filename === pair.featureFilename);
+                              if (origIr2Data) {
+                                submitSignalsMutation.mutate([{
+                                  baseFilename: pair.baseFilename, featureFilename: pair.featureFilename, action: 'nope',
+                                  subBass: origIr2Data.bands.subBass, bass: origIr2Data.bands.bass, lowMid: origIr2Data.bands.lowMid,
+                                  mid: origIr2Data.bands.mid, highMid: origIr2Data.bands.highMid, presence: origIr2Data.bands.presence,
+                                  ratio: pair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '', tags: ['pairing_unfixable'],
+                                }]);
+                              }
+                              setPairRefine(prev => ({ ...prev, [pk]: { ...prev[pk], submitted: true } }));
+                              toast({ title: "Marked as unfixable", duration: 2000 });
+                            }}
+                            data-testid={`button-pair-couldnt-improve-${idx}`}
+                          >
+                            <X className="w-3 h-3 mr-1" /> Couldn't Improve
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-[10px] h-7 text-muted-foreground"
+                            onClick={() => setPairRefine(prev => { const n = { ...prev }; delete n[pk]; return n; })}
+                            data-testid={`button-pair-skip-refine-${idx}`}
+                          >
+                            Skip
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    {pairRefine[pk]?.submitted && (
+                      <div className="mt-2 text-center">
+                        <span className="text-[10px] text-muted-foreground italic">Refinement saved</span>
+                      </div>
                     )}
                   </div>
                 );
