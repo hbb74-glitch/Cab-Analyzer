@@ -11,7 +11,7 @@ import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
-import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
+import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
 import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
@@ -52,6 +52,19 @@ const INTENTS = [
   { value: "clean", label: "Clean" },
 ];
 
+const RATIO_OPTIONS = ["50/50", "60/40", "40/60", "70/30", "30/70", "80/20", "20/80"];
+
+function getMicIdentity(filename: string): string {
+  const gear = parseGearFromFilename(filename);
+  const mic = gear.mic || '__unknown__';
+  const mic2 = gear.mic2;
+  const lowerName = filename.toLowerCase();
+  const hasFredman = lowerName.includes('fredman');
+  if (mic2) return `${mic}+${mic2}`;
+  if (hasFredman) return `${mic}_fredman`;
+  return mic;
+}
+
 export default function Pairing() {
   const [speaker1IRs, setSpeaker1IRs] = useState<UploadedIR[]>([]);
   const [speaker2IRs, setSpeaker2IRs] = useState<UploadedIR[]>([]);
@@ -73,6 +86,7 @@ export default function Pairing() {
     } catch { return []; }
   });
   const [showSavedFavorites, setShowSavedFavorites] = useState(false);
+  const [pairRefine, setPairRefine] = useState<Record<number, { ir1: string; ir2: string; ratio: string; submitted: boolean }>>({});
 
   useEffect(() => {
     try {
@@ -110,6 +124,8 @@ export default function Pairing() {
     return map;
   }, [speaker1IRs, speaker2IRs]);
 
+  const allIRNames = useMemo(() => [...speaker1IRs, ...speaker2IRs].map(ir => ir.file.name), [speaker1IRs, speaker2IRs]);
+
   const buildTasteContext = useCallback((): TasteContext => {
     const allIRs = [...speaker1IRs, ...speaker2IRs];
     const speakerPrefix = (allIRs[0]?.file.name ?? "unknown").split("_")[0] ?? "unknown";
@@ -120,6 +136,12 @@ export default function Pairing() {
     const data = irFeaturesMap.get(irName) || irFeaturesMap.get(irName.replace(/\.wav$/i, ""));
     return data?.features ?? null;
   }, [irFeaturesMap]);
+
+  const lookupBands = useCallback((irName: string) => {
+    const allIRs = [...speaker1IRs, ...speaker2IRs];
+    const ir = allIRs.find(i => i.file.name === irName) || allIRs.find(i => i.file.name.replace(/\.wav$/i, "") === irName.replace(/\.wav$/i, ""));
+    return ir?.bands ?? null;
+  }, [speaker1IRs, speaker2IRs]);
 
   const recordBlendFeedback = useCallback((pairing: PairingResult, positive: boolean) => {
     const ir1Feat = lookupFeatures(pairing.ir1);
@@ -209,9 +231,11 @@ export default function Pairing() {
         if (prev.some(f => `${f.ir1}||${f.ir2}||${f.mixRatio}` === key)) return prev;
         return [...prev, pairing];
       });
+      setPairRefine(prev => ({ ...prev, [index]: { ir1: pairing.ir1, ir2: pairing.ir2, ratio: pairing.mixRatio || "50/50", submitted: false } }));
       toast({ title: "Blend favorited", description: `${pairing.ir1} + ${pairing.ir2} saved permanently.` });
     } else {
       setSavedFavorites(prev => prev.filter(f => !(f.ir1 === pairing.ir1 && f.ir2 === pairing.ir2 && f.mixRatio === pairing.mixRatio)));
+      setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
     }
   }, [favorites, recordBlendFeedback, toast]);
 
@@ -224,6 +248,7 @@ export default function Pairing() {
       const newPairings = [...result.pairings];
       newPairings[index] = replacement;
       setResult({ ...result, pairings: newPairings });
+      setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
       toast({ title: "Blend replaced", description: `Swapped in: ${replacement.ir1} + ${replacement.ir2}` });
     } else {
       setPassed(prev => {
@@ -231,6 +256,7 @@ export default function Pairing() {
         next.add(index);
         return next;
       });
+      setPairRefine(prev => ({ ...prev, [index]: { ir1: pairing.ir1, ir2: pairing.ir2, ratio: pairing.mixRatio || "50/50", submitted: false } }));
       toast({ title: "Blend passed", description: "No more replacements available." });
     }
     setFavorites(prev => {
@@ -292,6 +318,101 @@ export default function Pairing() {
     toast({ title: "Copied to clipboard", description: "Pairing shortlist copied." });
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const getSiblings = useCallback((filename: string): string[] => {
+    const identity = getMicIdentity(filename);
+    return allIRNames.filter(n => n !== filename && getMicIdentity(n) === identity);
+  }, [allIRNames]);
+
+  const handleRefineSubmit = useCallback((index: number, originalPairing: PairingResult) => {
+    const ref = pairRefine[index];
+    if (!ref || ref.submitted) return;
+    const changed = ref.ir1 !== originalPairing.ir1 || ref.ir2 !== originalPairing.ir2 || ref.ratio !== (originalPairing.mixRatio || "50/50");
+    if (!changed) {
+      setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
+      return;
+    }
+    const ratioParts = ref.ratio.split("/").map(Number);
+    const ratioVal = ratioParts[0] / 100;
+    const refinedPairing: PairingResult = { ...originalPairing, ir1: ref.ir1, ir2: ref.ir2, mixRatio: ref.ratio };
+    setSavedFavorites(prev => {
+      const key = `${ref.ir1}||${ref.ir2}||${ref.ratio}`;
+      if (prev.some(f => `${f.ir1}||${f.ir2}||${f.mixRatio}` === key)) return prev;
+      return [...prev, refinedPairing];
+    });
+    const ctx = buildTasteContext();
+    const refFeat1 = lookupFeatures(ref.ir1);
+    const refFeat2 = lookupFeatures(ref.ir2);
+    if (refFeat1 && refFeat2) {
+      const blended = featurizeBlend(refFeat1, refFeat2, ratioVal);
+      recordOutcome(ctx, blended, "love", undefined, ["pairing_refined", "pairing_improved"]);
+    }
+    const origFeat1 = lookupFeatures(originalPairing.ir1);
+    const origFeat2 = lookupFeatures(originalPairing.ir2);
+    if (origFeat1 && origFeat2) {
+      const origRatio = originalPairing.mixRatio?.split("/").map(Number);
+      const origRatioVal = origRatio ? origRatio[0] / 100 : 0.5;
+      const origBlend = featurizeBlend(origFeat1, origFeat2, origRatioVal);
+      recordOutcome(ctx, origBlend, "meh", undefined, ["pairing_refined"]);
+    }
+    const signals: any[] = [];
+    const refIr2Bands = lookupBands(ref.ir2);
+    if (refIr2Bands) {
+      signals.push({
+        baseFilename: ref.ir1, featureFilename: ref.ir2, action: 'love',
+        subBass: refIr2Bands.subBass, bass: refIr2Bands.bass, lowMid: refIr2Bands.lowMid,
+        mid: refIr2Bands.mid, highMid: refIr2Bands.highMid, presence: refIr2Bands.presence,
+        ratio: ratioVal, score: 0, profileMatch: '', tags: ['pairing_refined'],
+      });
+    }
+    const origIr2Bands = lookupBands(originalPairing.ir2);
+    if (origIr2Bands) {
+      const origRatio2 = originalPairing.mixRatio?.split("/").map(Number);
+      signals.push({
+        baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: 'meh',
+        subBass: origIr2Bands.subBass, bass: origIr2Bands.bass, lowMid: origIr2Bands.lowMid,
+        mid: origIr2Bands.mid, highMid: origIr2Bands.highMid, presence: origIr2Bands.presence,
+        ratio: origRatio2 ? origRatio2[0] / 100 : 0.5, score: 0, profileMatch: '', tags: ['pairing_improved'],
+      });
+    }
+    if (signals.length > 0) {
+      apiRequest("POST", "/api/preferences/signals", { signals }).then(() => {
+        queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+      }).catch(() => {});
+    }
+    setPairRefine(prev => ({ ...prev, [index]: { ...ref, submitted: true } }));
+    toast({ title: "Refined blend saved", description: `${ref.ir1} + ${ref.ir2} (${ref.ratio}) saved as favorite.` });
+  }, [pairRefine, buildTasteContext, lookupFeatures, lookupBands, toast]);
+
+  const handleRefineCouldntImprove = useCallback((index: number, originalPairing: PairingResult) => {
+    const ctx = buildTasteContext();
+    const feat1 = lookupFeatures(originalPairing.ir1);
+    const feat2 = lookupFeatures(originalPairing.ir2);
+    if (feat1 && feat2) {
+      const ratioParts = originalPairing.mixRatio?.split("/").map(Number);
+      const ratioVal = ratioParts ? ratioParts[0] / 100 : 0.5;
+      const blended = featurizeBlend(feat1, feat2, ratioVal);
+      recordOutcome(ctx, blended, "nope", undefined, ["pairing_unfixable"]);
+    }
+    const origIr2Bands = lookupBands(originalPairing.ir2);
+    if (origIr2Bands) {
+      const ratioParts = originalPairing.mixRatio?.split("/").map(Number);
+      apiRequest("POST", "/api/preferences/signals", { signals: [{
+        baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: 'nope',
+        subBass: origIr2Bands.subBass, bass: origIr2Bands.bass, lowMid: origIr2Bands.lowMid,
+        mid: origIr2Bands.mid, highMid: origIr2Bands.highMid, presence: origIr2Bands.presence,
+        ratio: ratioParts ? ratioParts[0] / 100 : 0.5, score: 0, profileMatch: '', tags: ['pairing_unfixable'],
+      }]}).then(() => {
+        queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+      }).catch(() => {});
+    }
+    setPairRefine(prev => ({ ...prev, [index]: { ...(prev[index] || { ir1: originalPairing.ir1, ir2: originalPairing.ir2, ratio: originalPairing.mixRatio || "50/50" }), submitted: true } }));
+    toast({ title: "Noted", description: "This pairing was marked as unfixable." });
+  }, [buildTasteContext, lookupFeatures, lookupBands, toast]);
+
+  const handleRefineSkip = useCallback((index: number) => {
+    setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
+  }, []);
 
   const { mutate: analyzePairings, isPending } = useMutation({
     mutationFn: async ({ irs, irs2, tonePrefs, mixedMode, intent: intentVal, count }: { 
@@ -1062,6 +1183,81 @@ export default function Pairing() {
                         }
                         return null;
                       })()}
+
+                      {pairRefine[idx] && !pairRefine[idx].submitted && (
+                        <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10 space-y-3" data-testid={`refine-panel-${idx}`}>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                            {favorites.has(idx) ? "Optional: save refined version" : "Try swapping IRs or adjusting ratio"}
+                          </p>
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            {[
+                              { label: "IR 1", key: "ir1" as const, original: pairing.ir1 },
+                              { label: "IR 2", key: "ir2" as const, original: pairing.ir2 },
+                            ].map(({ label, key, original }) => {
+                              const siblings = getSiblings(original);
+                              const current = pairRefine[idx][key];
+                              return (
+                                <div key={key}>
+                                  <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+                                  {siblings.length > 0 ? (
+                                    <Select value={current} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [idx]: { ...prev[idx], [key]: v } }))}>
+                                      <SelectTrigger className="h-8 text-xs" data-testid={`refine-${key}-${idx}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value={original}>{original}</SelectItem>
+                                        {siblings.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground/60 truncate">{current}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Ratio</label>
+                            <Select value={pairRefine[idx].ratio} onValueChange={(v) => setPairRefine(prev => ({ ...prev, [idx]: { ...prev[idx], ratio: v } }))}>
+                              <SelectTrigger className="h-8 text-xs w-32" data-testid={`refine-ratio-${idx}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {RATIO_OPTIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors"
+                              onClick={() => handleRefineSubmit(idx, pairing)}
+                              data-testid={`refine-submit-${idx}`}
+                            >
+                              Submit Improved
+                            </button>
+                            <button
+                              className="px-3 py-1.5 rounded-md bg-red-600/80 hover:bg-red-500 text-white text-xs font-medium transition-colors"
+                              onClick={() => handleRefineCouldntImprove(idx, pairing)}
+                              data-testid={`refine-cant-improve-${idx}`}
+                            >
+                              Couldn't Improve
+                            </button>
+                            <button
+                              className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-foreground/70 text-xs transition-colors"
+                              onClick={() => handleRefineSkip(idx)}
+                              data-testid={`refine-skip-${idx}`}
+                            >
+                              Skip
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {pairRefine[idx]?.submitted && (
+                        <p className="text-xs text-emerald-400 mt-2" data-testid={`refine-done-${idx}`}>
+                          <Check className="w-3 h-3 inline mr-1" />
+                          Refinement recorded
+                        </p>
+                      )}
                     </motion.div>
                   ))}
                 </div>
