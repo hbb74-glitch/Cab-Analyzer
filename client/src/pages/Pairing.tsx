@@ -240,31 +240,13 @@ export default function Pairing() {
   }, [favorites, recordBlendFeedback, toast]);
 
   const handlePass = useCallback((index: number, pairing: PairingResult) => {
-    recordBlendFeedback(pairing, false);
-
-    if (result && replacementQueue.length > 0) {
-      const replacement = replacementQueue[0];
-      setReplacementQueue(prev => prev.slice(1));
-      const newPairings = [...result.pairings];
-      newPairings[index] = replacement;
-      setResult({ ...result, pairings: newPairings });
-      setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
-      toast({ title: "Blend replaced", description: `Swapped in: ${replacement.ir1} + ${replacement.ir2}` });
-    } else {
-      setPassed(prev => {
-        const next = new Set(prev);
-        next.add(index);
-        return next;
-      });
-      setPairRefine(prev => ({ ...prev, [index]: { ir1: pairing.ir1, ir2: pairing.ir2, ratio: pairing.mixRatio || "50/50", submitted: false } }));
-      toast({ title: "Blend passed", description: "No more replacements available." });
-    }
+    setPairRefine(prev => ({ ...prev, [index]: { ir1: pairing.ir1, ir2: pairing.ir2, ratio: pairing.mixRatio || "50/50", submitted: false } }));
     setFavorites(prev => {
       const next = new Set(prev);
       next.delete(index);
       return next;
     });
-  }, [recordBlendFeedback, toast, result, replacementQueue, setResult]);
+  }, []);
 
   const copyPairings = () => {
     if (!result) return;
@@ -385,6 +367,7 @@ export default function Pairing() {
   }, [pairRefine, buildTasteContext, lookupFeatures, lookupBands, toast]);
 
   const handleRefineCouldntImprove = useCallback((index: number, originalPairing: PairingResult) => {
+    recordBlendFeedback(originalPairing, false);
     const ctx = buildTasteContext();
     const feat1 = lookupFeatures(originalPairing.ir1);
     const feat2 = lookupFeatures(originalPairing.ir2);
@@ -406,9 +389,20 @@ export default function Pairing() {
         queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
       }).catch(() => {});
     }
-    setPairRefine(prev => ({ ...prev, [index]: { ...(prev[index] || { ir1: originalPairing.ir1, ir2: originalPairing.ir2, ratio: originalPairing.mixRatio || "50/50" }), submitted: true } }));
-    toast({ title: "Noted", description: "This pairing was marked as unfixable." });
-  }, [buildTasteContext, lookupFeatures, lookupBands, toast]);
+    if (result && replacementQueue.length > 0) {
+      const replacement = replacementQueue[0];
+      setReplacementQueue(prev => prev.slice(1));
+      const newPairings = [...result.pairings];
+      newPairings[index] = replacement;
+      setResult({ ...result, pairings: newPairings });
+      setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
+      toast({ title: "Replaced", description: `Swapped in: ${replacement.ir1} + ${replacement.ir2}` });
+    } else {
+      setPassed(prev => { const next = new Set(prev); next.add(index); return next; });
+      setPairRefine(prev => ({ ...prev, [index]: { ...(prev[index] || { ir1: originalPairing.ir1, ir2: originalPairing.ir2, ratio: originalPairing.mixRatio || "50/50" }), submitted: true } }));
+      toast({ title: "Noted", description: "This pairing was marked as unfixable." });
+    }
+  }, [buildTasteContext, lookupFeatures, lookupBands, recordBlendFeedback, toast, result, replacementQueue, setResult]);
 
   const handleRefineSkip = useCallback((index: number) => {
     setPairRefine(prev => { const n = { ...prev }; delete n[index]; return n; });
