@@ -6555,6 +6555,8 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
     try {
       const input = api.tonalProfiles.design.input.parse(req.body);
       const profiles = await storage.getTonalProfiles();
+      const allSignals = await storage.getPreferenceSignals();
+      const learned = allSignals.length > 0 ? await computeLearnedProfile(allSignals) : null;
 
       if (profiles.length === 0) {
         return res.json({
@@ -6699,9 +6701,66 @@ A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary i
         return section;
       })();
 
+      const gearPreferenceSection = learned ? buildGearPreferencePrompt(learned, undefined, input.speaker) : '';
+
+      const tonalPreferenceSection = (() => {
+        if (!learned || learned.status === 'no_data') return '';
+        const lines: string[] = [];
+        lines.push(`=== USER'S TONAL PREFERENCES (from ${learned.signalCount} ratings, status: ${learned.status}) ===`);
+        lines.push(`Learning confidence: ${learned.status}. ${learned.likedCount} liked, ${learned.nopedCount} noped.`);
+
+        if (learned.learnedAdjustments) {
+          const adj = learned.learnedAdjustments;
+          const shifts: string[] = [];
+          if (Math.abs(adj.mid.shift) > 0.5) shifts.push(`Mid: ${adj.mid.shift > 0 ? '+' : ''}${adj.mid.shift.toFixed(1)} (conf ${(adj.mid.confidence * 100).toFixed(0)}%)`);
+          if (Math.abs(adj.highMid.shift) > 0.5) shifts.push(`HiMid: ${adj.highMid.shift > 0 ? '+' : ''}${adj.highMid.shift.toFixed(1)} (conf ${(adj.highMid.confidence * 100).toFixed(0)}%)`);
+          if (Math.abs(adj.presence.shift) > 0.5) shifts.push(`Presence: ${adj.presence.shift > 0 ? '+' : ''}${adj.presence.shift.toFixed(1)} (conf ${(adj.presence.confidence * 100).toFixed(0)}%)`);
+          if (Math.abs(adj.ratio.shift) > 0.1) shifts.push(`Ratio: ${adj.ratio.shift > 0 ? '+' : ''}${adj.ratio.shift.toFixed(2)} (conf ${(adj.ratio.confidence * 100).toFixed(0)}%)`);
+          if (shifts.length > 0) {
+            lines.push(`Tonal shifts from baseline: ${shifts.join(', ')}`);
+            const overall = adj.ratio.shift > 0.15 ? 'brighter/more aggressive' : adj.ratio.shift < -0.15 ? 'darker/warmer' : 'balanced';
+            lines.push(`Overall tendency: user prefers ${overall} tones`);
+          }
+        }
+
+        if (learned.avoidZones.length > 0) {
+          const zones = learned.avoidZones.map(z =>
+            z.band === 'muddy_composite' ? 'muddy tones (excess low-mid + bass)'
+            : `${z.direction === 'high' ? 'excess' : 'insufficient'} ${z.band}`
+          );
+          lines.push(`AVOID ZONES (user dislikes these): ${zones.join(', ')}`);
+          lines.push(`When choosing shots, deprioritize mic/position combos that tend toward these avoid zones.`);
+        }
+
+        if (learned.refinementRate && learned.refinementRate.rate >= 0.2) {
+          lines.push(`WARNING: ${(learned.refinementRate.rate * 100).toFixed(0)}% of recent suggestions needed user correction. Be conservative with novel recommendations.`);
+        }
+
+        if (learned.courseCorrections.length > 0) {
+          lines.push(`Active course corrections: ${learned.courseCorrections.join('; ')}`);
+        }
+
+        if (learned.ratioPreference) {
+          const rp = learned.ratioPreference;
+          lines.push(`Preferred blend ratio: ${rp.preferredRatio.toFixed(2)} (${rp.confidence} confidence) — ${rp.preferredRatio > 0.55 ? 'base-heavy' : rp.preferredRatio < 0.45 ? 'feature-heavy' : 'balanced'}`);
+        }
+
+        lines.push(`\nIMPORTANT: These tonal preferences should DIRECTLY influence shot selection.`);
+        lines.push(`If the user prefers darker tones, favor positions/distances that produce lower ratios and rolled-off highs.`);
+        lines.push(`If the user prefers brighter tones, favor positions/distances with more presence and higher ratios.`);
+        lines.push(`Avoid zones should disqualify mic/position combos known to produce those characteristics.`);
+        lines.push(`When user preference data conflicts with the knowledge base "sweet spot", the USER DATA WINS.`);
+        lines.push(`Example: If KB says 1" is the sweet spot but user has 5 loved IRs at 2" and only 2 liked at 1", recommend 2" — the user has told you what they prefer.`);
+
+        return '\n' + lines.join('\n') + '\n';
+      })();
+
+      const userVocabSection = buildUserVocabularyPrompt(allSignals, true);
+
       const designPrompt = `You are an expert audio engineer designing an IR capture session.
 You have REAL tonal data from previously analyzed IRs AND a knowledge base of mic/position role predictions.
-Use BOTH data sources to design an accurate, role-aware collection plan.
+You also have the user's LEARNED TONAL PREFERENCES from their rating history.
+Use ALL data sources to design a collection plan that matches what this specific user actually likes.
 
 === LEARNED TONAL DATA (from real IR analysis) ===
 ${profileSummary}
@@ -6709,6 +6768,9 @@ ${extrapolationSection}
 ${knowledgeBaseSection}
 ${validatedInsightsSection}
 ${soloTonalSection}
+${tonalPreferenceSection}
+${gearPreferenceSection}
+${userVocabSection}
 
 ${roleDefinitions}
 
@@ -6734,12 +6796,13 @@ Presence (4k-8k): fizz, sizzle, air
 Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
 
 === DESIGN PRINCIPLES ===
-1. ROLE-FIRST DESIGN: Assign each shot a musical role from the knowledge base. Use learned data to validate predictions.
-2. INTENT COVERAGE: ${hasIntentCounts ? 'Ensure each intent (rhythm/lead/clean) gets the right role distribution.' : 'Design a versatile palette covering all common use cases.'}
-3. PREDICT from data: Cross-reference the knowledge base predictions with learned tonal profiles for accuracy.
-4. COMPLEMENTARY: Shots should combine well — one bright + one warm = blendable pair.
-5. NO REDUNDANCY: Don't suggest two shots with the same role unless they serve different intents.
-6. CONFIDENCE: Rate confidence based on knowledge base match AND learned data support.
+1. USER PREFERENCES FIRST: The user's tonal preferences, solo-proven data, and avoid zones are the PRIMARY guide. When user data conflicts with KB "sweet spots" or defaults, USER DATA WINS. If they love 2" and the KB says 1", recommend 2".
+2. ROLE-FIRST DESIGN: Assign each shot a musical role from the knowledge base. Use learned data to validate predictions.
+3. INTENT COVERAGE: ${hasIntentCounts ? 'Ensure each intent (rhythm/lead/clean) gets the right role distribution.' : 'Design a versatile palette covering all common use cases.'}
+4. TONAL TARGETING: Choose mic/position/distance combos whose measured or predicted tonal profile matches the user's preferred tonal balance (shifts, ratio preference, avoid zones).
+5. COMPLEMENTARY: Shots should combine well — one bright + one warm = blendable pair.
+6. NO REDUNDANCY: Don't suggest two shots with the same role unless they serve different intents.
+7. CONFIDENCE: Rate confidence based on knowledge base match AND learned data support. Solo-proven > measured > extrapolated > KB-only.
 
 === OUTPUT FORMAT (JSON) ===
 {
