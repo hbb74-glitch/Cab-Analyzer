@@ -1177,6 +1177,7 @@ export default function Learner() {
   const [singleIrDecided, setSingleIrDecided] = useState<Set<string>>(new Set());
   const [singleIrPrevRatings, setSingleIrPrevRatings] = useState<Record<string, { action: string; count: number }>>({});
   const [singleIrReassessing, setSingleIrReassessing] = useState(false);
+  const [reassessCleared, setReassessCleared] = useState<Set<string>>(new Set());
   const [clearSpeakerConfirm, setClearSpeakerConfirm] = useState<string | null>(null);
   const [pairRefine, setPairRefine] = useState<Record<string, { ir1: string; ir2: string; ratio: string; submitted: boolean }>>({});
   const [tasteRefineOpen, setTasteRefineOpen] = useState(false);
@@ -1644,6 +1645,72 @@ export default function Learner() {
     const maxPage = Math.max(0, Math.ceil(singleIrUndecided.length / SINGLE_IR_PAGE_SIZE) - 1);
     if (singleIrPage > maxPage) setSingleIrPage(maxPage);
   }, [singleIrUndecided.length, singleIrPage]);
+
+  const submitSingleIr = useCallback((ir: any) => {
+    try {
+      const action = singleIrRatings[ir.filename];
+      if (!action || !ir?.features) return;
+      const strengthOf = (a: string) => a === "love" ? 2 : a === "like" ? 1 : a === "meh" ? -1 : a === "nope" ? -2 : 0;
+      const strength = strengthOf(action);
+      const x = featurizeSingleIR(ir.features);
+      const bands = ir.bands as TonalBands;
+
+      const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
+      const tags = singleIrTags[ir.filename] ?? [];
+      const hasRhythm = tags.includes("great_for_rhythm") || tags.includes("great_all_around");
+      const hasLead = tags.includes("great_for_lead") || tags.includes("great_all_around");
+      if (hasRhythm && strength > 0) {
+        const rhythmCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "rhythm" };
+        recordIROutcome(rhythmCtx, [ir.filename], []);
+      }
+      if (hasLead && strength > 0) {
+        const leadCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "lead" };
+        recordIROutcome(leadCtx, [ir.filename], []);
+      }
+
+      setTasteVersion(v => v + 1);
+
+      const ratio = bands.mid > 0 ? bands.highMid / bands.mid : 1.4;
+      const fb = tags.length > 0 ? tags.join(",") : null;
+      const serverSignal = {
+        action,
+        feedback: fb,
+        feedbackText: null,
+        baseFilename: ir.filename,
+        featureFilename: ir.filename,
+        subBass: bands.subBass,
+        bass: bands.bass,
+        lowMid: bands.lowMid,
+        mid: bands.mid,
+        highMid: bands.highMid,
+        presence: bands.presence,
+        ratio: Math.round(ratio * 100) / 100,
+        score: 0,
+        profileMatch: getRoleForFilename(ir.filename),
+      };
+      submitSignalsMutation.mutate([serverSignal]);
+
+      setSingleIrDecided(prev => {
+        const next = new Set(prev);
+        next.add(ir.filename);
+        return next;
+      });
+      setSingleIrPrevRatings(prev => {
+        const existing = prev[ir.filename];
+        return { ...prev, [ir.filename]: { action, count: existing ? existing.count + 1 : 1 } };
+      });
+      setSingleIrTags(prev => {
+        const next = { ...prev };
+        delete next[ir.filename];
+        return next;
+      });
+      setSingleIrNotes(prev => {
+        const next = { ...prev };
+        delete next[ir.filename];
+        return next;
+      });
+    } catch {}
+  }, [singleIrRatings, singleIrTags, pairingPool, singleIrTasteContext, submitSignalsMutation]);
 
   const usefulnessTiers = useMemo<Record<string, string>>(() => {
     if (!usefulnessScores || pairingPool.length < 2) return {};
@@ -3594,6 +3661,7 @@ export default function Learner() {
                       setSingleIrTags({});
                       setSingleIrNotes({});
                       setSingleIrPage(0);
+                      setReassessCleared(new Set(pairingPool.map((ir: any) => ir.filename)));
                     }}
                   >
                     Reassess — go through all IRs again
@@ -3601,7 +3669,8 @@ export default function Learner() {
                 </div>
               </div>
             ) : singleIrPageItems.map((ir: any, idx: number) => {
-              const rating = singleIrRatings[ir.filename] || serverSoloRatings[ir.filename];
+              const serverRating = reassessCleared.has(ir.filename) ? undefined : serverSoloRatings[ir.filename];
+              const rating = singleIrRatings[ir.filename] || serverRating;
               const prevDecision = singleIrPrevRatings[ir.filename] || (serverSoloRatings[ir.filename] ? { action: serverSoloRatings[ir.filename], count: 1 } : undefined);
               const activeTagBank =
                 rating === "love" ? SOLO_WHY_TAGS :
@@ -3692,144 +3761,19 @@ export default function Learner() {
                   placeholder="Optional notes..."
                   data-testid={`textarea-single-ir-notes-${idx}`}
                 />
+
+                {singleIrRatings[ir.filename] && (
+                  <button
+                    className="mt-2 px-3 py-1 rounded border border-green-500 text-green-400 text-xs font-medium"
+                    data-testid={`button-submit-single-ir-${idx}`}
+                    onClick={() => submitSingleIr(ir)}
+                  >
+                    Submit {singleIrRatings[ir.filename].toUpperCase()}
+                  </button>
+                )}
               </div>
               );
             })}
-
-            {singleIrUndecided.length > 0 && <div className="flex gap-2">
-              <button
-                className="px-3 py-1 rounded border border-zinc-600"
-                data-testid="button-submit-single-ir"
-                onClick={() => {
-                  try {
-                    const strengthOf = (a: string) => a === "love" ? 2 : a === "like" ? 1 : a === "meh" ? -1 : a === "nope" ? -2 : 0;
-                    const rated = singleIrPageItems.map((ir: any) => {
-                      const action = singleIrRatings[ir.filename];
-                      if (!action) return null;
-                      if (!ir?.features) return null;
-                      return { action, strength: strengthOf(action), x: featurizeSingleIR(ir.features), filename: ir.filename as string, bands: ir.bands as TonalBands };
-                    }).filter(Boolean) as { action: string; strength: number; x: number[]; filename: string; bands: TonalBands }[];
-
-                    if (rated.length >= 2) {
-                      const mean = meanVector(rated.map(r => r.x));
-                      const centered = rated.map(r => ({ ...r, xc: centerVector(r.x, mean) }));
-
-                      const recordToCtx = (ctx: TasteContext) => {
-                        for (let i = 0; i < centered.length; i++) {
-                          for (let j = i + 1; j < centered.length; j++) {
-                            const a = centered[i];
-                            const b = centered[j];
-                            const diff = a.strength - b.strength;
-                            if (diff === 0) {
-                              recordOutcome(ctx, a.xc, b.xc, "tie", { source: "learning" });
-                              recordIROutcome(ctx, [a.filename, b.filename], []);
-                            } else {
-                              const lr = 0.06 * Math.min(2, Math.abs(diff));
-                              if (diff > 0) {
-                                recordOutcome(ctx, a.xc, b.xc, "a", { lr, source: "learning" });
-                                recordIROutcome(ctx, [a.filename], [b.filename]);
-                              } else {
-                                recordOutcome(ctx, b.xc, a.xc, "a", { lr, source: "learning" });
-                                recordIROutcome(ctx, [b.filename], [a.filename]);
-                              }
-                            }
-                          }
-                        }
-                      };
-
-                      recordToCtx(singleIrTasteContext);
-                      if (mirrorSingleIrContext) recordToCtx(mirrorSingleIrContext);
-
-                      const speakerPrefix = (pairingPool[0]?.filename ?? "unknown").split("_")[0] ?? "unknown";
-                      for (const r of rated) {
-                        const tags = singleIrTags[r.filename] ?? [];
-                        const hasRhythm = tags.includes("great_for_rhythm") || tags.includes("great_all_around");
-                        const hasLead = tags.includes("great_for_lead") || tags.includes("great_all_around");
-                        if (hasRhythm && r.strength > 0) {
-                          const rhythmCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "rhythm" };
-                          recordIROutcome(rhythmCtx, [r.filename], []);
-                        }
-                        if (hasLead && r.strength > 0) {
-                          const leadCtx: TasteContext = { speakerPrefix, mode: "singleIR", intent: "lead" };
-                          recordIROutcome(leadCtx, [r.filename], []);
-                        }
-                      }
-
-                      setTasteVersion(v => v + 1);
-                    }
-
-                    const serverSignals = rated.map(r => {
-                      const tags = singleIrTags[r.filename];
-                      const fb = tags && tags.length > 0 ? tags.join(",") : null;
-                      const ratio = r.bands.mid > 0 ? r.bands.highMid / r.bands.mid : 1.4;
-                      return {
-                        action: r.action,
-                        feedback: fb,
-                        feedbackText: null,
-                        baseFilename: r.filename,
-                        featureFilename: r.filename,
-                        subBass: r.bands.subBass,
-                        bass: r.bands.bass,
-                        lowMid: r.bands.lowMid,
-                        mid: r.bands.mid,
-                        highMid: r.bands.highMid,
-                        presence: r.bands.presence,
-                        ratio: Math.round(ratio * 100) / 100,
-                        score: 0,
-                        profileMatch: getRoleForFilename(r.filename),
-                      };
-                    });
-                    if (serverSignals.length > 0) {
-                      submitSignalsMutation.mutate(serverSignals);
-                    }
-
-                    const newDecided = new Set(singleIrDecided);
-                    const newPrevRatings = { ...singleIrPrevRatings };
-                    for (const r of rated) {
-                      newDecided.add(r.filename);
-                      const prev = newPrevRatings[r.filename];
-                      if (prev) {
-                        newPrevRatings[r.filename] = { action: r.action, count: prev.count + 1 };
-                      } else {
-                        newPrevRatings[r.filename] = { action: r.action, count: 1 };
-                      }
-                    }
-                    setSingleIrDecided(newDecided);
-                    setSingleIrPrevRatings(newPrevRatings);
-
-                    const ratedFilenames = new Set(rated.map(r => r.filename));
-                    setSingleIrTags(prev => {
-                      const next: Record<string, string[]> = {};
-                      for (const [k, v] of Object.entries(prev)) {
-                        if (!ratedFilenames.has(k)) next[k] = v;
-                      }
-                      return next;
-                    });
-                    setSingleIrNotes(prev => {
-                      const next: Record<string, string> = {};
-                      for (const [k, v] of Object.entries(prev)) {
-                        if (!ratedFilenames.has(k)) next[k] = v;
-                      }
-                      return next;
-                    });
-                  } catch {}
-                }}
-              >
-                Submit Ratings
-              </button>
-
-              <button
-                className="px-3 py-1 rounded border border-zinc-600"
-                onClick={() => {
-                  setSingleIrRatings({});
-                  setSingleIrTags({});
-                  setSingleIrNotes({});
-                }}
-                data-testid="button-clear-single-ir"
-              >
-                Clear
-              </button>
-            </div>}
             {singleIrUndecided.length > 0 && <div className="text-xs opacity-70">
               Ratings learn: (1) which IRs work standalone vs need a partner, (2) your tonal preferences. Tags are stored and inform pairing suggestions.
             </div>}
