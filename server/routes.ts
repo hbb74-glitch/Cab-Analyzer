@@ -1508,6 +1508,7 @@ interface LearnedProfileData {
   perProfileAdjustments?: Record<string, ProfileAdjustment> | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  refinementRate: { total: number; refined: number; unfixable: number; rate: number } | null;
   courseCorrections: string[];
   gearInsights: GearInsights | null;
   ratioPreference: RatioPreference | null;
@@ -1518,14 +1519,14 @@ interface LearnedProfileData {
 
 async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<LearnedProfileData> {
   if (signals.length === 0) {
-    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null, standaloneWorthy: [], standaloneRecipes: [] };
+    return { signalCount: 0, likedCount: 0, nopedCount: 0, learnedAdjustments: null, avoidZones: [], status: "no_data", refinementRate: null, courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: null, standaloneWorthy: [], standaloneRecipes: [] };
   }
 
   const liked = signals.filter((s) => s.action === "love" || s.action === "like" || s.action === "meh" || s.action === "correction" || s.action === "taste_pick");
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: "Still learning -- rate some blends as Love or Like so I can start understanding your tonal preferences." };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", refinementRate: null, courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: "Still learning -- rate some blends as Love or Like so I can start understanding your tonal preferences." };
   }
 
   const signalWeight = (action: string): number => {
@@ -1597,7 +1598,26 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
   const recentNopeCount = recentSignals.filter((s) => s.action === "nope").length;
   const recentNopeSurge = recentNopeCount >= 5;
 
-  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses && !isDrifting && !recentNopeSurge;
+  const hasFeedbackTag = (s: PreferenceSignal, tag: string) =>
+    s.feedback ? s.feedback.split(",").map(t => t.trim()).includes(tag) : false;
+
+  const allRefinedCount = signals.filter(s => hasFeedbackTag(s, "pairing_refined")).length;
+  const allImprovedCount = signals.filter(s => hasFeedbackTag(s, "pairing_improved")).length;
+  const allUnfixableCount = signals.filter(s => hasFeedbackTag(s, "pairing_unfixable")).length;
+  const totalRefinementSignals = allImprovedCount + allUnfixableCount;
+
+  const recentImproved = recentSignals.filter(s => hasFeedbackTag(s, "pairing_improved")).length;
+  const recentUnfixable = recentSignals.filter(s => hasFeedbackTag(s, "pairing_unfixable")).length;
+  const recentRefinementTotal = recentImproved + recentUnfixable;
+  const recentRefinementRate = recentSignals.length >= 4 && recentRefinementTotal > 0
+    ? recentRefinementTotal / recentSignals.length : 0;
+  const highRefinementRate = recentRefinementRate >= 0.3;
+
+  const refinementRate: LearnedProfileData["refinementRate"] = totalRefinementSignals > 0
+    ? { total: totalRefinementSignals, refined: allRefinedCount, unfixable: allUnfixableCount, rate: recentRefinementRate }
+    : null;
+
+  const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses && !isDrifting && !recentNopeSurge && !highRefinementRate;
 
   const courseCorrections: string[] = [];
   if (!isMastered && strongSignals.length >= 10) {
@@ -1605,6 +1625,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     if (isDrifting) courseCorrections.push(driftReasons.join(", "));
     if (recentNopeSurge) courseCorrections.push(`${recentNopeCount} nopes in recent ratings -- narrowing targets`);
     if (!isConsistent) courseCorrections.push("wide variance in liked blends -- still converging");
+    if (highRefinementRate) courseCorrections.push(`${recentRefinementTotal} of last ${recentSignals.length} ratings needed refinement -- suggestions not matching preferences yet`);
   }
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
@@ -2168,7 +2189,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
 
   const tonalSummary = buildTonalSummary(adjustments, perProfileAdjustments, avoidZones, gearInsights, ratioPreference, courseCorrections, status, liked, noped, signals);
 
-  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, courseCorrections, gearInsights, ratioPreference, tonalSummary, standaloneWorthy, standaloneRecipes };
+  return { signalCount: signals.length, likedCount: liked.length, nopedCount: noped.length, learnedAdjustments: adjustments, perProfileAdjustments: Object.keys(perProfileAdjustments).length > 0 ? perProfileAdjustments : null, avoidZones, status, refinementRate, courseCorrections, gearInsights, ratioPreference, tonalSummary, standaloneWorthy, standaloneRecipes };
 }
 
 function buildTonalSummary(

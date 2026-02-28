@@ -347,7 +347,7 @@ export default function Pairing() {
         baseFilename: ref.ir1, featureFilename: ref.ir2, action: refinedAction,
         subBass: refIr2Bands.subBass, bass: refIr2Bands.bass, lowMid: refIr2Bands.lowMid,
         mid: refIr2Bands.mid, highMid: refIr2Bands.highMid, presence: refIr2Bands.presence,
-        ratio: ratioVal, score: 0, profileMatch: '', tags: ['pairing_refined'],
+        ratio: ratioVal, score: 0, profileMatch: '', feedback: 'pairing_refined',
       });
     }
     const origIr2Bands = lookupBands(originalPairing.ir2);
@@ -357,7 +357,7 @@ export default function Pairing() {
         baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: origAction,
         subBass: origIr2Bands.subBass, bass: origIr2Bands.bass, lowMid: origIr2Bands.lowMid,
         mid: origIr2Bands.mid, highMid: origIr2Bands.highMid, presence: origIr2Bands.presence,
-        ratio: origRatio2 ? origRatio2[0] / 100 : 0.5, score: 0, profileMatch: '', tags: ['pairing_improved'],
+        ratio: origRatio2 ? origRatio2[0] / 100 : 0.5, score: 0, profileMatch: '', feedback: 'pairing_improved',
       });
     }
     if (signals.length > 0) {
@@ -393,7 +393,7 @@ export default function Pairing() {
         baseFilename: ref.ir1, featureFilename: ref.ir2, action: 'love',
         subBass: refIr2Bands.subBass, bass: refIr2Bands.bass, lowMid: refIr2Bands.lowMid,
         mid: refIr2Bands.mid, highMid: refIr2Bands.highMid, presence: refIr2Bands.presence,
-        ratio: ratioVal, score: 0, profileMatch: '', tags: ['pairing_favorited'],
+        ratio: ratioVal, score: 0, profileMatch: '', feedback: 'pairing_favorited',
       }]}).then(() => {
         queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
       }).catch(() => {});
@@ -420,7 +420,7 @@ export default function Pairing() {
         baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: 'nope',
         subBass: origIr2Bands.subBass, bass: origIr2Bands.bass, lowMid: origIr2Bands.lowMid,
         mid: origIr2Bands.mid, highMid: origIr2Bands.highMid, presence: origIr2Bands.presence,
-        ratio: ratioParts ? ratioParts[0] / 100 : 0.5, score: 0, profileMatch: '', tags: ['pairing_unfixable'],
+        ratio: ratioParts ? ratioParts[0] / 100 : 0.5, score: 0, profileMatch: '', feedback: 'pairing_unfixable',
       }]}).then(() => {
         queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
       }).catch(() => {});

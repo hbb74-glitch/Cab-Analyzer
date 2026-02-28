@@ -178,7 +178,7 @@ function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject
             subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
             mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
             ratio: parseRatio(refRatio), score: 0, profileMatch: '',
-            tags: [`refined_from:${r.blend!.ir1}+${r.blend!.ir2}`, `refined_ratio:${refRatio}`],
+            feedback: `refined_from:${r.blend!.ir1}+${r.blend!.ir2},refined_ratio:${refRatio}`,
           });
           saveBlendFavorite({
             ir1: refIr1, ir2: refIr2, ratio: refRatio,
@@ -193,7 +193,7 @@ function TestAIResultRow({ r, idx, allIRs, speakerStatsMap, onFavorite, onReject
           subBass: origBands.subBass, bass: origBands.bass, lowMid: origBands.lowMid,
           mid: origBands.mid, highMid: origBands.highMid, presence: origBands.presence,
           ratio: origRatio, score: 0, profileMatch: '',
-          tags: improved ? ['ai_suggestion_improved'] : ['ai_suggestion_unfixable'],
+          feedback: improved ? 'ai_suggestion_improved' : 'ai_suggestion_unfixable',
         });
         apiRequest("POST", "/api/preferences/signals", { signals }).then(() => {
           queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
@@ -390,7 +390,7 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
           baseFilename: r.blend.ir1, featureFilename: r.blend.ir2, action: 'love',
           subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
           mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
-          ratio, score: r.score, profileMatch: '', tags: ['ai_suggestion_loved'],
+          ratio, score: r.score, profileMatch: '', feedback: 'ai_suggestion_loved',
         }]}).then(() => {
           queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
         });
@@ -411,7 +411,7 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
           subBass: irData.bands.subBass, bass: irData.bands.bass, lowMid: irData.bands.lowMid,
           mid: irData.bands.mid, highMid: irData.bands.highMid, presence: irData.bands.presence,
           ratio: irData.bands.mid > 0 ? Math.round((irData.bands.highMid / irData.bands.mid) * 100) / 100 : 1,
-          score: 0, profileMatch: '', tags: ['ai_suggestion_rejected'],
+          score: 0, profileMatch: '', feedback: 'ai_suggestion_rejected',
         }]}).then(() => {
           queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
         });
@@ -2722,7 +2722,7 @@ export default function Learner() {
           const parsedRatio = parseInt(ref.ratio.split("/")[0]) / 100;
           signals.push({
             action: promotedAction,
-            feedback: fb,
+            feedback: [fb, 'pairing_refined'].filter(Boolean).join(','),
             feedbackText: fbText,
             baseFilename: ref.ir1,
             featureFilename: ref.ir2,
@@ -2735,11 +2735,12 @@ export default function Learner() {
             ratio: parsedRatio,
             score: Math.round(pair.score) || 0,
             profileMatch: getRoleForFilename(ref.ir1),
-            tags: ['pairing_refined'],
           });
         }
         signals.push({
           action: actionLabel,
+          feedback: [fb, 'pairing_improved'].filter(Boolean).join(','),
+          feedbackText: fbText,
           baseFilename: pair.baseFilename,
           featureFilename: pair.featureFilename,
           subBass: pair.blendBands.subBass,
@@ -2751,7 +2752,6 @@ export default function Learner() {
           ratio: Math.round(r * 100) / 100,
           score: Math.round(pair.score) || 0,
           profileMatch: getRoleForFilename(pair.baseFilename),
-          tags: ['pairing_improved'],
         });
         if (promotedAction === "love" || promotedAction === "like") {
           saveBlendFavorite({ ir1: ref.ir1, ir2: ref.ir2, ratio: ref.ratio, source: 'learner', savedAt: new Date().toISOString() });
@@ -4020,6 +4020,16 @@ export default function Learner() {
                   ).join(", ")}
                 </span>
               )}
+              {learnedProfile.refinementRate && learnedProfile.refinementRate.total > 0 && (
+                <span className={cn(
+                  "text-[10px] font-mono",
+                  learnedProfile.refinementRate.rate >= 0.3 ? "text-orange-400" : "text-muted-foreground/70"
+                )}>
+                  Refinement: {learnedProfile.refinementRate.total} corrected
+                  {learnedProfile.refinementRate.unfixable > 0 && `, ${learnedProfile.refinementRate.unfixable} unfixable`}
+                  {learnedProfile.refinementRate.rate >= 0.3 && " -- needs more learning"}
+                </span>
+              )}
               {learnedProfile.gearInsights && (
                 <div className="w-full mt-2 space-y-2" data-testid="gear-insights">
                   {[
@@ -4320,7 +4330,7 @@ export default function Learner() {
                                     subBass: featData.bands.subBass, bass: featData.bands.bass, lowMid: featData.bands.lowMid,
                                     mid: featData.bands.mid, highMid: featData.bands.highMid, presence: featData.bands.presence,
                                     ratio: pair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '',
-                                    tags: ['pairing_favorited'],
+                                    feedback: 'pairing_favorited',
                                   }]}).then(() => {
                                     queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
                                   });
@@ -4905,7 +4915,7 @@ export default function Learner() {
                         lowMid: Math.round(featData.bands.lowMid), mid: Math.round(featData.bands.mid),
                         highMid: Math.round(featData.bands.highMid), presence: Math.round(featData.bands.presence),
                         ratio: winnerPair.suggestedRatio?.base ?? 0.5, score: 0, profileMatch: '',
-                        tags: ['taste_check_favorited'],
+                        feedback: 'taste_check_favorited',
                       }]);
                     }
                     toast({ title: "Saved to blend favorites", duration: 2000 });
@@ -4937,7 +4947,7 @@ export default function Learner() {
                         subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
                         mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
                         ratio: parseRatio(tasteRefineRatio), score: 0, profileMatch: '',
-                        tags: [`refined_from:${winnerPair.baseFilename}+${winnerPair.featureFilename}`, `refined_ratio:${tasteRefineRatio}`],
+                        feedback: `refined_from:${winnerPair.baseFilename}+${winnerPair.featureFilename},refined_ratio:${tasteRefineRatio}`,
                       });
                       saveBlendFavorite({
                         ir1: tasteRefineIr1, ir2: tasteRefineIr2, ratio: tasteRefineRatio,
@@ -4951,7 +4961,7 @@ export default function Learner() {
                       subBass: ir2Data.bands.subBass, bass: ir2Data.bands.bass, lowMid: ir2Data.bands.lowMid,
                       mid: ir2Data.bands.mid, highMid: ir2Data.bands.highMid, presence: ir2Data.bands.presence,
                       ratio: origRatio, score: 0, profileMatch: '',
-                      tags: improved ? ['taste_check_improved'] : ['taste_check_unfixable'],
+                      feedback: improved ? 'taste_check_improved' : 'taste_check_unfixable',
                     });
                     submitSignalsMutation.mutate(signals);
                     setTasteRefineSubmitted(true);

@@ -519,6 +519,7 @@ export interface LearnedProfileData {
   perProfileAdjustments?: Record<string, ProfileAdjustment> | null;
   avoidZones: { band: string; direction: string; threshold: number }[];
   status: "no_data" | "learning" | "confident" | "mastered";
+  refinementRate?: { total: number; refined: number; unfixable: number; rate: number } | null;
   courseCorrections: string[];
   gearInsights?: GearInsights | null;
   ratioPreference?: RatioPreference | null;
