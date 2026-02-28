@@ -953,6 +953,18 @@ function parseFilenameForExpectations(filename: string): {
   else if (lower.includes('k100')) { speaker = 'k100'; speakerDetected = true; }
   else if (lower.includes('karnivore') || lower.includes('karni')) { speaker = 'karnivore'; speakerDetected = true; }
   
+  // Detect shot variant letter (A, B, C, etc.) for single-mic IRs
+  // Format: Speaker_Mic_Position_A_2in.wav → variant = "A"
+  if (!variant && !isCombo) {
+    const singleVarMatch = filename.match(/[_-]([a-zA-Z])[_-](?:\d+(?:\.\d+)?\s*(?:in|inch|")?|$)/i);
+    if (singleVarMatch) {
+      const letter = singleVarMatch[1].toUpperCase();
+      if (letter !== 'V' && letter !== 'G' && letter !== 'K') {
+        variant = letter;
+      }
+    }
+  }
+  
   // Calculate parsing confidence
   const detectedCount = [micDetected, positionDetected, speakerDetected].filter(Boolean).length;
   let confidence: 'high' | 'medium' | 'low';
@@ -2944,7 +2956,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
-      - Cone_Axis: Cone position with mic aimed perpendicular to cone surface (not grill cloth), cleaner phase coherence, smoother upper mids, less fizz, more focused midrange clarity
+      - Cone_Axis: Cone position with mic aimed on-axis to cone surface (not perpendicular to grill cloth like standard Cone). BRIGHTER than standard Cone — cleaner phase coherence, more upper-mid presence, focused midrange clarity. Distinct from Cone.
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.${genre ? `
       
@@ -3330,7 +3342,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
-      - Cone_Axis: Cone position with mic perpendicular to cone surface, cleaner phase coherence, smoother upper mids, less fizz, focused midrange clarity
+      - Cone_Axis: Cone with mic on-axis to cone surface (not perpendicular to grill cloth). BRIGHTER than standard Cone — cleaner phase, more upper-mid presence, focused midrange
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.
       
@@ -5568,7 +5580,7 @@ MANDATORY RULES:
       - CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
       - CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
-      - Cone_Axis: Cone position with mic perpendicular to cone surface, cleaner phase, smoother upper mids, focused midrange
+      - Cone_Axis: Cone with mic on-axis to cone surface (not perpendicular to grill cloth). Brighter than standard Cone — cleaner phase, more upper-mid presence
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed
       
       Legacy Position Translation (users may use old names):
@@ -5607,7 +5619,7 @@ MANDATORY RULES:
       - CapEdge_BR: CapEdge favoring cap side, brighter
       - CapEdge_DK: CapEdge favoring cone side, darker/warmer
       - Cap_Cone_Tr: Smooth cone past cap edge, transition zone
-      - Cone_Axis: Cone with mic perpendicular to cone surface, cleaner phase, smoother upper mids
+      - Cone_Axis: Cone with mic on-axis to cone surface. Brighter than standard Cone — cleaner phase, more upper-mid clarity
       - Cone: True mid-cone, darkest, most body
       
       Distances: 0" to 6" in 0.5" increments

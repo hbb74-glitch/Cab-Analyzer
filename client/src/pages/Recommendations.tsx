@@ -1743,7 +1743,7 @@ export default function Recommendations() {
       const positionMap: Record<string, string> = {
         'cap': 'Cap', 'cap_offcenter': 'Cap_OffCenter', 'capedge': 'CapEdge',
         'capedge_br': 'CapEdge_BR', 'capedge_dk': 'CapEdge_DK',
-        'cap_cone_tr': 'Cap_Cone_Tr', 'cone': 'Cone',
+        'cap_cone_tr': 'Cap_Cone_Tr', 'cone_axis': 'Cone_Axis', 'cone': 'Cone',
       };
       return positionMap[posLower] || pos;
     };
@@ -1752,7 +1752,7 @@ export default function Recommendations() {
       const posLower = pos.toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
       const order: Record<string, number> = {
         'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
-        'cap_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
+        'cap_cone_tr': 5, 'capedge_dk': 6, 'cone_axis': 7, 'cone': 8
       };
       return order[posLower] || 99;
     };
@@ -2239,6 +2239,7 @@ export default function Recommendations() {
     "capedge_br": "CapEdge_BR",
     "capedge_dk": "CapEdge_DK",
     "cap_cone_tr": "Cap_Cone_Tr",
+    "cone_axis": "Cone_Axis", "coneaxis": "Cone_Axis", "cone_ax": "Cone_Axis", "coneax": "Cone_Axis",
     "cone": "Cone",
     "blend": "Blend",
     // Legacy mappings

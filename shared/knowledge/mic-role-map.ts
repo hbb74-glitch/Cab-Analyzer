@@ -90,12 +90,12 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     mic: "SM57", position: "Cone_Axis", distance: "1",
     predictedRole: "Foundation", confidence: "medium",
     tonalProfile: {
-      character: "Cone position with mic perpendicular to cone surface — cleaner phase coherence, smoother upper mids, less fizz, focused midrange clarity",
-      expectedMid: [25, 32], expectedHighMid: [15, 21], expectedPresence: [7, 13],
-      expectedRatio: [0.55, 0.9], expectedCentroid: [1300, 1900],
+      character: "Cone position with mic aimed on-axis to cone surface — brighter than standard cone, cleaner phase coherence, focused midrange clarity with more upper-mid presence",
+      expectedMid: [22, 28], expectedHighMid: [20, 26], expectedPresence: [10, 16],
+      expectedRatio: [0.75, 1.15], expectedCentroid: [1800, 2500],
     },
     bestForIntents: ["rhythm", "clean"],
-    blendNotes: "Smoother than standard Cone — better phase coherence makes it a cleaner Foundation or Mid Thickener option",
+    blendNotes: "Brighter than standard Cone due to on-axis angle — cleaner phase coherence, strong Foundation option",
   },
 
   // ── MD421 / MD421 Kompakt ──
@@ -136,12 +136,12 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     mic: "MD421", position: "Cone_Axis", distance: "1",
     predictedRole: "Foundation", confidence: "medium",
     tonalProfile: {
-      character: "Cone with mic perpendicular to surface — tighter phase, smoother upper mids, clearer midrange focus than standard Cone",
-      expectedMid: [26, 32], expectedHighMid: [15, 21], expectedPresence: [7, 13],
-      expectedRatio: [0.5, 0.8], expectedCentroid: [1300, 1800],
+      character: "Cone with mic aimed on-axis to cone surface — brighter than standard Cone, tighter phase, more upper-mid articulation and clarity",
+      expectedMid: [22, 28], expectedHighMid: [20, 26], expectedPresence: [9, 15],
+      expectedRatio: [0.7, 1.1], expectedCentroid: [1800, 2400],
     },
     bestForIntents: ["rhythm", "clean"],
-    blendNotes: "Cleaner phase than standard MD421@Cone — more usable as a Foundation layer",
+    blendNotes: "Brighter than standard MD421@Cone — on-axis angle provides more clarity for Foundation use",
   },
   {
     mic: "MD421K", position: "Cap", distance: "1",
@@ -298,12 +298,12 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     mic: "SM7B", position: "Cone_Axis", distance: "3",
     predictedRole: "Foundation", confidence: "medium",
     tonalProfile: {
-      character: "SM7B cone with perpendicular angle — cleaner phase coherence, smoother upper mids, focused midrange clarity",
-      expectedMid: [26, 32], expectedHighMid: [13, 19], expectedPresence: [6, 12],
-      expectedRatio: [0.45, 0.8], expectedCentroid: [1150, 1750],
+      character: "SM7B cone with mic aimed on-axis to cone surface — brighter than standard SM7B cone, cleaner phase coherence, more upper-mid presence and clarity",
+      expectedMid: [24, 30], expectedHighMid: [16, 22], expectedPresence: [8, 14],
+      expectedRatio: [0.6, 1.0], expectedCentroid: [1600, 2200],
     },
     bestForIntents: ["rhythm", "clean"],
-    blendNotes: "SM7B Cone_Axis — smoother than standard cone shot, cleaner phase for Foundation use",
+    blendNotes: "SM7B Cone_Axis — brighter than standard cone due to on-axis angle, cleaner phase for Foundation use",
   },
   {
     mic: "SM7B", position: "Cone_Br", distance: "3",

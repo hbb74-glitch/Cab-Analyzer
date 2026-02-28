@@ -247,6 +247,18 @@ function parseFilename(filename: string): ParsedFilename {
     }
   }
   
+  // Detect shot variant letter (A, B, C, etc.) right before distance for single-mic IRs
+  // e.g., V30_SM57_CapEdge_A_2in.wav → shotVariant = "A"
+  if (!result.shotVariant) {
+    const variantMatch = name.match(/[_-]([a-z])[_-](?:\d+(?:\.\d+)?\s*(?:in|inch|")?|$)/i);
+    if (variantMatch) {
+      const letter = variantMatch[1].toUpperCase();
+      if (letter !== 'V' && letter !== 'G' && letter !== 'K') {
+        result.shotVariant = letter;
+      }
+    }
+  }
+  
   return result;
 }
 
@@ -493,7 +505,8 @@ function findRedundancyGroups(
       const vec2 = buildPerceptualFeatureVector(irs[j].metrics);
       const mDiff = maxAbsDiff(vec1, vec2);
 
-      if (similarity >= threshold && mDiff <= 1.25) {
+      const mDiffLimit = threshold >= 0.95 ? 1.25 : threshold >= 0.90 ? 1.5 : 1.8;
+      if (similarity >= threshold && mDiff <= mDiffLimit) {
         uf.union(i, j);
         similarities.set(`${i}-${j}`, similarity);
       }
@@ -908,8 +921,10 @@ function cullIRs(
     if (pos === 'cap' || pos === 'cap_offcenter') return 'cap';
     // CapEdge family: capedge, cap_cone_trn, capedge_br
     if (pos.includes('capedge') || pos === 'cap_cone_trn') return 'capedge';
-    // Cone family: cone, cone_axis, cone_br
-    if (pos.includes('cone') && !pos.includes('cap')) return 'cone';
+    // Cone_Axis is its own family — brighter than standard cone, distinct technique (mic on-axis to cone surface)
+    if (pos === 'cone_axis' || pos === 'cone_ax') return 'cone_axis';
+    // Cone family: cone, cone_br
+    if (pos.includes('cone') && !pos.includes('cap') && !pos.includes('axis') && !pos.includes('_ax')) return 'cone';
     // Edge family
     if (pos === 'edge') return 'edge';
     return pos; // Default to exact position
@@ -5311,7 +5326,7 @@ export default function Analyzer() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">Threshold:</span>
                         <button
-                          onClick={() => setSimilarityThreshold(Math.max(0.90, similarityThreshold - 0.005))}
+                          onClick={() => setSimilarityThreshold(Math.max(0.85, similarityThreshold - 0.005))}
                           className="w-6 h-6 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-xs font-bold border border-amber-500/30"
                           data-testid="button-threshold-decrease"
                         >
@@ -5321,8 +5336,8 @@ export default function Analyzer() {
                           type="range"
                           min="0"
                           max="100"
-                          value={Math.round((similarityThreshold - 0.90) / 0.10 * 100)}
-                          onChange={(e) => setSimilarityThreshold(0.90 + (parseInt(e.target.value) / 100) * 0.10)}
+                          value={Math.round((similarityThreshold - 0.85) / 0.15 * 100)}
+                          onChange={(e) => setSimilarityThreshold(0.85 + (parseInt(e.target.value) / 100) * 0.15)}
                           className="w-16 h-1 accent-amber-400"
                           data-testid="slider-similarity-threshold"
                         />
