@@ -326,7 +326,7 @@ ${profile.avoid}`;
 // Mic type detection for rule enforcement
 const RIBBON_MICS = ['r121', 'r10', 'r92', '121', '10', '92'];
 const CONDENSER_MICS = ['roswell', 'c414', '414'];
-const BASIC_POSITIONS = ['cap', 'capedge', 'cap_cone_tr', 'cone'];
+const BASIC_POSITIONS = ['cap', 'capedge', 'cap_cone_tr', 'cone', 'cone_axis'];
 
 // Post-processing validation to enforce rules the AI might violate
 function validateAndFixRecommendations(
@@ -443,7 +443,9 @@ function validateAndFixRecommendations(
       const posLower = (shot.position || '').toLowerCase()
         .replace(/[^a-z_]/g, '')
         .replace(/capedgeconetr/g, 'cap_cone_tr')
-        .replace(/capedge_cone_tr/g, 'cap_cone_tr');
+        .replace(/capedge_cone_tr/g, 'cap_cone_tr')
+        .replace(/coneaxis/g, 'cone_axis')
+        .replace(/coneax$/g, 'cone_axis');
       if (posLower === 'blend') return true;
       const isBasic = BASIC_POSITIONS.some(bp => posLower === bp || posLower.startsWith(bp + '_'));
       if (!isBasic) {
@@ -920,6 +922,7 @@ function parseFilenameForExpectations(filename: string): {
     if (lower.includes('capedge_br') || lower.includes('capedgebr')) { position = 'capedge_br'; positionDetected = true; }
     else if (lower.includes('capedge_dk') || lower.includes('capedgedk')) { position = 'capedge_dk'; positionDetected = true; }
     else if (lower.includes('cap_cone_tr') || lower.includes('capedgeconetr') || lower.includes('capedge_cone_tr') || lower.includes('cone_tr')) { position = 'cap_cone_tr'; positionDetected = true; }
+    else if (lower.includes('cone_axis') || lower.includes('cone_ax_') || lower.includes('coneaxis') || lower.includes('coneax_') || lower.match(/_cone_ax[_.]/) || lower.endsWith('_cone_ax')) { position = 'cone_axis'; positionDetected = true; }
     // Legacy mappings
     else if (lower.includes('capedge_favorcap') || lower.includes('cap_edge_favor_cap') || lower.includes('capedgefavorcap') || lower.includes('favorcap')) { position = 'capedge_br'; positionDetected = true; }
     else if (lower.includes('capedge_favorcone') || lower.includes('cap_edge_favor_cone') || lower.includes('capedgefavorcone') || lower.includes('favorcone')) { position = 'capedge_dk'; positionDetected = true; }
@@ -1362,6 +1365,7 @@ const GEAR_POSITION_PATTERNS: Record<string, string> = {
   "capoffcenter": "Cap Off-Center", "cap_offcenter": "Cap Off-Center", "offcenter": "Cap Off-Center",
   "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
   "cap": "Cap", "center": "Cap",
+  "cone_axis": "Cone Axis", "coneaxis": "Cone Axis", "cone_ax": "Cone Axis", "coneax": "Cone Axis",
   "cone": "Cone",
 };
 
@@ -2940,6 +2944,7 @@ VALIDATION: Before outputting, verify EVERY checklist mic appears with correct c
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter than standard CapEdge
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer than standard CapEdge
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cone_Axis: Cone position with mic aimed perpendicular to cone surface (not grill cloth), cleaner phase coherence, smoother upper mids, less fizz, more focused midrange clarity
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.${genre ? `
       
@@ -3325,6 +3330,7 @@ Use these curated recipes as the foundation of your recommendations. You may add
       - CapEdge_BR: CapEdge favoring the cap side of the seam, brighter
       - CapEdge_DK: CapEdge favoring the cone side of the seam, darker/warmer
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge, transition zone
+      - Cone_Axis: Cone position with mic perpendicular to cone surface, cleaner phase coherence, smoother upper mids, less fizz, focused midrange clarity
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed, darkest/warmest
       - Blend: ONLY for blend/multi-mic setups (SM57+R121 blends, Fredman). NEVER use for single mics.
       
@@ -3618,6 +3624,7 @@ Output JSON:
           let mic = normalizeMicCode(shot.mic || '');
           let pos = (shot.position || '').toLowerCase()
             .replace(/off-axis.*|on-axis.*/i, '')
+            .replace(/cone[\s_]?ax(is)?/i, 'cone_axis')
             .replace(/center of cone/i, 'cone')
             .replace(/edge of cone/i, 'capedge')
             .replace(/cap edge/i, 'capedge')
@@ -5561,6 +5568,7 @@ MANDATORY RULES:
       - CapEdge_BR: CapEdge favoring the cap side of the seam (brighter)
       - CapEdge_DK: CapEdge favoring the cone side of the seam (darker)
       - Cap_Cone_Tr: Smooth cone immediately past the cap edge (transition zone)
+      - Cone_Axis: Cone position with mic perpendicular to cone surface, cleaner phase, smoother upper mids, focused midrange
       - Cone: True mid-cone position, further out from the cap edge, ribs allowed
       
       Legacy Position Translation (users may use old names):
@@ -5599,6 +5607,7 @@ MANDATORY RULES:
       - CapEdge_BR: CapEdge favoring cap side, brighter
       - CapEdge_DK: CapEdge favoring cone side, darker/warmer
       - Cap_Cone_Tr: Smooth cone past cap edge, transition zone
+      - Cone_Axis: Cone with mic perpendicular to cone surface, cleaner phase, smoother upper mids
       - Cone: True mid-cone, darkest, most body
       
       Distances: 0" to 6" in 0.5" increments

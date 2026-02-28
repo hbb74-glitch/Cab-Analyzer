@@ -86,6 +86,17 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     bestForIntents: ["rhythm", "clean"],
     blendNotes: "Good neutral option between CapEdge and Cone characteristics",
   },
+  {
+    mic: "SM57", position: "Cone_Axis", distance: "1",
+    predictedRole: "Foundation", confidence: "medium",
+    tonalProfile: {
+      character: "Cone position with mic perpendicular to cone surface — cleaner phase coherence, smoother upper mids, less fizz, focused midrange clarity",
+      expectedMid: [25, 32], expectedHighMid: [15, 21], expectedPresence: [7, 13],
+      expectedRatio: [0.55, 0.9], expectedCentroid: [1300, 1900],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "Smoother than standard Cone — better phase coherence makes it a cleaner Foundation or Mid Thickener option",
+  },
 
   // ── MD421 / MD421 Kompakt ──
   {
@@ -120,6 +131,17 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     },
     bestForIntents: ["rhythm"],
     blendNotes: "Tighter low-end than SM57@Cone, more controlled body layer",
+  },
+  {
+    mic: "MD421", position: "Cone_Axis", distance: "1",
+    predictedRole: "Foundation", confidence: "medium",
+    tonalProfile: {
+      character: "Cone with mic perpendicular to surface — tighter phase, smoother upper mids, clearer midrange focus than standard Cone",
+      expectedMid: [26, 32], expectedHighMid: [15, 21], expectedPresence: [7, 13],
+      expectedRatio: [0.5, 0.8], expectedCentroid: [1300, 1800],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "Cleaner phase than standard MD421@Cone — more usable as a Foundation layer",
   },
   {
     mic: "MD421K", position: "Cap", distance: "1",
@@ -271,6 +293,17 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
     },
     bestForIntents: ["rhythm", "clean"],
     blendNotes: "SM7B cone — maximum warmth and body, needs bright partner for balance",
+  },
+  {
+    mic: "SM7B", position: "Cone_Axis", distance: "3",
+    predictedRole: "Foundation", confidence: "medium",
+    tonalProfile: {
+      character: "SM7B cone with perpendicular angle — cleaner phase coherence, smoother upper mids, focused midrange clarity",
+      expectedMid: [26, 32], expectedHighMid: [13, 19], expectedPresence: [6, 12],
+      expectedRatio: [0.45, 0.8], expectedCentroid: [1150, 1750],
+    },
+    bestForIntents: ["rhythm", "clean"],
+    blendNotes: "SM7B Cone_Axis — smoother than standard cone shot, cleaner phase for Foundation use",
   },
   {
     mic: "SM7B", position: "Cone_Br", distance: "3",

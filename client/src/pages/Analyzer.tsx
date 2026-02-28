@@ -29,7 +29,7 @@ import { classifyMusicalRole, applyContextBias, computeSpeakerStats, inferSpeake
 // Validation schema for the form
 const formSchema = z.object({
   micType: z.string().min(1, "Microphone is required"),
-  micPosition: z.enum(["cap", "cap_offcenter", "capedge", "capedge_br", "capedge_dk", "cap_cone_tr", "cone"]),
+  micPosition: z.enum(["cap", "cap_offcenter", "capedge", "capedge_br", "capedge_dk", "cap_cone_tr", "cone_axis", "cone"]),
   speakerModel: z.string().min(1, "Speaker model is required"),
   distance: z.string().min(1, "Distance is required (e.g. '1 inch')"),
 });
@@ -91,6 +91,7 @@ const POSITION_PATTERNS: Record<string, string> = {
   "cap_offcenter": "cap_offcenter", "capoffcenter": "cap_offcenter", "offcenter": "cap_offcenter",
   "capedge": "capedge", "cap_edge": "capedge", "edge": "capedge",
   "cap": "cap", "center": "cap",
+  "cone_axis": "cone_axis", "coneaxis": "cone_axis", "cone_ax": "cone_axis", "coneax": "cone_axis",
   "cone": "cone",
   // Legacy mappings for backwards compatibility
   "cap-edge-favor-cap": "capedge_br", "favorcap": "capedge_br",
@@ -279,6 +280,7 @@ const POS_TOKENS = [
   "capedge_dk",
   "capedge",
   "cap",
+  "cone_axis",
   "cone",
 ];
 
@@ -722,6 +724,7 @@ function cullIRs(
     if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
     if (lower.includes('cap_offcenter') || lower.includes('offcenter')) return 'cap_offcenter';
     if (lower.includes('cap')) return 'cap';
+    if (lower.includes('cone_axis') || lower.includes('cone_ax')) return 'cone_axis';
     if (lower.includes('cone')) return 'cone';
     return 'unknown';
   };
@@ -905,7 +908,7 @@ function cullIRs(
     if (pos === 'cap' || pos === 'cap_offcenter') return 'cap';
     // CapEdge family: capedge, cap_cone_trn, capedge_br
     if (pos.includes('capedge') || pos === 'cap_cone_trn') return 'capedge';
-    // Cone family: cone, cone_br
+    // Cone family: cone, cone_axis, cone_br
     if (pos.includes('cone') && !pos.includes('cap')) return 'cone';
     // Edge family
     if (pos === 'edge') return 'edge';
@@ -1896,7 +1899,7 @@ export default function Analyzer() {
         "Cap": ["cap", "center"], "CapEdge": ["capedge", "cap_edge"],
         "CapEdge-Bright": ["capedge_br", "capedgebr"], "CapEdge-Dark": ["capedge_dk", "capedgedk"],
         "Cap-Cone Transition": ["cap_cone_trn", "capconetr", "cone_tr"],
-        "Cap Off-Center": ["cap_offcenter", "capoffcenter", "offcenter"], "Cone": ["cone"],
+        "Cap Off-Center": ["cap_offcenter", "capoffcenter", "offcenter"], "Cone Axis": ["cone_axis", "coneaxis", "cone_ax", "coneax"], "Cone": ["cone"],
         "Blend": ["blend"],
       };
       const aliases = normalizations[name];
@@ -3370,6 +3373,7 @@ export default function Analyzer() {
       if (lower.includes('capedge') || lower.includes('cap_edge')) return 'capedge';
       if (lower.includes('cap_offcenter') || lower.includes('offcenter')) return 'cap_offcenter';
       if (lower.includes('cap')) return 'cap';
+      if (lower.includes('cone_axis') || lower.includes('cone_ax')) return 'cone_axis';
       if (lower.includes('cone')) return 'cone';
       return 'unknown';
     };
@@ -6689,6 +6693,7 @@ export default function Analyzer() {
                       <option value="capedge_br">CapEdge_BR (Brighter)</option>
                       <option value="capedge_dk">CapEdge_DK (Darker)</option>
                       <option value="cap_cone_tr">Cap_Cone_Tr (Transition)</option>
+                      <option value="cone_axis">Cone_Axis (Perpendicular)</option>
                       <option value="cone">Cone</option>
                     </select>
                   </div>

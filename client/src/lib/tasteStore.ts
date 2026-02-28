@@ -915,11 +915,12 @@ export function getValidatedShotInsights(): ValidatedShotInsight[] {
   const state = loadState();
 
   const micPattern = /\b(sm57|sm7b|md421k?|md441|e906|pr30|m88|m201|r121|r10|r92|m160|roswell|c414)\b/i;
-  const posPattern = /\b(capedge|cap_edge|cap edge|cone|cap)\b/i;
+  const posPattern = /\b(capedge|cap_edge|cap edge|cone_axis|cone_ax|cone|cap)\b/i;
   const distPattern = /(?:_|\b)(\d+(?:\.\d+)?)\s*(?:in|"|'')?(?=[\s_.\-]|$)/i;
 
   const posNormalize: Record<string, string> = {
     'capedge': 'CapEdge', 'cap_edge': 'CapEdge', 'cap edge': 'CapEdge',
+    'cone_axis': 'Cone_Axis', 'cone_ax': 'Cone_Axis',
     'cone': 'Cone', 'cap': 'Cap',
   };
 

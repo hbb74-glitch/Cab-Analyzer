@@ -152,6 +152,7 @@ const PREF_POSITION_PATTERNS: Record<string, string> = {
   "cap_offcenter": "Cap_OffCenter", "capoffcenter": "Cap_OffCenter", "offcenter": "Cap_OffCenter",
   "capedge": "CapEdge", "cap_edge": "CapEdge", "edge": "CapEdge",
   "cap": "Cap", "center": "Cap",
+  "cone_axis": "Cone_Axis", "coneaxis": "Cone_Axis", "cone_ax": "Cone_Axis", "coneax": "Cone_Axis",
   "cone": "Cone",
   "cap-edge-favor-cap": "CapEdge_BR", "favorcap": "CapEdge_BR",
   "cap-edge-favor-cone": "CapEdge_DK", "favorcone": "CapEdge_DK",
@@ -208,7 +209,7 @@ function sortRecommendations<T extends { micLabel?: string; distance?: string; p
     const posLower = (pos || '').toLowerCase().replace(/-/g, '_').replace(/ /g, '_');
     const order: Record<string, number> = {
       'cap': 1, 'cap_offcenter': 2, 'capedge_br': 3, 'capedge': 4, 
-      'cap_cone_tr': 5, 'capedge_cone_tr': 5, 'capedge_dk': 6, 'cone': 7
+      'cap_cone_tr': 5, 'capedge_cone_tr': 5, 'capedge_dk': 6, 'cone_axis': 7, 'cone': 8
     };
     return order[posLower] || 99;
   };
@@ -1640,6 +1641,10 @@ export default function Recommendations() {
         'capedgedk': 'CapEdge_DK',
         'cap_cone_tr': 'Cap_Cone_Tr',
         'capconetr': 'Cap_Cone_Tr',
+        'cone_axis': 'Cone_Axis',
+        'coneaxis': 'Cone_Axis',
+        'cone_ax': 'Cone_Axis',
+        'coneax': 'Cone_Axis',
         'cone': 'Cone',
         // Legacy mappings
         'cap_edge_favor_cap': 'CapEdge_BR',

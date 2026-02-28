@@ -268,7 +268,8 @@ export function applyContextBias(
   if (name.includes("capedge_br")) score["Cut Layer"] += 0.4;
   if (name.includes("capedge")) score["Foundation"] += 0.2;
   if (name.includes("cone_tr") || name.includes("cap_cone_tr")) score["Fizz Tamer"] += 0.4;
-  if (name.includes("cone_")) score["Mid Thickener"] += 0.3;
+  if (name.includes("cone_axis") || name.includes("cone_ax")) { score["Foundation"] += 0.5; score["Mid Thickener"] += 0.3; }
+  else if (name.includes("cone_")) score["Mid Thickener"] += 0.3;
   if (name.includes("fredman")) score["Foundation"] += 0.4;
   if (name.includes("_thick_")) score["Mid Thickener"] += 0.5;
   if (name.includes("_balanced_")) score["Foundation"] += 0.4;
