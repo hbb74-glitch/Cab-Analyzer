@@ -5,9 +5,9 @@ export type SpeakerStats = {
   std: Record<string, number>;
 };
 
-export type MusicalRole = "Foundation" | "Cut Layer" | "Mid Thickener" | "Fizz Tamer" | "Lead Polish" | "Dark Specialty";
+export type MusicalRole = "Foundation" | "Cut Layer" | "Mid Thickener" | "Fizz Tamer" | "Dark Specialty";
 
-export const ALL_ROLES: MusicalRole[] = ["Foundation", "Cut Layer", "Mid Thickener", "Fizz Tamer", "Lead Polish", "Dark Specialty"];
+export const ALL_ROLES: MusicalRole[] = ["Foundation", "Cut Layer", "Mid Thickener", "Fizz Tamer", "Dark Specialty"];
 
 export function inferSpeakerIdFromFilename(filename: string): string {
   const base = (filename || "").split("/").pop() || filename || "";
@@ -167,20 +167,6 @@ export function classifyMusicalRole(tf: TonalFeatures, speakerStats?: SpeakerSta
     }
   }
 
-  const extended = ext > 0 && (speakerStats ? (zExt >= 0.6) : (ext >= 4200));
-  const verySmooth = smooth >= 87;
-  const hasPresenceClarity = presence >= 14 && presence <= 55;
-  const notFizzy = fizz <= 1.2 || zFizz <= 0.35;
-  const notScoopedToDeath = (mid + lowMid) >= 16;
-  const notExtremeCut = presence <= 58 && zPresence <= 1.9 && cutCoreRatio <= 3.4;
-  const aboveAvgTopEnd = speakerStats
-    ? (zCentroid >= 0.4 || zPresence >= 0.3)
-    : (centroid >= 2500 || presence >= 20);
-
-  if (extended && verySmooth && notFizzy && hasPresenceClarity && notScoopedToDeath && notExtremeCut && aboveAvgTopEnd) {
-    return "Lead Polish";
-  }
-
   const cutForward =
     presence >= 50 ||
     cutCoreRatio >= 3.0 ||
@@ -273,7 +259,6 @@ export function applyContextBias(
     "Cut Layer": 0,
     "Mid Thickener": 0,
     "Fizz Tamer": 0,
-    "Lead Polish": 0,
     "Dark Specialty": 0,
   };
 
@@ -287,7 +272,7 @@ export function applyContextBias(
   if (name.includes("fredman")) score["Foundation"] += 0.4;
   if (name.includes("_thick_")) score["Mid Thickener"] += 0.5;
   if (name.includes("_balanced_")) score["Foundation"] += 0.4;
-  if (name.includes("_tight_")) score["Lead Polish"] += 0.4;
+  if (name.includes("_tight_")) score["Foundation"] += 0.4;
 
   if (name.includes("_r121_") || name.includes("r121")) score["Mid Thickener"] += 0.4;
   if (name.includes("_roswell_") || name.includes("roswell")) score["Dark Specialty"] += 0.7;
@@ -297,9 +282,6 @@ export function applyContextBias(
   if (name.includes("_m201_") || name.includes("m201")) score["Foundation"] += 0.25;
   if (name.includes("_e906_") || name.includes("e906")) score["Cut Layer"] += 0.25;
   if (name.includes("_sm57_") || name.includes("sm57")) score["Foundation"] += 0.15;
-
-  const sheenCandidate = smooth >= 88 && ext >= 4800 && presencePct <= 48 && hiMidMid <= 1.75 && tilt >= -5.2 && (airPct >= 2.0 || zAir >= 0.7) && (fizzPct <= 0.9 || zFizz <= 0.2);
-  if (sheenCandidate) score["Lead Polish"] += 0.9;
 
   if ((ext > 0 && ext < 3600) || tilt <= -6.2 || zTilt <= -1.3) score["Dark Specialty"] += 1.0;
 
@@ -330,35 +312,33 @@ export const INTENT_ROLE_PREFERENCES: Record<Intent, { preferred: [MusicalRole, 
       ["Cut Layer", "Dark Specialty"],
     ],
     good: ["Foundation", "Mid Thickener", "Fizz Tamer", "Cut Layer"],
-    avoid: ["Lead Polish"],
+    avoid: [],
   },
   lead: {
     preferred: [
       ["Foundation", "Cut Layer"],
-      ["Foundation", "Lead Polish"],
-      ["Cut Layer", "Lead Polish"],
       ["Cut Layer", "Mid Thickener"],
       ["Foundation", "Foundation"],
       ["Cut Layer", "Fizz Tamer"],
+      ["Foundation", "Mid Thickener"],
     ],
-    good: ["Cut Layer", "Lead Polish", "Foundation"],
+    good: ["Cut Layer", "Foundation", "Mid Thickener"],
     avoid: ["Dark Specialty"],
   },
   clean: {
     preferred: [
-      ["Foundation", "Lead Polish"],
       ["Foundation", "Foundation"],
       ["Foundation", "Cut Layer"],
-      ["Lead Polish", "Mid Thickener"],
-      ["Foundation", "Dark Specialty"],
       ["Foundation", "Fizz Tamer"],
+      ["Foundation", "Mid Thickener"],
+      ["Foundation", "Dark Specialty"],
     ],
-    good: ["Foundation", "Lead Polish", "Fizz Tamer"],
+    good: ["Foundation", "Fizz Tamer", "Mid Thickener"],
     avoid: [],
   },
 };
 
-const BAD_SAME_ROLE_PAIRS = new Set<MusicalRole>(["Dark Specialty", "Cut Layer", "Fizz Tamer", "Mid Thickener", "Lead Polish"]);
+const BAD_SAME_ROLE_PAIRS = new Set<MusicalRole>(["Dark Specialty", "Cut Layer", "Fizz Tamer", "Mid Thickener"]);
 
 export function scoreRolePairForIntent(
   roleA: MusicalRole,
@@ -450,7 +430,6 @@ export function findFoundationCandidates(
   const roleBias = (role: MusicalRole): number => {
     switch (role) {
       case "Foundation": return -0.40;
-      case "Lead Polish": return -0.10;
       case "Mid Thickener": return +0.10;
       case "Cut Layer": return +0.15;
       case "Fizz Tamer": return +0.25;
@@ -539,7 +518,6 @@ export function pickFoundationCandidates(
   const roleBias = (role: string): number => {
     switch (role) {
       case "Foundation": return -0.40;
-      case "Lead Polish": return -0.10;
       case "Mid Thickener": return +0.10;
       case "Cut Layer": return +0.15;
       case "Fizz Tamer": return +0.25;
@@ -613,7 +591,6 @@ export function roleBadgeClass(role: string): string {
     case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";
     case "Mid Thickener": return "bg-amber-500/15 text-amber-400";
     case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
-    case "Lead Polish": return "bg-violet-500/15 text-violet-400";
     case "Dark Specialty": return "bg-zinc-500/15 text-zinc-300";
     case "Foundation": return "bg-emerald-500/15 text-emerald-400";
     default: return "bg-white/10 text-muted-foreground";

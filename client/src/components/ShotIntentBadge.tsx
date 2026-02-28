@@ -6,7 +6,6 @@ const ROLE_COLORS: Record<string, string> = {
   "Cut Layer": "bg-cyan-500/15 text-cyan-400",
   "Mid Thickener": "bg-amber-500/15 text-amber-400",
   "Fizz Tamer": "bg-sky-500/15 text-sky-400",
-  "Lead Polish": "bg-violet-500/15 text-violet-400",
   "Dark Specialty": "bg-zinc-500/15 text-zinc-300",
 };
 

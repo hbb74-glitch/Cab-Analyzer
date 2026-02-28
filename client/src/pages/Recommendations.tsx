@@ -509,7 +509,6 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
       case "Cut Layer": return "bg-cyan-500/15 text-cyan-400";
       case "Mid Thickener": return "bg-amber-500/15 text-amber-400";
       case "Fizz Tamer": return "bg-sky-500/15 text-sky-400";
-      case "Lead Polish": return "bg-violet-500/15 text-violet-400";
       case "Dark Specialty": return "bg-zinc-500/15 text-zinc-300";
       case "Foundation": return "bg-emerald-500/15 text-emerald-400";
       default: return "bg-white/10 text-muted-foreground";
@@ -956,7 +955,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                       data-testid="input-lead-count"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground/70">Foundation, Cut, Lead Polish</p>
+                  <p className="text-[10px] text-muted-foreground/70">Foundation, Cut Layer, Mid Thickener</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium uppercase tracking-wider flex items-center gap-1">
@@ -974,7 +973,7 @@ function ShotDesignerPanel({ speakers, genres }: { speakers: { value: string; la
                       data-testid="input-clean-count"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground/70">Foundation, Lead Polish, Smooth</p>
+                  <p className="text-[10px] text-muted-foreground/70">Foundation, Fizz Tamer, Mid Thickener</p>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground text-center">

@@ -33,6 +33,7 @@ Preferred communication style: Simple, everyday language.
 - **Learner Module**: Client-side taste learning for blend permutation preview, IR evaluation, and profile matching. Uses a canonical pipeline for tonal feature computation.
 - **Preference Profiles**: Utilizes "Featured" and "Body" tonal profiles with sentiment-based feedback (`Love/Like/Meh/Nope`) to adjust profile targets.
 - **Gear Insights**: Computes sentiment and average tonal band values for individual gear.
+- **Musical Roles**: 5 roles — Foundation (balanced workhorse, includes smooth condensers), Cut Layer (bright/aggressive), Mid Thickener (warm body), Fizz Tamer (smooth/dark top), Dark Specialty (very dark). "Lead Polish" was removed as it didn't map to real mic recording behavior.
 - **Shot Intent System**: Classifies mic/position roles (e.g., "feature-intended" or "body-intended") based on a knowledge base, applying confidence-scaled bonuses to classification and pairing suggestions.
 - **Collection Designer**: AI-powered collection planner with a mic-role knowledge base (40+ mic/position rules), mapping combos to predicted musical roles and intent suitability. Supports intent-based planning and automatic role budget computation.
 - **Solo-First Learning Philosophy**: Prioritizes solo IR evaluations as the strongest teaching signal for clear tonal preference data, treating solo-proven IRs as safe foundation choices.

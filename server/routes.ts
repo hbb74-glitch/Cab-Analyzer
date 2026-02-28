@@ -1751,7 +1751,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
   };
 
   const WARM_ROLES = new Set(["Mid Thickener", "Dark Specialty", "Fizz Tamer"]);
-  const BRIGHT_ROLES = new Set(["Cut Layer", "Lead Polish"]);
+  const BRIGHT_ROLES = new Set(["Cut Layer"]);
   const NEUTRAL_ROLES = new Set(["Foundation"]);
   const roleFamilyTargets: Record<string, { roles: Set<string>; mid: number; hiMid: number; presence: number; ratio: number }> = {
     Warmth: { roles: WARM_ROLES, mid: 34, hiMid: 40, presence: 12, ratio: 1.2 },
@@ -4867,7 +4867,7 @@ Output JSON:
 
       // ─── Helper: classify IR into a tonal character bucket ───
       type TonalBucket = 'bright' | 'balanced-bright' | 'balanced' | 'warm' | 'dark';
-      type RoleClass = 'Foundation' | 'Cut Layer' | 'Mid Thickener' | 'Fizz Tamer' | 'Lead Polish' | 'Dark Specialty';
+      type RoleClass = 'Foundation' | 'Cut Layer' | 'Mid Thickener' | 'Fizz Tamer' | 'Dark Specialty';
 
       const classifyBrightness = (ir: typeof irs[0]): TonalBucket => {
         const c = ir.spectralCentroid;
@@ -4892,7 +4892,6 @@ Output JSON:
         if (c < 1400) return 'Dark Specialty';
         if (c < 1700 && hmRatio < 0.8) return 'Fizz Tamer';
         if (c > 2600 && hmRatio > 2.0) return 'Cut Layer';
-        if (c > 2400 && smoothness > 80 && hmRatio > 1.5) return 'Lead Polish';
         const midVal = has6 ? (ir.midEnergy6! / 100) : ir.midEnergy;
         if (hmRatio < 1.2 && midVal > 0.25) return 'Mid Thickener';
         return 'Foundation';
@@ -4900,17 +4899,15 @@ Output JSON:
 
       // ─── Role pairing compatibility matrix ───
       const ROLE_COMPAT: Record<string, number> = {
-        'Foundation+Cut Layer': 95, 'Foundation+Lead Polish': 90,
+        'Foundation+Cut Layer': 95,
         'Mid Thickener+Cut Layer': 88, 'Foundation+Fizz Tamer': 80,
-        'Cut Layer+Lead Polish': 78, 'Mid Thickener+Lead Polish': 82,
         'Foundation+Mid Thickener': 70, 'Foundation+Dark Specialty': 65,
-        'Fizz Tamer+Lead Polish': 72, 'Fizz Tamer+Cut Layer': 60,
+        'Fizz Tamer+Cut Layer': 60,
         'Cut Layer+Cut Layer': 20, 'Dark Specialty+Fizz Tamer': 15,
         'Dark Specialty+Dark Specialty': 10, 'Mid Thickener+Mid Thickener': 25,
         'Mid Thickener+Fizz Tamer': 30, 'Foundation+Foundation': 35,
-        'Lead Polish+Lead Polish': 30, 'Fizz Tamer+Fizz Tamer': 15,
+        'Fizz Tamer+Fizz Tamer': 15,
         'Cut Layer+Dark Specialty': 45, 'Mid Thickener+Dark Specialty': 40,
-        'Lead Polish+Dark Specialty': 50,
       };
 
       const getRoleCompat = (r1: RoleClass, r2: RoleClass): number => {
@@ -4928,22 +4925,19 @@ Output JSON:
             if (roles.has('Mid Thickener') && roles.has('Cut Layer')) return 1.25;
             if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.15;
             if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.10;
-            if (roles.has('Lead Polish')) return 0.65;
             if (roles.has('Dark Specialty')) return 0.60;
             return 1.0;
           case 'lead':
-            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.35;
-            if (roles.has('Cut Layer') && roles.has('Lead Polish')) return 1.30;
-            if (roles.has('Mid Thickener') && roles.has('Lead Polish')) return 1.15;
-            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.05;
+            if (roles.has('Foundation') && roles.has('Cut Layer')) return 1.35;
+            if (roles.has('Cut Layer') && roles.has('Mid Thickener')) return 1.25;
+            if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.15;
+            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.05;
             if (roles.has('Dark Specialty')) return 0.55;
-            if (roles.has('Fizz Tamer')) return 0.70;
-            if (roles.has('Mid Thickener') && roles.has('Fizz Tamer')) return 0.65;
             return 1.0;
           case 'clean':
-            if (roles.has('Foundation') && roles.has('Lead Polish')) return 1.30;
-            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.25;
-            if (roles.has('Lead Polish') && roles.has('Fizz Tamer')) return 1.15;
+            if (roles.has('Foundation') && roles.has('Fizz Tamer')) return 1.30;
+            if (roles.has('Foundation') && roles.has('Mid Thickener')) return 1.25;
+            if (roles.has('Foundation') && roles.has('Foundation')) return 1.15;
             if (roles.has('Cut Layer') && !roles.has('Fizz Tamer')) return 0.60;
             if (roles.has('Dark Specialty')) return 0.55;
             return 1.0;
@@ -5333,9 +5327,9 @@ These preferences are ALREADY factored into the pre-scoring. Use them to inform 
 
       // ─── Build AI prompt with pre-scored candidates ───
       const intentGuide = intent && intent !== 'versatile' ? {
-        rhythm: `RHYTHM CONTEXT: The blend should sit in a dense mix, support palm mutes, and maintain note definition under gain. Good role combos include Foundation + Cut Layer, Foundation + Mid Thickener, Mid Thickener + Cut Layer, or Foundation + Lead Polish. Use diverse role pairings — don't make every pairing Foundation + Cut Layer.`,
-        lead: `LEAD CONTEXT: Sustain and note bloom matter more than tightness. Good role combos include Foundation + Lead Polish, Cut Layer + Lead Polish, Foundation + Cut Layer, or Mid Thickener + Lead Polish. Use diverse role pairings.`,
-        clean: `CLEAN CONTEXT: Smooth, polished, hi-fi quality. Avoid harshness. Good role combos include Foundation + Lead Polish, Foundation + Fizz Tamer, Lead Polish + Mid Thickener, or Foundation + Foundation. Use diverse role pairings.`,
+        rhythm: `RHYTHM CONTEXT: The blend should sit in a dense mix, support palm mutes, and maintain note definition under gain. Good role combos include Foundation + Cut Layer, Foundation + Mid Thickener, Mid Thickener + Cut Layer, or Foundation + Fizz Tamer. Use diverse role pairings — don't make every pairing Foundation + Cut Layer.`,
+        lead: `LEAD CONTEXT: Sustain and note bloom matter more than tightness. Good role combos include Foundation + Cut Layer, Cut Layer + Mid Thickener, Foundation + Mid Thickener, or Foundation + Fizz Tamer. Use diverse role pairings.`,
+        clean: `CLEAN CONTEXT: Smooth, polished, hi-fi quality. Avoid harshness. Good role combos include Foundation + Fizz Tamer, Foundation + Mid Thickener, Foundation + Foundation, or Foundation + Cut Layer. Use diverse role pairings.`,
       }[intent] : 'VERSATILE CONTEXT: Pairings that work across rhythm, lead, and clean. One warm/full IR + one bright/detailed IR. Use diverse role pairings.';
 
       const systemPrompt = `You are an expert audio engineer selecting the BEST IR blend pairings from pre-scored candidates.
@@ -5360,7 +5354,7 @@ CRITICAL RULES:
 - Two dark/warm mics together is NEVER a good pairing
 - Same mic type on both sides is generally bad unless positions differ dramatically
 - Mix ratio MUST vary across pairings and reflect the dominant role. Use ratios from: 50:50, 60:40, 40:60, 70:30, 30:70, 80:20, 20:80. Nothing above 80:20. Foundation/body IR typically gets 60-80%, color/accent IR 20-40%. NEVER assign the same ratio to more than 2 pairings in one batch.
-- ROLE ACCURACY: You MUST use the exact role shown in each candidate's "Role:" field for ir1Role and ir2Role. Do NOT reassign roles based on your own judgment — the roles come from a validated knowledge base and spectral analysis. If a mic is labeled Foundation, it IS Foundation. If labeled Lead Polish, it IS Lead Polish.
+- ROLE ACCURACY: You MUST use the exact role shown in each candidate's "Role:" field for ir1Role and ir2Role. Do NOT reassign roles based on your own judgment — the roles come from a validated knowledge base and spectral analysis. If a mic is labeled Foundation, it IS Foundation.
 
 DIVERSITY RULES (MANDATORY):
 - No single IR filename should appear in more than 3 of your ${pairingCount} selected pairings
@@ -5395,8 +5389,8 @@ Output EXACTLY ${pairingCount} pairings as JSON:
       "title": "Unique creative preset name — draw from guitar culture, textures, attitudes, imagery, or witty humor. NEVER use generic 'X + Y' format or recycle names.",
       "ir1": "exact filename of first IR",
       "ir2": "exact filename of second IR",
-      "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
-      "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Lead Polish|Dark Specialty",
+      "ir1Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Dark Specialty",
+      "ir2Role": "Foundation|Cut Layer|Mid Thickener|Fizz Tamer|Dark Specialty",
       "mixRatio": "e.g. '60:40' (ir1:ir2) — MUST reflect which role is dominant",
       "score": 85,
       "rationale": "Why these complement each other psychoacoustically — reference specific band differences",
@@ -6613,19 +6607,18 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
 
       const roleDefinitions = `=== MUSICAL ROLES ===
 Each shot MUST be assigned exactly one musical role from this list:
-- Foundation: Balanced, neutral base layer that sits well in any mix. The workhorse.
+- Foundation: Balanced, neutral base layer that sits well in any mix. The workhorse. Includes smooth, detailed condensers and balanced dynamics.
 - Cut Layer: Forward, bright, aggressive — adds attack, presence, and bite for clarity.
 - Mid Thickener: Warm, thick mids with rolled-off highs — body and warmth.
 - Fizz Tamer: Smooth, dark, rolled-off top — controls fizz and harshness.
-- Lead Polish: Refined, hi-fi detail with extended highs — polished, singing quality.
 - Dark Specialty: Very dark, deep — for ambient, doom, or specialty tones.`;
 
       const intentRoleMapping = hasIntentCounts ? `
 === INTENT-ROLE MAPPING ===
 When assigning shots to intents, these role combinations work best:
-RHYTHM: Foundation + Cut Layer + Mid Thickener + Fizz Tamer (avoid Lead Polish)
-LEAD: Foundation + Cut Layer + Lead Polish (avoid Dark Specialty)
-CLEAN: Foundation + Lead Polish + Fizz Tamer (balanced, smooth, detailed)
+RHYTHM: Foundation + Cut Layer + Mid Thickener + Fizz Tamer
+LEAD: Foundation + Cut Layer + Mid Thickener (avoid Dark Specialty)
+CLEAN: Foundation + Fizz Tamer + Mid Thickener (balanced, smooth, warm)
 
 A shot can serve MULTIPLE intents if its role fits. Mark primary and secondary intents.` : '';
 
@@ -6838,17 +6831,17 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
   "intentCoverage": {
     "rhythm": {
       "shotCount": 6,
-      "roles": { "Foundation": 2, "Cut Layer": 2, "Mid Thickener": 1, "Fizz Tamer": 1 },
+      "roles": { "Foundation": 3, "Cut Layer": 2, "Mid Thickener": 1, "Fizz Tamer": 1 },
       "complete": true
     },
     "lead": {
       "shotCount": 3,
-      "roles": { "Foundation": 1, "Cut Layer": 1, "Lead Polish": 1 },
+      "roles": { "Foundation": 2, "Cut Layer": 1 },
       "complete": true
     },
     "clean": {
       "shotCount": 2,
-      "roles": { "Foundation": 1, "Lead Polish": 1 },
+      "roles": { "Foundation": 1, "Fizz Tamer": 1 },
       "complete": true
     }
   },

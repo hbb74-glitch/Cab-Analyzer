@@ -2087,7 +2087,6 @@ export default function Analyzer() {
     const foundation = roleCounts["Foundation"] ?? 0;
     const cutLayer = roleCounts["Cut Layer"] ?? 0;
     const midThickener = roleCounts["Mid Thickener"] ?? 0;
-    const leadPolish = roleCounts["Lead Polish"] ?? 0;
     const fizzTamer = roleCounts["Fizz Tamer"] ?? 0;
     const darkSpecialty = roleCounts["Dark Specialty"] ?? 0;
 
@@ -2095,7 +2094,6 @@ export default function Analyzer() {
       foundation +
       cutLayer +
       midThickener +
-      leadPolish +
       fizzTamer +
       darkSpecialty;
 
@@ -2103,22 +2101,20 @@ export default function Analyzer() {
 
     const hasFoundation = foundation >= minForCore;
     const hasCut = cutLayer >= minForCore;
-    const hasPolish = leadPolish >= 1;
     const hasThick = midThickener >= Math.max(1, Math.ceil(total * 0.10));
 
     let verdict = "Limited coverage";
     let verdictColor = "text-red-400";
     const suggestions: string[] = [];
 
-    if (hasFoundation && hasCut && hasPolish) {
+    if (hasFoundation && hasCut) {
       verdict = "Good coverage";
       verdictColor = "text-emerald-400";
       if (!hasThick) suggestions.push("Consider adding 1\u20132 Mid Thickeners for weight/body support (cone / CapEdge_Dk / CapEdge_Cone_Tr, ribbons, or farther distances).");
       if (fizzTamer < 1) suggestions.push("Add 1 dedicated Fizz Tamer (low air, low fizz) as a safety tool for harsher amp pairings.");
     } else {
       if (!hasCut) suggestions.push("Add more Cut Layers (cap / CapEdge_Br with dynamic mics like SM57/MD421/MD441/PR30 at closer distances).");
-      if (!hasFoundation) suggestions.push("Add more Foundations (balanced cap-edge / transition shots, moderate distances).");
-      if (!hasPolish) suggestions.push("Add at least 1 Lead Polish (smooth \u2265 ~88 with higher air_pct 6\u20139k and controlled fizz).");
+      if (!hasFoundation) suggestions.push("Add more Foundations (balanced cap-edge / transition shots, moderate distances, condensers).");
       if (!hasThick) suggestions.push("Add at least 1 Mid Thickener (cone / darker transition positions, ribbons, slightly farther distances).");
     }
 

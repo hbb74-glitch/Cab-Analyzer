@@ -60,7 +60,7 @@ export interface FoundationScore {
 
 export const FEATURED_PROFILE: PreferenceProfile = {
   name: "Cut & Clarity",
-  description: "Articulation, cut, note separation. Lead Polish / Cut Layer roles.",
+  description: "Articulation, cut, note separation. Cut Layer roles.",
   targetShapeDb: {
     subBass: -18,
     bass: -10,

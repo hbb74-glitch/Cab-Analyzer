@@ -147,7 +147,7 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   // ── MD441 ──
   {
     mic: "MD441", position: "Cap", distance: "1",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
       character: "Exceptional clarity, refined presence boost, detailed highs",
       expectedMid: [19, 25], expectedHighMid: [24, 30], expectedPresence: [16, 24],
@@ -169,7 +169,7 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   },
   {
     mic: "MD441", position: "CapEdge", distance: "2",
-    predictedRole: "Lead Polish", confidence: "medium",
+    predictedRole: "Foundation", confidence: "medium",
     tonalProfile: {
       character: "Open, airy, refined tone with natural distance bloom",
       expectedMid: [22, 28], expectedHighMid: [18, 24], expectedPresence: [10, 16],
@@ -462,9 +462,9 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   // ── Roswell Cab Mic (Condenser) ──
   {
     mic: "Roswell", position: "Cap", distance: "3",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
-      character: "Detailed full-range condenser at close range, enhanced proximity bass, clear extended highs",
+      character: "Smooth, full-range condenser at close range, enhanced proximity bass, balanced mids",
       expectedMid: [20, 26], expectedHighMid: [22, 28], expectedPresence: [16, 22],
       expectedRatio: [1.0, 1.5], expectedCentroid: [2100, 3100],
     },
@@ -473,9 +473,9 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   },
   {
     mic: "Roswell", position: "Cap", distance: "5",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
-      character: "Balanced full-range condenser, extended highs and lows, true cab picture",
+      character: "Smooth, dark-leaning condenser, true cab picture with body emphasis",
       expectedMid: [20, 26], expectedHighMid: [20, 26], expectedPresence: [14, 20],
       expectedRatio: [0.9, 1.4], expectedCentroid: [2000, 3000],
     },
@@ -484,9 +484,9 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   },
   {
     mic: "Roswell", position: "Cap", distance: "6",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
-      character: "Full-range cab picture, extended highs and lows, detailed",
+      character: "Dark, smooth full-range cab picture with body and warmth",
       expectedMid: [20, 26], expectedHighMid: [20, 26], expectedPresence: [14, 20],
       expectedRatio: [0.9, 1.4], expectedCentroid: [2000, 3000],
     },
@@ -495,9 +495,9 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   },
   {
     mic: "Roswell", position: "Global", distance: "6",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
-      character: "Full-range cab picture, extended highs and lows, detailed",
+      character: "Dark, smooth full-range cab picture with body and warmth",
       expectedMid: [20, 26], expectedHighMid: [20, 26], expectedPresence: [14, 20],
       expectedRatio: [0.9, 1.4], expectedCentroid: [2000, 3000],
     },
@@ -508,7 +508,7 @@ export const MIC_ROLE_KB: MicRoleRule[] = [
   // ── C414 (Condenser) ──
   {
     mic: "C414", position: "Cap", distance: "4",
-    predictedRole: "Lead Polish", confidence: "high",
+    predictedRole: "Foundation", confidence: "high",
     tonalProfile: {
       character: "Detailed clarity, true picture with extended high frequency response",
       expectedMid: [20, 26], expectedHighMid: [22, 28], expectedPresence: [16, 22],
@@ -627,17 +627,17 @@ function distributeRolesForIntent(intent: Intent, count: number): { role: Musica
       { role: "Dark Specialty", weight: 0.05, reason: "Occasional dark layer for depth and variety" },
     ],
     lead: [
-      { role: "Foundation", weight: 0.30, reason: "Smooth, balanced base for lead tone" },
+      { role: "Foundation", weight: 0.40, reason: "Smooth, balanced base for lead tone with sustain" },
       { role: "Cut Layer", weight: 0.30, reason: "Presence and bite for lead articulation and note separation" },
-      { role: "Lead Polish", weight: 0.25, reason: "Refined, hi-fi detail for singing lead tones" },
-      { role: "Mid Thickener", weight: 0.10, reason: "Optional warmth for smoother lead character" },
-      { role: "Fizz Tamer", weight: 0.05, reason: "Controls fizz in high-gain lead settings" },
+      { role: "Mid Thickener", weight: 0.15, reason: "Optional warmth for smoother lead character" },
+      { role: "Fizz Tamer", weight: 0.10, reason: "Controls fizz in high-gain lead settings" },
+      { role: "Dark Specialty", weight: 0.05, reason: "Deep, dark lead for ambient/jazz sounds" },
     ],
     clean: [
-      { role: "Foundation", weight: 0.40, reason: "Clean, neutral base that reproduces speaker character" },
-      { role: "Lead Polish", weight: 0.30, reason: "Detail and sparkle for clean tones" },
-      { role: "Fizz Tamer", weight: 0.15, reason: "Smoothness for bell-like clean tones" },
-      { role: "Mid Thickener", weight: 0.10, reason: "Warmth for jazz/blues clean tones" },
+      { role: "Foundation", weight: 0.50, reason: "Clean, neutral base that reproduces speaker character" },
+      { role: "Fizz Tamer", weight: 0.20, reason: "Smoothness for bell-like clean tones" },
+      { role: "Mid Thickener", weight: 0.15, reason: "Warmth for jazz/blues clean tones" },
+      { role: "Cut Layer", weight: 0.10, reason: "Sparkle and detail for clean articulation" },
       { role: "Dark Specialty", weight: 0.05, reason: "Deep, dark clean for ambient/jazz sounds" },
     ],
   };
