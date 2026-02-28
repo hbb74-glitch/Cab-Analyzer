@@ -1212,7 +1212,10 @@ export default function Learner() {
   } | null>(null);
 
   useEffect(() => {
-    persistSoloRatings(singleIrRatings);
+    if (Object.keys(singleIrRatings).length > 0) {
+      const existing = loadSoloRatings();
+      persistSoloRatings({ ...existing, ...singleIrRatings });
+    }
   }, [singleIrRatings]);
 
   const [backupStatus, setBackupStatus] = useState<"idle" | "saving" | "restoring" | "saved" | "restored">("idle");
@@ -1626,12 +1629,14 @@ export default function Learner() {
 
   const SINGLE_IR_PAGE_SIZE = 4;
   const singleIrTotalPages = useMemo(() => {
-    const n = singleIrReassessing ? pairingPool.length : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !serverSoloRatings[ir.filename]).length;
+    const n = singleIrReassessing
+      ? pairingPool.filter(ir => !singleIrDecided.has(ir.filename)).length
+      : pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !serverSoloRatings[ir.filename]).length;
     return Math.max(1, Math.ceil(n / SINGLE_IR_PAGE_SIZE));
   }, [pairingPool, singleIrDecided, singleIrReassessing, serverSoloRatings]);
 
   const singleIrUndecided = useMemo(() => {
-    if (singleIrReassessing) return pairingPool;
+    if (singleIrReassessing) return pairingPool.filter(ir => !singleIrDecided.has(ir.filename));
     return pairingPool.filter(ir => !singleIrDecided.has(ir.filename) && !serverSoloRatings[ir.filename]);
   }, [pairingPool, singleIrDecided, singleIrReassessing, serverSoloRatings]);
 
@@ -3539,14 +3544,14 @@ export default function Learner() {
                 Next
               </button>
               <span className="ml-2">
-                Page {singleIrPage + 1} / {singleIrTotalPages} ({pairingPool.filter(ir => singleIrDecided.has(ir.filename) || serverSoloRatings[ir.filename]).length} decided, {singleIrUndecided.length} remaining)
+                Page {singleIrPage + 1} / {singleIrTotalPages} ({singleIrReassessing ? singleIrDecided.size : pairingPool.filter(ir => singleIrDecided.has(ir.filename) || serverSoloRatings[ir.filename]).length} decided, {singleIrUndecided.length} remaining)
               </span>
             </div>
             )}
 
             {singleIrUndecided.length === 0 ? (
               <div className="border rounded p-4 space-y-3" data-testid="single-ir-all-evaluated">
-                <div className="text-sm text-center mb-2">You've assessed all {pairingPool.length} IRs for standalone viability.</div>
+                <div className="text-sm text-center mb-2">You've {singleIrReassessing ? "reassessed" : "assessed"} all {pairingPool.length} IRs for standalone viability.</div>
 
                 {Object.keys(usefulnessTiers).length > 0 && (
                   <div className="space-y-2">
@@ -3584,6 +3589,7 @@ export default function Learner() {
                     data-testid="button-single-ir-reassess"
                     onClick={() => {
                       setSingleIrReassessing(true);
+                      setSingleIrDecided(new Set());
                       setSingleIrRatings({});
                       setSingleIrTags({});
                       setSingleIrNotes({});
@@ -3790,7 +3796,6 @@ export default function Learner() {
                     }
                     setSingleIrDecided(newDecided);
                     setSingleIrPrevRatings(newPrevRatings);
-                    setSingleIrReassessing(false);
 
                     const ratedFilenames = new Set(rated.map(r => r.filename));
                     setSingleIrTags(prev => {
