@@ -2126,7 +2126,6 @@ export default function Analyzer() {
       foundation,
       cutLayer,
       midThickener,
-      leadPolish,
       fizzTamer,
       darkSpecialty,
     };
@@ -4643,9 +4642,6 @@ export default function Analyzer() {
                         </span>
                         <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono" data-testid="text-thick-count">
                           Thick {collectionCoverage.midThickener}
-                        </span>
-                        <span className="px-2 py-1 rounded bg-violet-500/10 text-violet-400 font-mono" data-testid="text-polish-count">
-                          Polish {collectionCoverage.leadPolish}
                         </span>
                         <span className="px-2 py-1 rounded bg-white/5 text-muted-foreground font-mono">
                           Fizz Tamer {collectionCoverage.fizzTamer} | Dark {collectionCoverage.darkSpecialty}
