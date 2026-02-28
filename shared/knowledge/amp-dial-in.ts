@@ -796,7 +796,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "fender-bassman-jumped",
     familyName: "Fender Tweed Bassman (Jumped)",
-    modelPatterns: ["59-bassguy-jumped", "59-bassguy-ri-jumped"],
+    modelPatterns: ["59-bassguy-jumped", "59-bassguy-ri"],
     controlLayout: BASSMAN_JUMPED,
     presets: [
       {
@@ -909,7 +909,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "fender-brownface",
     familyName: "Fender Brownface Era",
-    modelPatterns: ["6g4-super", "6g12-concert", "deluxe-6g3"],
+    modelPatterns: ["6g4-super", "6g12-concert"],
     controlLayout: FENDER_BROWNFACE,
     presets: [
       {
@@ -1310,7 +1310,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "vox-ac-normal",
     familyName: "Vox AC Normal Channel",
-    modelPatterns: ["class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "class-a-15w", "ac-20-dlx-normal", "ac-20-12ax7", "ac-20-ef86"],
+    modelPatterns: ["class-a-30w", "class-a-30w-bright", "class-a-30w-brilliant", "class-a-30w-hot", "class-a-15w", "ac-20"],
     controlLayout: VOX_NORMAL,
     presets: [
       {
@@ -1725,7 +1725,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "marshall-jvm",
     familyName: "Marshall JVM / Modern",
-    modelPatterns: ["brit-jvm", "brit-ap", "brit-2020", "brit-pre", "jmpre-1", "js410"],
+    modelPatterns: ["brit-jvm", "brit-ap", "brit-2020", "jmpre-1", "js410"],
     controlLayout: JVM_LAYOUT,
     presets: [
       {
@@ -1915,7 +1915,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "mesa-recto",
     familyName: "Mesa/Boogie Rectifier",
-    modelPatterns: ["recto", "usa-pre-recto", "thordendal"],
+    modelPatterns: ["recto", "usa-pre-recto"],
     controlLayout: MESA_RECTO_LAYOUT,
     presets: [
       {
@@ -3052,7 +3052,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "hook-captain",
     familyName: "Hook Captain (Captain Series)",
-    modelPatterns: ["capt-hook"],
+    modelPatterns: ["captain-hook"],
     controlLayout: STANDARD_MV_BRIGHT,
     presets: [
       {
@@ -3868,7 +3868,7 @@ export const MODEL_OVERRIDES: ModelOverride[] = [
     ]
   },
   {
-    modelId: "pvh-6160-block",
+    modelId: "pvh-6160-block-lead",
     controlLayout: PEAVEY_5150_LAYOUT,
     presets: [
       {
@@ -4175,14 +4175,6 @@ export const MODEL_INTELLIGENCE: ModelIntelligence[] = [
     inputNote: "Same as JCM 800 — check for 'low' suffix indicating the clean/low-gain input.",
     sweetSpot: "Preamp 6-8 for aggressive rock. Master to taste for power amp saturation.",
     historicalContext: "The JCM 800 2203 master volume model. Randy Rhoads, Zakk Wylde."
-  },
-  {
-    pattern: "brit-pre",
-    category: "crunch",
-    gainRange: [2, 7],
-    intendedUse: ["hard rock", "classic rock", "Marshall character without power amp"],
-    sweetSpot: "Gain 5-7 for classic Marshall preamp character",
-    historicalContext: "Marshall preamp — the front end of a JCM 800 without the power section."
   },
 
   // ─── VOX ───────────────────────────────────────────────────

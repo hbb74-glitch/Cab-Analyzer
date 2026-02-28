@@ -466,7 +466,7 @@ export const DRIVE_FAMILY_DEFAULTS: DriveFamilyDefaults[] = [
   {
     familyId: "ocd-family",
     familyName: "OCD / Versatile Drive",
-    modelPatterns: ["compulsion-hp", "compulsion-lp"],
+    modelPatterns: ["compulsion-dist"],
     controlLayout: OCD_LAYOUT,
     presets: [
       {
@@ -653,7 +653,7 @@ export const DRIVE_FAMILY_DEFAULTS: DriveFamilyDefaults[] = [
   {
     familyId: "big-muff-family",
     familyName: "Big Muff",
-    modelPatterns: ["pi-fuzz", "pi-fuzz-bass", "pi-fuzz-triangle", "pi-fuzz-rams-head", "pi-fuzz-russian"],
+    modelPatterns: ["pi-fuzz", "pi-fuzz-bass"],
     controlLayout: BIG_MUFF_LAYOUT,
     presets: [
       {
@@ -2281,7 +2281,7 @@ export const DRIVE_INTELLIGENCE: DriveIntelligence[] = [
     historicalContext: "Jeff Beck, Radiohead, Dave Grohl, Scott Ian. Op-amp hard clipping circuit. Fat RAT variant has germanium diodes.",
   },
   {
-    pattern: "compulsion-hp|compulsion-lp",
+    pattern: "compulsion-dist",
     category: "overdrive",
     gainRange: [1, 8],
     intendedUse: ["Marshall-in-a-box", "crunch", "versatile drive", "rock rhythm"],
@@ -2342,7 +2342,7 @@ export const DRIVE_INTELLIGENCE: DriveIntelligence[] = [
     historicalContext: "Hendrix (germanium), Gilmour (silicon). Dallas Arbiter original. The foundation of fuzz.",
   },
   {
-    pattern: "pi-fuzz|pi-fuzz-bass|pi-fuzz-triangle|pi-fuzz-rams-head|pi-fuzz-russian",
+    pattern: "pi-fuzz|pi-fuzz-bass",
     category: "fuzz",
     gainRange: [4, 10],
     intendedUse: ["sustaining fuzz", "wall of fuzz", "shoegaze", "grunge leads"],
