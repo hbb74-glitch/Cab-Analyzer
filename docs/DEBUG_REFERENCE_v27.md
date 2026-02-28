@@ -95,7 +95,7 @@ TonalBands = Record<BandKey, number>
 
 ### MusicalRole (`musical-roles.ts:8`)
 ```
-"Foundation" | "Cut Layer" | "Mid Thickener" | "Fizz Tamer" | "Lead Polish" | "Dark Specialty"
+"Foundation" | "Cut Layer" | "Mid Thickener" | "Fizz Tamer" | "Dark Specialty"
 ```
 
 ### Intent (`musical-roles.ts:293`)
@@ -155,8 +155,7 @@ Deterministic rule cascade using absolute band percentages AND speaker-relative 
 1. **Foundation** (balanced): mid 22–35%, presence 18–42%, highMid 18–45%, cutCoreRatio 1.10–2.40, air ≤6%, fizz ≤1.5%, tilt -5.5 to -1.0, ext ≥4200 (or z≥-0.2)
 2. **Foundation** (speaker-relative): |zCentroid| ≤0.8, (|zTilt| ≤1.2 or |zExt| ≤0.8), smooth ≥84, fizz ≤2.0 or zFizz ≤0.4
 3. **Dark Specialty**: ext <2900 or tilt ≤-8.0 (absolute), OR zExt ≤-1.1 or (zTilt ≤-1.2 AND zCentroid ≤-0.6)
-4. **Lead Polish**: ext ≥4600 (or z≥0.6), smooth ≥88, air ≥4% or zAir ≥0.70, fizz ≤1.2, presence 22–55%, core ≥22%, cutCoreRatio ≤3.4
-5. **Cut Layer**: presence ≥50% or cutCoreRatio ≥3.0 or zPresence ≥1.15 or zCentroid ≥1.15, AND core ≤24%
+4. **Cut Layer**: presence ≥50% or cutCoreRatio ≥3.0 or zPresence ≥1.15 or zCentroid ≥1.15, AND core ≤24%
 6. **Mid Thickener**: mid ≥34% or lowMid ≥10% or bassLowMid ≥24%, AND presence ≤36% and zPresence ≤0.35
 7. **Foundation** (near-voice fallback): |zCentroid| ≤0.9, |zExt| ≤1.0, |zTilt| ≤1.3, smooth ≥84
 8. **Fizz Tamer**: dark relative + smooth ≥82 + low fizz + low air + zPresence ≤-0.5
@@ -195,9 +194,9 @@ Per speaker, if no IR has Foundation role, the most "center" IR (lowest deviatio
 
 | Intent | Preferred Pairs (scored 3.0→1.4) | Good Roles (+1 each) | Avoid Roles (-2 each) |
 |---|---|---|---|
-| **rhythm** | Foundation+Mid Thickener, Foundation+Fizz Tamer, Foundation+Foundation, Mid Thickener+Fizz Tamer, Foundation+Dark Specialty | Foundation, Mid Thickener, Fizz Tamer | Lead Polish |
-| **lead** | Foundation+Cut Layer, Foundation+Lead Polish, Cut Layer+Lead Polish, Cut Layer+Mid Thickener, Foundation+Foundation | Cut Layer, Lead Polish, Foundation | Dark Specialty, Fizz Tamer |
-| **clean** | Foundation+Lead Polish, Foundation+Foundation, Lead Polish+Lead Polish, Foundation+Cut Layer, Lead Polish+Mid Thickener | Foundation, Lead Polish | Dark Specialty |
+| **rhythm** | Foundation+Mid Thickener, Foundation+Fizz Tamer, Foundation+Foundation, Mid Thickener+Fizz Tamer, Foundation+Dark Specialty | Foundation, Mid Thickener, Fizz Tamer | — |
+| **lead** | Foundation+Cut Layer, Cut Layer+Mid Thickener, Foundation+Foundation, Foundation+Mid Thickener | Cut Layer, Foundation | Dark Specialty, Fizz Tamer |
+| **clean** | Foundation+Foundation, Foundation+Cut Layer, Foundation+Fizz Tamer, Foundation+Mid Thickener | Foundation, Fizz Tamer, Mid Thickener | Dark Specialty |
 
 ### `scoreRolePairForIntent(roleA, roleB, intent)` (line 331)
 - Sorts pair alphabetically, matches against preferred list
@@ -286,7 +285,6 @@ Logs show: intent, combo count, top 8 ranked pairs with roles and role bonus, fi
 | Cut Layer | `bg-cyan-500/15 text-cyan-400` |
 | Mid Thickener | `bg-amber-500/15 text-amber-400` |
 | Fizz Tamer | `bg-sky-500/15 text-sky-400` |
-| Lead Polish | `bg-violet-500/15 text-violet-400` |
 | Dark Specialty | `bg-zinc-500/15 text-zinc-300` |
 
 **Badge Component:** `MusicalRoleBadge.tsx`
