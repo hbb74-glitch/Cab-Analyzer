@@ -323,7 +323,7 @@ export default function Pairing() {
       return [...prev, refinedPairing];
     });
     const wasFavorited = favorites.has(index);
-    const origAction = wasFavorited ? "like" : "meh";
+    const origAction = wasFavorited ? "like" : "nope";
     const refinedAction = wasFavorited ? "love" : "like";
     const ctx = buildTasteContext();
     const refFeat1 = lookupFeatures(ref.ir1);
