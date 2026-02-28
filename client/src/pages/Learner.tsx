@@ -2778,8 +2778,15 @@ export default function Learner() {
       else roundLiked++;
 
       if ((rank === 1 || rank === 2) && !isDismissed) {
-        const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
-        const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+        const refCandidate = pairRefine[pk];
+        const origRStr = pair.suggestedRatio
+          ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+          : "50/50";
+        const wasRef = refCandidate && !refCandidate.submitted && (refCandidate.ir1 !== pair.baseFilename || refCandidate.ir2 !== pair.featureFilename || refCandidate.ratio !== origRStr);
+        const bName = wasRef ? refCandidate.ir1 : pair.baseFilename;
+        const fName = wasRef ? refCandidate.ir2 : pair.featureFilename;
+        const baseData = pool.find((ir) => ir.filename === bName);
+        const featData = pool.find((ir) => ir.filename === fName);
         if (baseData && featData) {
           refineCandidates.push({ pair, rank, baseFeatures: baseData.features, featFeatures: featData.features });
         }
@@ -2810,10 +2817,24 @@ export default function Learner() {
           if (!isDismissed && !rank) return null;
 
           const action = isDismissed ? "nope" : rank === 1 ? "love" : rank === 2 ? "like" : "meh";
-          const baseData = pool.find((ir) => ir.filename === pair.baseFilename);
-          const featData = pool.find((ir) => ir.filename === pair.featureFilename);
+
+          const ref = pairRefine[pk];
+          const origRatioStr = pair.suggestedRatio
+            ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
+            : "50/50";
+          const wasRefined = ref && !ref.submitted && (ref.ir1 !== pair.baseFilename || ref.ir2 !== pair.featureFilename || ref.ratio !== origRatioStr);
+
+          let baseData, featData, ratio;
+          if (wasRefined && !isDismissed) {
+            baseData = pool.find((ir) => ir.filename === ref.ir1);
+            featData = pool.find((ir) => ir.filename === ref.ir2);
+            ratio = parseInt(ref.ratio.split("/")[0]) / 100;
+          } else {
+            baseData = pool.find((ir) => ir.filename === pair.baseFilename);
+            featData = pool.find((ir) => ir.filename === pair.featureFilename);
+            ratio = pair.suggestedRatio?.base ?? 0.5;
+          }
           if (!baseData?.features || !featData?.features) return null;
-          const ratio = pair.suggestedRatio?.base ?? 0.5;
           const x = featurizeBlend(baseData.features, featData.features, ratio);
           return { action, strength: strengthOf(action), x, pairKey: pk };
         })
