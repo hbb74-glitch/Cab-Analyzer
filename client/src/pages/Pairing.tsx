@@ -322,12 +322,15 @@ export default function Pairing() {
       if (prev.some(f => `${f.ir1}||${f.ir2}||${f.mixRatio}` === key)) return prev;
       return [...prev, refinedPairing];
     });
+    const wasFavorited = favorites.has(index);
+    const origAction = wasFavorited ? "like" : "meh";
+    const refinedAction = wasFavorited ? "love" : "like";
     const ctx = buildTasteContext();
     const refFeat1 = lookupFeatures(ref.ir1);
     const refFeat2 = lookupFeatures(ref.ir2);
     if (refFeat1 && refFeat2) {
       const blended = featurizeBlend(refFeat1, refFeat2, ratioVal);
-      recordOutcome(ctx, blended, "love", undefined, ["pairing_refined", "pairing_improved"]);
+      recordOutcome(ctx, blended, refinedAction, undefined, ["pairing_refined", "pairing_improved"]);
     }
     const origFeat1 = lookupFeatures(originalPairing.ir1);
     const origFeat2 = lookupFeatures(originalPairing.ir2);
@@ -335,13 +338,13 @@ export default function Pairing() {
       const origRatio = originalPairing.mixRatio?.split("/").map(Number);
       const origRatioVal = origRatio ? origRatio[0] / 100 : 0.5;
       const origBlend = featurizeBlend(origFeat1, origFeat2, origRatioVal);
-      recordOutcome(ctx, origBlend, "meh", undefined, ["pairing_refined"]);
+      recordOutcome(ctx, origBlend, origAction, undefined, ["pairing_refined"]);
     }
     const signals: any[] = [];
     const refIr2Bands = lookupBands(ref.ir2);
     if (refIr2Bands) {
       signals.push({
-        baseFilename: ref.ir1, featureFilename: ref.ir2, action: 'love',
+        baseFilename: ref.ir1, featureFilename: ref.ir2, action: refinedAction,
         subBass: refIr2Bands.subBass, bass: refIr2Bands.bass, lowMid: refIr2Bands.lowMid,
         mid: refIr2Bands.mid, highMid: refIr2Bands.highMid, presence: refIr2Bands.presence,
         ratio: ratioVal, score: 0, profileMatch: '', tags: ['pairing_refined'],
@@ -351,7 +354,7 @@ export default function Pairing() {
     if (origIr2Bands) {
       const origRatio2 = originalPairing.mixRatio?.split("/").map(Number);
       signals.push({
-        baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: 'meh',
+        baseFilename: originalPairing.ir1, featureFilename: originalPairing.ir2, action: origAction,
         subBass: origIr2Bands.subBass, bass: origIr2Bands.bass, lowMid: origIr2Bands.lowMid,
         mid: origIr2Bands.mid, highMid: origIr2Bands.highMid, presence: origIr2Bands.presence,
         ratio: origRatio2 ? origRatio2[0] / 100 : 0.5, score: 0, profileMatch: '', tags: ['pairing_improved'],
@@ -364,7 +367,7 @@ export default function Pairing() {
     }
     setPairRefine(prev => ({ ...prev, [index]: { ...ref, submitted: true } }));
     toast({ title: "Refined blend saved", description: `${ref.ir1} + ${ref.ir2} (${ref.ratio}) saved as favorite.` });
-  }, [pairRefine, buildTasteContext, lookupFeatures, lookupBands, toast]);
+  }, [pairRefine, favorites, buildTasteContext, lookupFeatures, lookupBands, toast]);
 
   const handleRefineSaveAsFavorite = useCallback((index: number, originalPairing: PairingResult) => {
     const ref = pairRefine[index];

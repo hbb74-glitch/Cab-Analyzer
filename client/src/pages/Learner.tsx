@@ -2716,11 +2716,12 @@ export default function Learner() {
       const fbText = pairingFeedbackText[pk]?.trim() || null;
 
       if (isRefined && !isDismissed) {
+        const promotedAction = actionLabel === "meh" ? "like" : actionLabel === "like" ? "love" : "love";
         const refIr2Data = pool.find(ir => ir.filename === ref.ir2);
         if (refIr2Data) {
           const parsedRatio = parseInt(ref.ratio.split("/")[0]) / 100;
           signals.push({
-            action: actionLabel,
+            action: promotedAction,
             feedback: fb,
             feedbackText: fbText,
             baseFilename: ref.ir1,
@@ -2738,7 +2739,7 @@ export default function Learner() {
           });
         }
         signals.push({
-          action: 'meh',
+          action: actionLabel,
           baseFilename: pair.baseFilename,
           featureFilename: pair.featureFilename,
           subBass: pair.blendBands.subBass,
@@ -2752,7 +2753,7 @@ export default function Learner() {
           profileMatch: getRoleForFilename(pair.baseFilename),
           tags: ['pairing_improved'],
         });
-        if (actionLabel === "love" || actionLabel === "like") {
+        if (promotedAction === "love" || promotedAction === "like") {
           saveBlendFavorite({ ir1: ref.ir1, ir2: ref.ir2, ratio: ref.ratio, source: 'learner', savedAt: new Date().toISOString() });
         }
       } else {
