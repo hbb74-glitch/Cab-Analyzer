@@ -366,6 +366,39 @@ export default function Pairing() {
     toast({ title: "Refined blend saved", description: `${ref.ir1} + ${ref.ir2} (${ref.ratio}) saved as favorite.` });
   }, [pairRefine, buildTasteContext, lookupFeatures, lookupBands, toast]);
 
+  const handleRefineSaveAsFavorite = useCallback((index: number, originalPairing: PairingResult) => {
+    const ref = pairRefine[index];
+    if (!ref || ref.submitted) return;
+    const ratioParts = ref.ratio.split("/").map(Number);
+    const ratioVal = ratioParts[0] / 100;
+    const refinedPairing: PairingResult = { ...originalPairing, ir1: ref.ir1, ir2: ref.ir2, mixRatio: ref.ratio };
+    setSavedFavorites(prev => {
+      const key = `${ref.ir1}||${ref.ir2}||${ref.ratio}`;
+      if (prev.some(f => `${f.ir1}||${f.ir2}||${f.mixRatio}` === key)) return prev;
+      return [...prev, refinedPairing];
+    });
+    const ctx = buildTasteContext();
+    const refFeat1 = lookupFeatures(ref.ir1);
+    const refFeat2 = lookupFeatures(ref.ir2);
+    if (refFeat1 && refFeat2) {
+      const blended = featurizeBlend(refFeat1, refFeat2, ratioVal);
+      recordOutcome(ctx, blended, "love", undefined, ["pairing_favorited"]);
+    }
+    const refIr2Bands = lookupBands(ref.ir2);
+    if (refIr2Bands) {
+      apiRequest("POST", "/api/preferences/signals", { signals: [{
+        baseFilename: ref.ir1, featureFilename: ref.ir2, action: 'love',
+        subBass: refIr2Bands.subBass, bass: refIr2Bands.bass, lowMid: refIr2Bands.lowMid,
+        mid: refIr2Bands.mid, highMid: refIr2Bands.highMid, presence: refIr2Bands.presence,
+        ratio: ratioVal, score: 0, profileMatch: '', tags: ['pairing_favorited'],
+      }]}).then(() => {
+        queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/preferences/") });
+      }).catch(() => {});
+    }
+    setPairRefine(prev => ({ ...prev, [index]: { ...ref, submitted: true } }));
+    toast({ title: "Saved to favorites", description: `${ref.ir1} + ${ref.ir2} (${ref.ratio}) saved.` });
+  }, [pairRefine, buildTasteContext, lookupFeatures, lookupBands, toast]);
+
   const handleRefineCouldntImprove = useCallback((index: number, originalPairing: PairingResult) => {
     recordBlendFeedback(originalPairing, false);
     const ctx = buildTasteContext();
@@ -1228,6 +1261,13 @@ export default function Pairing() {
                               data-testid={`refine-submit-${index}`}
                             >
                               Submit Improved
+                            </button>
+                            <button
+                              className="px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition-colors flex items-center gap-1"
+                              onClick={() => handleRefineSaveAsFavorite(index, pairing)}
+                              data-testid={`refine-save-fav-${index}`}
+                            >
+                              <Heart className="w-3 h-3" /> Save to Favorites
                             </button>
                             <button
                               className="px-3 py-1.5 rounded-md bg-red-600/80 hover:bg-red-500 text-white text-xs font-medium transition-colors"

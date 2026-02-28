@@ -2229,11 +2229,13 @@ export default function Learner() {
         next[key] = rank;
         setPairingFeedback((f) => { const n = { ...f }; delete n[key]; return n; });
         setPairingFeedbackText((f) => { const n = { ...f }; delete n[key]; return n; });
-        if (pair) {
+        if (pair && rank !== 1) {
           const ratioStr = pair.suggestedRatio
             ? `${Math.round(pair.suggestedRatio.base * 100)}/${Math.round(pair.suggestedRatio.feature * 100)}`
             : "50/50";
           setPairRefine((pr) => ({ ...pr, [key]: { ir1: pair.baseFilename, ir2: pair.featureFilename, ratio: ratioStr, submitted: false } }));
+        } else {
+          setPairRefine((pr) => { const n = { ...pr }; delete n[key]; return n; });
         }
       }
       return next;
