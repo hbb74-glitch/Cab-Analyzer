@@ -3596,7 +3596,7 @@ export default function Learner() {
                       setSingleIrPage(0);
                     }}
                   >
-                    Reassess — votes will be averaged with previous
+                    Reassess — go through all IRs again
                   </button>
                 </div>
               </div>
