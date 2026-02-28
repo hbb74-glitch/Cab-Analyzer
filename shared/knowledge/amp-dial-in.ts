@@ -1133,7 +1133,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "fender-vibrato-king",
     familyName: "Fender Vibrato King",
-    modelPatterns: ["vibrato-king"],
+    modelPatterns: ["vibra-king", "vibrato-king"],
     controlLayout: VIBRATO_KING_LAYOUT,
     presets: [
       {
@@ -2031,7 +2031,7 @@ export const AMP_FAMILY_DEFAULTS: AmpFamilyDefaults[] = [
   {
     familyId: "mesa-mark-iv",
     familyName: "Mesa/Boogie Mark IV",
-    modelPatterns: ["usa-lead", "usa-rhythm", "usa-clean", "usa-pre-lead", "usa-pre-rhythm"],
+    modelPatterns: ["usa-lead", "usa-rhythm", "usa-clean", "usa-pre-lead", "usa-pre-rhythm", "usa-mk-iv"],
     controlLayout: MESA_MARK_LAYOUT,
     presets: [
       {
