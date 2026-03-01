@@ -6521,6 +6521,249 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
     }
   });
 
+  // ── Superblend (Multi-IR Blending) ─────────────────────────
+  app.post(api.preferences.superblend.path, async (req, res) => {
+    try {
+      const { speaker, irCount, toneGoal, irs } = api.preferences.superblend.input.parse(req.body);
+
+      if (irs.length < 3) {
+        return res.status(400).json({ message: "Need at least 3 IRs to create a superblend" });
+      }
+
+      const irSummary = irs.map(ir =>
+        `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)} centroid=${Math.round(ir.centroid)}Hz smooth=${ir.smoothness.toFixed(0)}`
+      ).join('\n');
+
+      let learnedContext = "";
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length > 0) {
+          const learned = await computeLearnedProfile(signals);
+          if (learned.tonalSummary) {
+            learnedContext = `\n\n=== USER'S LEARNED TONAL PREFERENCES ===\n${learned.tonalSummary}\n===\nUse these to bias the blend toward what the user likes.`;
+          }
+          const gearPrompt = buildGearPreferencePrompt(learned);
+          if (gearPrompt) learnedContext += `\n${gearPrompt}`;
+        }
+      } catch (e) {
+        console.log('[Superblend] Could not load preferences:', e);
+      }
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert guitar cabinet IR engineer creating "Superblends" — multi-IR mixes using 3-8 IRs blended simultaneously. This is for plugins like Cabinetron, NadIR, or similar tools that can load and mix multiple IRs at specific ratios.
+
+GOAL: Create a single definitive IR blend for a specific speaker that captures its full tonal character. This is the "best of the best" — a comprehensive representation of the speaker's sound that works for most applications.
+
+PHILOSOPHY:
+- Each IR in the blend has a specific ROLE and contributes something unique
+- The percentages must sum to exactly 100%
+- The primary/foundation IR gets the largest share (typically 30-50%)
+- Supporting IRs fill tonal gaps and add character (typically 10-25% each)
+- Accent IRs add subtle nuance (typically 5-15%)
+- No IR should be below 5% — if it's not contributing meaningfully, don't include it
+
+TONAL ROLES FOR EACH IR:
+- Foundation: The core character of the speaker — body, fundamental tone
+- Body Fill: Adds warmth, low-mid weight, proximity richness
+- Articulation: Adds bite, high-mid clarity, note definition
+- Air/Presence: Adds sparkle, openness, top-end detail
+- Depth: Adds low-end extension, sub-bass weight
+- Smoothing: Tames harsh frequencies, adds polish
+- Character: Adds unique tonal color — edge, grit, vintage vibe
+
+Band definitions:
+- subBass (20-120Hz): rumble, sub-lows
+- bass (120-250Hz): low-end weight, proximity effect
+- lowMid (250-500Hz): warmth, body, can get muddy
+- mid (500-2000Hz): body, fundamental guitar tone, punch
+- highMid (2000-4000Hz): bite, articulation, cut, aggression
+- presence (4000-8000Hz): sizzle, air, brightness, sparkle
+- ratio (highMid/mid): >1.5 = bright/scooped, <1.2 = warm/mid-heavy
+- centroid: spectral center of gravity in Hz — higher = brighter overall
+- smoothness: 0-100, higher = smoother frequency response, fewer resonant peaks
+
+SELECTION STRATEGY:
+1. Start with the best Foundation IR for this speaker
+2. Add IRs that compensate for whatever the Foundation lacks
+3. Ensure coverage across all 6 bands — no tonal gaps
+4. Prefer IRs with high smoothness scores for foundation roles
+5. Use IRs with different mic positions/distances for variety
+6. The final blend should have: balanced mids, controlled bass, defined highs, smooth overall response
+
+Return JSON:
+{
+  "blend": {
+    "name": "Creative name for this superblend (e.g., 'V30 Reference', 'Greenback Ultimate')",
+    "speaker": "speaker name",
+    "layers": [
+      {
+        "filename": "exact IR filename",
+        "percentage": number (5-50, all must sum to 100),
+        "role": "Foundation | Body Fill | Articulation | Air/Presence | Depth | Smoothing | Character",
+        "contribution": "What this specific IR adds to the blend"
+      }
+    ],
+    "expectedTone": "Description of the final blended tone",
+    "bandBreakdown": {
+      "subBass": number, "bass": number, "lowMid": number, "mid": number, "highMid": number, "presence": number
+    },
+    "rationale": "Why these specific IRs were chosen and how they complement each other",
+    "versatilityScore": number (0-100, how well this works across different musical contexts),
+    "bestFor": "Genres/styles this blend excels at"
+  },
+  "alternatives": [
+    {
+      "name": "Alternative blend name",
+      "focus": "What this alternative prioritizes differently (e.g., 'brighter', 'warmer', 'tighter')",
+      "layers": [same format as above],
+      "expectedTone": "How this sounds different",
+      "bandBreakdown": { same format },
+      "versatilityScore": number
+    }
+  ]
+}
+
+Provide 1 primary blend and 1-2 alternatives with different tonal focuses. The primary should be the most versatile.
+Use exactly ${irCount} IRs for the primary blend. Alternatives can use 3-${irCount} IRs.`
+          },
+          {
+            role: "user",
+            content: `Create a Superblend for speaker: "${speaker}"
+Number of IRs to use: ${irCount}
+${toneGoal ? `Tone goal: "${toneGoal}"` : "Goal: Most versatile, comprehensive representation of this speaker"}
+
+Available IRs for this speaker:
+${irSummary}
+${learnedContext}
+
+Select the best ${irCount} IRs and assign precise percentages that sum to 100%. Return as JSON.`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const result = JSON.parse(content);
+      console.log(`[Superblend] "${speaker}" (${irCount} IRs) => blend created`);
+      res.json(result);
+    } catch (err) {
+      console.error('Superblend error:', err);
+      res.status(500).json({ message: "Failed to create superblend" });
+    }
+  });
+
+  app.post(api.preferences.superblendRefine.path, async (req, res) => {
+    try {
+      const { currentBlend, feedback, irs } = api.preferences.superblendRefine.input.parse(req.body);
+
+      const irSummary = irs.map(ir =>
+        `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)} centroid=${Math.round(ir.centroid)}Hz smooth=${ir.smoothness.toFixed(0)}`
+      ).join('\n');
+
+      const currentLayerSummary = currentBlend.layers.map(l =>
+        `${l.filename}: ${l.percentage}% (${l.role})`
+      ).join('\n');
+
+      let learnedContext = "";
+      try {
+        const signals = await storage.getPreferenceSignals();
+        if (signals.length > 0) {
+          const learned = await computeLearnedProfile(signals);
+          if (learned.tonalSummary) {
+            learnedContext = `\n\n=== USER'S LEARNED TONAL PREFERENCES ===\n${learned.tonalSummary}\n===`;
+          }
+        }
+      } catch (e) {}
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are refining a Superblend — a multi-IR mix for guitar cabinet simulation. The user has provided feedback on the current blend and wants adjustments.
+
+You can:
+1. Swap IRs for different ones from the available pool
+2. Adjust percentages (must still sum to 100%)
+3. Add or remove IRs (staying within 3-8 range)
+4. Rebalance the tonal character based on feedback
+
+RULES:
+- All percentages must sum to exactly 100%
+- No IR below 5%
+- Interpret the user's feedback carefully — they may use subjective terms
+- Explain what you changed and why
+
+Return JSON in the same format as the original blend:
+{
+  "blend": {
+    "name": "Updated blend name",
+    "speaker": "speaker",
+    "layers": [{ "filename": "...", "percentage": number, "role": "...", "contribution": "..." }],
+    "expectedTone": "Updated tone description",
+    "bandBreakdown": { "subBass": n, "bass": n, "lowMid": n, "mid": n, "highMid": n, "presence": n },
+    "rationale": "What changed and why based on the feedback",
+    "versatilityScore": number,
+    "bestFor": "..."
+  },
+  "changesSummary": "Brief description of what was adjusted"
+}`
+          },
+          {
+            role: "user",
+            content: `Current Superblend for "${currentBlend.speaker}":
+${currentLayerSummary}
+
+Expected tone: ${currentBlend.expectedTone}
+
+User feedback: "${feedback}"
+
+All available IRs for this speaker:
+${irSummary}
+${learnedContext}
+
+Refine the blend based on the feedback. Return as JSON.`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const result = JSON.parse(content);
+
+      try {
+        await storage.addPreferenceSignal({
+          action: "superblend_refine",
+          baseFilename: currentBlend.layers[0]?.filename || "superblend",
+          featureFilename: currentBlend.speaker,
+          feedback: `superblend: ${feedback}`,
+          subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0, ratio: 0,
+          score: 0, profileMatch: "superblend",
+        });
+      } catch (e) {}
+
+      console.log(`[Superblend Refine] "${currentBlend.speaker}" => refined`);
+      res.json(result);
+    } catch (err) {
+      console.error('Superblend refine error:', err);
+      res.status(500).json({ message: "Failed to refine superblend" });
+    }
+  });
+
   // ── Preference Chat ──────────────────────────────
   app.post(api.preferences.preferenceChat.path, async (req, res) => {
     try {

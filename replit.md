@@ -41,6 +41,7 @@ Preferred communication style: Simple, everyday language.
 - **Proven Shots Leaderboard**: Live-updated panel in Shot Designer showing consistently well-rated mic/position combos in solo evaluation.
 - **Foundation Finder**: Ranks IRs by Body score to identify optimal base IRs.
 - **IR Pairing**: Role-aware, intent-driven, psychoacoustically informed IR blend analyzer supporting single and mixed-speaker modes. Incorporates 6-band spectral analysis, KB role predictions, learned tonal profiles, and psychoacoustic descriptors.
+- **Superblend**: Multi-IR blending mode (3-8 IRs) for plugins like Cabinetron/NadIR. Creates definitive speaker representations by mixing IRs at precise percentages with assigned tonal roles (Foundation, Body Fill, Articulation, Air/Presence, Depth, Smoothing, Character). Includes interactive AI refinement via text input and PreferenceChatPanel integration. Feedback feeds back into learning module.
 - **Refinement-Aware Mastery**: Tracks refinement rates for blend suggestions and generates course corrections if needed, impacting mastery status.
 - **Iterative Suggested Pairings**: Multi-round refinement system for blend suggestions with sentiment ratings.
 - **Novelty-Aware Suggestions**: Boosts scores for under-exposed or new IRs.
