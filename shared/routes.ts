@@ -579,6 +579,29 @@ export const api = {
         500: errorSchemas.internal,
       },
     },
+    preferenceChat: {
+      method: 'POST' as const,
+      path: '/api/preferences/chat',
+      input: z.object({
+        messages: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+        })),
+        profileSummary: z.string().optional(),
+        signalSummary: z.string().optional(),
+      }),
+      responses: {
+        200: z.object({
+          reply: z.string(),
+          corrections: z.array(z.object({
+            tag: z.string(),
+            description: z.string(),
+          })).optional(),
+        }),
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
     toneRequest: {
       method: 'POST' as const,
       path: '/api/preferences/tone-request',

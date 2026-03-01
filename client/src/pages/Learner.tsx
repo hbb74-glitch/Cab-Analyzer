@@ -734,6 +734,175 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
   );
 }
 
+function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSummary: string; correctionMutation: any }) {
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [pendingCorrections, setPendingCorrections] = useState<{ tag: string; description: string }[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const chatMutation = useMutation({
+    mutationFn: async (messages: { role: "user" | "assistant"; content: string }[]) => {
+      const res = await apiRequest("POST", "/api/preferences/chat", {
+        messages,
+        profileSummary,
+      });
+      return res.json();
+    },
+    onSuccess: (data: { reply: string; corrections?: { tag: string; description: string }[] }) => {
+      setChatMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+      if (data.corrections && data.corrections.length > 0) {
+        setPendingCorrections(data.corrections);
+      }
+      setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }), 100);
+    },
+    onError: () => {
+      toast({ title: "Chat failed", description: "Could not get a response. Try again.", variant: "destructive", duration: 3000 });
+    },
+  });
+
+  const sendMessage = () => {
+    const text = chatInput.trim();
+    if (!text || chatMutation.isPending) return;
+    const newMessages = [...chatMessages, { role: "user" as const, content: text }];
+    setChatMessages(newMessages);
+    setChatInput("");
+    setPendingCorrections([]);
+    chatMutation.mutate(newMessages);
+  };
+
+  const applyCorrections = () => {
+    if (pendingCorrections.length === 0) return;
+    const correctionText = pendingCorrections.map(c => c.tag.replace(/_/g, " ")).join(", ");
+    correctionMutation.mutate(correctionText);
+    setChatMessages(prev => [...prev, {
+      role: "assistant",
+      content: `Applied corrections: ${pendingCorrections.map(c => c.description || c.tag).join(", ")}. Your profile has been updated.`
+    }]);
+    setPendingCorrections([]);
+  };
+
+  if (!chatOpen) {
+    return (
+      <div className="mt-4 pt-4 border-t border-purple-500/10">
+        <button
+          onClick={() => setChatOpen(true)}
+          className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300"
+          data-testid="button-open-preference-chat"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Refine preferences through conversation
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-purple-500/10 space-y-3" data-testid="preference-chat-panel">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+          <MessageSquare className="w-3 h-3 text-purple-400" />
+          Preference Chat
+        </label>
+        <button onClick={() => setChatOpen(false)} className="text-xs text-muted-foreground hover:text-foreground" data-testid="button-close-preference-chat">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Talk through your preferences with the AI. It sees your full profile and signal history, so you can say things like "the blends are too bright" or "I want more mid punch" and it will ask follow-up questions before adjusting.
+      </p>
+
+      <div ref={scrollRef} className="max-h-64 overflow-y-auto space-y-2 pr-1">
+        {chatMessages.length === 0 && (
+          <div className="text-[10px] text-muted-foreground/60 italic py-2">
+            Start by describing what feels off about the suggestions, or what you're looking for tonally.
+          </div>
+        )}
+        {chatMessages.map((msg, i) => (
+          <div key={i} className={cn(
+            "text-xs rounded-lg px-3 py-2 max-w-[90%]",
+            msg.role === "user"
+              ? "ml-auto bg-purple-500/20 text-foreground"
+              : "mr-auto bg-zinc-800 text-foreground"
+          )} data-testid={`chat-message-${msg.role}-${i}`}>
+            {msg.content}
+          </div>
+        ))}
+        {chatMutation.isPending && (
+          <div className="mr-auto flex items-center gap-2 text-xs text-muted-foreground py-1">
+            <Loader2 className="w-3 h-3 animate-spin" /> Thinking...
+          </div>
+        )}
+      </div>
+
+      {pendingCorrections.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 space-y-1.5" data-testid="pending-corrections">
+          <div className="text-[10px] font-medium text-amber-400">Suggested adjustments:</div>
+          {pendingCorrections.map((c, i) => (
+            <div key={i} className="text-[10px] text-muted-foreground">
+              <span className="font-mono text-amber-300">{c.tag}</span> — {c.description}
+            </div>
+          ))}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={applyCorrections}
+              className="px-2 py-1 rounded border border-green-500 text-green-400 text-[10px] font-medium"
+              disabled={correctionMutation.isPending}
+              data-testid="button-apply-chat-corrections"
+            >
+              {correctionMutation.isPending ? "Applying..." : "Apply These"}
+            </button>
+            <button
+              onClick={() => {
+                setPendingCorrections([]);
+                const followUp = [...chatMessages, { role: "user" as const, content: "Not quite right — let me explain more." }];
+                setChatMessages(followUp);
+                chatMutation.mutate(followUp);
+              }}
+              className="px-2 py-1 rounded border border-zinc-600 text-muted-foreground text-[10px]"
+              data-testid="button-reject-chat-corrections"
+            >
+              Not Quite
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={chatInput}
+          onChange={(e) => setChatInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+          placeholder="Describe what you want differently..."
+          className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          disabled={chatMutation.isPending}
+          data-testid="input-preference-chat"
+        />
+        <button
+          onClick={sendMessage}
+          disabled={!chatInput.trim() || chatMutation.isPending}
+          className="h-8 px-3 rounded-md bg-purple-500/20 text-purple-300 text-xs hover:bg-purple-500/30 disabled:opacity-50"
+          data-testid="button-send-preference-chat"
+        >
+          <Send className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {chatMessages.length > 0 && (
+        <button
+          onClick={() => { setChatMessages([]); setPendingCorrections([]); }}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+          data-testid="button-clear-preference-chat"
+        >
+          Clear conversation
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings, predictedBlends }: { learnedProfile: LearnedProfileData; eloRatings?: Record<string, EloEntry>; predictedBlends?: { baseFilename: string; featureFilename: string; score: number; suggestedRatio?: { base: number; feature: number } }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [correctionText, setCorrectionText] = useState("");
@@ -1068,6 +1237,8 @@ function TonalInsightsPanel({ learnedProfile: baseProfile, eloRatings, predicted
                   ))}
                 </div>
               </div>
+
+              <PreferenceChatPanel profileSummary={learnedProfile.tonalSummary || ""} correctionMutation={correctionMutation} />
 
             </div>
           </motion.div>

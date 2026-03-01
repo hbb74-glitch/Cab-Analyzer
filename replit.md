@@ -49,6 +49,7 @@ Preferred communication style: Simple, everyday language.
 - **Free-Form Text Feedback**: AI-interpreted text nudges from user comments produce structured 6-band nudges and learn user vocabulary.
 - **Tonal Insights Panel**: Displays a human-readable summary of learned tonal preferences, including likes, avoid zones, gear tendencies, and tonal balance.
 - **Preference Corrections**: User input to directly steer learned preferences.
+- **Preference Chat**: Conversational AI interface within Tonal Insights panel for multi-turn preference refinement. AI sees full profile state, asks clarifying questions, and suggests corrections that users can apply or continue discussing.
 - **Tone Request / Find Me This Tone**: Users describe a desired tone, and the system suggests IR blend combinations using AI, incorporating learned preferences.
 - **Test AI**: Diagnostic tool for users to query the AI about loaded IRs and blends, verifying its tonal understanding.
 - **Tonal Intelligence System**: Stores running averages of 6-band tonal data, ratio, centroid, and smoothness, keyed by mic+position+distance+speaker.

@@ -1624,9 +1624,13 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
 
   const recentImproved = recentSignals.filter(s => hasFeedbackTag(s, "pairing_improved")).length;
   const recentUnfixable = recentSignals.filter(s => hasFeedbackTag(s, "pairing_unfixable")).length;
+  const recentRefined = recentSignals.filter(s => hasFeedbackTag(s, "pairing_refined")).length;
   const recentRefinementTotal = recentImproved + recentUnfixable;
-  const recentRefinementRate = recentSignals.length >= 4 && recentRefinementTotal > 0
-    ? recentRefinementTotal / recentSignals.length : 0;
+  const recentPairingSignals = recentSignals.filter(s =>
+    s.baseFilename !== s.featureFilename
+  );
+  const recentRefinementRate = recentPairingSignals.length >= 2 && (recentRefinementTotal + recentRefined) > 0
+    ? (recentRefinementTotal + recentRefined) / (recentPairingSignals.length || 1) : 0;
   const highRefinementRate = recentRefinementRate >= 0.3;
 
   const refinementRate: LearnedProfileData["refinementRate"] = totalRefinementSignals > 0
@@ -1636,12 +1640,12 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
   const isMastered = strongSignals.length >= 10 && confidence >= 1 && isConsistent && !hasPredictionMisses && !isDrifting && !recentNopeSurge && !highRefinementRate;
 
   const courseCorrections: string[] = [];
-  if (!isMastered && strongSignals.length >= 10) {
+  if (!isMastered && strongSignals.length >= 5) {
     if (hasPredictionMisses) courseCorrections.push(`${predictionMisses.length} high-scored blends noped -- recalibrating scoring`);
     if (isDrifting) courseCorrections.push(driftReasons.join(", "));
     if (recentNopeSurge) courseCorrections.push(`${recentNopeCount} nopes in recent ratings -- narrowing targets`);
     if (!isConsistent) courseCorrections.push("wide variance in liked blends -- still converging");
-    if (highRefinementRate) courseCorrections.push(`${recentRefinementTotal} of last ${recentSignals.length} ratings needed refinement -- suggestions not matching preferences yet`);
+    if (highRefinementRate) courseCorrections.push(`${recentRefinementTotal + recentRefined} of last ${recentPairingSignals.length} blend ratings needed editing -- suggestions not matching preferences yet`);
   }
   const status: LearnedProfileData["status"] = isMastered ? "mastered" : liked.length >= 5 ? "confident" : "learning";
 
@@ -6514,6 +6518,94 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
     } catch (err) {
       console.error('Test AI error:', err);
       res.status(500).json({ message: "Failed to process test query" });
+    }
+  });
+
+  // ── Preference Chat ──────────────────────────────
+  app.post(api.preferences.preferenceChat.path, async (req, res) => {
+    try {
+      const { messages, profileSummary, signalSummary } = api.preferences.preferenceChat.input.parse(req.body);
+
+      const allSignals = await storage.getPreferenceSignals();
+      const profile = await computeLearnedProfile(allSignals);
+
+      const profileContext = profileSummary || profile.tonalSummary || "No profile data yet.";
+      const statusLabel = profile.status === "mastered" ? "Mastered" : profile.status === "confident" ? "Confident" : "Still learning";
+      const corrections = profile.courseCorrections?.join("; ") || "None";
+      const adjustments = profile.learnedAdjustments
+        ? `Mid shift: ${profile.learnedAdjustments.mid.shift.toFixed(1)}, Presence shift: ${profile.learnedAdjustments.presence.shift.toFixed(1)}, Ratio shift: ${profile.learnedAdjustments.ratio.shift.toFixed(2)}`
+        : "No adjustments yet";
+      const avoidZones = profile.avoidZones.length > 0
+        ? profile.avoidZones.map(z => `${z.direction === "high" ? "excess" : "low"} ${z.band}`).join(", ")
+        : "None";
+      const refinement = profile.refinementRate
+        ? `${profile.refinementRate.total} corrected, ${profile.refinementRate.unfixable} unfixable, rate: ${(profile.refinementRate.rate * 100).toFixed(0)}%`
+        : "No refinement data";
+      const gearSummary = profile.gearInsights ? [
+        profile.gearInsights.mics.map(m => `${m.name}: ${m.sentiment}`).join(", "),
+        profile.gearInsights.speakers.map(s => `${s.name}: ${s.sentiment}`).join(", "),
+        profile.gearInsights.positions.map(p => `${p.name}: ${p.sentiment}`).join(", "),
+      ].filter(Boolean).join(" | ") : "No gear data";
+
+      const feedbackTagList = "thin, muddy, harsh, dull, boomy, fizzy, more_bottom, less_harsh, more_bite, tighter, more_air, punchy, warm, aggressive, articulate, fast_attack, more_mids, less_fizz, less_mud, too_scooped, too_bright, too_dark, too_fizzy, too_thick, too_thin, too_honky, harsh_attack, lacks_cut, lacks_punch, smooth_but_dull, balanced, perfect";
+
+      const aiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        {
+          role: "system",
+          content: `You are a guitar tone preference advisor for an IR (impulse response) analysis tool. You're having a conversation to help refine the user's tonal preferences.
+
+CURRENT PROFILE STATE:
+- Status: ${statusLabel} (${profile.signalCount} signals, ${profile.likedCount} liked, ${profile.nopedCount} noped)
+- Course corrections: ${corrections}
+- Learned adjustments: ${adjustments}
+- Avoid zones: ${avoidZones}
+- Refinement tracking: ${refinement}
+- Gear sentiments: ${gearSummary}
+- Tonal summary: ${profileContext}
+${signalSummary ? `\nAdditional context from user's session:\n${signalSummary}` : ""}
+
+YOUR GOALS:
+1. Help the user articulate what they want tonally — ask targeted questions about what they liked/disliked in recent suggestions
+2. When the user describes preferences, translate them into specific band adjustments
+3. Be specific about frequencies: subBass (20-120Hz), bass (120-250Hz), lowMid (250-500Hz), mid (500-2kHz), highMid (2-4kHz), presence (4-8kHz)
+4. When you understand what they want, include a "corrections" array in your JSON response with tags from this list: ${feedbackTagList}
+5. Ask follow-up questions to narrow down — "Do you want more mid body or is it the lowMid warmth you're after?" etc.
+6. Reference their actual data — if they say "suggestions are too bright" and the profile shows high presence shift, acknowledge that
+7. Be conversational and practical, not overly technical. Use guitar-world language.
+8. If the user says something vague like "darker", probe deeper: "Dark can mean different things — do you want less high-end sizzle (presence), less bite/cut (highMid), or more low-end warmth (bass/lowMid)?"
+
+RESPONSE FORMAT: Always return valid JSON:
+{
+  "reply": "Your conversational response",
+  "corrections": [{"tag": "correction_tag", "description": "what this adjusts"}]  // Only include when you have enough info to make an adjustment. Omit or empty array if just asking questions.
+}
+
+The corrections array uses these tags to shift the tonal profile. Include multiple if the user's feedback maps to several adjustments. Only include corrections when you're confident about the adjustment — when in doubt, ask another question first.`
+        },
+        ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ];
+
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: aiMessages,
+        response_format: { type: "json_object" },
+        temperature: 0.4,
+      });
+
+      const content = aiResponse.choices[0]?.message?.content;
+      if (!content) {
+        return res.status(500).json({ message: "AI returned no response" });
+      }
+
+      const result = JSON.parse(content);
+      console.log(`[PreferenceChat] Reply with ${result.corrections?.length ?? 0} corrections`);
+      res.json({
+        reply: result.reply || "I'm not sure how to respond to that.",
+        corrections: result.corrections || [],
+      });
+    } catch (err) {
+      console.error('Preference chat error:', err);
+      res.status(500).json({ message: "Failed to process preference chat" });
     }
   });
 
