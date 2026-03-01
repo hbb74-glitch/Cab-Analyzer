@@ -1145,3 +1145,52 @@ export async function restoreTasteFromServer(): Promise<{ restored: boolean; tot
     return { restored: false, totalVotes: 0, soloCount: 0 };
   }
 }
+
+export const SUPERBLEND_INTENTS = [
+  { value: "versatile", label: "Versatile Reference", description: "Balanced, full-spectrum blend that works across genres — the definitive representation of this speaker" },
+  { value: "rhythm", label: "Rhythm", description: "Tight, aggressive, punchy — optimized for palm mutes, chugs, and rhythmic clarity with controlled low-end" },
+  { value: "lead", label: "Lead", description: "Smooth, present, singing sustain — midrange focus with controlled highs for lead guitar that cuts without harshness" },
+  { value: "clean", label: "Clean / Ambient", description: "Warm, open, spacious — optimized for clean tones, ambient textures, and dynamics with extended frequency range" },
+] as const;
+
+export interface SuperblendLayer {
+  filename: string;
+  percentage: number;
+  role: string;
+  contribution: string;
+}
+
+export interface SavedSuperblend {
+  id: string;
+  speaker: string;
+  intent: string;
+  name: string;
+  layers: SuperblendLayer[];
+  expectedTone: string;
+  bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+  versatilityScore: number;
+  bestFor: string;
+  savedAt: string;
+}
+
+const SUPERBLEND_FAVORITES_KEY = "irscope.superblendFavorites";
+
+export function loadSuperblendFavorites(): SavedSuperblend[] {
+  try {
+    const raw = localStorage.getItem(SUPERBLEND_FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSuperblendFavorite(blend: SavedSuperblend): void {
+  const existing = loadSuperblendFavorites();
+  existing.unshift(blend);
+  localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+}
+
+export function removeSuperblendFavorite(id: string): void {
+  const existing = loadSuperblendFavorites().filter(b => b.id !== id);
+  localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+}

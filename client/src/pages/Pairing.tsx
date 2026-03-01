@@ -12,7 +12,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -1404,13 +1404,6 @@ export default function Pairing() {
   );
 }
 
-interface SuperblendLayer {
-  filename: string;
-  percentage: number;
-  role: string;
-  contribution: string;
-}
-
 interface SuperblendResult {
   blend: {
     name: string;
@@ -1443,10 +1436,13 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [irCount, setIrCount] = useState(4);
   const [toneGoal, setToneGoal] = useState("");
   const [selectedSpeaker, setSelectedSpeaker] = useState("");
+  const [selectedIntent, setSelectedIntent] = useState<string>("versatile");
   const [result, setResult] = useState<SuperblendResult | null>(null);
   const [activeBlend, setActiveBlend] = useState<"primary" | number>("primary");
   const [refineText, setRefineText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
+  const [showSaved, setShowSaved] = useState(false);
   const { toast } = useToast();
 
   const speakers = useMemo(() => {
@@ -1486,10 +1482,13 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         centroid: ir.features!.spectralCentroidHz || 0,
         smoothness: ir.features!.smoothScore || 0,
       }));
+      const intentLabel = SUPERBLEND_INTENTS.find(i => i.value === selectedIntent);
+      const intentGoal = intentLabel ? `${intentLabel.label}: ${intentLabel.description}` : "";
+      const combinedGoal = [intentGoal, toneGoal.trim()].filter(Boolean).join(". Also: ");
       const res = await apiRequest("POST", "/api/preferences/superblend", {
         speaker: selectedSpeaker,
         irCount,
-        toneGoal: toneGoal.trim() || undefined,
+        toneGoal: combinedGoal || undefined,
         irs: irData,
       });
       return res.json();
@@ -1503,6 +1502,31 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       toast({ title: "Superblend failed", description: "Could not generate blend. Try again.", variant: "destructive", duration: 3000 });
     },
   });
+
+  const saveCurrentBlend = () => {
+    if (!displayBlend || !result) return;
+    const blend: SavedSuperblend = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      speaker: result.blend.speaker,
+      intent: selectedIntent,
+      name: displayBlend.name,
+      layers: displayBlend.layers,
+      expectedTone: displayBlend.expectedTone,
+      bandBreakdown: displayBlend.bandBreakdown,
+      versatilityScore: displayBlend.versatilityScore,
+      bestFor: (displayBlend as any).bestFor || "",
+      savedAt: new Date().toISOString(),
+    };
+    saveSuperblendFavorite(blend);
+    setSavedBlends(loadSuperblendFavorites());
+    toast({ title: "Superblend saved", description: `"${blend.name}" saved to your collection.` });
+  };
+
+  const removeSaved = (id: string) => {
+    removeSuperblendFavorite(id);
+    setSavedBlends(loadSuperblendFavorites());
+    toast({ title: "Removed", description: "Superblend removed from collection." });
+  };
 
   const refineMutation = useMutation({
     mutationFn: async () => {
@@ -1603,6 +1627,20 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         Each IR fills a specific tonal role to capture the full character of the speaker.
       </p>
 
+      <div className="flex gap-2 flex-wrap mb-4">
+        {SUPERBLEND_INTENTS.map(intent => (
+          <button
+            key={intent.value}
+            onClick={() => setSelectedIntent(intent.value)}
+            className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", selectedIntent === intent.value ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+            title={intent.description}
+            data-testid={`button-intent-pairing-${intent.value}`}
+          >
+            {intent.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div>
           <label className="text-xs text-muted-foreground block mb-1.5">Speaker</label>
@@ -1631,30 +1669,88 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
           </select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1.5">Tone goal (optional)</label>
+          <label className="text-xs text-muted-foreground block mb-1.5">Extra tone goal (optional)</label>
           <input
             type="text"
             value={toneGoal}
             onChange={(e) => setToneGoal(e.target.value)}
-            placeholder="e.g., versatile, bright rhythm..."
+            placeholder="e.g., more low-end, less fizz..."
             className="w-full h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm placeholder:text-muted-foreground"
             data-testid="input-superblend-goal-pairing"
           />
         </div>
       </div>
 
-      <button
-        onClick={() => generateMutation.mutate()}
-        disabled={generateMutation.isPending || speakerIRs.length < 3}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50 mb-4"
-        data-testid="button-generate-superblend-pairing"
-      >
-        {generateMutation.isPending ? (
-          <><Loader2 className="w-4 h-4 animate-spin" /> Crafting Superblend...</>
-        ) : (
-          <><Layers className="w-4 h-4" /> Generate Superblend</>
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => generateMutation.mutate()}
+          disabled={generateMutation.isPending || speakerIRs.length < 3}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50"
+          data-testid="button-generate-superblend-pairing"
+        >
+          {generateMutation.isPending ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Crafting Superblend...</>
+          ) : (
+            <><Layers className="w-4 h-4" /> Generate Superblend</>
+          )}
+        </button>
+        {savedBlends.length > 0 && (
+          <button
+            onClick={() => setShowSaved(!showSaved)}
+            className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300"
+            data-testid="button-toggle-saved-superblends-pairing"
+          >
+            <Star className="w-3.5 h-3.5" />
+            {savedBlends.length} saved
+          </button>
         )}
-      </button>
+      </div>
+
+      <AnimatePresence>
+        {showSaved && savedBlends.length > 0 && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-4 space-y-3" data-testid="saved-superblends-pairing">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <Star className="w-3.5 h-3.5 text-amber-400" />
+              Saved Superblends ({savedBlends.length})
+            </label>
+            {savedBlends.map(sb => (
+              <div key={sb.id} className="rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 space-y-1.5" data-testid={`saved-superblend-pairing-${sb.id}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-sm font-semibold text-foreground">{sb.name}</span>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-muted-foreground">{sb.speaker}</span>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">{SUPERBLEND_INTENTS.find(i => i.value === sb.intent)?.label || sb.intent}</span>
+                      <span className="text-[10px] text-muted-foreground">{sb.versatilityScore}/100</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        const lines = [`Superblend: ${sb.name}`, `Speaker: ${sb.speaker}`, `Intent: ${sb.intent}`, "", "Layers:", ...sb.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role})`), "", `Tone: ${sb.expectedTone}`];
+                        navigator.clipboard.writeText(lines.join("\n"));
+                        toast({ title: "Copied", description: "Superblend recipe copied." });
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                      data-testid={`button-copy-saved-pairing-${sb.id}`}
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => removeSaved(sb.id)} className="text-muted-foreground hover:text-destructive" data-testid={`button-remove-saved-pairing-${sb.id}`}>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sb.layers.map((l, i) => (
+                    <span key={i} className="text-[10px] text-muted-foreground font-mono">{l.percentage}% {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") || l.filename}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {result && (
@@ -1691,9 +1787,14 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                       {(displayBlend as any).bestFor && <span className="text-xs text-muted-foreground">Best for: {(displayBlend as any).bestFor}</span>}
                     </div>
                   </div>
-                  <button onClick={copyBlend} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-copy-superblend-pairing">
-                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveCurrentBlend} className="text-amber-400 hover:text-amber-300 transition-colors" title="Save to collection" data-testid="button-save-superblend-pairing">
+                      <Star className="w-4 h-4" />
+                    </button>
+                    <button onClick={copyBlend} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-copy-superblend-pairing">
+                      {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5" data-testid="superblend-layers-pairing">
