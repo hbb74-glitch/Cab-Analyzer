@@ -503,6 +503,8 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PreferenceChatPanel borderColor="cyan" signalSummary={results ? `Test AI query: "${query}" — AI interpretation: ${results.interpretation}. ${results.results.length} results returned. User ratings: ${Object.entries(ratings).map(([i, r]) => `${results.results[parseInt(i)]?.blend?.ir1 ?? "?"}: ${r}`).join(", ") || "none yet"}` : undefined} />
     </div>
   );
 }
@@ -730,11 +732,13 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PreferenceChatPanel borderColor="violet" signalSummary={toneResults ? `Tone request: "${toneRequestText}" — AI interpretation: ${toneResults.interpretation}. ${toneResults.suggestions.length} suggestions returned: ${toneResults.suggestions.map(s => `${s.baseIR}+${s.featureIR} (${s.ratio}, ${Math.round(s.confidence * 100)}% match)`).join("; ")}` : undefined} />
     </div>
   );
 }
 
-function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSummary: string; correctionMutation: any }) {
+function PreferenceChatPanel({ profileSummary, correctionMutation, signalSummary, borderColor = "purple" }: { profileSummary?: string; correctionMutation?: any; signalSummary?: string; borderColor?: string }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -742,11 +746,28 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  const internalCorrectionMutation = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/preferences/correct", { correctionText: text });
+      return res.json();
+    },
+    onSuccess: (data: { applied: boolean; summary: string }) => {
+      toast({ title: "Correction applied", description: data.summary });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0];
+        return typeof key === "string" && key.startsWith("/api/preferences/learned");
+      }});
+    },
+  });
+
+  const effectiveCorrectionMutation = correctionMutation || internalCorrectionMutation;
+
   const chatMutation = useMutation({
     mutationFn: async (messages: { role: "user" | "assistant"; content: string }[]) => {
       const res = await apiRequest("POST", "/api/preferences/chat", {
         messages,
-        profileSummary,
+        profileSummary: profileSummary || undefined,
+        signalSummary: signalSummary || undefined,
       });
       return res.json();
     },
@@ -775,7 +796,7 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
   const applyCorrections = () => {
     if (pendingCorrections.length === 0) return;
     const correctionText = pendingCorrections.map(c => c.tag.replace(/_/g, " ")).join(", ");
-    correctionMutation.mutate(correctionText);
+    effectiveCorrectionMutation.mutate(correctionText);
     setChatMessages(prev => [...prev, {
       role: "assistant",
       content: `Applied corrections: ${pendingCorrections.map(c => c.description || c.tag).join(", ")}. Your profile has been updated.`
@@ -783,12 +804,17 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
     setPendingCorrections([]);
   };
 
+  const borderCls = borderColor === "purple" ? "border-purple-500/10" : borderColor === "cyan" ? "border-cyan-500/10" : "border-violet-500/10";
+  const textCls = borderColor === "purple" ? "text-purple-400" : borderColor === "cyan" ? "text-cyan-400" : "text-violet-400";
+  const bgCls = borderColor === "purple" ? "bg-purple-500/20" : borderColor === "cyan" ? "bg-cyan-500/20" : "bg-violet-500/20";
+  const btnBgCls = borderColor === "purple" ? "bg-purple-500/20 text-purple-300 hover:bg-purple-500/30" : borderColor === "cyan" ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" : "bg-violet-500/20 text-violet-300 hover:bg-violet-500/30";
+
   if (!chatOpen) {
     return (
-      <div className="mt-4 pt-4 border-t border-purple-500/10">
+      <div className={cn("mt-4 pt-4 border-t", borderCls)}>
         <button
           onClick={() => setChatOpen(true)}
-          className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300"
+          className={cn("flex items-center gap-2 text-xs hover:opacity-80", textCls)}
           data-testid="button-open-preference-chat"
         >
           <MessageSquare className="w-3.5 h-3.5" />
@@ -799,10 +825,10 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
   }
 
   return (
-    <div className="mt-4 pt-4 border-t border-purple-500/10 space-y-3" data-testid="preference-chat-panel">
+    <div className={cn("mt-4 pt-4 border-t space-y-3", borderCls)} data-testid="preference-chat-panel">
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-          <MessageSquare className="w-3 h-3 text-purple-400" />
+          <MessageSquare className={cn("w-3 h-3", textCls)} />
           Preference Chat
         </label>
         <button onClick={() => setChatOpen(false)} className="text-xs text-muted-foreground hover:text-foreground" data-testid="button-close-preference-chat">
@@ -823,7 +849,7 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
           <div key={i} className={cn(
             "text-xs rounded-lg px-3 py-2 max-w-[90%]",
             msg.role === "user"
-              ? "ml-auto bg-purple-500/20 text-foreground"
+              ? cn("ml-auto text-foreground", bgCls)
               : "mr-auto bg-zinc-800 text-foreground"
           )} data-testid={`chat-message-${msg.role}-${i}`}>
             {msg.content}
@@ -848,10 +874,10 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
             <button
               onClick={applyCorrections}
               className="px-2 py-1 rounded border border-green-500 text-green-400 text-[10px] font-medium"
-              disabled={correctionMutation.isPending}
+              disabled={effectiveCorrectionMutation.isPending}
               data-testid="button-apply-chat-corrections"
             >
-              {correctionMutation.isPending ? "Applying..." : "Apply These"}
+              {effectiveCorrectionMutation.isPending ? "Applying..." : "Apply These"}
             </button>
             <button
               onClick={() => {
@@ -883,7 +909,7 @@ function PreferenceChatPanel({ profileSummary, correctionMutation }: { profileSu
         <button
           onClick={sendMessage}
           disabled={!chatInput.trim() || chatMutation.isPending}
-          className="h-8 px-3 rounded-md bg-purple-500/20 text-purple-300 text-xs hover:bg-purple-500/30 disabled:opacity-50"
+          className={cn("h-8 px-3 rounded-md text-xs disabled:opacity-50", btnBgCls)}
           data-testid="button-send-preference-chat"
         >
           <Send className="w-3.5 h-3.5" />
