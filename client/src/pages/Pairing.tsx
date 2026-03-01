@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -1397,7 +1397,363 @@ export default function Pairing() {
             {replacementQueue.length} replacement{replacementQueue.length !== 1 ? "s" : ""} available
           </p>
         )}
+
+        <SuperblendSection speaker1IRs={speaker1IRs} speaker2IRs={speaker2IRs} />
       </div>
     </div>
+  );
+}
+
+interface SuperblendLayer {
+  filename: string;
+  percentage: number;
+  role: string;
+  contribution: string;
+}
+
+interface SuperblendResult {
+  blend: {
+    name: string;
+    speaker: string;
+    layers: SuperblendLayer[];
+    expectedTone: string;
+    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+    rationale: string;
+    versatilityScore: number;
+    bestFor: string;
+  };
+  alternatives?: {
+    name: string;
+    focus: string;
+    layers: SuperblendLayer[];
+    expectedTone: string;
+    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+    versatilityScore: number;
+  }[];
+  changesSummary?: string;
+}
+
+function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: UploadedIR[]; speaker2IRs: UploadedIR[] }) {
+  const allIRs = useMemo(() => {
+    return [...speaker1IRs, ...speaker2IRs]
+      .filter(ir => ir.features && !ir.analyzing && !ir.error);
+  }, [speaker1IRs, speaker2IRs]);
+
+  const [open, setOpen] = useState(false);
+  const [irCount, setIrCount] = useState(4);
+  const [toneGoal, setToneGoal] = useState("");
+  const [selectedSpeaker, setSelectedSpeaker] = useState("");
+  const [result, setResult] = useState<SuperblendResult | null>(null);
+  const [activeBlend, setActiveBlend] = useState<"primary" | number>("primary");
+  const [refineText, setRefineText] = useState("");
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const speakers = useMemo(() => {
+    const map = new Map<string, UploadedIR[]>();
+    allIRs.forEach(ir => {
+      const parts = ir.file.name.replace(/\.wav$/i, "").split("_");
+      const speaker = parts[0] || "unknown";
+      if (!map.has(speaker)) map.set(speaker, []);
+      map.get(speaker)!.push(ir);
+    });
+    return Array.from(map.entries())
+      .filter(([, irs]) => irs.length >= 3)
+      .sort((a, b) => b[1].length - a[1].length);
+  }, [allIRs]);
+
+  useEffect(() => {
+    if (speakers.length > 0 && !selectedSpeaker) {
+      setSelectedSpeaker(speakers[0][0]);
+    }
+  }, [speakers, selectedSpeaker]);
+
+  const speakerIRs = useMemo(() => {
+    return speakers.find(([s]) => s === selectedSpeaker)?.[1] || [];
+  }, [speakers, selectedSpeaker]);
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const irData = speakerIRs.filter(ir => ir.features).map(ir => ({
+        filename: ir.file.name,
+        subBass: ir.features!.bandsPercent.subBass,
+        bass: ir.features!.bandsPercent.bass,
+        lowMid: ir.features!.bandsPercent.lowMid,
+        mid: ir.features!.bandsPercent.mid,
+        highMid: ir.features!.bandsPercent.highMid,
+        presence: ir.features!.bandsPercent.presence,
+        ratio: ir.features!.bandsPercent.highMid / Math.max(ir.features!.bandsPercent.mid, 0.1),
+        centroid: ir.features!.spectralCentroidHz || 0,
+        smoothness: ir.features!.smoothScore || 0,
+      }));
+      const res = await apiRequest("POST", "/api/preferences/superblend", {
+        speaker: selectedSpeaker,
+        irCount,
+        toneGoal: toneGoal.trim() || undefined,
+        irs: irData,
+      });
+      return res.json();
+    },
+    onSuccess: (data: SuperblendResult) => {
+      setResult(data);
+      setActiveBlend("primary");
+      setRefineText("");
+    },
+    onError: () => {
+      toast({ title: "Superblend failed", description: "Could not generate blend. Try again.", variant: "destructive", duration: 3000 });
+    },
+  });
+
+  const refineMutation = useMutation({
+    mutationFn: async () => {
+      if (!result) throw new Error("No blend to refine");
+      const activeLayers = activeBlend === "primary"
+        ? result.blend.layers
+        : result.alternatives?.[activeBlend as number]?.layers;
+      const activeTone = activeBlend === "primary"
+        ? result.blend.expectedTone
+        : result.alternatives?.[activeBlend as number]?.expectedTone;
+      if (!activeLayers || !activeTone) throw new Error("Invalid blend selection");
+      const irData = speakerIRs.filter(ir => ir.features).map(ir => ({
+        filename: ir.file.name,
+        subBass: ir.features!.bandsPercent.subBass,
+        bass: ir.features!.bandsPercent.bass,
+        lowMid: ir.features!.bandsPercent.lowMid,
+        mid: ir.features!.bandsPercent.mid,
+        highMid: ir.features!.bandsPercent.highMid,
+        presence: ir.features!.bandsPercent.presence,
+        ratio: ir.features!.bandsPercent.highMid / Math.max(ir.features!.bandsPercent.mid, 0.1),
+        centroid: ir.features!.spectralCentroidHz || 0,
+        smoothness: ir.features!.smoothScore || 0,
+      }));
+      const res = await apiRequest("POST", "/api/preferences/superblend/refine", {
+        currentBlend: {
+          speaker: result.blend.speaker,
+          layers: activeLayers,
+          expectedTone: activeTone,
+        },
+        feedback: refineText.trim(),
+        irs: irData,
+      });
+      return res.json();
+    },
+    onSuccess: (data: SuperblendResult) => {
+      setResult(data);
+      setActiveBlend("primary");
+      setRefineText("");
+      toast({ title: "Blend refined", description: data.changesSummary || "Blend updated based on your feedback." });
+    },
+    onError: () => {
+      toast({ title: "Refinement failed", description: "Could not refine blend. Try again.", variant: "destructive", duration: 3000 });
+    },
+  });
+
+  const displayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
+
+  const copyBlend = () => {
+    if (!displayBlend) return;
+    const lines = [
+      `Superblend: ${displayBlend.name}`,
+      `Speaker: ${result?.blend.speaker}`,
+      `Versatility: ${displayBlend.versatilityScore}/100`,
+      "",
+      "Layers:",
+      ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+      "",
+      `Expected Tone: ${displayBlend.expectedTone}`,
+      ...(displayBlend.bandBreakdown ? [`Band Breakdown: Sub ${displayBlend.bandBreakdown.subBass}% | Bass ${displayBlend.bandBreakdown.bass}% | LowMid ${displayBlend.bandBreakdown.lowMid}% | Mid ${displayBlend.bandBreakdown.mid}% | HiMid ${displayBlend.bandBreakdown.highMid}% | Presence ${displayBlend.bandBreakdown.presence}%`] : []),
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (allIRs.length < 3) return null;
+
+  if (!open) {
+    return (
+      <div className="mt-6">
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors"
+          data-testid="button-open-superblend-pairing"
+        >
+          <Layers className="w-4 h-4" />
+          Superblend — Create a definitive multi-IR blend (3-8 IRs)
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 glass-panel p-6 rounded-2xl border border-amber-500/20" data-testid="superblend-section-pairing">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Layers className="w-6 h-6 text-amber-400" />
+          Superblend
+          <span className="text-xs font-normal text-muted-foreground ml-1">Multi-IR</span>
+        </h2>
+        <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-close-superblend-pairing">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <p className="text-sm text-muted-foreground mb-4">
+        Create a definitive multi-IR blend for a speaker — 3 to 8 IRs mixed at precise ratios for plugins like Cabinetron, NadIR, or any multi-IR loader.
+        Each IR fills a specific tonal role to capture the full character of the speaker.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1.5">Speaker</label>
+          <select
+            value={selectedSpeaker}
+            onChange={(e) => { setSelectedSpeaker(e.target.value); setResult(null); }}
+            className="w-full h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
+            data-testid="select-superblend-speaker-pairing"
+          >
+            {speakers.map(([s, irs]) => (
+              <option key={s} value={s}>{s} ({irs.length} IRs)</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1.5">IRs in blend</label>
+          <select
+            value={irCount}
+            onChange={(e) => setIrCount(parseInt(e.target.value))}
+            className="w-full h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
+            data-testid="select-superblend-count-pairing"
+          >
+            {[3, 4, 5, 6, 7, 8].filter(n => n <= speakerIRs.length).map(n => (
+              <option key={n} value={n}>{n} IRs</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1.5">Tone goal (optional)</label>
+          <input
+            type="text"
+            value={toneGoal}
+            onChange={(e) => setToneGoal(e.target.value)}
+            placeholder="e.g., versatile, bright rhythm..."
+            className="w-full h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm placeholder:text-muted-foreground"
+            data-testid="input-superblend-goal-pairing"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={() => generateMutation.mutate()}
+        disabled={generateMutation.isPending || speakerIRs.length < 3}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50 mb-4"
+        data-testid="button-generate-superblend-pairing"
+      >
+        {generateMutation.isPending ? (
+          <><Loader2 className="w-4 h-4 animate-spin" /> Crafting Superblend...</>
+        ) : (
+          <><Layers className="w-4 h-4" /> Generate Superblend</>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {result && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-4">
+            {result.alternatives && result.alternatives.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setActiveBlend("primary")}
+                  className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === "primary" ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+                  data-testid="button-superblend-primary-pairing"
+                >
+                  {result.blend.name}
+                </button>
+                {result.alternatives.map((alt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveBlend(i)}
+                    className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === i ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+                    data-testid={`button-superblend-alt-pairing-${i}`}
+                  >
+                    {alt.name} <span className="opacity-60 ml-1">({alt.focus})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {displayBlend && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4" data-testid="superblend-result-pairing">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground" data-testid="text-superblend-name-pairing">{displayBlend.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400" data-testid="badge-versatility-pairing">{displayBlend.versatilityScore}/100 versatility</span>
+                      {(displayBlend as any).bestFor && <span className="text-xs text-muted-foreground">Best for: {(displayBlend as any).bestFor}</span>}
+                    </div>
+                  </div>
+                  <button onClick={copyBlend} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-copy-superblend-pairing">
+                    {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="space-y-1.5" data-testid="superblend-layers-pairing">
+                  {displayBlend.layers.map((layer, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
+                      <div className="w-14 text-right font-mono font-semibold text-amber-300">{layer.percentage}%</div>
+                      <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
+                        <div className="h-full bg-amber-500/30 rounded-full" style={{ width: `${layer.percentage}%` }} />
+                        <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
+                      </div>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-white/10 text-muted-foreground shrink-0">{layer.role}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {displayBlend.bandBreakdown && (
+                  <div className="grid grid-cols-6 gap-2 text-center" data-testid="superblend-bands-pairing">
+                    {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
+                      <div key={band}>
+                        <div className="text-[10px] text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
+                        <div className="font-mono font-semibold text-sm text-foreground">{displayBlend.bandBreakdown[band]}%</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground" data-testid="text-superblend-tone-pairing">{displayBlend.expectedTone}</p>
+                {(displayBlend as any).rationale && <p className="text-xs text-muted-foreground/70" data-testid="text-superblend-rationale-pairing">{(displayBlend as any).rationale}</p>}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-amber-500/10">
+              <label className="text-xs text-muted-foreground block mb-2">Refine this blend — tell the AI what to change</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={refineText}
+                  onChange={(e) => setRefineText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && refineText.trim()) refineMutation.mutate(); }}
+                  placeholder="e.g., too bright, needs more low-mid body, swap the SM57 for something darker..."
+                  className="flex-1 h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  disabled={refineMutation.isPending}
+                  data-testid="input-superblend-refine-pairing"
+                />
+                <button
+                  onClick={() => refineMutation.mutate()}
+                  disabled={!refineText.trim() || refineMutation.isPending}
+                  className="h-9 px-3 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 disabled:opacity-50 transition-all"
+                  data-testid="button-superblend-refine-pairing"
+                >
+                  {refineMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                </button>
+              </div>
+              {result.changesSummary && (
+                <p className="text-xs text-green-400 mt-2" data-testid="text-superblend-changes-pairing">{result.changesSummary}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
