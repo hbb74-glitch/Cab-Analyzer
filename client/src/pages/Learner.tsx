@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
+import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
@@ -738,23 +739,28 @@ function FindTonePanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; spea
   );
 }
 
+type BandBreakdown = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+
+interface SuperblendBlendData {
+  name: string;
+  speaker: string;
+  layers: SuperblendLayer[];
+  expectedTone: string;
+  bandBreakdown: BandBreakdown;
+  rationale: string;
+  versatilityScore: number;
+  bestFor: string;
+}
+
 interface SuperblendResult {
-  blend: {
-    name: string;
-    speaker: string;
-    layers: SuperblendLayer[];
-    expectedTone: string;
-    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
-    rationale: string;
-    versatilityScore: number;
-    bestFor: string;
-  };
+  blend: SuperblendBlendData;
+  equalPartsBlend?: SuperblendBlendData;
   alternatives?: {
     name: string;
     focus: string;
     layers: SuperblendLayer[];
     expectedTone: string;
-    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+    bandBreakdown: BandBreakdown;
     versatilityScore: number;
   }[];
   changesSummary?: string;
@@ -772,6 +778,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [copied, setCopied] = useState(false);
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [showSaved, setShowSaved] = useState(false);
+  const [equalParts, setEqualParts] = useState(false);
   const { toast } = useToast();
 
   const speakers = useMemo(() => {
@@ -901,7 +908,9 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     },
   });
 
-  const displayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
+  const baseDisplayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
+  const displayBlend = equalParts && activeBlend === "primary" && result?.equalPartsBlend ? result.equalPartsBlend : baseDisplayBlend;
+  const hasEqualPartsOption = !!result?.equalPartsBlend;
 
   const copyBlend = () => {
     if (!displayBlend) return;
@@ -1008,9 +1017,11 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
+      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }))} compact />
+
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Button
-          onClick={() => generateMutation.mutate()}
+          onClick={() => { setEqualParts(false); generateMutation.mutate(); }}
           disabled={generateMutation.isPending || speakerIRs.length < 3}
           size="sm"
           data-testid="button-generate-superblend"
@@ -1124,12 +1135,33 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                   </div>
                 </div>
 
+                {hasEqualPartsOption && activeBlend === "primary" && (
+                  <div className="flex items-center gap-2 mb-1">
+                    <button
+                      onClick={() => setEqualParts(false)}
+                      className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-all", !equalParts ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-background text-muted-foreground border-input hover:border-amber-500/30")}
+                      data-testid="button-freeform-toggle"
+                    >
+                      <Layers className="w-3 h-3" />
+                      Free-form
+                    </button>
+                    <button
+                      onClick={() => setEqualParts(true)}
+                      className={cn("flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border transition-all", equalParts ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" : "bg-background text-muted-foreground border-input hover:border-cyan-500/30")}
+                      data-testid="button-equal-parts-toggle"
+                    >
+                      <Target className="w-3 h-3" />
+                      Equal Parts
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-1" data-testid="superblend-layers">
                   {displayBlend.layers.map((layer, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs" data-testid={`superblend-layer-${i}`}>
-                      <div className="w-12 text-right font-mono font-semibold text-amber-300" data-testid={`text-layer-pct-${i}`}>{layer.percentage}%</div>
+                      <div className={cn("w-12 text-right font-mono font-semibold", equalParts ? "text-cyan-300" : "text-amber-300")} data-testid={`text-layer-pct-${i}`}>{layer.percentage}%</div>
                       <div className="flex-1 h-5 bg-amber-500/10 rounded-full overflow-hidden relative">
-                        <div className="h-full bg-amber-500/30 rounded-full" style={{ width: `${layer.percentage}%` }} />
+                        <div className={cn("h-full rounded-full", equalParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
                         <span className="absolute inset-0 flex items-center px-2 text-[10px] text-foreground truncate" data-testid={`text-layer-name-${i}`}>{layer.filename}</span>
                       </div>
                       <Badge variant="outline" className="text-[9px] shrink-0" data-testid={`badge-layer-role-${i}`}>{layer.role}</Badge>
@@ -1142,11 +1174,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
                       <div key={band} className="text-[9px]">
                         <div className="text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
-                        <div className="font-mono font-semibold text-foreground">{displayBlend.bandBreakdown[band]}%</div>
+                        <div className={cn("font-mono font-semibold", equalParts ? "text-cyan-300" : "text-foreground")}>{displayBlend.bandBreakdown[band]}%</div>
                       </div>
                     ))}
                   </div>
                 )}
+                {equalParts && <p className="text-[9px] text-cyan-400/60">AI-optimized IR selection for equal parts — center dot on the geometric mixer</p>}
 
                 <p className="text-[10px] text-muted-foreground" data-testid="text-superblend-tone">{displayBlend.expectedTone}</p>
                 {(displayBlend as any).rationale && <p className="text-[10px] text-muted-foreground/70" data-testid="text-superblend-rationale">{(displayBlend as any).rationale}</p>}

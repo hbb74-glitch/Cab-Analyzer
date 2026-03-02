@@ -13,6 +13,7 @@ import { api, type RecommendationsResponse, type SpeakerRecommendationsResponse,
 import { analyzeAudioFile } from "@/hooks/use-analyses";
 import { MIC_ROLE_KB } from "@shared/knowledge/mic-role-map";
 import { getValidatedShotInsights } from "@/lib/tasteStore";
+import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 
 // Ambiguous speaker patterns that need clarification
 const AMBIGUOUS_SPEAKERS: Record<string, { options: { value: string; label: string }[]; question: string }> = {
@@ -2747,6 +2748,7 @@ export default function Recommendations() {
                             <Trash2 className="w-3 h-3" /> Clear
                           </button>
                         </div>
+                        <IRCountAdvisor irs={existingShots.map(s => ({ filename: s.filename, bandsPercent: { subBass: s.subBass, bass: s.bass, lowMid: s.lowMid, mid: s.mid, highMid: s.highMid, presence: s.presence } }))} compact />
                         <div className="flex flex-wrap gap-1.5">
                           {existingShots.map((shot) => (
                             <span

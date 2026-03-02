@@ -6594,10 +6594,17 @@ SELECTION STRATEGY:
 5. Use IRs with different mic positions/distances for variety
 6. The final blend should have: balanced mids, controlled bass, defined highs, smooth overall response
 
+IMPORTANT: You must provide TWO recipe modes in a single response:
+
+1. "blend" — FREE-FORM mode: Optimized percentages where each IR gets a different weight based on its role and contribution. Percentages sum to 100%.
+2. "equalPartsBlend" — EQUAL PARTS mode: Select the best ${irCount} IRs specifically optimized for EQUAL mixing (each IR gets exactly ${Math.round(10000 / irCount) / 100}%). When every IR contributes equally, you need IRs that complement each other perfectly — no IR can dominate or be subtle. Pick IRs where each one brings something distinct so the equal mix covers the full spectrum. The IR selection MAY differ from the free-form blend.
+
+Many IR blending plugins (Cabinetron, NadIR, etc.) use geometric interfaces (triangle for 3, square for 4, pentagon for 5) where placing the dot in the center gives equal parts. This is the easiest starting point for users.
+
 Return JSON:
 {
   "blend": {
-    "name": "Creative name for this superblend (e.g., 'V30 Reference', 'Greenback Ultimate')",
+    "name": "Creative name for this superblend",
     "speaker": "speaker name",
     "layers": [
       {
@@ -6608,18 +6615,33 @@ Return JSON:
       }
     ],
     "expectedTone": "Description of the final blended tone",
-    "bandBreakdown": {
-      "subBass": number, "bass": number, "lowMid": number, "mid": number, "highMid": number, "presence": number
-    },
+    "bandBreakdown": { "subBass": n, "bass": n, "lowMid": n, "mid": n, "highMid": n, "presence": n },
     "rationale": "Why these specific IRs were chosen and how they complement each other",
-    "versatilityScore": number (0-100, how well this works across different musical contexts),
+    "versatilityScore": number (0-100),
     "bestFor": "Genres/styles this blend excels at"
+  },
+  "equalPartsBlend": {
+    "name": "Creative name for equal-parts version",
+    "speaker": "speaker name",
+    "layers": [
+      {
+        "filename": "exact IR filename",
+        "percentage": ${Math.round(10000 / irCount) / 100},
+        "role": "role in the equal mix",
+        "contribution": "What this IR brings when mixed equally"
+      }
+    ],
+    "expectedTone": "Description of the equal-parts tone",
+    "bandBreakdown": { "subBass": n, "bass": n, "lowMid": n, "mid": n, "highMid": n, "presence": n },
+    "rationale": "Why these IRs work best at equal parts — how they complement each other when no IR dominates",
+    "versatilityScore": number (0-100),
+    "bestFor": "Genres/styles this equal-parts blend excels at"
   },
   "alternatives": [
     {
       "name": "Alternative blend name",
-      "focus": "What this alternative prioritizes differently (e.g., 'brighter', 'warmer', 'tighter')",
-      "layers": [same format as above],
+      "focus": "What this alternative prioritizes differently",
+      "layers": [same format],
       "expectedTone": "How this sounds different",
       "bandBreakdown": { same format },
       "versatilityScore": number
@@ -6627,8 +6649,9 @@ Return JSON:
   ]
 }
 
-Provide 1 primary blend and 1-2 alternatives with different tonal focuses. The primary should be the most versatile.
-Use exactly ${irCount} IRs for the primary blend. Alternatives can use 3-${irCount} IRs.`
+Provide 1 primary free-form blend, 1 equal-parts blend, and 1-2 alternatives with different tonal focuses.
+Use exactly ${irCount} IRs for the primary and equal-parts blends. Alternatives can use 3-${irCount} IRs.
+The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCount) / 100}% each.`
           },
           {
             role: "user",
@@ -6686,6 +6709,9 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
       if (result.blend?.layers) {
         result.blend.bandBreakdown = computeBandBreakdown(result.blend.layers);
       }
+      if (result.equalPartsBlend?.layers) {
+        result.equalPartsBlend.bandBreakdown = computeBandBreakdown(result.equalPartsBlend.layers);
+      }
       if (result.alternatives) {
         for (const alt of result.alternatives) {
           if (alt.layers) {
@@ -6694,7 +6720,7 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
         }
       }
 
-      console.log(`[Superblend] "${speaker}" (${irCount} IRs) => blend created`);
+      console.log(`[Superblend] "${speaker}" (${irCount} IRs) => blend created (free-form + equal-parts)`);
       res.json(result);
     } catch (err) {
       console.error('Superblend error:', err);

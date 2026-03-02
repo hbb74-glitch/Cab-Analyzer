@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
+import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1404,23 +1405,28 @@ export default function Pairing() {
   );
 }
 
+type PairingBandBreakdown = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+
+interface PairingSuperblendBlendData {
+  name: string;
+  speaker: string;
+  layers: SuperblendLayer[];
+  expectedTone: string;
+  bandBreakdown: PairingBandBreakdown;
+  rationale: string;
+  versatilityScore: number;
+  bestFor: string;
+}
+
 interface SuperblendResult {
-  blend: {
-    name: string;
-    speaker: string;
-    layers: SuperblendLayer[];
-    expectedTone: string;
-    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
-    rationale: string;
-    versatilityScore: number;
-    bestFor: string;
-  };
+  blend: PairingSuperblendBlendData;
+  equalPartsBlend?: PairingSuperblendBlendData;
   alternatives?: {
     name: string;
     focus: string;
     layers: SuperblendLayer[];
     expectedTone: string;
-    bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
+    bandBreakdown: PairingBandBreakdown;
     versatilityScore: number;
   }[];
   changesSummary?: string;
@@ -1439,6 +1445,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [selectedIntent, setSelectedIntent] = useState<string>("versatile");
   const [result, setResult] = useState<SuperblendResult | null>(null);
   const [activeBlend, setActiveBlend] = useState<"primary" | number>("primary");
+  const [equalParts, setEqualParts] = useState(false);
   const [refineText, setRefineText] = useState("");
   const [copied, setCopied] = useState(false);
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
@@ -1572,7 +1579,9 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
     },
   });
 
-  const displayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
+  const baseDisplayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
+  const displayBlend = equalParts && activeBlend === "primary" && result?.equalPartsBlend ? result.equalPartsBlend : baseDisplayBlend;
+  const hasEqualPartsOption = !!result?.equalPartsBlend;
 
   const copyBlend = () => {
     if (!displayBlend) return;
@@ -1681,9 +1690,11 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
+      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }))} compact />
+
+      <div className="flex items-center gap-3 mb-4 mt-3">
         <button
-          onClick={() => generateMutation.mutate()}
+          onClick={() => { setEqualParts(false); generateMutation.mutate(); }}
           disabled={generateMutation.isPending || speakerIRs.length < 3}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50"
           data-testid="button-generate-superblend-pairing"
@@ -1797,12 +1808,33 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                   </div>
                 </div>
 
+                {hasEqualPartsOption && activeBlend === "primary" && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => setEqualParts(false)}
+                      className={cn("flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-all", !equalParts ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+                      data-testid="button-freeform-toggle-pairing"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      Free-form
+                    </button>
+                    <button
+                      onClick={() => setEqualParts(true)}
+                      className={cn("flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-all", equalParts ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-cyan-500/30")}
+                      data-testid="button-equal-parts-toggle-pairing"
+                    >
+                      <Target className="w-3.5 h-3.5" />
+                      Equal Parts
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-1.5" data-testid="superblend-layers-pairing">
                   {displayBlend.layers.map((layer, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
-                      <div className="w-14 text-right font-mono font-semibold text-amber-300">{layer.percentage}%</div>
+                      <div className={cn("w-14 text-right font-mono font-semibold", equalParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
                       <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
-                        <div className="h-full bg-amber-500/30 rounded-full" style={{ width: `${layer.percentage}%` }} />
+                        <div className={cn("h-full rounded-full", equalParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
                         <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
                       </div>
                       <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-white/10 text-muted-foreground shrink-0">{layer.role}</span>
@@ -1815,11 +1847,12 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                     {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
                       <div key={band}>
                         <div className="text-[10px] text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
-                        <div className="font-mono font-semibold text-sm text-foreground">{displayBlend.bandBreakdown[band]}%</div>
+                        <div className={cn("font-mono font-semibold text-sm", equalParts ? "text-cyan-300" : "text-foreground")}>{displayBlend.bandBreakdown[band]}%</div>
                       </div>
                     ))}
                   </div>
                 )}
+                {equalParts && <p className="text-[10px] text-cyan-400/60 mt-1">AI-optimized IR selection for equal parts — center dot on the geometric mixer</p>}
 
                 <p className="text-sm text-muted-foreground" data-testid="text-superblend-tone-pairing">{displayBlend.expectedTone}</p>
                 {(displayBlend as any).rationale && <p className="text-xs text-muted-foreground/70" data-testid="text-superblend-rationale-pairing">{(displayBlend as any).rationale}</p>}
