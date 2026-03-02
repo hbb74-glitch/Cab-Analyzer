@@ -957,7 +957,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     const formatBlend = (label: string, b: typeof result.blend) => {
       const lines = [
         `── ${label}: ${b.name} ──`,
-        ...b.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+        ...b.layers.map((l, i) => `${i + 1}. ${l.filename} — ${l.percentage}% (${l.role})`),
         b.bandBreakdown ? `  Bands: Sub ${b.bandBreakdown.subBass}% | Bass ${b.bandBreakdown.bass}% | LoMid ${b.bandBreakdown.lowMid}% | Mid ${b.bandBreakdown.mid}% | HiMid ${b.bandBreakdown.highMid}% | Pres ${b.bandBreakdown.presence}%` : "",
         `  Tone: ${b.expectedTone}`,
       ];
