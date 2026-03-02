@@ -6775,7 +6775,33 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
         messages: [
           {
             role: "system",
-            content: `You are refining a Superblend — a multi-IR mix for guitar cabinet simulation. The user has provided feedback on the current blend and wants adjustments.
+            content: `You are an expert guitar cabinet IR engineer working with a Superblend — a multi-IR mix for guitar cabinet simulation.
+
+IMPORTANT: First classify the user's message into one of three categories:
+
+1. QUESTION — the user wants information, not a change:
+   - Asks "why", "what", "how", "does", "is", "can", "should", "would", "will", "do you think"
+   - Asks about differences, comparisons, explanations
+   - Uses question marks or interrogative phrasing
+
+2. COMMENT — the user is making an observation, giving praise, or expressing an opinion without requesting a change:
+   - "nice blend", "I like this", "sounds good", "interesting", "that makes sense"
+   - General observations about the blend without asking for modification
+   - Expressing satisfaction or dissatisfaction without specifying what to change
+
+For QUESTION or COMMENT, return:
+{
+  "questionAnswer": "Your response. For questions: a detailed, tonal-data-informed answer referencing specific band values. For comments: a brief, friendly acknowledgment that shows you understood what they said, plus a relevant insight about the current blend.",
+  "blend": null
+}
+Do NOT modify the blend for questions or comments.
+
+3. CHANGE REQUEST — the user wants the blend modified:
+   - "too bright", "needs more bass", "swap the R121", "make it darker"
+   - Specific tonal adjustments, IR swaps, or percentage changes
+   - Directional feedback implying modification (e.g., "less presence", "warmer")
+
+Only for CHANGE REQUESTS, refine the blend:
 
 You can:
 1. Swap IRs for different ones from the available pool
@@ -6789,7 +6815,7 @@ RULES:
 - Interpret the user's feedback carefully — they may use subjective terms
 - Explain what you changed and why
 
-Return JSON in the same format as the original blend:
+Return JSON:
 {
   "blend": {
     "name": "Updated blend name",
@@ -6817,7 +6843,7 @@ All available IRs for this speaker:
 ${irSummary}
 ${learnedContext}
 
-Refine the blend based on the feedback. Return as JSON.`
+First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST? Then respond accordingly as described in the system instructions. Return as JSON.`
           }
         ],
         response_format: { type: "json_object" },
@@ -6830,6 +6856,11 @@ Refine the blend based on the feedback. Return as JSON.`
       }
 
       const result = JSON.parse(content);
+
+      if (result.questionAnswer && !result.blend) {
+        console.log(`[Superblend Refine] "${currentBlend.speaker}" => question answered`);
+        return res.json({ questionAnswer: result.questionAnswer });
+      }
 
       try {
         await storage.addPreferenceSignal({

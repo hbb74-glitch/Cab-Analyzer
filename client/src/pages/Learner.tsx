@@ -776,6 +776,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [result, setResult] = useState<SuperblendResult | null>(null);
   const [activeBlend, setActiveBlend] = useState<"primary" | number>("primary");
   const [refineText, setRefineText] = useState("");
+  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [showSaved, setShowSaved] = useState(false);
@@ -834,6 +835,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       setResult(data);
       setActiveBlend("primary");
       setRefineText("");
+      setAiAnswer(null);
       if (data.blend.bandBreakdown) {
         const irEntries = speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }));
         const pair = findBestPairForBands(irEntries, data.blend.bandBreakdown);
@@ -908,7 +910,13 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       });
       return res.json();
     },
-    onSuccess: (data: SuperblendResult) => {
+    onSuccess: (data: SuperblendResult & { questionAnswer?: string }) => {
+      if (data.questionAnswer && !data.blend) {
+        setAiAnswer(data.questionAnswer);
+        setRefineText("");
+        return;
+      }
+      setAiAnswer(null);
       setResult(data);
       setActiveBlend("primary");
       setRefineText("");
@@ -1198,14 +1206,14 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
             )}
 
             <div className="pt-2 border-t border-amber-500/10">
-              <label className="text-[10px] text-muted-foreground block mb-1.5">Refine this blend — tell the AI what to change</label>
+              <label className="text-[10px] text-muted-foreground block mb-1.5">Ask a question, leave a comment, or request changes</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={refineText}
-                  onChange={(e) => setRefineText(e.target.value)}
+                  onChange={(e) => { setRefineText(e.target.value); if (aiAnswer) setAiAnswer(null); }}
                   onKeyDown={(e) => { if (e.key === "Enter" && refineText.trim()) refineMutation.mutate(); }}
-                  placeholder="e.g., too bright, needs more low-mid body, swap the SM57 for something darker..."
+                  placeholder="e.g., why this IR? / nice blend / needs more low-mid body..."
                   className="flex-1 h-8 rounded-md border border-input bg-background px-3 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   disabled={refineMutation.isPending}
                   data-testid="input-superblend-refine"
@@ -1219,7 +1227,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                   {refineMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 </button>
               </div>
-              {result.changesSummary && (
+              {aiAnswer && (
+                <div className="mt-1.5 p-2 rounded-md bg-violet-500/10 border border-violet-500/20" data-testid="text-superblend-ai-answer">
+                  <p className="text-[10px] text-violet-200 leading-relaxed">{aiAnswer}</p>
+                </div>
+              )}
+              {result.changesSummary && !aiAnswer && (
                 <p className="text-[10px] text-green-400 mt-1.5" data-testid="text-superblend-changes">{result.changesSummary}</p>
               )}
             </div>
