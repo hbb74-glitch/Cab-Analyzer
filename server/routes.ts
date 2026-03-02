@@ -6857,14 +6857,9 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
 
       const result = JSON.parse(content);
 
-      if (result.questionAnswer && !result.blend) {
-        console.log(`[Superblend Refine] "${currentBlend.speaker}" => question answered`);
-        return res.json({ questionAnswer: result.questionAnswer });
-      }
-
       try {
         await storage.addPreferenceSignal({
-          action: "superblend_refine",
+          action: result.questionAnswer && !result.blend ? "superblend_comment" : "superblend_refine",
           baseFilename: currentBlend.layers[0]?.filename || "superblend",
           featureFilename: currentBlend.speaker,
           feedback: `superblend: ${feedback}`,
@@ -6872,6 +6867,11 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
           score: 0, profileMatch: "superblend",
         });
       } catch (e) {}
+
+      if (result.questionAnswer && !result.blend) {
+        console.log(`[Superblend Refine] "${currentBlend.speaker}" => question/comment recorded & answered`);
+        return res.json({ questionAnswer: result.questionAnswer });
+      }
 
       const irMap = new Map(irs.map(ir => [ir.filename, ir]));
       if (result.blend?.layers) {
