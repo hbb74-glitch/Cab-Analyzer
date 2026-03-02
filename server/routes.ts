@@ -6667,7 +6667,7 @@ Return JSON:
 }
 
 Provide 1 primary free-form blend, 1 equal-parts blend, and 1-2 alternatives with different tonal focuses.
-Use exactly ${irCount} IRs for the primary and equal-parts blends. Alternatives can use 3-${irCount} IRs.
+Use exactly ${irCount} IRs for ALL blends — primary, equal-parts, AND alternatives. Every blend must use exactly ${irCount} IRs. Do not drop IRs from alternatives.
 The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCount) / 100}% each.`
           },
           {
