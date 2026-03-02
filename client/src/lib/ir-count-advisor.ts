@@ -96,11 +96,20 @@ function scoreVsTarget(blend: BandsPercent, profile: IntentProfile): number {
   return Math.max(0, Math.round((1 - dist / maxDist) * 100));
 }
 
+const PSYCHOACOUSTIC_WEIGHTS: Record<keyof BandsPercent, number> = {
+  subBass: 0.3,
+  bass: 0.7,
+  lowMid: 1.2,
+  mid: 2.0,
+  highMid: 1.8,
+  presence: 1.4,
+};
+
 function scoreVsBands(blend: BandsPercent, target: BandsPercent): number {
   let sum = 0;
   for (const k of BAND_KEYS) {
     const diff = blend[k] - target[k];
-    sum += diff * diff;
+    sum += diff * diff * PSYCHOACOUSTIC_WEIGHTS[k];
   }
   const dist = Math.sqrt(sum);
   const maxDist = 50;
