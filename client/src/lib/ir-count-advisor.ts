@@ -14,117 +14,129 @@ interface IREntry {
 
 interface IRCountAdvice {
   loaded: number;
-  minUseful: number;
+  effectiveCount: number;
   maxUseful: number;
-  verdict: "too-few" | "sweet-spot" | "diminishing" | "redundant";
+  verdict: "too-few" | "sweet-spot" | "more-than-enough";
   reasoning: string;
-  redundantCount: number;
 }
 
 const BAND_KEYS: (keyof BandsPercent)[] = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"];
 
-const PERCEPTUAL_WEIGHTS: Record<keyof BandsPercent, number> = {
-  subBass: 0.08,
-  bass: 0.18,
-  lowMid: 0.22,
-  mid: 0.24,
-  highMid: 0.18,
-  presence: 0.10,
-};
-
-function spectralDistance(a: BandsPercent, b: BandsPercent): number {
-  let sum = 0;
+function averageBands(entries: BandsPercent[]): BandsPercent {
+  const result: any = {};
   for (const k of BAND_KEYS) {
-    const diff = a[k] - b[k];
-    sum += diff * diff * PERCEPTUAL_WEIGHTS[k];
+    result[k] = entries.reduce((sum, e) => sum + e[k], 0) / entries.length;
   }
-  return Math.sqrt(sum);
+  return result as BandsPercent;
 }
 
-function spectralCentroid(bands: BandsPercent): number {
-  const freqs = [40, 150, 400, 1000, 3000, 8000];
-  let num = 0, den = 0;
-  BAND_KEYS.forEach((k, i) => {
-    num += bands[k] * freqs[i];
-    den += bands[k];
-  });
-  return den > 0 ? num / den : 1000;
+function maxBandShift(a: BandsPercent, b: BandsPercent): number {
+  let maxDiff = 0;
+  for (const k of BAND_KEYS) {
+    maxDiff = Math.max(maxDiff, Math.abs(a[k] - b[k]));
+  }
+  return maxDiff;
 }
 
-const JND_THRESHOLD = 2.5;
+function blendFingerprint(irBands: BandsPercent[], weights: number[]): BandsPercent {
+  const result: any = {};
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  for (const k of BAND_KEYS) {
+    result[k] = irBands.reduce((sum, ir, i) => sum + ir[k] * weights[i], 0) / totalW;
+  }
+  return result as BandsPercent;
+}
+
+const AUDIBLE_BAND_SHIFT = 1.5;
 
 export function analyzeIRCount(irs: IREntry[]): IRCountAdvice {
   const n = irs.length;
 
   if (n === 0) {
-    return { loaded: 0, minUseful: 3, maxUseful: 6, verdict: "too-few", reasoning: "No IRs loaded yet.", redundantCount: 0 };
+    return { loaded: 0, effectiveCount: 0, maxUseful: 8, verdict: "too-few", reasoning: "No IRs loaded yet." };
   }
   if (n === 1) {
-    return { loaded: 1, minUseful: 3, maxUseful: 6, verdict: "too-few", reasoning: "A single IR can't cover different tonal roles. Load at least 3 for blending.", redundantCount: 0 };
+    return { loaded: 1, effectiveCount: 1, maxUseful: 8, verdict: "too-few", reasoning: "A single IR can't cover different tonal roles. Load at least 3 for blending." };
+  }
+  if (n === 2) {
+    return { loaded: 2, effectiveCount: 2, maxUseful: 8, verdict: "too-few", reasoning: "Two IRs isn't enough to fill distinct tonal roles. Load at least 1 more." };
   }
 
-  const distances: number[] = [];
+  const allBands = irs.map(ir => ir.bandsPercent);
+
+  const blendWithAll = averageBands(allBands);
+
+  let effectiveCount = 0;
   for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      distances.push(spectralDistance(irs[i].bandsPercent, irs[j].bandsPercent));
+    const without = allBands.filter((_, j) => j !== i);
+    const blendWithout = averageBands(without);
+    const shift = maxBandShift(blendWithAll, blendWithout);
+    if (shift >= AUDIBLE_BAND_SHIFT) {
+      effectiveCount++;
     }
   }
-  distances.sort((a, b) => a - b);
-  const medianDist = distances[Math.floor(distances.length / 2)];
 
-  let redundantCount = 0;
-  const used = new Set<number>();
+  effectiveCount = Math.max(effectiveCount, 3);
+
+  let greedyCount = 0;
+  const remaining = new Set(allBands.map((_, i) => i));
+  const selected: number[] = [];
+
+  let bestFirst = 0;
+  let bestDist = -1;
+  const center = averageBands(allBands);
   for (let i = 0; i < n; i++) {
-    if (used.has(i)) continue;
-    for (let j = i + 1; j < n; j++) {
-      if (used.has(j)) continue;
-      if (spectralDistance(irs[i].bandsPercent, irs[j].bandsPercent) < JND_THRESHOLD) {
-        used.add(j);
-        redundantCount++;
+    const d = maxBandShift(allBands[i], center);
+    if (d > bestDist) { bestDist = d; bestFirst = i; }
+  }
+  selected.push(bestFirst);
+  remaining.delete(bestFirst);
+  greedyCount = 1;
+
+  while (remaining.size > 0 && greedyCount < 8) {
+    const currentBlend = blendFingerprint(
+      selected.map(i => allBands[i]),
+      selected.map(() => 1)
+    );
+
+    let bestIdx = -1;
+    let bestShift = 0;
+
+    for (const idx of remaining) {
+      const newBlend = blendFingerprint(
+        [...selected.map(i => allBands[i]), allBands[idx]],
+        [...selected.map(() => 1), 1]
+      );
+      const shift = maxBandShift(currentBlend, newBlend);
+      if (shift > bestShift) {
+        bestShift = shift;
+        bestIdx = idx;
       }
     }
+
+    if (bestShift < AUDIBLE_BAND_SHIFT || bestIdx === -1) break;
+
+    selected.push(bestIdx);
+    remaining.delete(bestIdx);
+    greedyCount++;
   }
 
-  const centroids = irs.map(ir => spectralCentroid(ir.bandsPercent));
-  const cMin = Math.min(...centroids);
-  const cMax = Math.max(...centroids);
-  const centroidSpread = cMax - cMin;
-
-  const uniqueIRs = n - redundantCount;
-
-  let minUseful: number;
-  let maxUseful: number;
-
-  if (centroidSpread < 500) {
-    minUseful = 3;
-    maxUseful = Math.min(5, uniqueIRs);
-  } else if (centroidSpread < 1500) {
-    minUseful = 3;
-    maxUseful = Math.min(6, uniqueIRs + 1);
-  } else {
-    minUseful = 4;
-    maxUseful = Math.min(8, uniqueIRs + 2);
-  }
-
-  minUseful = Math.max(3, minUseful);
-  maxUseful = Math.max(minUseful, maxUseful);
+  const maxUseful = Math.max(greedyCount, 3);
 
   let verdict: IRCountAdvice["verdict"];
   let reasoning: string;
 
-  if (n < minUseful) {
+  if (n < 3) {
     verdict = "too-few";
-    reasoning = `${n} IR${n > 1 ? "s" : ""} loaded — you need at least ${minUseful} spectrally distinct IRs to cover different tonal roles (bright, warm, mid-focused). Load ${minUseful - n} more.`;
+    reasoning = `${n} IRs loaded — load at least 3 to cover bright, warm, and mid-focused tonal roles.`;
   } else if (n <= maxUseful) {
     verdict = "sweet-spot";
-    reasoning = `${n} IRs is in the sweet spot for this set. You have enough tonal variety for meaningful blends without redundancy.`;
-  } else if (redundantCount > 0 && redundantCount >= n * 0.3) {
-    verdict = "redundant";
-    reasoning = `${redundantCount} of your ${n} IRs are spectrally near-identical to others (below the just-noticeable difference threshold). You could get the same results with ${uniqueIRs} IRs. Human hearing can't distinguish differences this small in a mix.`;
+    reasoning = `${n} IRs — each one shifts the blend's tonal fingerprint by at least ${AUDIBLE_BAND_SHIFT}% in at least one band when removed. Every IR here pulls its weight.`;
   } else {
-    verdict = "diminishing";
-    reasoning = `${n} IRs loaded — beyond ${maxUseful}, additional IRs provide diminishing returns for blend quality. The ear resolves about ${maxUseful} distinct tonal slots for guitar cabinet IRs.`;
+    const inaudible = n - maxUseful;
+    verdict = "more-than-enough";
+    reasoning = `${maxUseful} of your ${n} IRs can audibly shift the blend. Beyond that, adding more changes no single band by more than ${AUDIBLE_BAND_SHIFT}% — your ears won't catch the difference in a mix.`;
   }
 
-  return { loaded: n, minUseful, maxUseful, verdict, reasoning, redundantCount };
+  return { loaded: n, effectiveCount: maxUseful, maxUseful, verdict, reasoning };
 }
