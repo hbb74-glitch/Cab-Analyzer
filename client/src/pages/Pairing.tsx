@@ -1622,6 +1622,34 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [copiedAll, setCopiedAll] = useState(false);
+  const copyAllBlends = () => {
+    if (!result) return;
+    const formatBlend = (label: string, b: typeof result.blend) => {
+      const lines = [
+        `── ${label}: ${b.name} ──`,
+        ...b.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+        b.bandBreakdown ? `  Bands: Sub ${b.bandBreakdown.subBass}% | Bass ${b.bandBreakdown.bass}% | LoMid ${b.bandBreakdown.lowMid}% | Mid ${b.bandBreakdown.mid}% | HiMid ${b.bandBreakdown.highMid}% | Pres ${b.bandBreakdown.presence}%` : "",
+        `  Tone: ${b.expectedTone}`,
+      ];
+      return lines.filter(Boolean).join("\n");
+    };
+    const sections = [
+      `Superblend — ${result.blend.speaker}`,
+      "",
+      formatBlend("Primary", result.blend),
+    ];
+    if (result.equalPartsBlend) {
+      sections.push("", formatBlend("Equal Parts", result.equalPartsBlend));
+    }
+    result.alternatives?.forEach((alt, i) => {
+      sections.push("", formatBlend(`Alt ${i + 1}`, alt as typeof result.blend));
+    });
+    navigator.clipboard.writeText(sections.join("\n"));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
   if (allIRs.length < 3) return null;
 
   if (!open) {
@@ -1832,8 +1860,11 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                     <button onClick={saveCurrentBlend} className="text-amber-400 hover:text-amber-300 transition-colors" title="Save to collection" data-testid="button-save-superblend-pairing">
                       <Star className="w-4 h-4" />
                     </button>
-                    <button onClick={copyBlend} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-copy-superblend-pairing">
+                    <button onClick={copyBlend} className="text-muted-foreground hover:text-foreground transition-colors" title="Copy this blend" data-testid="button-copy-superblend-pairing">
                       {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                    <button onClick={copyAllBlends} className="text-muted-foreground hover:text-foreground transition-colors" title="Copy all versions" data-testid="button-copy-all-superblend-pairing">
+                      {copiedAll ? <Check className="w-4 h-4 text-green-400" /> : <List className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>

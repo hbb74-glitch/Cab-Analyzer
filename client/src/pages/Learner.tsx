@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye, Heart, Layers, Star } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye, Heart, Layers, Star, List } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { StandaloneBadge } from "@/components/StandaloneBadge";
@@ -951,6 +951,34 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [copiedAll, setCopiedAll] = useState(false);
+  const copyAllBlends = () => {
+    if (!result) return;
+    const formatBlend = (label: string, b: typeof result.blend) => {
+      const lines = [
+        `── ${label}: ${b.name} ──`,
+        ...b.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+        b.bandBreakdown ? `  Bands: Sub ${b.bandBreakdown.subBass}% | Bass ${b.bandBreakdown.bass}% | LoMid ${b.bandBreakdown.lowMid}% | Mid ${b.bandBreakdown.mid}% | HiMid ${b.bandBreakdown.highMid}% | Pres ${b.bandBreakdown.presence}%` : "",
+        `  Tone: ${b.expectedTone}`,
+      ];
+      return lines.filter(Boolean).join("\n");
+    };
+    const sections = [
+      `Superblend — ${result.blend.speaker}`,
+      "",
+      formatBlend("Primary", result.blend),
+    ];
+    if (result.equalPartsBlend) {
+      sections.push("", formatBlend("Equal Parts", result.equalPartsBlend));
+    }
+    result.alternatives?.forEach((alt, i) => {
+      sections.push("", formatBlend(`Alt ${i + 1}`, alt as typeof result.blend));
+    });
+    navigator.clipboard.writeText(sections.join("\n"));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
   if (!open) {
     return (
       <div className="mb-4">
@@ -1159,8 +1187,11 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     <button onClick={saveCurrentBlend} className="text-xs text-amber-400 hover:text-amber-300" title="Save to collection" data-testid="button-save-superblend">
                       <Star className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={copyBlend} className="text-xs text-muted-foreground hover:text-foreground" data-testid="button-copy-superblend">
+                    <button onClick={copyBlend} className="text-xs text-muted-foreground hover:text-foreground" title="Copy this blend" data-testid="button-copy-superblend">
                       {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    <button onClick={copyAllBlends} className="text-xs text-muted-foreground hover:text-foreground" title="Copy all versions" data-testid="button-copy-all-superblend">
+                      {copiedAll ? <Check className="w-3.5 h-3.5 text-green-400" /> : <List className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
