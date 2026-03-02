@@ -1445,8 +1445,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [selectedSpeaker, setSelectedSpeaker] = useState("");
   const [selectedIntent, setSelectedIntent] = useState<string>("versatile");
   const [result, setResult] = useState<SuperblendResult | null>(null);
-  const [activeBlend, setActiveBlend] = useState<"primary" | number>("primary");
-  const [equalParts, setEqualParts] = useState(false);
+  const [activeBlend, setActiveBlend] = useState<"primary" | "equal" | number>("primary");
   const [refineText, setRefineText] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -1551,11 +1550,11 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const refineMutation = useMutation({
     mutationFn: async () => {
       if (!result) throw new Error("No blend to refine");
-      const activeLayers = activeBlend === "primary"
-        ? result.blend.layers
+      const activeLayers = activeBlend === "primary" ? result.blend.layers
+        : activeBlend === "equal" ? result.equalPartsBlend?.layers
         : result.alternatives?.[activeBlend as number]?.layers;
-      const activeTone = activeBlend === "primary"
-        ? result.blend.expectedTone
+      const activeTone = activeBlend === "primary" ? result.blend.expectedTone
+        : activeBlend === "equal" ? result.equalPartsBlend?.expectedTone
         : result.alternatives?.[activeBlend as number]?.expectedTone;
       if (!activeLayers || !activeTone) throw new Error("Invalid blend selection");
       const irData = speakerIRs.filter(ir => ir.features).map(ir => ({
@@ -1598,8 +1597,11 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
     },
   });
 
-  const baseDisplayBlend = activeBlend === "primary" ? result?.blend : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" } : null;
-  const displayBlend = equalParts && activeBlend === "primary" && result?.equalPartsBlend ? result.equalPartsBlend : baseDisplayBlend;
+  const displayBlend = activeBlend === "primary" ? result?.blend
+    : activeBlend === "equal" ? result?.equalPartsBlend
+    : result?.alternatives?.[activeBlend as number] ? { ...result.alternatives[activeBlend as number], rationale: "", bestFor: "" }
+    : null;
+  const isEqualParts = activeBlend === "equal";
   const hasEqualPartsOption = !!result?.equalPartsBlend;
 
   const copyBlend = () => {
@@ -1713,7 +1715,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
 
       <div className="flex items-center gap-3 mb-4 mt-3">
         <button
-          onClick={() => { setEqualParts(false); generateMutation.mutate(); }}
+          onClick={() => { setActiveBlend("primary"); generateMutation.mutate(); }}
           disabled={generateMutation.isPending || speakerIRs.length < 3}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50"
           data-testid="button-generate-superblend-pairing"
@@ -1785,27 +1787,36 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       <AnimatePresence>
         {result && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-4">
-            {result.alternatives && result.alternatives.length > 0 && (
-              <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setActiveBlend("primary")}
+                className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === "primary" ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+                data-testid="button-superblend-primary-pairing"
+              >
+                <Layers className="w-3 h-3 inline mr-1" />
+                {result.blend.name}
+              </button>
+              {hasEqualPartsOption && (
                 <button
-                  onClick={() => setActiveBlend("primary")}
-                  className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === "primary" ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
-                  data-testid="button-superblend-primary-pairing"
+                  onClick={() => setActiveBlend("equal")}
+                  className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === "equal" ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-cyan-500/30")}
+                  data-testid="button-superblend-equal-pairing"
                 >
-                  {result.blend.name}
+                  <Target className="w-3 h-3 inline mr-1" />
+                  Equal Parts
                 </button>
-                {result.alternatives.map((alt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveBlend(i)}
-                    className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === i ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
-                    data-testid={`button-superblend-alt-pairing-${i}`}
-                  >
-                    {alt.name} <span className="opacity-60 ml-1">({alt.focus})</span>
-                  </button>
-                ))}
-              </div>
-            )}
+              )}
+              {result.alternatives?.map((alt, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveBlend(i)}
+                  className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", activeBlend === i ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
+                  data-testid={`button-superblend-alt-pairing-${i}`}
+                >
+                  {alt.name} <span className="opacity-60 ml-1">({alt.focus})</span>
+                </button>
+              ))}
+            </div>
 
             {displayBlend && (
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-4" data-testid="superblend-result-pairing">
@@ -1827,33 +1838,12 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                   </div>
                 </div>
 
-                {hasEqualPartsOption && activeBlend === "primary" && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <button
-                      onClick={() => setEqualParts(false)}
-                      className={cn("flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-all", !equalParts ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
-                      data-testid="button-freeform-toggle-pairing"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                      Free-form
-                    </button>
-                    <button
-                      onClick={() => setEqualParts(true)}
-                      className={cn("flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-all", equalParts ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-cyan-500/30")}
-                      data-testid="button-equal-parts-toggle-pairing"
-                    >
-                      <Target className="w-3.5 h-3.5" />
-                      Equal Parts
-                    </button>
-                  </div>
-                )}
-
                 <div className="space-y-1.5" data-testid="superblend-layers-pairing">
                   {displayBlend.layers.map((layer, i) => (
                     <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
-                      <div className={cn("w-14 text-right font-mono font-semibold", equalParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
+                      <div className={cn("w-14 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
                       <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
-                        <div className={cn("h-full rounded-full", equalParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
+                        <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
                         <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
                       </div>
                       <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-white/10 text-muted-foreground shrink-0">{layer.role}</span>
@@ -1866,12 +1856,12 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                     {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
                       <div key={band}>
                         <div className="text-[10px] text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
-                        <div className={cn("font-mono font-semibold text-sm", equalParts ? "text-cyan-300" : "text-foreground")}>{displayBlend.bandBreakdown[band]}%</div>
+                        <div className={cn("font-mono font-semibold text-sm", isEqualParts ? "text-cyan-300" : "text-foreground")}>{displayBlend.bandBreakdown[band]}%</div>
                       </div>
                     ))}
                   </div>
                 )}
-                {equalParts && <p className="text-[10px] text-cyan-400/60 mt-1">AI-optimized IR selection for equal parts — center dot on the geometric mixer</p>}
+                {isEqualParts && <p className="text-[10px] text-cyan-400/60 mt-1">AI-optimized IR selection for equal parts — center dot on the geometric mixer</p>}
 
                 <p className="text-sm text-muted-foreground" data-testid="text-superblend-tone-pairing">{displayBlend.expectedTone}</p>
                 {(displayBlend as any).rationale && <p className="text-xs text-muted-foreground/70" data-testid="text-superblend-rationale-pairing">{(displayBlend as any).rationale}</p>}
