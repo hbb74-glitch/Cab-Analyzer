@@ -201,7 +201,7 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", 
     let bestIdx = -1;
     let bestNewScore = currentScore;
 
-    for (const idx of remaining) {
+    for (const idx of Array.from(remaining)) {
       const newBlend = blendBands(
         [...selected.map(i => allBands[i]), allBands[idx]],
         [...selected.map(() => 1), 1]
