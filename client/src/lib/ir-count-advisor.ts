@@ -33,6 +33,21 @@ export interface IRCountAdvice {
 
 const BAND_KEYS: (keyof BandsPercent)[] = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"];
 
+function toPercentScale(b: BandsPercent): BandsPercent {
+  const sum = BAND_KEYS.reduce((s, k) => s + (b[k] || 0), 0);
+  if (sum > 0 && sum < 1.5) {
+    return {
+      subBass: b.subBass * 100,
+      bass: b.bass * 100,
+      lowMid: b.lowMid * 100,
+      mid: b.mid * 100,
+      highMid: b.highMid * 100,
+      presence: b.presence * 100,
+    };
+  }
+  return b;
+}
+
 interface IntentProfile {
   label: string;
   target: BandsPercent;
@@ -144,11 +159,13 @@ export function findBestPairForBands(
   targetBands: BandsPercent
 ): BestPair | null {
   if (irs.length < 2) return null;
+  const normIRs = irs.map(ir => ({ ...ir, bandsPercent: toPercentScale(ir.bandsPercent) }));
+  const normTarget = toPercentScale(targetBands);
   let bestI = 0, bestJ = 1, bestScore = -1;
-  for (let i = 0; i < irs.length; i++) {
-    for (let j = i + 1; j < irs.length; j++) {
-      const blend = blendBands([irs[i].bandsPercent, irs[j].bandsPercent], [1, 1]);
-      const score = scoreVsBands(blend, targetBands);
+  for (let i = 0; i < normIRs.length; i++) {
+    for (let j = i + 1; j < normIRs.length; j++) {
+      const blend = blendBands([normIRs[i].bandsPercent, normIRs[j].bandsPercent], [1, 1]);
+      const score = scoreVsBands(blend, normTarget);
       if (score > bestScore) { bestScore = score; bestI = i; bestJ = j; }
     }
   }
@@ -158,26 +175,28 @@ export function findBestPairForBands(
 const IMPROVEMENT_THRESHOLD = 1.0;
 
 export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", superblendBands?: BandsPercent): IRCountAdvice {
-  const n = irs.length;
+  const normalized = irs.map(ir => ({ ...ir, bandsPercent: toPercentScale(ir.bandsPercent) }));
+  const normalizedSB = superblendBands ? toPercentScale(superblendBands) : undefined;
+  const n = normalized.length;
   const profile = INTENT_PROFILES[intent];
 
   if (n === 0) {
     return { loaded: 0, minForTarget: 3, maxUseful: 8, bestScore: 0, verdict: "too-few", reasoning: "No IRs loaded yet.", intent, bestPair: null };
   }
   if (n === 1) {
-    const score = scoreVsTarget(irs[0].bandsPercent, profile);
+    const score = scoreVsTarget(normalized[0].bandsPercent, profile);
     return { loaded: 1, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "A single IR can't cover tonal roles. Load at least 3 for blending.", intent, bestPair: null };
   }
 
-  const bestPair = superblendBands ? findBestPair(irs, profile, superblendBands) : null;
+  const bestPair = normalizedSB ? findBestPair(normalized, profile, normalizedSB) : null;
 
   if (n === 2) {
-    const blend = blendBands(irs.map(ir => ir.bandsPercent), [1, 1]);
+    const blend = blendBands(normalized.map(ir => ir.bandsPercent), [1, 1]);
     const score = scoreVsTarget(blend, profile);
     return { loaded: 2, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "Two IRs isn't enough to shape the tone precisely. Load at least 1 more.", intent, bestPair };
   }
 
-  const allBands = irs.map(ir => ir.bandsPercent);
+  const allBands = normalized.map(ir => ir.bandsPercent);
 
   let bestFirstIdx = 0;
   let bestFirstScore = -1;
