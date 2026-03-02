@@ -12,33 +12,60 @@ interface IREntry {
   bandsPercent: BandsPercent;
 }
 
-interface IRCountAdvice {
+export type IntentKey = "versatile" | "rhythm" | "lead" | "clean";
+
+export interface IRCountAdvice {
   loaded: number;
-  effectiveCount: number;
+  minForTarget: number;
   maxUseful: number;
+  bestScore: number;
   verdict: "too-few" | "sweet-spot" | "more-than-enough";
   reasoning: string;
+  intent: IntentKey;
 }
 
 const BAND_KEYS: (keyof BandsPercent)[] = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"];
 
-function averageBands(entries: BandsPercent[]): BandsPercent {
-  const result: any = {};
-  for (const k of BAND_KEYS) {
-    result[k] = entries.reduce((sum, e) => sum + e[k], 0) / entries.length;
-  }
-  return result as BandsPercent;
+interface IntentProfile {
+  label: string;
+  target: BandsPercent;
+  weights: Record<keyof BandsPercent, number>;
+  tolerance: number;
+  description: string;
 }
 
-function maxBandShift(a: BandsPercent, b: BandsPercent): number {
-  let maxDiff = 0;
-  for (const k of BAND_KEYS) {
-    maxDiff = Math.max(maxDiff, Math.abs(a[k] - b[k]));
-  }
-  return maxDiff;
-}
+const INTENT_PROFILES: Record<IntentKey, IntentProfile> = {
+  versatile: {
+    label: "Versatile Reference",
+    target: { subBass: 0.5, bass: 2.0, lowMid: 6.0, mid: 28.0, highMid: 40.0, presence: 22.0 },
+    weights: { subBass: 0.5, bass: 1.0, lowMid: 1.2, mid: 1.5, highMid: 1.3, presence: 1.0 },
+    tolerance: 6.0,
+    description: "balanced, full-spectrum",
+  },
+  rhythm: {
+    label: "Rhythm",
+    target: { subBass: 0.3, bass: 1.5, lowMid: 5.0, mid: 30.0, highMid: 42.0, presence: 18.0 },
+    weights: { subBass: 0.8, bass: 1.2, lowMid: 1.5, mid: 1.8, highMid: 1.0, presence: 0.8 },
+    tolerance: 5.0,
+    description: "tight, punchy, mid-focused",
+  },
+  lead: {
+    label: "Lead",
+    target: { subBass: 0.4, bass: 1.8, lowMid: 5.5, mid: 32.0, highMid: 38.0, presence: 20.0 },
+    weights: { subBass: 0.5, bass: 0.8, lowMid: 1.0, mid: 1.8, highMid: 1.5, presence: 1.2 },
+    tolerance: 5.5,
+    description: "smooth, present, mid-rich",
+  },
+  clean: {
+    label: "Clean / Ambient",
+    target: { subBass: 0.8, bass: 3.0, lowMid: 8.0, mid: 26.0, highMid: 38.0, presence: 22.0 },
+    weights: { subBass: 0.8, bass: 1.2, lowMid: 1.3, mid: 1.0, highMid: 1.2, presence: 1.5 },
+    tolerance: 7.0,
+    description: "warm, open, extended range",
+  },
+};
 
-function blendFingerprint(irBands: BandsPercent[], weights: number[]): BandsPercent {
+function blendBands(irBands: BandsPercent[], weights: number[]): BandsPercent {
   const result: any = {};
   const totalW = weights.reduce((a, b) => a + b, 0);
   for (const k of BAND_KEYS) {
@@ -47,96 +74,119 @@ function blendFingerprint(irBands: BandsPercent[], weights: number[]): BandsPerc
   return result as BandsPercent;
 }
 
-const AUDIBLE_BAND_SHIFT = 1.5;
+function targetDistance(blend: BandsPercent, profile: IntentProfile): number {
+  let sum = 0;
+  for (const k of BAND_KEYS) {
+    const diff = blend[k] - profile.target[k];
+    sum += diff * diff * profile.weights[k];
+  }
+  return Math.sqrt(sum);
+}
 
-export function analyzeIRCount(irs: IREntry[]): IRCountAdvice {
+function scoreVsTarget(blend: BandsPercent, profile: IntentProfile): number {
+  const dist = targetDistance(blend, profile);
+  const maxDist = 50;
+  return Math.max(0, Math.round((1 - dist / maxDist) * 100));
+}
+
+const IMPROVEMENT_THRESHOLD = 1.0;
+
+export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"): IRCountAdvice {
   const n = irs.length;
+  const profile = INTENT_PROFILES[intent];
 
   if (n === 0) {
-    return { loaded: 0, effectiveCount: 0, maxUseful: 8, verdict: "too-few", reasoning: "No IRs loaded yet." };
+    return { loaded: 0, minForTarget: 3, maxUseful: 8, bestScore: 0, verdict: "too-few", reasoning: "No IRs loaded yet.", intent };
   }
   if (n === 1) {
-    return { loaded: 1, effectiveCount: 1, maxUseful: 8, verdict: "too-few", reasoning: "A single IR can't cover different tonal roles. Load at least 3 for blending." };
+    const score = scoreVsTarget(irs[0].bandsPercent, profile);
+    return { loaded: 1, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "A single IR can't cover tonal roles. Load at least 3 for blending.", intent };
   }
   if (n === 2) {
-    return { loaded: 2, effectiveCount: 2, maxUseful: 8, verdict: "too-few", reasoning: "Two IRs isn't enough to fill distinct tonal roles. Load at least 1 more." };
+    const blend = blendBands(irs.map(ir => ir.bandsPercent), [1, 1]);
+    const score = scoreVsTarget(blend, profile);
+    return { loaded: 2, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "Two IRs isn't enough to shape the tone precisely. Load at least 1 more.", intent };
   }
 
   const allBands = irs.map(ir => ir.bandsPercent);
 
-  const blendWithAll = averageBands(allBands);
-
-  let effectiveCount = 0;
+  let bestFirstIdx = 0;
+  let bestFirstScore = -1;
   for (let i = 0; i < n; i++) {
-    const without = allBands.filter((_, j) => j !== i);
-    const blendWithout = averageBands(without);
-    const shift = maxBandShift(blendWithAll, blendWithout);
-    if (shift >= AUDIBLE_BAND_SHIFT) {
-      effectiveCount++;
-    }
+    const s = scoreVsTarget(allBands[i], profile);
+    if (s > bestFirstScore) { bestFirstScore = s; bestFirstIdx = i; }
   }
 
-  effectiveCount = Math.max(effectiveCount, 3);
-
-  let greedyCount = 0;
+  const selected: number[] = [bestFirstIdx];
   const remaining = new Set(allBands.map((_, i) => i));
-  const selected: number[] = [];
+  remaining.delete(bestFirstIdx);
 
-  let bestFirst = 0;
-  let bestDist = -1;
-  const center = averageBands(allBands);
-  for (let i = 0; i < n; i++) {
-    const d = maxBandShift(allBands[i], center);
-    if (d > bestDist) { bestDist = d; bestFirst = i; }
-  }
-  selected.push(bestFirst);
-  remaining.delete(bestFirst);
-  greedyCount = 1;
+  const scoreHistory: { count: number; score: number; improvement: number }[] = [
+    { count: 1, score: bestFirstScore, improvement: 0 }
+  ];
 
-  while (remaining.size > 0 && greedyCount < 8) {
-    const currentBlend = blendFingerprint(
-      selected.map(i => allBands[i]),
-      selected.map(() => 1)
-    );
+  while (remaining.size > 0 && selected.length < 8) {
+    const currentBlend = blendBands(selected.map(i => allBands[i]), selected.map(() => 1));
+    const currentScore = scoreVsTarget(currentBlend, profile);
 
     let bestIdx = -1;
-    let bestShift = 0;
+    let bestNewScore = currentScore;
 
     for (const idx of remaining) {
-      const newBlend = blendFingerprint(
+      const newBlend = blendBands(
         [...selected.map(i => allBands[i]), allBands[idx]],
         [...selected.map(() => 1), 1]
       );
-      const shift = maxBandShift(currentBlend, newBlend);
-      if (shift > bestShift) {
-        bestShift = shift;
+      const newScore = scoreVsTarget(newBlend, profile);
+      if (newScore > bestNewScore) {
+        bestNewScore = newScore;
         bestIdx = idx;
       }
     }
 
-    if (bestShift < AUDIBLE_BAND_SHIFT || bestIdx === -1) break;
+    if (bestIdx === -1) break;
 
+    const improvement = bestNewScore - currentScore;
     selected.push(bestIdx);
     remaining.delete(bestIdx);
-    greedyCount++;
+    scoreHistory.push({ count: selected.length, score: bestNewScore, improvement });
+
+    if (improvement < IMPROVEMENT_THRESHOLD && selected.length >= 3) break;
   }
 
-  const maxUseful = Math.max(greedyCount, 3);
+  const bestScore = scoreHistory[scoreHistory.length - 1].score;
+
+  let minForTarget = 3;
+  for (const h of scoreHistory) {
+    if (h.count >= 3 && h.score >= bestScore - 3) {
+      minForTarget = h.count;
+      break;
+    }
+  }
+  minForTarget = Math.max(3, minForTarget);
+
+  let maxUseful = selected.length;
+  for (let i = scoreHistory.length - 1; i >= 1; i--) {
+    if (scoreHistory[i].improvement >= IMPROVEMENT_THRESHOLD) {
+      maxUseful = scoreHistory[i].count;
+      break;
+    }
+  }
+  maxUseful = Math.max(minForTarget, maxUseful);
 
   let verdict: IRCountAdvice["verdict"];
   let reasoning: string;
 
-  if (n < 3) {
+  if (n < minForTarget) {
     verdict = "too-few";
-    reasoning = `${n} IRs loaded — load at least 3 to cover bright, warm, and mid-focused tonal roles.`;
+    reasoning = `${n} IRs loaded — need at least ${minForTarget} to reach a ${profile.description} tone (${bestScore}% match). Load ${minForTarget - n} more for a solid ${profile.label} blend.`;
   } else if (n <= maxUseful) {
     verdict = "sweet-spot";
-    reasoning = `${n} IRs — each one shifts the blend's tonal fingerprint by at least ${AUDIBLE_BAND_SHIFT}% in at least one band when removed. Every IR here pulls its weight.`;
+    reasoning = `${n} IRs — each one improves the ${profile.label.toLowerCase()} tone. Best blend scores ${bestScore}% match using ${maxUseful} IRs. Every IR here pulls the tone closer to the target.`;
   } else {
-    const inaudible = n - maxUseful;
     verdict = "more-than-enough";
-    reasoning = `${maxUseful} of your ${n} IRs can audibly shift the blend. Beyond that, adding more changes no single band by more than ${AUDIBLE_BAND_SHIFT}% — your ears won't catch the difference in a mix.`;
+    reasoning = `Best ${profile.label.toLowerCase()} blend uses ${maxUseful} of your ${n} IRs (${bestScore}% match). Beyond ${maxUseful}, adding more IRs doesn't improve the tone — the blend is already as close to the ${profile.description} target as these IRs can get.`;
   }
 
-  return { loaded: n, effectiveCount: maxUseful, maxUseful, verdict, reasoning };
+  return { loaded: n, minForTarget, maxUseful, bestScore, verdict, reasoning, intent };
 }

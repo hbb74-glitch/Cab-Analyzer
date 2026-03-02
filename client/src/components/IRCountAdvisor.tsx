@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { analyzeIRCount } from "@/lib/ir-count-advisor";
+import { analyzeIRCount, type IntentKey } from "@/lib/ir-count-advisor";
 import { AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,17 +14,24 @@ type BandsPercent = {
 
 interface IRCountAdvisorProps {
   irs: { filename: string; bandsPercent: BandsPercent }[];
+  intent?: IntentKey;
   compact?: boolean;
 }
 
 const verdictConfig = {
-  "too-few": { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20", label: "Need more IRs" },
-  "sweet-spot": { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", label: "Every IR counts" },
-  "more-than-enough": { icon: ChevronRight, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20", label: "Some won't be heard" },
+  "too-few": { icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+  "sweet-spot": { icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+  "more-than-enough": { icon: ChevronRight, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
 };
 
-export function IRCountAdvisor({ irs, compact = false }: IRCountAdvisorProps) {
-  const advice = useMemo(() => analyzeIRCount(irs), [irs]);
+function scoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-400";
+  if (score >= 60) return "text-amber-400";
+  return "text-red-400";
+}
+
+export function IRCountAdvisor({ irs, intent = "versatile", compact = false }: IRCountAdvisorProps) {
+  const advice = useMemo(() => analyzeIRCount(irs, intent), [irs, intent]);
   const config = verdictConfig[advice.verdict];
   const Icon = config.icon;
 
@@ -37,10 +44,9 @@ export function IRCountAdvisor({ irs, compact = false }: IRCountAdvisorProps) {
         <span className="text-muted-foreground">
           <span className={cn("font-semibold", config.color)}>{advice.loaded}</span> loaded
           {" · "}
-          <span className="font-medium text-foreground">{advice.effectiveCount}</span> can audibly shift a blend
-          {advice.loaded > advice.effectiveCount && (
-            <span className="text-blue-400/80"> · {advice.loaded - advice.effectiveCount} won't change the tone</span>
-          )}
+          use <span className="font-medium text-foreground">{advice.minForTarget}–{advice.maxUseful}</span> for best tone
+          {" · "}
+          <span className={cn("font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}%</span> match
         </span>
       </div>
     );
@@ -50,8 +56,10 @@ export function IRCountAdvisor({ irs, compact = false }: IRCountAdvisorProps) {
     <div className={cn("rounded-xl border p-3 space-y-2", config.bg, config.border)} data-testid="ir-count-advisor">
       <div className="flex items-center gap-2">
         <Icon className={cn("w-4 h-4", config.color)} />
-        <span className={cn("text-xs font-semibold", config.color)}>{config.label}</span>
-        <span className="text-xs text-muted-foreground ml-auto font-mono">{advice.effectiveCount} of {advice.loaded} shift the blend</span>
+        <span className={cn("text-xs font-semibold", config.color)}>
+          {advice.minForTarget}–{advice.maxUseful} IRs for best tone
+        </span>
+        <span className={cn("text-xs font-mono ml-auto font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}% match</span>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed" data-testid="text-ir-count-reasoning">{advice.reasoning}</p>
     </div>
