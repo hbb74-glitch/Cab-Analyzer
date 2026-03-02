@@ -98,7 +98,7 @@ function scoreVsTarget(blend: BandsPercent, profile: IntentProfile): number {
 
 const PSYCHOACOUSTIC_WEIGHTS: Record<keyof BandsPercent, number> = {
   subBass: 0.3,
-  bass: 0.7,
+  bass: 1.3,
   lowMid: 1.2,
   mid: 2.0,
   highMid: 1.8,
