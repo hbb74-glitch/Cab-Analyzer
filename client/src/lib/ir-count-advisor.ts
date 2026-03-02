@@ -14,6 +14,12 @@ interface IREntry {
 
 export type IntentKey = "versatile" | "rhythm" | "lead" | "clean";
 
+export interface BestPair {
+  ir1: string;
+  ir2: string;
+  score: number;
+}
+
 export interface IRCountAdvice {
   loaded: number;
   minForTarget: number;
@@ -22,6 +28,7 @@ export interface IRCountAdvice {
   verdict: "too-few" | "sweet-spot" | "more-than-enough";
   reasoning: string;
   intent: IntentKey;
+  bestPair: BestPair | null;
 }
 
 const BAND_KEYS: (keyof BandsPercent)[] = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"];
