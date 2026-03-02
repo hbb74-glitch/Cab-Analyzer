@@ -16,6 +16,7 @@ interface IRCountAdvisorProps {
   irs: { filename: string; bandsPercent: BandsPercent }[];
   intent?: IntentKey;
   compact?: boolean;
+  superblendBands?: BandsPercent;
 }
 
 const verdictConfig = {
@@ -38,7 +39,7 @@ function BestPairLine({ pair }: { pair: BestPair }) {
   return (
     <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="best-pair-line">
       <Combine className="w-3 h-3 text-violet-400 shrink-0" />
-      <span>Best 2‑IR blend:</span>
+      <span>Closest 2‑IR match:</span>
       <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir1}>{stripExt(pair.ir1)}</span>
       <span className="text-muted-foreground">+</span>
       <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir2}>{stripExt(pair.ir2)}</span>
@@ -47,8 +48,8 @@ function BestPairLine({ pair }: { pair: BestPair }) {
   );
 }
 
-export function IRCountAdvisor({ irs, intent = "versatile", compact = false }: IRCountAdvisorProps) {
-  const advice = useMemo(() => analyzeIRCount(irs, intent), [irs, intent]);
+export function IRCountAdvisor({ irs, intent = "versatile", compact = false, superblendBands }: IRCountAdvisorProps) {
+  const advice = useMemo(() => analyzeIRCount(irs, intent, superblendBands), [irs, intent, superblendBands]);
   const config = verdictConfig[advice.verdict];
   const Icon = config.icon;
 

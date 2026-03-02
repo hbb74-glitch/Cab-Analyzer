@@ -1690,7 +1690,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         </div>
       </div>
 
-      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }))} intent={selectedIntent as any} compact />
+      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }))} intent={selectedIntent as any} compact superblendBands={displayBlend?.bandBreakdown} />
 
       <div className="flex items-center gap-3 mb-4 mt-3">
         <button

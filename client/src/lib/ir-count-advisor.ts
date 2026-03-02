@@ -96,15 +96,30 @@ function scoreVsTarget(blend: BandsPercent, profile: IntentProfile): number {
   return Math.max(0, Math.round((1 - dist / maxDist) * 100));
 }
 
-function findBestPair(irs: IREntry[], profile: IntentProfile): BestPair | null {
+function scoreVsBands(blend: BandsPercent, target: BandsPercent): number {
+  let sum = 0;
+  for (const k of BAND_KEYS) {
+    const diff = blend[k] - target[k];
+    sum += diff * diff;
+  }
+  const dist = Math.sqrt(sum);
+  const maxDist = 50;
+  return Math.max(0, Math.round((1 - dist / maxDist) * 100));
+}
+
+function findBestPair(irs: IREntry[], profile: IntentProfile, superblendBands?: BandsPercent): BestPair | null {
   const n = irs.length;
   if (n < 2) return null;
+
+  const scorer = superblendBands
+    ? (blend: BandsPercent) => scoreVsBands(blend, superblendBands)
+    : (blend: BandsPercent) => scoreVsTarget(blend, profile);
 
   let bestI = 0, bestJ = 1, bestScore = -1;
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
       const blend = blendBands([irs[i].bandsPercent, irs[j].bandsPercent], [1, 1]);
-      const score = scoreVsTarget(blend, profile);
+      const score = scorer(blend);
       if (score > bestScore) {
         bestScore = score;
         bestI = i;
@@ -117,7 +132,7 @@ function findBestPair(irs: IREntry[], profile: IntentProfile): BestPair | null {
 
 const IMPROVEMENT_THRESHOLD = 1.0;
 
-export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"): IRCountAdvice {
+export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", superblendBands?: BandsPercent): IRCountAdvice {
   const n = irs.length;
   const profile = INTENT_PROFILES[intent];
 
@@ -129,7 +144,7 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"):
     return { loaded: 1, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "A single IR can't cover tonal roles. Load at least 3 for blending.", intent, bestPair: null };
   }
 
-  const bestPair = findBestPair(irs, profile);
+  const bestPair = superblendBands ? findBestPair(irs, profile, superblendBands) : null;
 
   if (n === 2) {
     const blend = blendBands(irs.map(ir => ir.bandsPercent), [1, 1]);
