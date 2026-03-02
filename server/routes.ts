@@ -6614,6 +6614,8 @@ IMPORTANT: You must provide TWO recipe modes in a single response:
 1. "blend" — FREE-FORM mode: Optimized percentages where each IR gets a different weight based on its role and contribution. Percentages sum to 100%.
 2. "equalPartsBlend" — EQUAL PARTS mode: Select the best ${irCount} IRs specifically optimized for EQUAL mixing (each IR gets exactly ${Math.round(10000 / irCount) / 100}%). When every IR contributes equally, you need IRs that complement each other perfectly — no IR can dominate or be subtle. Pick IRs where each one brings something distinct so the equal mix covers the full spectrum. The IR selection MAY differ from the free-form blend.
 
+CRITICAL for equalPartsBlend: The "expectedTone", "rationale", and "contribution" fields must reference SPECIFIC band values, frequencies, and tonal characteristics from the actual IR data. Do NOT write generic descriptions like "balanced tone" — instead write things like "The SM57 brings 26% mid energy while the PR30 compensates with 43% highMid, so the equal mix lands around 34% mid + 38% highMid — punchy with good cut." Compute the actual equal-mix band values mentally and describe what that specific tonal balance means for guitar tone.
+
 Many IR blending plugins (Cabinetron, NadIR, etc.) use geometric interfaces (triangle for 3, square for 4, pentagon for 5) where placing the dot in the center gives equal parts. This is the easiest starting point for users.
 
 Return JSON:
@@ -6646,9 +6648,9 @@ Return JSON:
         "contribution": "What this IR brings when mixed equally"
       }
     ],
-    "expectedTone": "Description of the equal-parts tone",
+    "expectedTone": "Specific tonal description referencing computed band values — e.g. 'Mid-forward (~30%) with controlled presence (~22%), sits well in dense mixes'",
     "bandBreakdown": { "subBass": n, "bass": n, "lowMid": n, "mid": n, "highMid": n, "presence": n },
-    "rationale": "Why these IRs work best at equal parts — how they complement each other when no IR dominates",
+    "rationale": "MUST compute and cite the average band values. Example: 'Averaging SM57 (mid:26.2, pres:30.6) + R121 (mid:32.1, pres:21.5) + PR30 (mid:10.1, pres:43.2) + e906 (mid:29.5, pres:22.6) yields ~24.5% mid / ~29.5% presence — mid-forward with controlled brightness.' Show the math.",
     "versatilityScore": number (0-100),
     "bestFor": "Genres/styles this equal-parts blend excels at"
   },

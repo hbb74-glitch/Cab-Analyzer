@@ -37,13 +37,17 @@ function stripExt(name: string): string {
 
 function BestPairLine({ pair }: { pair: BestPair }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="best-pair-line">
-      <Combine className="w-3 h-3 text-violet-400 shrink-0" />
-      <span>Closest 2‑IR match:</span>
-      <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir1}>{stripExt(pair.ir1)}</span>
-      <span className="text-muted-foreground">+</span>
-      <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir2}>{stripExt(pair.ir2)}</span>
-      <span className={cn("font-semibold ml-auto shrink-0", scoreColor(pair.score))}>{pair.score}%</span>
+    <div className="text-xs text-muted-foreground space-y-0.5" data-testid="best-pair-line">
+      <div className="flex items-center gap-1.5">
+        <Combine className="w-3 h-3 text-violet-400 shrink-0" />
+        <span>Closest 2‑IR match</span>
+        <span className={cn("font-semibold ml-auto shrink-0", scoreColor(pair.score))}>{pair.score}%</span>
+      </div>
+      <div className="pl-[18px] text-[11px] leading-tight">
+        <span className="font-medium text-foreground break-all">{stripExt(pair.ir1)}</span>
+        <span className="text-muted-foreground mx-1">+</span>
+        <span className="font-medium text-foreground break-all">{stripExt(pair.ir2)}</span>
+      </div>
     </div>
   );
 }
