@@ -7,13 +7,14 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
+import { findBestPairForBands } from "@/lib/ir-count-advisor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -1504,6 +1505,16 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       setResult(data);
       setActiveBlend("primary");
       setRefineText("");
+      if (data.blend.bandBreakdown) {
+        const irEntries = speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }));
+        const pair = findBestPairForBands(irEntries, data.blend.bandBreakdown);
+        if (pair) {
+          const bb = data.blend.bandBreakdown;
+          const vec = [bb.subBass / 10, bb.bass / 10, bb.lowMid / 10, bb.mid / 10, bb.highMid / 10, bb.presence / 10, 0, 0];
+          const ctx: TasteContext = { speakerPrefix: selectedSpeaker, mode: "blend", intent: selectedIntent as any };
+          recordSuperblendInsight(ctx, [pair.ir1, pair.ir2], vec);
+        }
+      }
     },
     onError: () => {
       toast({ title: "Superblend failed", description: "Could not generate blend. Try again.", variant: "destructive", duration: 3000 });

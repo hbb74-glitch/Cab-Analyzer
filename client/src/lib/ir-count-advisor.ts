@@ -139,6 +139,22 @@ function findBestPair(irs: IREntry[], profile: IntentProfile, superblendBands?: 
   return { ir1: irs[bestI].filename, ir2: irs[bestJ].filename, score: bestScore };
 }
 
+export function findBestPairForBands(
+  irs: { filename: string; bandsPercent: BandsPercent }[],
+  targetBands: BandsPercent
+): BestPair | null {
+  if (irs.length < 2) return null;
+  let bestI = 0, bestJ = 1, bestScore = -1;
+  for (let i = 0; i < irs.length; i++) {
+    for (let j = i + 1; j < irs.length; j++) {
+      const blend = blendBands([irs[i].bandsPercent, irs[j].bandsPercent], [1, 1]);
+      const score = scoreVsBands(blend, targetBands);
+      if (score > bestScore) { bestScore = score; bestI = i; bestJ = j; }
+    }
+  }
+  return { ir1: irs[bestI].filename, ir2: irs[bestJ].filename, score: bestScore };
+}
+
 const IMPROVEMENT_THRESHOLD = 1.0;
 
 export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", superblendBands?: BandsPercent): IRCountAdvice {

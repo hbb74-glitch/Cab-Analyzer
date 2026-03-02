@@ -9,7 +9,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, recordSuperblendInsight, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
+import { findBestPairForBands } from "@/lib/ir-count-advisor";
 import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
@@ -833,6 +834,16 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       setResult(data);
       setActiveBlend("primary");
       setRefineText("");
+      if (data.blend.bandBreakdown) {
+        const irEntries = speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }));
+        const pair = findBestPairForBands(irEntries, data.blend.bandBreakdown);
+        if (pair) {
+          const bb = data.blend.bandBreakdown;
+          const vec = [bb.subBass / 10, bb.bass / 10, bb.lowMid / 10, bb.mid / 10, bb.highMid / 10, bb.presence / 10, 0, 0];
+          const ctx: TasteContext = { speakerPrefix: selectedSpeaker, mode: "blend", intent: selectedIntent as any };
+          recordSuperblendInsight(ctx, [pair.ir1, pair.ir2], vec);
+        }
+      }
     },
     onError: () => {
       toast({ title: "Superblend failed", description: "Could not generate blend. Try again.", variant: "destructive", duration: 3000 });

@@ -1099,6 +1099,35 @@ export function simulateVotes(ctx: TasteContext, vectors: number[][], count = 20
   }
 }
 
+export function recordSuperblendInsight(
+  ctx: TasteContext,
+  bestPairFiles: [string, string],
+  superblendVector: number[],
+): void {
+  const state = loadState();
+  const keyIntent = makeTasteKey(ctx);
+  const keyGlobal = makeGlobalTasteKey(ctx);
+
+  const pk = [bestPairFiles[0], bestPairFiles[1]].sort().join("||");
+  if (!state.complements[keyIntent]) state.complements[keyIntent] = {};
+  state.complements[keyIntent][pk] = (state.complements[keyIntent][pk] ?? 0) + 1;
+
+  const dim = superblendVector.length;
+  if (dim > 0) {
+    const lr = 0.03;
+    const modelI = getOrCreateModel(state, keyIntent, dim);
+    const modelG = getOrCreateModel(state, keyGlobal, dim);
+    for (let i = 0; i < dim; i++) {
+      const nudge = superblendVector[i] - modelI.w[i];
+      modelI.w[i] += lr * nudge;
+      modelG.w[i] += lr * 0.35 * nudge;
+    }
+  }
+
+  saveState(state);
+  scheduleAutoBackup();
+}
+
 let _autoBackupTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function scheduleAutoBackup(debounceMs = 10000): void {
