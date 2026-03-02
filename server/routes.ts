@@ -6653,6 +6653,47 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
       }
 
       const result = JSON.parse(content);
+
+      const irMap = new Map(irs.map(ir => [ir.filename, ir]));
+      const computeBandBreakdown = (layers: { filename: string; percentage: number }[]) => {
+        const bands = { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
+        let totalPct = 0;
+        for (const layer of layers) {
+          const ir = irMap.get(layer.filename);
+          if (!ir) continue;
+          const w = layer.percentage / 100;
+          bands.subBass += ir.subBass * w;
+          bands.bass += ir.bass * w;
+          bands.lowMid += ir.lowMid * w;
+          bands.mid += ir.mid * w;
+          bands.highMid += ir.highMid * w;
+          bands.presence += ir.presence * w;
+          totalPct += layer.percentage;
+        }
+        const raw = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
+        if (raw > 0) {
+          const scale = 100 / raw;
+          bands.subBass = Math.round(bands.subBass * scale * 10) / 10;
+          bands.bass = Math.round(bands.bass * scale * 10) / 10;
+          bands.lowMid = Math.round(bands.lowMid * scale * 10) / 10;
+          bands.mid = Math.round(bands.mid * scale * 10) / 10;
+          bands.highMid = Math.round(bands.highMid * scale * 10) / 10;
+          bands.presence = Math.round(bands.presence * scale * 10) / 10;
+        }
+        return bands;
+      };
+
+      if (result.blend?.layers) {
+        result.blend.bandBreakdown = computeBandBreakdown(result.blend.layers);
+      }
+      if (result.alternatives) {
+        for (const alt of result.alternatives) {
+          if (alt.layers) {
+            alt.bandBreakdown = computeBandBreakdown(alt.layers);
+          }
+        }
+      }
+
       console.log(`[Superblend] "${speaker}" (${irCount} IRs) => blend created`);
       res.json(result);
     } catch (err) {
@@ -6755,6 +6796,33 @@ Refine the blend based on the feedback. Return as JSON.`
           score: 0, profileMatch: "superblend",
         });
       } catch (e) {}
+
+      const irMap = new Map(irs.map(ir => [ir.filename, ir]));
+      if (result.blend?.layers) {
+        const bands = { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
+        for (const layer of result.blend.layers) {
+          const ir = irMap.get(layer.filename);
+          if (!ir) continue;
+          const w = layer.percentage / 100;
+          bands.subBass += ir.subBass * w;
+          bands.bass += ir.bass * w;
+          bands.lowMid += ir.lowMid * w;
+          bands.mid += ir.mid * w;
+          bands.highMid += ir.highMid * w;
+          bands.presence += ir.presence * w;
+        }
+        const raw = bands.subBass + bands.bass + bands.lowMid + bands.mid + bands.highMid + bands.presence;
+        if (raw > 0) {
+          const scale = 100 / raw;
+          bands.subBass = Math.round(bands.subBass * scale * 10) / 10;
+          bands.bass = Math.round(bands.bass * scale * 10) / 10;
+          bands.lowMid = Math.round(bands.lowMid * scale * 10) / 10;
+          bands.mid = Math.round(bands.mid * scale * 10) / 10;
+          bands.highMid = Math.round(bands.highMid * scale * 10) / 10;
+          bands.presence = Math.round(bands.presence * scale * 10) / 10;
+        }
+        result.blend.bandBreakdown = bands;
+      }
 
       console.log(`[Superblend Refine] "${currentBlend.speaker}" => refined`);
       res.json(result);
