@@ -14,6 +14,15 @@ import { getDriveControlLayout, getDriveIntelligence } from "@shared/knowledge/d
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
+type IRBandData = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; [key: string]: any };
+function normalizeIRBands<T extends IRBandData>(ir: T): T {
+  const sum = ir.subBass + ir.bass + ir.lowMid + ir.mid + ir.highMid + ir.presence;
+  if (sum > 0 && sum < 1.5) {
+    return { ...ir, subBass: ir.subBass * 100, bass: ir.bass * 100, lowMid: ir.lowMid * 100, mid: ir.mid * 100, highMid: ir.highMid * 100, presence: ir.presence * 100 };
+  }
+  return ir;
+}
+
 // Genre-to-tonal characteristics mapping for dropdown selections
 // Expands genre codes into specific tonal guidance for the AI
 const GENRE_TONAL_PROFILES: Record<string, { tonalGoal: string; characteristics: string; avoid: string }> = {
@@ -6320,7 +6329,9 @@ Use larger values than normal -- corrections should have strong impact since the
   // ── Tone Request (find blends matching a described tone) ────────────────────────
   app.post(api.preferences.toneRequest.path, async (req, res) => {
     try {
-      const { toneDescription, irs } = api.preferences.toneRequest.input.parse(req.body);
+      const parsedTone = api.preferences.toneRequest.input.parse(req.body);
+      const { toneDescription } = parsedTone;
+      const irs = parsedTone.irs.map(normalizeIRBands);
 
       if (irs.length < 2) {
         return res.status(400).json({ message: "Need at least 2 IRs to suggest blends" });
@@ -6422,7 +6433,9 @@ Suggest the best blend combinations to achieve this tone. Return as JSON.`
   // ── Test AI (Tonal Classification) ────────────────────────
   app.post(api.preferences.testAI.path, async (req, res) => {
     try {
-      const { query, irs } = api.preferences.testAI.input.parse(req.body);
+      const parsedTest = api.preferences.testAI.input.parse(req.body);
+      const { query } = parsedTest;
+      const irs = parsedTest.irs.map(normalizeIRBands);
 
       if (irs.length < 1) {
         return res.status(400).json({ message: "Need at least 1 IR to test" });
@@ -6524,7 +6537,9 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
   // ── Superblend (Multi-IR Blending) ─────────────────────────
   app.post(api.preferences.superblend.path, async (req, res) => {
     try {
-      const { speaker, irCount, toneGoal, irs } = api.preferences.superblend.input.parse(req.body);
+      const parsed = api.preferences.superblend.input.parse(req.body);
+      const { speaker, irCount, toneGoal } = parsed;
+      const irs = parsed.irs.map(normalizeIRBands);
 
       if (irs.length < 3) {
         return res.status(400).json({ message: "Need at least 3 IRs to create a superblend" });
@@ -6730,7 +6745,9 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
 
   app.post(api.preferences.superblendRefine.path, async (req, res) => {
     try {
-      const { currentBlend, feedback, irs } = api.preferences.superblendRefine.input.parse(req.body);
+      const parsedRefine = api.preferences.superblendRefine.input.parse(req.body);
+      const { currentBlend, feedback } = parsedRefine;
+      const irs = parsedRefine.irs.map(normalizeIRBands);
 
       const irSummary = irs.map(ir =>
         `${ir.filename}: subBass=${ir.subBass.toFixed(1)}% bass=${ir.bass.toFixed(1)}% lowMid=${ir.lowMid.toFixed(1)}% mid=${ir.mid.toFixed(1)}% highMid=${ir.highMid.toFixed(1)}% presence=${ir.presence.toFixed(1)}% ratio=${ir.ratio.toFixed(2)} centroid=${Math.round(ir.centroid)}Hz smooth=${ir.smoothness.toFixed(0)}`
@@ -7642,12 +7659,13 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
         `${p.mic}@${p.position}_${p.distance} on ${p.speaker}: Mid=${p.mid.toFixed(1)}% HiMid=${p.highMid.toFixed(1)}% Pres=${p.presence.toFixed(1)}% Ratio=${p.ratio.toFixed(2)} Centroid=${Math.round(p.centroid)}Hz Smooth=${p.smoothness.toFixed(0)} (${p.sampleCount} samples)`
       ).join('\n');
 
-      const existingIrSummary = input.existingIrs.map(ir => {
+      const normalizedExistingIrs = input.existingIrs.map(normalizeIRBands);
+      const existingIrSummary = normalizedExistingIrs.map(ir => {
         const ratio = ir.mid > 0 ? (ir.highMid / ir.mid).toFixed(2) : '0.00';
         return `${ir.filename}: SubBass=${ir.subBass.toFixed(1)}% Bass=${ir.bass.toFixed(1)}% LowMid=${ir.lowMid.toFixed(1)}% Mid=${ir.mid.toFixed(1)}% HiMid=${ir.highMid.toFixed(1)}% Pres=${ir.presence.toFixed(1)}% Ratio=${ratio} Centroid=${Math.round(ir.centroid)}Hz Smooth=${ir.smoothness.toFixed(0)}`;
       }).join('\n');
 
-      const clusterAnalysis = analyzeIrClusters(input.existingIrs);
+      const clusterAnalysis = analyzeIrClusters(normalizedExistingIrs);
 
       let preferenceContext = '';
       if (learned.status !== 'no_data' && learned.learnedAdjustments) {
