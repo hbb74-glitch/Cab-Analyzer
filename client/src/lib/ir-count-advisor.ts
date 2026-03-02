@@ -96,6 +96,25 @@ function scoreVsTarget(blend: BandsPercent, profile: IntentProfile): number {
   return Math.max(0, Math.round((1 - dist / maxDist) * 100));
 }
 
+function findBestPair(irs: IREntry[], profile: IntentProfile): BestPair | null {
+  const n = irs.length;
+  if (n < 2) return null;
+
+  let bestI = 0, bestJ = 1, bestScore = -1;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const blend = blendBands([irs[i].bandsPercent, irs[j].bandsPercent], [1, 1]);
+      const score = scoreVsTarget(blend, profile);
+      if (score > bestScore) {
+        bestScore = score;
+        bestI = i;
+        bestJ = j;
+      }
+    }
+  }
+  return { ir1: irs[bestI].filename, ir2: irs[bestJ].filename, score: bestScore };
+}
+
 const IMPROVEMENT_THRESHOLD = 1.0;
 
 export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"): IRCountAdvice {
@@ -103,16 +122,19 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"):
   const profile = INTENT_PROFILES[intent];
 
   if (n === 0) {
-    return { loaded: 0, minForTarget: 3, maxUseful: 8, bestScore: 0, verdict: "too-few", reasoning: "No IRs loaded yet.", intent };
+    return { loaded: 0, minForTarget: 3, maxUseful: 8, bestScore: 0, verdict: "too-few", reasoning: "No IRs loaded yet.", intent, bestPair: null };
   }
   if (n === 1) {
     const score = scoreVsTarget(irs[0].bandsPercent, profile);
-    return { loaded: 1, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "A single IR can't cover tonal roles. Load at least 3 for blending.", intent };
+    return { loaded: 1, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "A single IR can't cover tonal roles. Load at least 3 for blending.", intent, bestPair: null };
   }
+
+  const bestPair = findBestPair(irs, profile);
+
   if (n === 2) {
     const blend = blendBands(irs.map(ir => ir.bandsPercent), [1, 1]);
     const score = scoreVsTarget(blend, profile);
-    return { loaded: 2, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "Two IRs isn't enough to shape the tone precisely. Load at least 1 more.", intent };
+    return { loaded: 2, minForTarget: 3, maxUseful: 8, bestScore: score, verdict: "too-few", reasoning: "Two IRs isn't enough to shape the tone precisely. Load at least 1 more.", intent, bestPair };
   }
 
   const allBands = irs.map(ir => ir.bandsPercent);
@@ -195,5 +217,5 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile"):
     reasoning = `Best ${profile.label.toLowerCase()} blend uses ${maxUseful} of your ${n} IRs (${bestScore}% match). Beyond ${maxUseful}, adding more IRs doesn't improve the tone — the blend is already as close to the ${profile.description} target as these IRs can get.`;
   }
 
-  return { loaded: n, minForTarget, maxUseful, bestScore, verdict, reasoning, intent };
+  return { loaded: n, minForTarget, maxUseful, bestScore, verdict, reasoning, intent, bestPair };
 }

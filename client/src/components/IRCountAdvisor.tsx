@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { analyzeIRCount, type IntentKey } from "@/lib/ir-count-advisor";
-import { AlertTriangle, CheckCircle, ChevronRight } from "lucide-react";
+import { analyzeIRCount, type IntentKey, type BestPair } from "@/lib/ir-count-advisor";
+import { AlertTriangle, CheckCircle, ChevronRight, Combine } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type BandsPercent = {
@@ -30,6 +30,23 @@ function scoreColor(score: number): string {
   return "text-red-400";
 }
 
+function stripExt(name: string): string {
+  return name.replace(/\.wav$/i, "");
+}
+
+function BestPairLine({ pair }: { pair: BestPair }) {
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="best-pair-line">
+      <Combine className="w-3 h-3 text-violet-400 shrink-0" />
+      <span>Best 2‑IR blend:</span>
+      <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir1}>{stripExt(pair.ir1)}</span>
+      <span className="text-muted-foreground">+</span>
+      <span className="font-medium text-foreground truncate max-w-[120px]" title={pair.ir2}>{stripExt(pair.ir2)}</span>
+      <span className={cn("font-semibold ml-auto shrink-0", scoreColor(pair.score))}>{pair.score}%</span>
+    </div>
+  );
+}
+
 export function IRCountAdvisor({ irs, intent = "versatile", compact = false }: IRCountAdvisorProps) {
   const advice = useMemo(() => analyzeIRCount(irs, intent), [irs, intent]);
   const config = verdictConfig[advice.verdict];
@@ -39,15 +56,18 @@ export function IRCountAdvisor({ irs, intent = "versatile", compact = false }: I
 
   if (compact) {
     return (
-      <div className={cn("flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs", config.bg, config.border)} data-testid="ir-count-advisor-compact">
-        <Icon className={cn("w-3.5 h-3.5 shrink-0", config.color)} />
-        <span className="text-muted-foreground">
-          <span className={cn("font-semibold", config.color)}>{advice.loaded}</span> loaded
-          {" · "}
-          use <span className="font-medium text-foreground">{advice.minForTarget}–{advice.maxUseful}</span> for best tone
-          {" · "}
-          <span className={cn("font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}%</span> match
-        </span>
+      <div className={cn("px-2.5 py-1.5 rounded-lg border text-xs space-y-1", config.bg, config.border)} data-testid="ir-count-advisor-compact">
+        <div className="flex items-center gap-2">
+          <Icon className={cn("w-3.5 h-3.5 shrink-0", config.color)} />
+          <span className="text-muted-foreground">
+            <span className={cn("font-semibold", config.color)}>{advice.loaded}</span> loaded
+            {" · "}
+            use <span className="font-medium text-foreground">{advice.minForTarget}–{advice.maxUseful}</span> for best tone
+            {" · "}
+            <span className={cn("font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}%</span> match
+          </span>
+        </div>
+        {advice.bestPair && <BestPairLine pair={advice.bestPair} />}
       </div>
     );
   }
@@ -61,6 +81,7 @@ export function IRCountAdvisor({ irs, intent = "versatile", compact = false }: I
         </span>
         <span className={cn("text-xs font-mono ml-auto font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}% match</span>
       </div>
+      {advice.bestPair && <BestPairLine pair={advice.bestPair} />}
       <p className="text-xs text-muted-foreground leading-relaxed" data-testid="text-ir-count-reasoning">{advice.reasoning}</p>
     </div>
   );
