@@ -1,11 +1,26 @@
 import { getTasteBias, type TasteContext } from "./tasteStore";
-import { BAND_KEYS } from "./tonal-engine";
+import { BAND_KEYS, type BandKey } from "./tonal-engine";
 import { snapToAchievable } from "./polygon-mixer";
 
 const PERCEPTUAL_WEIGHTS = [
   0.6,  0.7,  0.7,  0.75, 0.8,  0.85, 0.9,  0.95,
   1.0,  1.0,  1.05, 1.1,  1.1,  1.05, 1.0,  0.95,
   0.9,  0.85, 0.8,  0.7,  0.6,  0.5,  0.4,  0.3,
+];
+
+export type ToneNudges = Partial<Record<BandKey | "tilt" | "smoothness", number>>;
+
+export const NUDGE_LABELS: { key: keyof ToneNudges; label: string; description: string }[] = [
+  { key: "subBass", label: "Sub Bass", description: "Below 80 Hz" },
+  { key: "bass", label: "Bass", description: "80–200 Hz" },
+  { key: "lowMid", label: "Low Mid", description: "200–500 Hz" },
+  { key: "mid", label: "Mid", description: "500–1.5k Hz" },
+  { key: "highMid", label: "High Mid", description: "1.5–4k Hz" },
+  { key: "presence", label: "Presence", description: "4–8k Hz" },
+  { key: "air", label: "Air", description: "8–12k Hz" },
+  { key: "fizz", label: "Fizz", description: "12k+ Hz" },
+  { key: "tilt", label: "Tilt", description: "Dark ← → Bright" },
+  { key: "smoothness", label: "Smoothness", description: "Ragged ← → Smooth" },
 ];
 
 function blendMagnitudes(irBands: number[][], ratios: number[]): number[] {
@@ -60,6 +75,7 @@ function bandsTo8Band(logBands: number[]): Record<string, number> {
 function scoreBlendedCurve(
   blended: number[],
   ctx: TasteContext,
+  nudges?: ToneNudges,
 ): number {
   const bands8 = bandsTo8Band(blended);
   const total = Object.values(bands8).reduce((a, b) => a + b, 0);
@@ -86,7 +102,23 @@ function scoreBlendedCurve(
     perceptualScore -= diff * weight * 0.01;
   }
 
-  return bias + smoothBonus + perceptualScore;
+  let nudgeBonus = 0;
+  if (nudges) {
+    for (let i = 0; i < BAND_KEYS.length; i++) {
+      const n = nudges[BAND_KEYS[i]];
+      if (n && isFinite(n)) nudgeBonus += vec[i] * n * 0.5;
+    }
+    const tiltN = nudges.tilt;
+    if (tiltN && isFinite(tiltN)) {
+      nudgeBonus += vec[BAND_KEYS.length] * tiltN * 0.5;
+    }
+    const smN = nudges.smoothness;
+    if (smN && isFinite(smN)) {
+      nudgeBonus += vec[BAND_KEYS.length + 1] * smN * 0.5;
+    }
+  }
+
+  return bias + smoothBonus + perceptualScore + nudgeBonus;
 }
 
 function normalizeRatios(ratios: number[]): number[] {
@@ -106,6 +138,7 @@ export function optimizeBlendRatios(
   aiRatios: number[],
   ctx: TasteContext,
   iterations: number = 200,
+  nudges?: ToneNudges,
 ): OptimizationResult {
   const n = irLogBands.length;
   if (n < 2 || n > 8) {
@@ -121,7 +154,7 @@ export function optimizeBlendRatios(
   }
 
   const aiBlended = blendMagnitudes(irLogBands, aiNorm);
-  const aiScore = scoreBlendedCurve(aiBlended, ctx);
+  const aiScore = scoreBlendedCurve(aiBlended, ctx, nudges);
 
   let bestRatios = [...aiNorm];
   let bestScore = aiScore;
@@ -150,7 +183,7 @@ export function optimizeBlendRatios(
     if (!valid) continue;
 
     const blended = blendMagnitudes(irLogBands, norm);
-    const score = scoreBlendedCurve(blended, ctx);
+    const score = scoreBlendedCurve(blended, ctx, nudges);
 
     if (score > bestScore) {
       bestScore = score;
@@ -172,4 +205,9 @@ export function optimizeBlendRatios(
     score: bestScore,
     improvement: bestScore - aiScore,
   };
+}
+
+export function hasActiveNudges(nudges?: ToneNudges): boolean {
+  if (!nudges) return false;
+  return Object.values(nudges).some(v => v !== 0);
 }

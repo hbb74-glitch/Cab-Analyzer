@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye, Heart, Layers, Star, List } from "lucide-react";
+import { Upload, X, Blend, ChevronDown, ChevronUp, Target, Zap, Sparkles, Trophy, Brain, ArrowLeftRight, Trash2, MessageSquare, Search, Send, Loader2, Copy, Check, CheckCircle, BarChart3, RefreshCw, Clock, EyeOff, Eye, Heart, Layers, Star, List, SlidersHorizontal, RotateCcw } from "lucide-react";
 import { BandChart, MatchBadge, BlendQualityBadge, BLEND_RATIOS, BAND_COLORS } from "@/components/BlendPreview";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { StandaloneBadge } from "@/components/StandaloneBadge";
@@ -21,7 +21,7 @@ import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
 import { snapToAchievable } from "@/lib/polygon-mixer";
-import { optimizeBlendRatios } from "@/lib/blend-optimizer";
+import { optimizeBlendRatios, type ToneNudges, NUDGE_LABELS, hasActiveNudges } from "@/lib/blend-optimizer";
 import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
@@ -830,12 +830,14 @@ function tryOptimizeLayers(
   layers: SuperblendLayer[],
   irLookup: Map<string, number[]>,
   ctx: TasteContext,
+  nudges?: ToneNudges,
 ): SuperblendLayer[] | null {
   if (layers.length < 2) return null;
   const logBands = layers.map(l => irLookup.get(l.filename));
   if (logBands.some(b => !b)) return null;
-  const result = optimizeBlendRatios(logBands as number[][], layers.map(l => l.percentage), ctx);
-  if (result.improvement <= 0) return null;
+  const forceAccept = hasActiveNudges(nudges);
+  const result = optimizeBlendRatios(logBands as number[][], layers.map(l => l.percentage), ctx, 200, nudges);
+  if (!forceAccept && result.improvement <= 0) return null;
   return layers.map((l, i) => ({ ...l, percentage: result.ratios[i] }));
 }
 
@@ -844,16 +846,17 @@ function optimizeSuperblendResult(
   irLookup: Map<string, number[]>,
   speaker: string,
   intent: string,
+  nudges?: ToneNudges,
 ): SuperblendResult {
   const tasteIntent = (intent === "versatile" ? "rhythm" : intent) as "rhythm" | "lead" | "clean";
   const ctx: TasteContext = { speakerPrefix: speaker, mode: "blend", intent: tasteIntent };
   const snapped = snapSuperblendResult(data);
-  const optimizedPrimary = tryOptimizeLayers(snapped.blend.layers, irLookup, ctx);
+  const optimizedPrimary = tryOptimizeLayers(snapped.blend.layers, irLookup, ctx, nudges);
   return {
     ...snapped,
     blend: { ...snapped.blend, layers: optimizedPrimary || snapped.blend.layers },
     alternatives: snapped.alternatives?.map(a => {
-      const opt = tryOptimizeLayers(a.layers, irLookup, ctx);
+      const opt = tryOptimizeLayers(a.layers, irLookup, ctx, nudges);
       return opt ? { ...a, layers: opt } : a;
     }),
   };
@@ -886,6 +889,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [copied, setCopied] = useState(false);
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [showSaved, setShowSaved] = useState(false);
+  const [showExperiment, setShowExperiment] = useState(false);
+  const [toneNudges, setToneNudges] = useState<ToneNudges>({});
   const { toast } = useToast();
 
   const speakers = useMemo(() => {
@@ -964,7 +969,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
           });
           const raw = await res.json() as SuperblendResult;
           const data = irLookup.size >= 2
-            ? optimizeSuperblendResult(raw, irLookup, speakerLabel, intent.value)
+            ? optimizeSuperblendResult(raw, irLookup, speakerLabel, intent.value, hasActiveNudges(toneNudges) ? toneNudges : undefined)
             : snapSuperblendResult(raw);
           setAllResults(prev => ({ ...prev, [intent.value]: data }));
           if (data.blend.bandBreakdown) {
@@ -1066,7 +1071,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
         ? speakers.map(([s]) => s).join(" + ")
         : selectedSpeaker;
       const data = irLookup.size >= 2
-        ? optimizeSuperblendResult(raw, irLookup, speakerLabel, selectedIntent)
+        ? optimizeSuperblendResult(raw, irLookup, speakerLabel, selectedIntent, hasActiveNudges(toneNudges) ? toneNudges : undefined)
         : snapSuperblendResult(raw);
       setAiAnswer(null);
       setResult(data);
@@ -1244,6 +1249,86 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
             data-testid="input-superblend-goal"
           />
         </div>
+      </div>
+
+      <div className="mb-3">
+        <button
+          onClick={() => setShowExperiment(!showExperiment)}
+          className={cn(
+            "flex items-center gap-1.5 text-[10px] font-medium transition-colors",
+            hasActiveNudges(toneNudges)
+              ? "text-violet-400 hover:text-violet-300"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          data-testid="button-toggle-tone-experiment"
+        >
+          <SlidersHorizontal className="w-3 h-3" />
+          Tone Experiment
+          {hasActiveNudges(toneNudges) && <span className="ml-1 px-1 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[9px]">active</span>}
+          {showExperiment ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+        {showExperiment && (
+          <div className="mt-2 p-3 rounded-lg border border-violet-500/20 bg-violet-500/5" data-testid="panel-tone-experiment">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] text-violet-300">Adjust tonal bias without affecting your learned preferences</span>
+              <button
+                onClick={() => setToneNudges({})}
+                className="text-[9px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                data-testid="button-reset-nudges"
+              >
+                <RotateCcw className="w-2.5 h-2.5" /> Reset
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+              {NUDGE_LABELS.map(({ key, label, description }) => (
+                <div key={key} className="flex items-center gap-2" data-testid={`nudge-${key}`}>
+                  <span className="text-[9px] text-muted-foreground w-16 shrink-0" title={description}>{label}</span>
+                  <input
+                    type="range"
+                    min={-3}
+                    max={3}
+                    step={0.5}
+                    value={toneNudges[key] || 0}
+                    onChange={(e) => setToneNudges(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                    className="w-full h-1.5 accent-violet-500"
+                    data-testid={`slider-nudge-${key}`}
+                  />
+                  <span className={cn(
+                    "text-[9px] font-mono w-6 text-right shrink-0",
+                    (toneNudges[key] || 0) > 0 ? "text-green-400" : (toneNudges[key] || 0) < 0 ? "text-red-400" : "text-muted-foreground"
+                  )}>
+                    {(toneNudges[key] || 0) > 0 ? "+" : ""}{toneNudges[key] || 0}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {hasActiveNudges(toneNudges) && Object.keys(allResults).length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3 w-full border-violet-500/30 text-violet-300 hover:bg-violet-500/10"
+                onClick={() => {
+                  const irLookup = new Map<string, number[]>();
+                  for (const ir of speakerIRs) {
+                    const lbe = (ir.metrics as any)?.logBandEnergies;
+                    if (Array.isArray(lbe) && lbe.length >= 20) irLookup.set(ir.filename, lbe);
+                  }
+                  if (irLookup.size < 2) return;
+                  const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
+                  const reoptimized: Record<string, SuperblendResult> = {};
+                  for (const [intent, res] of Object.entries(allResults)) {
+                    reoptimized[intent] = optimizeSuperblendResult(res, irLookup, speakerLabel, intent, toneNudges);
+                  }
+                  setAllResults(reoptimized);
+                  toast({ title: "Re-optimized", description: "Ratios adjusted for your tone experiment." });
+                }}
+                data-testid="button-reoptimize-nudges"
+              >
+                <SlidersHorizontal className="w-3 h-3 mr-1.5" /> Re-optimize with these adjustments
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }))} intent={selectedIntent as any} compact superblendBands={displayBlend?.bandBreakdown} />
