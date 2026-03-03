@@ -7124,6 +7124,11 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
         result.blend.bandBreakdown = computeBandBreakdown(result.blend.layers);
       }
       if (result.equalPartsBlend?.layers) {
+        const eqCount = result.equalPartsBlend.layers.length;
+        const eqPct = Math.round(10000 / eqCount) / 100;
+        for (const layer of result.equalPartsBlend.layers) {
+          layer.percentage = eqPct;
+        }
         result.equalPartsBlend.bandBreakdown = computeBandBreakdown(result.equalPartsBlend.layers);
       }
       if (result.alternatives) {

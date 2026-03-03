@@ -821,7 +821,7 @@ function snapSuperblendResult(data: SuperblendResult): SuperblendResult {
   return {
     ...data,
     blend: { ...data.blend, layers: snapBlendLayers(data.blend.layers) },
-    equalPartsBlend: data.equalPartsBlend ? { ...data.equalPartsBlend, layers: snapBlendLayers(data.equalPartsBlend.layers) } : undefined,
+    equalPartsBlend: data.equalPartsBlend ? { ...data.equalPartsBlend } : undefined,
     alternatives: data.alternatives?.map(a => ({ ...a, layers: snapBlendLayers(a.layers) })),
   };
 }
