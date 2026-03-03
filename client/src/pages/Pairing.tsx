@@ -10,6 +10,7 @@ import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
 import { snapToAchievable } from "@/lib/polygon-mixer";
+import { optimizeBlendRatios } from "@/lib/blend-optimizer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1474,6 +1475,39 @@ function snapSuperblendResult(data: SuperblendResult): SuperblendResult {
   };
 }
 
+function tryOptimizeLayers(
+  layers: SuperblendLayer[],
+  irLookup: Map<string, number[]>,
+  ctx: TasteContext,
+): SuperblendLayer[] | null {
+  if (layers.length < 2) return null;
+  const logBands = layers.map(l => irLookup.get(l.filename));
+  if (logBands.some(b => !b)) return null;
+  const result = optimizeBlendRatios(logBands as number[][], layers.map(l => l.percentage), ctx);
+  if (result.improvement <= 0) return null;
+  return layers.map((l, i) => ({ ...l, percentage: result.ratios[i] }));
+}
+
+function optimizeSuperblendResult(
+  data: SuperblendResult,
+  irLookup: Map<string, number[]>,
+  speaker: string,
+  intent: string,
+): SuperblendResult {
+  const tasteIntent = (intent === "versatile" ? "rhythm" : intent) as "rhythm" | "lead" | "clean";
+  const ctx: TasteContext = { speakerPrefix: speaker, mode: "blend", intent: tasteIntent };
+  const snapped = snapSuperblendResult(data);
+  const optimizedPrimary = tryOptimizeLayers(snapped.blend.layers, irLookup, ctx);
+  return {
+    ...snapped,
+    blend: { ...snapped.blend, layers: optimizedPrimary || snapped.blend.layers },
+    alternatives: snapped.alternatives?.map(a => {
+      const opt = tryOptimizeLayers(a.layers, irLookup, ctx);
+      return opt ? { ...a, layers: opt } : a;
+    }),
+  };
+}
+
 interface PairingSuperblendBlendData {
   name: string;
   speaker: string;
@@ -1569,6 +1603,14 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         ? speakers.map(([s]) => s).join(" + ")
         : selectedSpeaker;
 
+      const irLookup = new Map<string, number[]>();
+      for (const ir of speakerIRs) {
+        const lbe = ir.metrics?.logBandEnergies;
+        if (Array.isArray(lbe) && lbe.length >= 20) {
+          irLookup.set(ir.file.name, lbe);
+        }
+      }
+
       setGeneratingCount(SUPERBLEND_INTENTS.length);
       setAllResults({});
       setActiveBlend("primary");
@@ -1586,7 +1628,9 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
             irs: irData,
           });
           const raw = await res.json() as SuperblendResult;
-          const data = snapSuperblendResult(raw);
+          const data = irLookup.size >= 2
+            ? optimizeSuperblendResult(raw, irLookup, speakerLabel, intent.value)
+            : snapSuperblendResult(raw);
           setAllResults(prev => ({ ...prev, [intent.value]: data }));
           if (data.blend.bandBreakdown) {
             const irEntries = speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }));
@@ -1678,7 +1722,17 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         setRefineText("");
         return;
       }
-      const data = snapSuperblendResult(raw);
+      const irLookup = new Map<string, number[]>();
+      for (const ir of speakerIRs) {
+        const lbe = ir.metrics?.logBandEnergies;
+        if (Array.isArray(lbe) && lbe.length >= 20) irLookup.set(ir.file.name, lbe);
+      }
+      const speakerLabel = selectedSpeaker === "__mixed__"
+        ? speakers.map(([s]) => s).join(" + ")
+        : selectedSpeaker;
+      const data = irLookup.size >= 2
+        ? optimizeSuperblendResult(raw, irLookup, speakerLabel, selectedIntent)
+        : snapSuperblendResult(raw);
       setAiAnswer(null);
       setResult(data);
       setActiveBlend("primary");
