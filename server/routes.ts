@@ -6672,11 +6672,11 @@ The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCou
           },
           {
             role: "user",
-            content: `Create a Superblend for speaker: "${speaker}"
+            content: `Create a Superblend for speaker: "${speaker}"${speaker.includes("+") ? "\nNote: This is a MIXED-SPEAKER blend — combine IRs from different speakers to create a unique hybrid tone. Leverage each speaker's strengths." : ""}
 Number of IRs to use: ${irCount}
-${toneGoal ? `Tone goal: "${toneGoal}"` : "Goal: Most versatile, comprehensive representation of this speaker"}
+${toneGoal ? `Tone goal: "${toneGoal}"` : speaker.includes("+") ? "Goal: Best hybrid tone combining the character of each speaker" : "Goal: Most versatile, comprehensive representation of this speaker"}
 
-Available IRs for this speaker:
+Available IRs:
 ${irSummary}
 ${learnedContext}
 

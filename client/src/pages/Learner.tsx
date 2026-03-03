@@ -802,8 +802,9 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   }, [speakers, selectedSpeaker]);
 
   const speakerIRs = useMemo(() => {
+    if (selectedSpeaker === "__mixed__") return allIRs;
     return speakers.find(([s]) => s === selectedSpeaker)?.[1] || [];
-  }, [speakers, selectedSpeaker]);
+  }, [speakers, selectedSpeaker, allIRs]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -822,8 +823,11 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       const intentLabel = SUPERBLEND_INTENTS.find(i => i.value === selectedIntent);
       const intentGoal = intentLabel ? `${intentLabel.label}: ${intentLabel.description}` : "";
       const combinedGoal = [intentGoal, toneGoal.trim()].filter(Boolean).join(". Also: ");
+      const speakerLabel = selectedSpeaker === "__mixed__"
+        ? speakers.map(([s]) => s).join(" + ")
+        : selectedSpeaker;
       const res = await apiRequest("POST", "/api/preferences/superblend", {
-        speaker: selectedSpeaker,
+        speaker: speakerLabel,
         irCount,
         toneGoal: combinedGoal || undefined,
         irs: irData,
@@ -1035,6 +1039,9 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
             className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
             data-testid="select-superblend-speaker"
           >
+            {speakers.length >= 2 && (
+              <option value="__mixed__">Mixed — All Speakers ({allIRs.length} IRs)</option>
+            )}
             {speakers.map(([s, irs]) => (
               <option key={s} value={s}>{s} ({irs.length} IRs)</option>
             ))}
