@@ -9,7 +9,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, recordSuperblendInsight, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, recordSuperblendInsight, saveToneNudges, loadToneNudges, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -891,7 +891,14 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [showSaved, setShowSaved] = useState(false);
   const [showExperiment, setShowExperiment] = useState(false);
-  const [toneNudges, setToneNudges] = useState<ToneNudges>({});
+  const [toneNudges, setToneNudgesRaw] = useState<ToneNudges>(() => loadToneNudges("learner") as ToneNudges);
+  const setToneNudges = useCallback((nudges: ToneNudges | ((prev: ToneNudges) => ToneNudges)) => {
+    setToneNudgesRaw(prev => {
+      const next = typeof nudges === "function" ? nudges(prev) : nudges;
+      saveToneNudges("learner", next as Record<string, number>);
+      return next;
+    });
+  }, []);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
   const { toast } = useToast();
 
@@ -1005,6 +1012,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
 
   const saveCurrentBlend = () => {
     if (!displayBlend || !result) return;
+    const baselineRes = baselineResults[selectedIntent] || result;
     const blend: SavedSuperblend = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       speaker: result.blend.speaker,
@@ -1016,6 +1024,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       versatilityScore: displayBlend.versatilityScore,
       bestFor: (displayBlend as any).bestFor || "",
       savedAt: new Date().toISOString(),
+      baselineLayers: baselineRes.blend.layers,
+      baselineBandBreakdown: baselineRes.blend.bandBreakdown,
     };
     saveSuperblendFavorite(blend);
     setSavedBlends(loadSuperblendFavorites());
@@ -1328,6 +1338,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                       highMidEnergy: ir.metrics.highMidEnergy,
                       presenceEnergy: ir.metrics.presenceEnergy,
                       ultraHighEnergy: ir.metrics.ultraHighEnergy,
+                      logBandEnergies: ir.metrics.logBandEnergies,
                     }));
 
                     const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
@@ -1350,6 +1361,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                           highMidEnergy: m?.highMidEnergy || 0,
                           presenceEnergy: m?.presenceEnergy || 0,
                           ultraHighEnergy: m?.ultraHighEnergy || 0,
+                          logBandEnergies: m?.logBandEnergies,
                         };
                       });
 
@@ -1494,6 +1506,9 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     <span key={i} className="text-[9px] text-muted-foreground font-mono">{l.percentage}% {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") || l.filename}</span>
                   ))}
                 </div>
+                {sb.baselineLayers && (
+                  <div className="text-[9px] text-zinc-500 italic mt-0.5">Baseline saved — original AI ratios preserved</div>
+                )}
               </div>
             ))}
           </motion.div>

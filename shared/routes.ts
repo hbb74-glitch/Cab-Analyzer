@@ -405,6 +405,7 @@ const irEnergySchema = z.object({
   highMidEnergy: z.number(),
   presenceEnergy: z.number(),
   ultraHighEnergy: z.number().optional(),
+  logBandEnergies: z.array(z.number()).optional(),
 });
 
 export const superblendReoptimizeInputSchema = z.object({

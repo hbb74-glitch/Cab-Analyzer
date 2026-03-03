@@ -1200,6 +1200,8 @@ export interface SavedSuperblend {
   versatilityScore: number;
   bestFor: string;
   savedAt: string;
+  baselineLayers?: SuperblendLayer[];
+  baselineBandBreakdown?: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
 }
 
 const SUPERBLEND_FAVORITES_KEY = "irscope.superblendFavorites";
@@ -1222,4 +1224,23 @@ export function saveSuperblendFavorite(blend: SavedSuperblend): void {
 export function removeSuperblendFavorite(id: string): void {
   const existing = loadSuperblendFavorites().filter(b => b.id !== id);
   localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+}
+
+const TONE_NUDGES_KEY = "irscope.toneNudges";
+
+export function saveToneNudges(page: string, nudges: Record<string, number>): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(TONE_NUDGES_KEY) || "{}");
+    all[page] = nudges;
+    localStorage.setItem(TONE_NUDGES_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+export function loadToneNudges(page: string): Record<string, number> {
+  try {
+    const all = JSON.parse(localStorage.getItem(TONE_NUDGES_KEY) || "{}");
+    return all[page] || {};
+  } catch {
+    return {};
+  }
 }

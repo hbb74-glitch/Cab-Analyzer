@@ -18,7 +18,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, saveToneNudges, loadToneNudges, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -1557,7 +1557,14 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [showSaved, setShowSaved] = useState(false);
   const [showExperiment, setShowExperiment] = useState(false);
-  const [toneNudges, setToneNudges] = useState<ToneNudges>({});
+  const [toneNudges, setToneNudgesRaw] = useState<ToneNudges>(() => loadToneNudges("pairing") as ToneNudges);
+  const setToneNudges = useCallback((nudges: ToneNudges | ((prev: ToneNudges) => ToneNudges)) => {
+    setToneNudgesRaw(prev => {
+      const next = typeof nudges === "function" ? nudges(prev) : nudges;
+      saveToneNudges("pairing", next as Record<string, number>);
+      return next;
+    });
+  }, []);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
   const { toast } = useToast();
 
@@ -1671,6 +1678,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
 
   const saveCurrentBlend = () => {
     if (!displayBlend || !result) return;
+    const baselineRes = baselineResults[selectedIntent] || result;
     const blend: SavedSuperblend = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       speaker: result.blend.speaker,
@@ -1682,6 +1690,8 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       versatilityScore: displayBlend.versatilityScore,
       bestFor: (displayBlend as any).bestFor || "",
       savedAt: new Date().toISOString(),
+      baselineLayers: baselineRes.blend.layers,
+      baselineBandBreakdown: baselineRes.blend.bandBreakdown,
     };
     saveSuperblendFavorite(blend);
     setSavedBlends(loadSuperblendFavorites());
@@ -1998,6 +2008,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                       highMidEnergy: ir.metrics!.highMidEnergy,
                       presenceEnergy: ir.metrics!.presenceEnergy,
                       ultraHighEnergy: ir.metrics!.ultraHighEnergy,
+                      logBandEnergies: ir.metrics!.logBandEnergies,
                     }));
 
                     const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
@@ -2020,6 +2031,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                           highMidEnergy: m?.highMidEnergy || 0,
                           presenceEnergy: m?.presenceEnergy || 0,
                           ultraHighEnergy: m?.ultraHighEnergy || 0,
+                          logBandEnergies: m?.logBandEnergies,
                         };
                       });
 

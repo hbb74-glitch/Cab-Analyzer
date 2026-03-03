@@ -5807,27 +5807,44 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       }
 
       const bandKeys6 = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const;
+      const bandKeys8 = ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air", "fizz"] as const;
       const energyKeys = ["subBassEnergy", "bassEnergy", "lowMidEnergy", "midEnergy6", "highMidEnergy", "presenceEnergy"] as const;
 
-      type IREntry = { filename: string; energies: number[]; ultraHigh: number; role: string; contribution?: string };
+      const PERCEPTUAL_WEIGHTS = [
+        0.6,  0.7,  0.7,  0.75, 0.8,  0.85, 0.9,  0.95,
+        1.0,  1.0,  1.05, 1.1,  1.1,  1.05, 1.0,  0.95,
+        0.9,  0.85, 0.8,  0.7,  0.6,  0.5,  0.4,  0.3,
+      ];
+
+      type IREntry = { filename: string; energies: number[]; ultraHigh: number; logBands: number[] | null; role: string; contribution?: string };
 
       function getEnergies(ir: any): number[] {
         return energyKeys.map(k => (ir as any)[k] as number || 0);
+      }
+
+      function getLogBands(ir: any): number[] | null {
+        const lbe = ir.logBandEnergies;
+        if (Array.isArray(lbe) && lbe.length >= 20) return lbe;
+        return null;
       }
 
       const currentIRs: IREntry[] = layers.map(l => ({
         filename: l.filename,
         energies: getEnergies(l),
         ultraHigh: l.ultraHighEnergy || 0,
+        logBands: getLogBands(l),
         role: l.role,
         contribution: l.contribution,
       }));
 
       const poolIRs: IREntry[] = (pool || [])
         .filter(p => !currentIRs.some(c => c.filename === p.filename))
-        .map(p => ({ filename: p.filename, energies: getEnergies(p), ultraHigh: p.ultraHighEnergy || 0, role: "swap", contribution: undefined }));
+        .map(p => ({ filename: p.filename, energies: getEnergies(p), ultraHigh: p.ultraHighEnergy || 0, logBands: getLogBands(p), role: "swap", contribution: undefined }));
 
-      function blendBands(irs: IREntry[], ratios: number[]): number[] {
+      const allIRsHaveLogBands = currentIRs.every(ir => ir.logBands !== null) && poolIRs.every(ir => ir.logBands !== null);
+      const use24Band = allIRsHaveLogBands;
+
+      function blendBands6(irs: IREntry[], ratios: number[]): number[] {
         const blended = new Array(6).fill(0);
         for (let i = 0; i < irs.length; i++) {
           for (let b = 0; b < 6; b++) {
@@ -5837,12 +5854,38 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return blended;
       }
 
+      function blendBands24(irs: IREntry[], ratios: number[]): number[] {
+        const nBins = irs[0].logBands!.length;
+        const blended = new Array(nBins).fill(0);
+        for (let i = 0; i < irs.length; i++) {
+          const bins = irs[i].logBands!;
+          const r = ratios[i];
+          for (let b = 0; b < nBins; b++) {
+            blended[b] += r * bins[b];
+          }
+        }
+        return blended;
+      }
+
+      function bands24To8(logBands: number[]): number[] {
+        const edges = [0, 2, 4, 7, 10, 14, 18, 21, 24];
+        const result: number[] = [];
+        for (let i = 0; i < 8; i++) {
+          let sum = 0;
+          for (let b = edges[i]; b < edges[i + 1]; b++) {
+            sum += logBands[b] || 0;
+          }
+          result.push(sum / (edges[i + 1] - edges[i]));
+        }
+        return result;
+      }
+
       function toPercent(bands: number[]): number[] {
         const total = bands.reduce((a, b) => a + b, 0) || 1;
         return bands.map(b => Math.round((b / total) * 1000) / 10);
       }
 
-      function computeTilt(bands: number[]): number {
+      function computeTilt6(bands: number[]): number {
         const lowAvg = (bands[0] + bands[1] + bands[2]) / 3;
         const highAvg = (bands[3] + bands[4] + bands[5]) / 3;
         const dbLow = lowAvg > 0 ? 10 * Math.log10(lowAvg + 1e-12) : -60;
@@ -5850,25 +5893,46 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return Math.round(((dbHigh - dbLow) / Math.log2(10000 / 80)) * 100) / 100;
       }
 
-      function computeSmoothness(bands: number[]): number {
+      function computeTilt24(bands: number[]): number {
+        const n24 = bands.length;
+        const low = bands.slice(0, Math.floor(n24 / 3));
+        const high = bands.slice(Math.floor(2 * n24 / 3));
+        const avgLow = low.reduce((a, b) => a + b, 0) / low.length;
+        const avgHigh = high.reduce((a, b) => a + b, 0) / high.length;
+        const dbLow = avgLow > 0 ? 10 * Math.log10(avgLow + 1e-12) : -60;
+        const dbHigh = avgHigh > 0 ? 10 * Math.log10(avgHigh + 1e-12) : -60;
+        return (dbHigh - dbLow) / Math.log2(10000 / 80);
+      }
+
+      function computeSmoothness6(bands: number[]): number {
         const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
         let roughness = 0;
         for (let i = 1; i < db.length; i++) roughness += Math.abs(db[i] - db[i - 1]);
         return Math.round(Math.max(0, Math.min(100, 100 - (roughness / (db.length - 1)) * 8)) * 10) / 10;
       }
 
-      function blendUltraHigh(irs: IREntry[], ratios: number[]): number {
-        let uh = 0;
-        for (let i = 0; i < irs.length; i++) uh += irs[i].ultraHigh * (ratios[i] || 0);
-        return uh;
+      function computeSmoothness24(bands: number[]): number {
+        const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
+        let roughness = 0;
+        for (let i = 1; i < db.length; i++) roughness += Math.abs(db[i] - db[i - 1]);
+        const avg = roughness / (db.length - 1);
+        return Math.max(0, Math.min(100, 100 - avg * 8));
       }
 
       function scoreBlend(irs: IREntry[], ratios: number[]): number {
-        const bands = blendBands(irs, ratios);
+        if (use24Band && irs.every(ir => ir.logBands !== null)) {
+          return scoreBlend24(irs, ratios);
+        }
+        return scoreBlend6(irs, ratios);
+      }
+
+      function scoreBlend6(irs: IREntry[], ratios: number[]): number {
+        const bands = blendBands6(irs, ratios);
         const pcts = toPercent(bands);
-        const tilt = computeTilt(bands);
-        const smooth = computeSmoothness(bands);
-        const uh = blendUltraHigh(irs, ratios);
+        const tilt = computeTilt6(bands);
+        const smooth = computeSmoothness6(bands);
+        let uh = 0;
+        for (let i = 0; i < irs.length; i++) uh += irs[i].ultraHigh * (ratios[i] || 0);
 
         let score = smooth * 0.01;
 
@@ -5879,10 +5943,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
         if (nudges) {
           for (let i = 0; i < bandKeys6.length; i++) {
-            const n = nudges[bandKeys6[i]];
-            if (n && isFinite(n)) {
-              score += pcts[i] * n * 0.15;
-            }
+            const nv = nudges[bandKeys6[i]];
+            if (nv && isFinite(nv)) score += pcts[i] * nv * 0.15;
           }
           const airN = nudges["air"];
           if (airN && isFinite(airN)) {
@@ -5895,16 +5957,52 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             score -= fizzPct * fizzN * 0.15;
           }
           const tiltN = nudges["tilt"];
-          if (tiltN && isFinite(tiltN)) {
-            score += tilt * tiltN * 2.0;
-          }
+          if (tiltN && isFinite(tiltN)) score += tilt * tiltN * 2.0;
           const smN = nudges["smoothness"];
-          if (smN && isFinite(smN)) {
-            score += smooth * smN * 0.05;
-          }
+          if (smN && isFinite(smN)) score += smooth * smN * 0.05;
+        }
+        return score;
+      }
+
+      function scoreBlend24(irs: IREntry[], ratios: number[]): number {
+        const blended = blendBands24(irs, ratios);
+        const bands8 = bands24To8(blended);
+        const total8 = bands8.reduce((a, b) => a + b, 0);
+        const mean8 = total8 / 8;
+
+        const vec: number[] = [];
+        for (const val of bands8) {
+          const db = val > 0 ? 10 * Math.log10(val / Math.max(mean8, 1e-12)) : -3;
+          vec.push(db / 10);
+        }
+        const tilt = computeTilt24(blended);
+        const smooth = computeSmoothness24(blended);
+        vec.push(tilt / 10);
+        vec.push(smooth / 100);
+
+        const smoothBonus = smooth * 0.003;
+
+        let perceptualScore = 0;
+        const dbCurve = blended.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
+        for (let i = 1; i < dbCurve.length; i++) {
+          const diff = Math.abs(dbCurve[i] - dbCurve[i - 1]);
+          const weight = PERCEPTUAL_WEIGHTS[i] || 0.5;
+          perceptualScore -= diff * weight * 0.01;
         }
 
-        return score;
+        let nudgeBonus = 0;
+        if (nudges) {
+          for (let i = 0; i < bandKeys8.length; i++) {
+            const nv = nudges[bandKeys8[i]];
+            if (nv && isFinite(nv)) nudgeBonus += vec[i] * nv * 0.5;
+          }
+          const tiltN = nudges["tilt"];
+          if (tiltN && isFinite(tiltN)) nudgeBonus += vec[8] * tiltN * 0.5;
+          const smN = nudges["smoothness"];
+          if (smN && isFinite(smN)) nudgeBonus += vec[9] * smN * 0.5;
+        }
+
+        return smoothBonus + perceptualScore + nudgeBonus;
       }
 
       function normalizeRatios(r: number[]): number[] {
@@ -5912,6 +6010,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         if (sum <= 0) return r.map(() => 1 / r.length);
         return r.map(v => v / sum);
       }
+
+      const adaptiveIters = Math.min(2000, Math.max(iters, (pool?.length || 0) * layers.length * 40));
 
       // Phase 1: Optimize ratios for the current IR set
       const n = currentIRs.length;
@@ -5923,7 +6023,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const step = 0.06;
       const minActive = 0.02;
 
-      for (let iter = 0; iter < iters; iter++) {
+      for (let iter = 0; iter < adaptiveIters; iter++) {
         const candidate = [...bestRatios];
         const ai = Math.floor(Math.random() * n);
         const aj = Math.floor(Math.random() * n);
