@@ -41,7 +41,9 @@ function improvementLabel(imp: number): { text: string; color: string } {
   if (imp >= 3) return { text: `+${imp.toFixed(1)}`, color: "text-emerald-400" };
   if (imp >= 1) return { text: `+${imp.toFixed(1)}`, color: "text-amber-400" };
   if (imp > 0) return { text: `+${imp.toFixed(1)}`, color: "text-zinc-500" };
-  return { text: "+0", color: "text-zinc-600" };
+  if (imp < -1) return { text: `${imp.toFixed(1)}`, color: "text-red-400" };
+  if (imp < 0) return { text: `${imp.toFixed(1)}`, color: "text-zinc-500" };
+  return { text: "0", color: "text-zinc-600" };
 }
 
 function stripExt(name: string): string {

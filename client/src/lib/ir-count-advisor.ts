@@ -226,7 +226,7 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", 
     const currentScore = scoreVsTarget(currentBlend, profile);
 
     let bestIdx = -1;
-    let bestNewScore = currentScore;
+    let bestNewScore = -Infinity;
 
     for (const idx of Array.from(remaining)) {
       const newBlend = blendBands(
@@ -248,21 +248,16 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", 
     scoreHistory.push({ count: selected.length, score: bestNewScore, improvement, irName: normalized[bestIdx].filename });
   }
 
-  const bestScore = scoreHistory[scoreHistory.length - 1].score;
+  const bestScore = Math.max(...scoreHistory.map(h => h.score));
+  const peakCount = scoreHistory.find(h => h.score === bestScore)?.count || 3;
 
-  let minForTarget = 3;
-  for (const h of scoreHistory) {
-    if (h.count >= 3 && h.score >= bestScore - 3) {
-      minForTarget = h.count;
-      break;
-    }
-  }
-  minForTarget = Math.max(3, minForTarget);
+  let minForTarget = Math.max(3, peakCount);
 
   let maxUseful = minForTarget;
   for (let i = 0; i < scoreHistory.length; i++) {
-    if (scoreHistory[i].count >= 3 && scoreHistory[i].improvement >= IMPROVEMENT_THRESHOLD) {
-      maxUseful = scoreHistory[i].count;
+    const h = scoreHistory[i];
+    if (h.count >= 3 && h.count > peakCount && h.score >= bestScore - 2) {
+      maxUseful = h.count;
     }
   }
   maxUseful = Math.max(minForTarget, maxUseful);
@@ -270,15 +265,15 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", 
   let verdict: IRCountAdvice["verdict"];
   let reasoning: string;
 
-  if (n < minForTarget) {
+  if (n < 3) {
     verdict = "too-few";
-    reasoning = `${n} IRs loaded — need at least ${minForTarget} to reach a ${profile.description} tone (${bestScore}% match). Load ${minForTarget - n} more for a solid ${profile.label} blend.`;
+    reasoning = `${n} IRs loaded — load at least ${3 - n} more for blending.`;
   } else if (n <= maxUseful) {
     verdict = "sweet-spot";
-    reasoning = `${n} IRs — each one improves the ${profile.label.toLowerCase()} tone. Best blend scores ${bestScore}% match using ${maxUseful} IRs. Every IR here pulls the tone closer to the target.`;
+    reasoning = `Peak score ${bestScore}% at ${peakCount} IRs.${maxUseful > peakCount ? ` ${peakCount}–${maxUseful} all score within 2%.` : ""} Each IR count is shown below with its contribution.`;
   } else {
     verdict = "more-than-enough";
-    reasoning = `Best ${profile.label.toLowerCase()} blend uses ${maxUseful} of your ${n} IRs (${bestScore}% match). Beyond ${maxUseful}, adding more IRs doesn't improve the tone — the blend is already as close to the ${profile.description} target as these IRs can get.`;
+    reasoning = `Peak score ${bestScore}% at ${peakCount} IRs. Beyond ${maxUseful}, adding more doesn't help — the blend plateaus.`;
   }
 
   return { loaded: n, minForTarget, maxUseful, bestScore, verdict, reasoning, intent, bestPair, curve: scoreHistory };
