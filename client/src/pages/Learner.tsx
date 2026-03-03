@@ -1266,6 +1266,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
         </div>
       </div>
 
+      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }))} intent={selectedIntent as any} compact superblendBands={displayBlend?.bandBreakdown} />
+
       <div className="mb-3">
         <button
           onClick={() => setShowExperiment(!showExperiment)}
@@ -1438,8 +1440,6 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
           </div>
         )}
       </div>
-
-      <IRCountAdvisor irs={speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }))} intent={selectedIntent as any} compact superblendBands={displayBlend?.bandBreakdown} />
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <Button

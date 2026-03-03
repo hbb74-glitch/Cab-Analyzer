@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { analyzeIRCount, type IntentKey, type BestPair, type ScoreStep } from "@/lib/ir-count-advisor";
-import { AlertTriangle, CheckCircle, ChevronRight, Combine, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronRight, Combine, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type BandsPercent = {
@@ -37,10 +37,11 @@ function barColor(score: number): string {
   return "bg-red-500";
 }
 
-function improvementColor(imp: number): string {
-  if (imp >= 3) return "text-emerald-400";
-  if (imp >= 1) return "text-amber-400";
-  return "text-zinc-500";
+function improvementLabel(imp: number): { text: string; color: string } {
+  if (imp >= 3) return { text: `+${imp.toFixed(1)}`, color: "text-emerald-400" };
+  if (imp >= 1) return { text: `+${imp.toFixed(1)}`, color: "text-amber-400" };
+  if (imp > 0) return { text: `+${imp.toFixed(1)}`, color: "text-zinc-500" };
+  return { text: "+0", color: "text-zinc-600" };
 }
 
 function stripExt(name: string): string {
@@ -65,33 +66,35 @@ function BestPairLine({ pair }: { pair: BestPair }) {
 }
 
 function DiminishingReturnsCurve({ curve, minForTarget, maxUseful }: { curve: ScoreStep[]; minForTarget: number; maxUseful: number }) {
-  if (curve.length < 2) return null;
-
   const stepsFrom3 = curve.filter(s => s.count >= 3);
-  if (stepsFrom3.length === 0) return null;
+  if (stepsFrom3.length < 2) return null;
 
-  const maxScore = Math.max(...curve.map(s => s.score));
+  const maxScore = Math.max(...stepsFrom3.map(s => s.score));
   const minScore = Math.min(...stepsFrom3.map(s => s.score));
   const range = Math.max(maxScore - minScore, 1);
 
   return (
     <div className="space-y-1" data-testid="diminishing-returns-curve">
-      <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Diminishing Returns</div>
+      <div className="flex items-center gap-1.5 mb-1">
+        <TrendingDown className="w-3 h-3 text-muted-foreground" />
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Each IR's contribution</span>
+      </div>
       <div className="space-y-0.5">
-        {stepsFrom3.map((step) => {
-          const barWidth = Math.max(8, ((step.score - minScore) / range) * 100);
+        {stepsFrom3.map((step, i) => {
+          const barWidth = Math.max(12, ((step.score - minScore) / range) * 100);
           const inSweet = step.count >= minForTarget && step.count <= maxUseful;
+          const imp = i === 0 ? null : improvementLabel(step.improvement);
 
           return (
-            <div key={step.count} className="flex items-center gap-1.5 group" data-testid={`curve-step-${step.count}`}>
+            <div key={step.count} className="flex items-center gap-1.5" data-testid={`curve-step-${step.count}`}>
               <span className={cn(
-                "text-[10px] font-mono w-[14px] text-right shrink-0",
+                "text-[10px] font-mono w-[16px] text-right shrink-0",
                 inSweet ? "text-foreground font-semibold" : "text-muted-foreground"
               )}>
                 {step.count}
               </span>
 
-              <div className="flex-1 h-[14px] rounded-sm overflow-hidden bg-zinc-800/50 relative">
+              <div className="flex-1 h-[16px] rounded-sm overflow-hidden bg-zinc-800/50 relative">
                 <div
                   className={cn(
                     "h-full rounded-sm transition-all",
@@ -110,17 +113,17 @@ function DiminishingReturnsCurve({ curve, minForTarget, maxUseful }: { curve: Sc
 
               <span className={cn(
                 "text-[9px] font-mono w-[32px] text-right shrink-0",
-                step.count === stepsFrom3[0].count ? "text-zinc-600" : improvementColor(step.improvement)
+                imp ? imp.color : "text-zinc-600"
               )}>
-                {step.count === stepsFrom3[0].count ? "" : `+${step.improvement.toFixed(1)}`}
+                {imp ? imp.text : "base"}
               </span>
             </div>
           );
         })}
       </div>
-      <div className="flex justify-between text-[9px] text-zinc-500 px-0.5">
-        <span>IR count</span>
-        <span>gain</span>
+      <div className="flex justify-between text-[9px] text-zinc-500 px-0.5 pt-0.5">
+        <span>IRs in blend</span>
+        <span>gain per IR</span>
       </div>
     </div>
   );
@@ -130,20 +133,16 @@ export function IRCountAdvisor({ irs, intent = "versatile", compact = false, sup
   const advice = useMemo(() => analyzeIRCount(irs, intent, superblendBands), [irs, intent, superblendBands]);
   const config = verdictConfig[advice.verdict];
   const Icon = config.icon;
-  const [expanded, setExpanded] = useState(false);
 
   if (advice.loaded === 0) return null;
 
-  const hasCurve = advice.curve.length >= 3;
+  const showableCurve = advice.curve.filter(s => s.count >= 3);
+  const hasCurve = showableCurve.length >= 2;
 
   if (compact) {
     return (
-      <div className={cn("px-2.5 py-1.5 rounded-lg border text-xs space-y-1.5", config.bg, config.border)} data-testid="ir-count-advisor-compact">
-        <div
-          className={cn("flex items-center gap-2", hasCurve && "cursor-pointer")}
-          onClick={() => hasCurve && setExpanded(!expanded)}
-          data-testid="button-toggle-curve"
-        >
+      <div className={cn("px-2.5 py-2 rounded-lg border text-xs space-y-2", config.bg, config.border)} data-testid="ir-count-advisor-compact">
+        <div className="flex items-center gap-2">
           <Icon className={cn("w-3.5 h-3.5 shrink-0", config.color)} />
           <span className="text-muted-foreground">
             <span className={cn("font-semibold", config.color)}>{advice.loaded}</span> loaded
@@ -152,16 +151,11 @@ export function IRCountAdvisor({ irs, intent = "versatile", compact = false, sup
             {" · "}
             <span className={cn("font-semibold", scoreColor(advice.bestScore))}>{advice.bestScore}%</span> match
           </span>
-          {hasCurve && (
-            expanded
-              ? <ChevronUp className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
-              : <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0 ml-auto" />
-          )}
         </div>
-        {advice.bestPair && <BestPairLine pair={advice.bestPair} />}
-        {expanded && hasCurve && (
+        {hasCurve && (
           <DiminishingReturnsCurve curve={advice.curve} minForTarget={advice.minForTarget} maxUseful={advice.maxUseful} />
         )}
+        {advice.bestPair && <BestPairLine pair={advice.bestPair} />}
       </div>
     );
   }
