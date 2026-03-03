@@ -1444,7 +1444,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [toneGoal, setToneGoal] = useState("");
   const [selectedSpeaker, setSelectedSpeaker] = useState("");
   const [selectedIntent, setSelectedIntent] = useState<string>("versatile");
-  const [result, setResult] = useState<SuperblendResult | null>(null);
+  const [allResults, setAllResults] = useState<Record<string, SuperblendResult>>({});
   const [activeBlend, setActiveBlend] = useState<"primary" | "equal" | number>("primary");
   const [refineText, setRefineText] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
@@ -1477,6 +1477,14 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
     return speakers.find(([s]) => s === selectedSpeaker)?.[1] || [];
   }, [speakers, selectedSpeaker, allIRs]);
 
+  const result = allResults[selectedIntent] || null;
+  const setResult = (data: SuperblendResult) => {
+    setAllResults(prev => ({ ...prev, [selectedIntent]: data }));
+  };
+
+  const [generatingCount, setGeneratingCount] = useState(0);
+  const isGenerating = generatingCount > 0;
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       const irData = speakerIRs.filter(ir => ir.features).map(ir => ({
@@ -1491,38 +1499,51 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
         centroid: ir.features!.spectralCentroidHz || 0,
         smoothness: ir.features!.smoothScore || 0,
       }));
-      const intentLabel = SUPERBLEND_INTENTS.find(i => i.value === selectedIntent);
-      const intentGoal = intentLabel ? `${intentLabel.label}: ${intentLabel.description}` : "";
-      const combinedGoal = [intentGoal, toneGoal.trim()].filter(Boolean).join(". Also: ");
       const speakerLabel = selectedSpeaker === "__mixed__"
         ? speakers.map(([s]) => s).join(" + ")
         : selectedSpeaker;
-      const res = await apiRequest("POST", "/api/preferences/superblend", {
-        speaker: speakerLabel,
-        irCount,
-        toneGoal: combinedGoal || undefined,
-        irs: irData,
-      });
-      return res.json();
-    },
-    onSuccess: (data: SuperblendResult) => {
-      setResult(data);
+
+      setGeneratingCount(SUPERBLEND_INTENTS.length);
+      setAllResults({});
       setActiveBlend("primary");
       setRefineText("");
       setAiAnswer(null);
-      if (data.blend.bandBreakdown) {
-        const irEntries = speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }));
-        const pair = findBestPairForBands(irEntries, data.blend.bandBreakdown);
-        if (pair) {
-          const bb = data.blend.bandBreakdown;
-          const vec = [bb.subBass / 10, bb.bass / 10, bb.lowMid / 10, bb.mid / 10, bb.highMid / 10, bb.presence / 10, 0, 0];
-          const ctx: TasteContext = { speakerPrefix: selectedSpeaker, mode: "blend", intent: selectedIntent as any };
-          recordSuperblendInsight(ctx, [pair.ir1, pair.ir2], vec);
+
+      const promises = SUPERBLEND_INTENTS.map(async (intent) => {
+        const intentGoal = `${intent.label}: ${intent.description}`;
+        const combinedGoal = [intentGoal, toneGoal.trim()].filter(Boolean).join(". Also: ");
+        try {
+          const res = await apiRequest("POST", "/api/preferences/superblend", {
+            speaker: speakerLabel,
+            irCount,
+            toneGoal: combinedGoal,
+            irs: irData,
+          });
+          const data = await res.json() as SuperblendResult;
+          setAllResults(prev => ({ ...prev, [intent.value]: data }));
+          if (data.blend.bandBreakdown) {
+            const irEntries = speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }));
+            const pair = findBestPairForBands(irEntries, data.blend.bandBreakdown);
+            if (pair) {
+              const bb = data.blend.bandBreakdown;
+              const vec = [bb.subBass / 10, bb.bass / 10, bb.lowMid / 10, bb.mid / 10, bb.highMid / 10, bb.presence / 10, 0, 0];
+              const ctx: TasteContext = { speakerPrefix: selectedSpeaker, mode: "blend", intent: intent.value as any };
+              recordSuperblendInsight(ctx, [pair.ir1, pair.ir2], vec);
+            }
+          }
+        } catch (e) {
+          console.error(`[Superblend] ${intent.value} failed:`, e);
+        } finally {
+          setGeneratingCount(prev => prev - 1);
         }
-      }
+      });
+
+      await Promise.all(promises);
+      return null;
     },
     onError: () => {
-      toast({ title: "Superblend failed", description: "Could not generate blend. Try again.", variant: "destructive", duration: 3000 });
+      setGeneratingCount(0);
+      toast({ title: "Superblend failed", description: "Could not generate blends. Try again.", variant: "destructive", duration: 3000 });
     },
   });
 
@@ -1628,8 +1649,9 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
 
   const [copiedAll, setCopiedAll] = useState(false);
   const copyAllBlends = () => {
-    if (!result) return;
-    const formatBlend = (label: string, b: typeof result.blend) => {
+    const resultsToExport = Object.keys(allResults).length > 0 ? allResults : result ? { [selectedIntent]: result } : null;
+    if (!resultsToExport) return;
+    const formatBlend = (label: string, b: { name: string; layers: SuperblendLayer[]; bandBreakdown: any; expectedTone: string }) => {
       const lines = [
         `── ${label}: ${b.name} ──`,
         ...b.layers.map((l, i) => `${i + 1}. ${l.filename} — ${l.percentage}% (${l.role})`),
@@ -1638,17 +1660,20 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       ];
       return lines.filter(Boolean).join("\n");
     };
-    const sections = [
-      `Superblend — ${result.blend.speaker}`,
-      "",
-      formatBlend("Primary", result.blend),
-    ];
-    if (result.equalPartsBlend) {
-      sections.push("", formatBlend("Equal Parts", result.equalPartsBlend));
+    const speakerName = Object.values(resultsToExport)[0]?.blend?.speaker || selectedSpeaker;
+    const sections = [`Superblend — ${speakerName}`];
+    for (const intent of SUPERBLEND_INTENTS) {
+      const r = resultsToExport[intent.value];
+      if (!r) continue;
+      sections.push("", `═══ ${intent.label.toUpperCase()} ═══`);
+      sections.push(formatBlend("Primary", r.blend));
+      if (r.equalPartsBlend) {
+        sections.push("", formatBlend("Equal Parts", r.equalPartsBlend));
+      }
+      r.alternatives?.forEach((alt, i) => {
+        sections.push("", formatBlend(`Alt ${i + 1}`, alt as any));
+      });
     }
-    result.alternatives?.forEach((alt, i) => {
-      sections.push("", formatBlend(`Alt ${i + 1}`, alt as typeof result.blend));
-    });
     navigator.clipboard.writeText(sections.join("\n"));
     setCopiedAll(true);
     setTimeout(() => setCopiedAll(false), 2000);
@@ -1690,17 +1715,26 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       </p>
 
       <div className="flex gap-2 flex-wrap mb-4">
-        {SUPERBLEND_INTENTS.map(intent => (
-          <button
-            key={intent.value}
-            onClick={() => setSelectedIntent(intent.value)}
-            className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all", selectedIntent === intent.value ? "bg-amber-500/20 text-amber-300 border-amber-500/40" : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30")}
-            title={intent.description}
-            data-testid={`button-intent-pairing-${intent.value}`}
-          >
-            {intent.label}
-          </button>
-        ))}
+        {SUPERBLEND_INTENTS.map(intent => {
+          const hasResult = !!allResults[intent.value];
+          const isActive = selectedIntent === intent.value;
+          return (
+            <button
+              key={intent.value}
+              onClick={() => { setSelectedIntent(intent.value); setActiveBlend("primary"); setAiAnswer(null); }}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                isActive ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                : hasResult ? "bg-white/5 text-foreground border-white/20 hover:border-amber-500/30"
+                : "bg-white/5 text-muted-foreground border-white/10 hover:border-amber-500/30"
+              )}
+              title={intent.description}
+              data-testid={`button-intent-pairing-${intent.value}`}
+            >
+              {intent.label}
+              {hasResult && !isActive && <span className="ml-1 text-green-400/70">●</span>}
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -1708,7 +1742,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
           <label className="text-xs text-muted-foreground block mb-1.5">Speaker</label>
           <select
             value={selectedSpeaker}
-            onChange={(e) => { setSelectedSpeaker(e.target.value); setResult(null); }}
+            onChange={(e) => { setSelectedSpeaker(e.target.value); setAllResults({}); }}
             className="w-full h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
             data-testid="select-superblend-speaker-pairing"
           >
@@ -1750,15 +1784,15 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
 
       <div className="flex items-center gap-3 mb-4 mt-3">
         <button
-          onClick={() => { setActiveBlend("primary"); generateMutation.mutate(); }}
-          disabled={generateMutation.isPending || speakerIRs.length < 3}
+          onClick={() => generateMutation.mutate()}
+          disabled={isGenerating || generateMutation.isPending || speakerIRs.length < 3}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-sm font-medium text-amber-300 transition-all disabled:opacity-50"
           data-testid="button-generate-superblend-pairing"
         >
-          {generateMutation.isPending ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Crafting Superblend...</>
+          {isGenerating ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Crafting {Object.keys(allResults).length}/{SUPERBLEND_INTENTS.length}...</>
           ) : (
-            <><Layers className="w-4 h-4" /> Generate Superblend</>
+            <><Layers className="w-4 h-4" /> Generate All Intents</>
           )}
         </button>
         {savedBlends.length > 0 && (
