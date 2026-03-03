@@ -883,6 +883,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [selectedSpeaker, setSelectedSpeaker] = useState("");
   const [selectedIntent, setSelectedIntent] = useState<string>("versatile");
   const [allResults, setAllResults] = useState<Record<string, SuperblendResult>>({});
+  const [baselineResults, setBaselineResults] = useState<Record<string, SuperblendResult>>({});
   const [activeBlend, setActiveBlend] = useState<"primary" | "equal" | number>("primary");
   const [refineText, setRefineText] = useState("");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
@@ -954,6 +955,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
 
       setGeneratingCount(SUPERBLEND_INTENTS.length);
       setAllResults({});
+      setBaselineResults({});
       setActiveBlend("primary");
       setRefineText("");
       setAiAnswer(null);
@@ -991,6 +993,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       });
 
       await Promise.all(promises);
+      setAllResults(prev => { setBaselineResults({ ...prev }); return prev; });
+      setToneNudges({});
       return null;
     },
     onError: () => {
@@ -1214,7 +1218,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
           <label className="text-[10px] text-muted-foreground block mb-1">Speaker</label>
           <select
             value={selectedSpeaker}
-            onChange={(e) => { setSelectedSpeaker(e.target.value); setAllResults({}); }}
+            onChange={(e) => { setSelectedSpeaker(e.target.value); setAllResults({}); setBaselineResults({}); }}
             className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
             data-testid="select-superblend-speaker"
           >
@@ -1330,7 +1334,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     const reoptimized: Record<string, SuperblendResult> = {};
                     let totalSwaps = 0;
 
-                    for (const [intent, res] of Object.entries(allResults)) {
+                    const sourceResults = Object.keys(baselineResults).length > 0 ? baselineResults : allResults;
+                    for (const [intent, res] of Object.entries(sourceResults)) {
                       const layersWithEnergy = res.blend.layers.map(l => {
                         const m = metricsMap.get(l.filename);
                         return {
@@ -1366,6 +1371,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
 
                       if (data.swaps) totalSwaps += data.swaps.length;
 
+                      const currentRes = allResults[intent] || res;
                       const updatedLayers: SuperblendLayer[] = data.layers.map((l: any) => ({
                         filename: l.filename,
                         percentage: l.percentage,
@@ -1374,20 +1380,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                       }));
 
                       reoptimized[intent] = {
-                        ...res,
+                        ...currentRes,
                         blend: {
-                          ...res.blend,
+                          ...currentRes.blend,
                           layers: updatedLayers,
                           bandBreakdown: data.bandBreakdown,
                         },
-                        alternatives: res.alternatives?.map(alt => {
-                          const altWithEnergy = alt.layers.map(l => {
-                            const m = metricsMap.get(l.filename);
-                            return { ...l, subBassEnergy: m?.subBassEnergy || 0, bassEnergy: m?.bassEnergy || 0, lowMidEnergy: m?.lowMidEnergy || 0, midEnergy6: m?.midEnergy6 || 0, highMidEnergy: m?.highMidEnergy || 0, presenceEnergy: m?.presenceEnergy || 0 };
-                          });
-                          const altTotal = altWithEnergy.reduce((sum, l) => sum + (l.subBassEnergy + l.bassEnergy + l.lowMidEnergy + l.midEnergy6 + l.highMidEnergy + l.presenceEnergy), 0) || 1;
-                          return alt;
-                        }),
                       };
                     }
 
@@ -1408,6 +1406,21 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                 ) : (
                   <><SlidersHorizontal className="w-3 h-3 mr-1.5" /> Re-optimize with these adjustments</>
                 )}
+              </Button>
+            )}
+            {Object.keys(baselineResults).length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full border-zinc-600 text-zinc-400 hover:text-zinc-200"
+                onClick={() => {
+                  setAllResults({ ...baselineResults });
+                  setToneNudges({});
+                  toast({ title: "Baseline restored", description: "Ratios reset to original AI-generated values." });
+                }}
+                data-testid="button-reset-baseline"
+              >
+                <RotateCcw className="w-3 h-3 mr-1.5" /> Reset to baseline
               </Button>
             )}
           </div>
