@@ -16,7 +16,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -1410,6 +1410,55 @@ export default function Pairing() {
 
 type PairingBandBreakdown = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
 
+function bandBreakdownToFeatureVec(bb: PairingBandBreakdown): number[] {
+  const pcts = [bb.subBass, bb.bass, bb.lowMid, bb.mid, bb.highMid, bb.presence];
+  const mean = pcts.reduce((a, b) => a + b, 0) / pcts.length;
+  const dbVals = pcts.map(p => p > 0 ? 10 * Math.log10(p / Math.max(mean, 1)) : -3);
+  return [...dbVals.map(d => d / 10), 0, 0, 0, 0.5];
+}
+
+function scoreAllBlends(
+  result: SuperblendResult | undefined,
+  speaker: string,
+  intent: string,
+): Map<string, number> {
+  const scores = new Map<string, number>();
+  if (!result) return scores;
+  const tasteIntent = (intent === "versatile" ? "rhythm" : intent) as "rhythm" | "lead" | "clean";
+  const ctx: TasteContext = { speakerPrefix: speaker, mode: "blend", intent: tasteIntent };
+  const scoreBands = (bb: PairingBandBreakdown | undefined, key: string) => {
+    if (!bb) return;
+    const vec = bandBreakdownToFeatureVec(bb);
+    const { bias } = getTasteBias(ctx, vec);
+    scores.set(key, bias);
+  };
+  scoreBands(result.blend.bandBreakdown, "primary");
+  if (result.equalPartsBlend) scoreBands(result.equalPartsBlend.bandBreakdown, "equal");
+  result.alternatives?.forEach((alt, i) => scoreBands(alt.bandBreakdown, String(i)));
+  return scores;
+}
+
+function getBestBlendKeys(
+  allResults: Record<string, SuperblendResult>,
+  speaker: string,
+): { perIntent: Record<string, string>; overallIntent: string; overallKey: string } {
+  const perIntent: Record<string, string> = {};
+  let bestGlobalScore = -Infinity;
+  let overallIntent = "";
+  let overallKey = "";
+  for (const [intent, result] of Object.entries(allResults)) {
+    const scores = scoreAllBlends(result, speaker, intent);
+    let bestKey = "primary";
+    let bestScore = -Infinity;
+    for (const [key, score] of scores) {
+      if (score > bestScore) { bestScore = score; bestKey = key; }
+      if (score > bestGlobalScore) { bestGlobalScore = score; overallIntent = intent; overallKey = key; }
+    }
+    perIntent[intent] = bestKey;
+  }
+  return { perIntent, overallIntent, overallKey };
+}
+
 function snapBlendLayers(layers: SuperblendLayer[]): SuperblendLayer[] {
   if (layers.length < 3 || layers.length > 8) return layers;
   const snapped = snapToAchievable(layers.map(l => l.percentage));
@@ -1648,6 +1697,14 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const isEqualParts = activeBlend === "equal";
   const hasEqualPartsOption = !!result?.equalPartsBlend;
 
+  const bestPicks = useMemo(() => {
+    if (Object.keys(allResults).length === 0) return null;
+    return getBestBlendKeys(allResults, selectedSpeaker);
+  }, [allResults, selectedSpeaker]);
+
+  const isIntentBest = (blendKey: string) => bestPicks?.perIntent[selectedIntent] === blendKey;
+  const isOverallBest = (blendKey: string) => bestPicks?.overallIntent === selectedIntent && bestPicks?.overallKey === blendKey;
+
   const copyBlend = () => {
     if (!displayBlend) return;
     const lines = [
@@ -1752,7 +1809,8 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
               data-testid={`button-intent-pairing-${intent.value}`}
             >
               {intent.label}
-              {hasResult && !isActive && <span className="ml-1 text-green-400/70">●</span>}
+              {hasResult && bestPicks?.overallIntent === intent.value && <span className="ml-1 text-amber-400" title="Contains your best overall match">★★</span>}
+              {hasResult && bestPicks?.overallIntent !== intent.value && !isActive && <span className="ml-1 text-green-400/70">●</span>}
             </button>
           );
         })}
@@ -1885,6 +1943,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
               >
                 <Layers className="w-3 h-3 inline mr-1" />
                 {result.blend.name}
+                {isOverallBest("primary") ? <span className="ml-1 text-amber-400" title="Best match for your preferences overall">★★</span> : isIntentBest("primary") ? <span className="ml-1 text-amber-400/70" title="Best match for your preferences in this intent">★</span> : null}
               </button>
               {hasEqualPartsOption && (
                 <button
@@ -1894,6 +1953,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                 >
                   <Target className="w-3 h-3 inline mr-1" />
                   Equal Parts
+                  {isOverallBest("equal") ? <span className="ml-1 text-amber-400" title="Best match for your preferences overall">★★</span> : isIntentBest("equal") ? <span className="ml-1 text-amber-400/70" title="Best match for your preferences in this intent">★</span> : null}
                 </button>
               )}
               {result.alternatives?.map((alt, i) => (
@@ -1904,6 +1964,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                   data-testid={`button-superblend-alt-pairing-${i}`}
                 >
                   {alt.name} <span className="opacity-60 ml-1">({alt.focus})</span>
+                  {isOverallBest(String(i)) ? <span className="ml-1 text-amber-400" title="Best match for your preferences overall">★★</span> : isIntentBest(String(i)) ? <span className="ml-1 text-amber-400/70" title="Best match for your preferences in this intent">★</span> : null}
                 </button>
               ))}
             </div>
