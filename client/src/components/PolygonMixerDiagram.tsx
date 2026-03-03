@@ -1,4 +1,4 @@
-import { computeMixerPosition, type MixerPosition } from "@/lib/polygon-mixer";
+import { computeMixerPosition, getShapeName } from "@/lib/polygon-mixer";
 import { cn } from "@/lib/utils";
 
 interface PolygonMixerDiagramProps {
@@ -28,8 +28,6 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
 
   const accentColor = isEqualParts ? "#67e8f9" : "#fbbf24";
   const accentDim = isEqualParts ? "rgba(103,232,249,0.15)" : "rgba(251,191,36,0.15)";
-
-  const hasDrift = mixer.achievableRatios.some((a, i) => Math.abs(a - ratios[i]) >= 3);
 
   const truncateLabel = (label: string, maxLen: number = 8) => {
     if (label.length <= maxLen) return label;
@@ -99,11 +97,9 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
         />
       </svg>
 
-      {hasDrift && (
-        <div className="text-[9px] text-muted-foreground text-center leading-tight max-w-[160px]" data-testid="text-mixer-drift">
-          Mixer ratios: {mixer.achievableRatios.map(r => `${r}%`).join(" / ")}
-        </div>
-      )}
+      <div className="text-[9px] text-muted-foreground/60 text-center" data-testid="text-mixer-shape">
+        {getShapeName(ratios.length)} placement
+      </div>
     </div>
   );
 }

@@ -7,9 +7,10 @@ export interface MixerPosition {
   dot: PolygonPoint;
   vertices: PolygonPoint[];
   achievableRatios: number[];
+  idealRatios: number[];
   labels: string[];
   distanceFromCenter: number;
-  isInsidePolygon: boolean;
+  maxDrift: number;
 }
 
 export function getPolygonVertices(n: number): PolygonPoint[] {
@@ -24,70 +25,60 @@ export function getPolygonVertices(n: number): PolygonPoint[] {
   return vertices;
 }
 
-function ratiosToDotPosition(ratios: number[], vertices: PolygonPoint[]): PolygonPoint {
-  let x = 0, y = 0;
-  for (let i = 0; i < ratios.length; i++) {
-    x += ratios[i] * vertices[i].x;
-    y += ratios[i] * vertices[i].y;
-  }
-  return { x, y };
+function idwWeights(dot: PolygonPoint, vertices: PolygonPoint[], power: number = 2): number[] {
+  const dists = vertices.map(v => Math.sqrt((dot.x - v.x) ** 2 + (dot.y - v.y) ** 2));
+  const minD = Math.min(...dists);
+  if (minD < 0.0001) return dists.map(d => d < 0.0001 ? 1 : 0);
+  const w = dists.map(d => 1 / Math.pow(d, power));
+  const s = w.reduce((a, b) => a + b, 0);
+  return w.map(x => x / s);
 }
 
-function isPointInPolygon(pt: PolygonPoint, vertices: PolygonPoint[]): boolean {
-  let inside = false;
-  const n = vertices.length;
-  for (let i = 0, j = n - 1; i < n; j = i++) {
-    const xi = vertices[i].x, yi = vertices[i].y;
-    const xj = vertices[j].x, yj = vertices[j].y;
-    if ((yi > pt.y) !== (yj > pt.y) && pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi) {
-      inside = !inside;
-    }
+function findOptimalDot(targetNorm: number[], vertices: PolygonPoint[], power: number = 2): PolygonPoint {
+  const n = targetNorm.length;
+  let dotX = 0, dotY = 0;
+  for (let i = 0; i < n; i++) {
+    dotX += targetNorm[i] * vertices[i].x;
+    dotY += targetNorm[i] * vertices[i].y;
   }
-  return inside;
+
+  const lr = 0.005;
+  const eps = 0.0001;
+  for (let iter = 0; iter < 800; iter++) {
+    const w = idwWeights({ x: dotX, y: dotY }, vertices, power);
+    let costBase = 0;
+    for (let i = 0; i < n; i++) costBase += (w[i] - targetNorm[i]) ** 2;
+    if (costBase < 0.000001) break;
+
+    const wPx = idwWeights({ x: dotX + eps, y: dotY }, vertices, power);
+    const wMx = idwWeights({ x: dotX - eps, y: dotY }, vertices, power);
+    const wPy = idwWeights({ x: dotX, y: dotY + eps }, vertices, power);
+    const wMy = idwWeights({ x: dotX, y: dotY - eps }, vertices, power);
+
+    let costPx = 0, costMx = 0, costPy = 0, costMy = 0;
+    for (let i = 0; i < n; i++) {
+      costPx += (wPx[i] - targetNorm[i]) ** 2;
+      costMx += (wMx[i] - targetNorm[i]) ** 2;
+      costPy += (wPy[i] - targetNorm[i]) ** 2;
+      costMy += (wMy[i] - targetNorm[i]) ** 2;
+    }
+
+    dotX -= lr * (costPx - costMx) / (2 * eps);
+    dotY -= lr * (costPy - costMy) / (2 * eps);
+  }
+
+  return { x: dotX, y: dotY };
 }
 
-function meanValueCoordinates(pt: PolygonPoint, vertices: PolygonPoint[]): number[] {
-  const n = vertices.length;
-  const weights: number[] = new Array(n).fill(0);
-
-  for (let i = 0; i < n; i++) {
-    const dist = Math.sqrt((pt.x - vertices[i].x) ** 2 + (pt.y - vertices[i].y) ** 2);
-    if (dist < 0.0001) {
-      const result = new Array(n).fill(0);
-      result[i] = 1;
-      return result;
-    }
+function roundRatios(raw: number[]): number[] {
+  const rounded = raw.map(r => Math.round(r * 100));
+  const sum = rounded.reduce((a, b) => a + b, 0);
+  if (sum !== 100 && sum > 0) {
+    const diff = 100 - sum;
+    const maxIdx = rounded.indexOf(Math.max(...rounded));
+    rounded[maxIdx] += diff;
   }
-
-  for (let i = 0; i < n; i++) {
-    const prev = (i - 1 + n) % n;
-    const next = (i + 1) % n;
-
-    const dxi = vertices[i].x - pt.x;
-    const dyi = vertices[i].y - pt.y;
-    const dxPrev = vertices[prev].x - pt.x;
-    const dyPrev = vertices[prev].y - pt.y;
-    const dxNext = vertices[next].x - pt.x;
-    const dyNext = vertices[next].y - pt.y;
-
-    const ri = Math.sqrt(dxi * dxi + dyi * dyi);
-
-    const crossPrev = dxPrev * dyi - dyPrev * dxi;
-    const dotPrev = dxPrev * dxi + dyPrev * dyi;
-    const rPrev = Math.sqrt(dxPrev * dxPrev + dyPrev * dyPrev);
-    const tanHalfPrev = crossPrev / (rPrev * ri + dotPrev);
-
-    const crossNext = dxi * dyNext - dyi * dxNext;
-    const dotNext = dxi * dxNext + dyi * dyNext;
-    const rNext = Math.sqrt(dxNext * dxNext + dyNext * dyNext);
-    const tanHalfNext = crossNext / (ri * rNext + dotNext);
-
-    weights[i] = (tanHalfPrev + tanHalfNext) / ri;
-  }
-
-  const sum = weights.reduce((a, b) => a + b, 0);
-  if (sum < 0.0001) return new Array(n).fill(1 / n);
-  return weights.map(w => Math.max(0, w / sum));
+  return rounded;
 }
 
 export function computeMixerPosition(
@@ -97,20 +88,11 @@ export function computeMixerPosition(
   const n = ratios.length;
   const vertices = getPolygonVertices(n);
   const normalizedRatios = ratios.map(r => r / 100);
-  const dot = ratiosToDotPosition(normalizedRatios, vertices);
 
-  const inside = isPointInPolygon(dot, vertices) ||
-    vertices.some(v => Math.sqrt((dot.x - v.x) ** 2 + (dot.y - v.y) ** 2) < 0.001);
-
-  const recoveredRatios = meanValueCoordinates(dot, vertices);
-  const achievableRatios = recoveredRatios.map(r => Math.round(r * 100));
-
-  const sum = achievableRatios.reduce((a, b) => a + b, 0);
-  if (sum !== 100 && sum > 0) {
-    const diff = 100 - sum;
-    const maxIdx = achievableRatios.indexOf(Math.max(...achievableRatios));
-    achievableRatios[maxIdx] += diff;
-  }
+  const dot = findOptimalDot(normalizedRatios, vertices);
+  const recoveredWeights = idwWeights(dot, vertices);
+  const achievableRatios = roundRatios(recoveredWeights);
+  const maxDrift = Math.max(...ratios.map((r, i) => Math.abs(r - achievableRatios[i])));
 
   const distanceFromCenter = Math.sqrt(dot.x ** 2 + dot.y ** 2);
 
@@ -118,13 +100,23 @@ export function computeMixerPosition(
     dot,
     vertices,
     achievableRatios,
+    idealRatios: ratios,
     labels,
     distanceFromCenter: Math.min(distanceFromCenter, 1),
-    isInsidePolygon: inside,
+    maxDrift,
   };
 }
 
 export function snapToAchievable(ratios: number[]): number[] {
-  const pos = computeMixerPosition(ratios, ratios.map((_, i) => `IR${i + 1}`));
+  if (ratios.length < 3 || ratios.length > 8) return ratios;
+  const pos = computeMixerPosition(ratios, ratios.map((_, i) => `IR${i}`));
   return pos.achievableRatios;
+}
+
+export function getShapeName(n: number): string {
+  const names: Record<number, string> = {
+    3: "triangle", 4: "square", 5: "pentagon",
+    6: "hexagon", 7: "heptagon", 8: "octagon",
+  };
+  return names[n] || "polygon";
 }

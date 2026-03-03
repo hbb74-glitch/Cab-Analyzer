@@ -20,7 +20,7 @@ import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engi
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
-import { computeMixerPosition } from "@/lib/polygon-mixer";
+import { snapToAchievable } from "@/lib/polygon-mixer";
 import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
@@ -755,6 +755,21 @@ interface SuperblendBlendData {
   bestFor: string;
 }
 
+function snapBlendLayers(layers: SuperblendLayer[]): SuperblendLayer[] {
+  if (layers.length < 3 || layers.length > 8) return layers;
+  const snapped = snapToAchievable(layers.map(l => l.percentage));
+  return layers.map((l, i) => ({ ...l, percentage: snapped[i] }));
+}
+
+function snapSuperblendResult(data: SuperblendResult): SuperblendResult {
+  return {
+    ...data,
+    blend: { ...data.blend, layers: snapBlendLayers(data.blend.layers) },
+    equalPartsBlend: data.equalPartsBlend ? { ...data.equalPartsBlend, layers: snapBlendLayers(data.equalPartsBlend.layers) } : undefined,
+    alternatives: data.alternatives?.map(a => ({ ...a, layers: snapBlendLayers(a.layers) })),
+  };
+}
+
 interface SuperblendResult {
   blend: SuperblendBlendData;
   equalPartsBlend?: SuperblendBlendData;
@@ -850,7 +865,8 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
             toneGoal: combinedGoal,
             irs: irData,
           });
-          const data = await res.json() as SuperblendResult;
+          const raw = await res.json() as SuperblendResult;
+          const data = snapSuperblendResult(raw);
           setAllResults(prev => ({ ...prev, [intent.value]: data }));
           if (data.blend.bandBreakdown) {
             const irEntries = speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }));
@@ -936,12 +952,13 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       });
       return res.json();
     },
-    onSuccess: (data: SuperblendResult & { questionAnswer?: string }) => {
-      if (data.questionAnswer && !data.blend) {
-        setAiAnswer(data.questionAnswer);
+    onSuccess: (raw: SuperblendResult & { questionAnswer?: string }) => {
+      if (raw.questionAnswer && !raw.blend) {
+        setAiAnswer(raw.questionAnswer);
         setRefineText("");
         return;
       }
+      const data = snapSuperblendResult(raw);
       setAiAnswer(null);
       setResult(data);
       setActiveBlend("primary");
@@ -970,17 +987,6 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       "Layers:",
       ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
     ];
-    if (displayBlend.layers.length >= 3) {
-      const mixer = computeMixerPosition(
-        displayBlend.layers.map(l => l.percentage),
-        displayBlend.layers.map(l => l.filename)
-      );
-      const hasDrift = mixer.achievableRatios.some((a, i) => Math.abs(a - displayBlend.layers[i].percentage) >= 3);
-      if (hasDrift) {
-        lines.push("", `Mixer ratios (achievable on ${displayBlend.layers.length === 3 ? "triangle" : displayBlend.layers.length === 4 ? "square" : displayBlend.layers.length === 5 ? "pentagon" : displayBlend.layers.length === 6 ? "hexagon" : "polygon"}):`);
-        lines.push(...displayBlend.layers.map((l, i) => `  ${l.filename} — ${mixer.achievableRatios[i]}%`));
-      }
-    }
     lines.push(
       "",
       `Expected Tone: ${displayBlend.expectedTone}`,

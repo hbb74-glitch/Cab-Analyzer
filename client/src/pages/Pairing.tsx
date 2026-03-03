@@ -9,7 +9,7 @@ import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
-import { computeMixerPosition } from "@/lib/polygon-mixer";
+import { snapToAchievable } from "@/lib/polygon-mixer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1410,6 +1410,21 @@ export default function Pairing() {
 
 type PairingBandBreakdown = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number };
 
+function snapBlendLayers(layers: SuperblendLayer[]): SuperblendLayer[] {
+  if (layers.length < 3 || layers.length > 8) return layers;
+  const snapped = snapToAchievable(layers.map(l => l.percentage));
+  return layers.map((l, i) => ({ ...l, percentage: snapped[i] }));
+}
+
+function snapSuperblendResult(data: SuperblendResult): SuperblendResult {
+  return {
+    ...data,
+    blend: { ...data.blend, layers: snapBlendLayers(data.blend.layers) },
+    equalPartsBlend: data.equalPartsBlend ? { ...data.equalPartsBlend, layers: snapBlendLayers(data.equalPartsBlend.layers) } : undefined,
+    alternatives: data.alternatives?.map(a => ({ ...a, layers: snapBlendLayers(a.layers) })),
+  };
+}
+
 interface PairingSuperblendBlendData {
   name: string;
   speaker: string;
@@ -1521,7 +1536,8 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
             toneGoal: combinedGoal,
             irs: irData,
           });
-          const data = await res.json() as SuperblendResult;
+          const raw = await res.json() as SuperblendResult;
+          const data = snapSuperblendResult(raw);
           setAllResults(prev => ({ ...prev, [intent.value]: data }));
           if (data.blend.bandBreakdown) {
             const irEntries = speakerIRs.map(ir => ({ filename: ir.file.name, bandsPercent: ir.features!.bandsPercent }));
@@ -1607,12 +1623,13 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       });
       return res.json();
     },
-    onSuccess: (data: SuperblendResult & { questionAnswer?: string }) => {
-      if (data.questionAnswer && !data.blend) {
-        setAiAnswer(data.questionAnswer);
+    onSuccess: (raw: SuperblendResult & { questionAnswer?: string }) => {
+      if (raw.questionAnswer && !raw.blend) {
+        setAiAnswer(raw.questionAnswer);
         setRefineText("");
         return;
       }
+      const data = snapSuperblendResult(raw);
       setAiAnswer(null);
       setResult(data);
       setActiveBlend("primary");
@@ -1641,17 +1658,6 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       "Layers:",
       ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
     ];
-    if (displayBlend.layers.length >= 3) {
-      const mixer = computeMixerPosition(
-        displayBlend.layers.map(l => l.percentage),
-        displayBlend.layers.map(l => l.filename)
-      );
-      const hasDrift = mixer.achievableRatios.some((a, i) => Math.abs(a - displayBlend.layers[i].percentage) >= 3);
-      if (hasDrift) {
-        lines.push("", `Mixer ratios (achievable on ${displayBlend.layers.length === 3 ? "triangle" : displayBlend.layers.length === 4 ? "square" : displayBlend.layers.length === 5 ? "pentagon" : displayBlend.layers.length === 6 ? "hexagon" : "polygon"}):`);
-        lines.push(...displayBlend.layers.map((l, i) => `  ${l.filename} — ${mixer.achievableRatios[i]}%`));
-      }
-    }
     lines.push(
       "",
       `Expected Tone: ${displayBlend.expectedTone}`,
