@@ -18,7 +18,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
+import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
+import { computeMixerPosition } from "@/lib/polygon-mixer";
 import { api, type NormalizedIR } from "@shared/routes";
 import {
   type TonalBands,
@@ -967,10 +969,23 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       "",
       "Layers:",
       ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+    ];
+    if (displayBlend.layers.length >= 3) {
+      const mixer = computeMixerPosition(
+        displayBlend.layers.map(l => l.percentage),
+        displayBlend.layers.map(l => l.filename)
+      );
+      const hasDrift = mixer.achievableRatios.some((a, i) => Math.abs(a - displayBlend.layers[i].percentage) >= 3);
+      if (hasDrift) {
+        lines.push("", `Mixer ratios (achievable on ${displayBlend.layers.length === 3 ? "triangle" : displayBlend.layers.length === 4 ? "square" : displayBlend.layers.length === 5 ? "pentagon" : displayBlend.layers.length === 6 ? "hexagon" : "polygon"}):`);
+        lines.push(...displayBlend.layers.map((l, i) => `  ${l.filename} — ${mixer.achievableRatios[i]}%`));
+      }
+    }
+    lines.push(
       "",
       `Expected Tone: ${displayBlend.expectedTone}`,
       ...(displayBlend.bandBreakdown ? [`Band Breakdown: Sub ${displayBlend.bandBreakdown.subBass}% | Bass ${displayBlend.bandBreakdown.bass}% | LowMid ${displayBlend.bandBreakdown.lowMid}% | Mid ${displayBlend.bandBreakdown.mid}% | HiMid ${displayBlend.bandBreakdown.highMid}% | Presence ${displayBlend.bandBreakdown.presence}%`] : []),
-    ];
+    );
     navigator.clipboard.writeText(lines.join("\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1237,17 +1252,27 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                   </div>
                 </div>
 
-                <div className="space-y-1" data-testid="superblend-layers">
-                  {displayBlend.layers.map((layer, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs" data-testid={`superblend-layer-${i}`}>
-                      <div className={cn("w-12 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")} data-testid={`text-layer-pct-${i}`}>{layer.percentage}%</div>
-                      <div className="flex-1 h-5 bg-amber-500/10 rounded-full overflow-hidden relative">
-                        <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
-                        <span className="absolute inset-0 flex items-center px-2 text-[10px] text-foreground truncate" data-testid={`text-layer-name-${i}`}>{layer.filename}</span>
+                <div className="flex gap-3 items-start">
+                  <div className="flex-1 space-y-1" data-testid="superblend-layers">
+                    {displayBlend.layers.map((layer, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs" data-testid={`superblend-layer-${i}`}>
+                        <div className={cn("w-12 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")} data-testid={`text-layer-pct-${i}`}>{layer.percentage}%</div>
+                        <div className="flex-1 h-5 bg-amber-500/10 rounded-full overflow-hidden relative">
+                          <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
+                          <span className="absolute inset-0 flex items-center px-2 text-[10px] text-foreground truncate" data-testid={`text-layer-name-${i}`}>{layer.filename}</span>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] shrink-0" data-testid={`badge-layer-role-${i}`}>{layer.role}</Badge>
                       </div>
-                      <Badge variant="outline" className="text-[9px] shrink-0" data-testid={`badge-layer-role-${i}`}>{layer.role}</Badge>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  {displayBlend.layers.length >= 3 && (
+                    <PolygonMixerDiagram
+                      ratios={displayBlend.layers.map(l => l.percentage)}
+                      labels={displayBlend.layers.map(l => l.filename.replace(/\.wav$/i, ""))}
+                      isEqualParts={isEqualParts}
+                      size={120}
+                    />
+                  )}
                 </div>
 
                 {displayBlend.bandBreakdown && (

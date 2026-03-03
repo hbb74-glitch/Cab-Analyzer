@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { ShotIntentBadge } from "@/components/ShotIntentBadge";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
+import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
+import { computeMixerPosition } from "@/lib/polygon-mixer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1638,10 +1640,23 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       "",
       "Layers:",
       ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+    ];
+    if (displayBlend.layers.length >= 3) {
+      const mixer = computeMixerPosition(
+        displayBlend.layers.map(l => l.percentage),
+        displayBlend.layers.map(l => l.filename)
+      );
+      const hasDrift = mixer.achievableRatios.some((a, i) => Math.abs(a - displayBlend.layers[i].percentage) >= 3);
+      if (hasDrift) {
+        lines.push("", `Mixer ratios (achievable on ${displayBlend.layers.length === 3 ? "triangle" : displayBlend.layers.length === 4 ? "square" : displayBlend.layers.length === 5 ? "pentagon" : displayBlend.layers.length === 6 ? "hexagon" : "polygon"}):`);
+        lines.push(...displayBlend.layers.map((l, i) => `  ${l.filename} — ${mixer.achievableRatios[i]}%`));
+      }
+    }
+    lines.push(
       "",
       `Expected Tone: ${displayBlend.expectedTone}`,
       ...(displayBlend.bandBreakdown ? [`Band Breakdown: Sub ${displayBlend.bandBreakdown.subBass}% | Bass ${displayBlend.bandBreakdown.bass}% | LowMid ${displayBlend.bandBreakdown.lowMid}% | Mid ${displayBlend.bandBreakdown.mid}% | HiMid ${displayBlend.bandBreakdown.highMid}% | Presence ${displayBlend.bandBreakdown.presence}%`] : []),
-    ];
+    );
     navigator.clipboard.writeText(lines.join("\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1910,17 +1925,27 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                   </div>
                 </div>
 
-                <div className="space-y-1.5" data-testid="superblend-layers-pairing">
-                  {displayBlend.layers.map((layer, i) => (
-                    <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
-                      <div className={cn("w-14 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
-                      <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
-                        <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
-                        <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
+                <div className="flex gap-4 items-start">
+                  <div className="flex-1 space-y-1.5" data-testid="superblend-layers-pairing">
+                    {displayBlend.layers.map((layer, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
+                        <div className={cn("w-14 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
+                        <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
+                          <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
+                          <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
+                        </div>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-white/10 text-muted-foreground shrink-0">{layer.role}</span>
                       </div>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded border border-white/10 text-muted-foreground shrink-0">{layer.role}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  {displayBlend.layers.length >= 3 && (
+                    <PolygonMixerDiagram
+                      ratios={displayBlend.layers.map(l => l.percentage)}
+                      labels={displayBlend.layers.map(l => l.filename.replace(/\.wav$/i, ""))}
+                      isEqualParts={isEqualParts}
+                      size={140}
+                    />
+                  )}
                 </div>
 
                 {displayBlend.bandBreakdown && (

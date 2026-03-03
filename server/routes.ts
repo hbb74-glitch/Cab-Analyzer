@@ -6668,7 +6668,9 @@ Return JSON:
 
 Provide 1 primary free-form blend, 1 equal-parts blend, and 1-2 alternatives with different tonal focuses.
 Use exactly ${irCount} IRs for ALL blends — primary, equal-parts, AND alternatives. Every blend must use exactly ${irCount} IRs. Do not drop IRs from alternatives.
-The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCount) / 100}% each.`
+The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCount) / 100}% each.
+
+GEOMETRIC MIXER CONSTRAINT: Users mix IRs in plugins (Cabinetron, NadIR) using a ${irCount === 3 ? "triangle" : irCount === 4 ? "square" : irCount === 5 ? "pentagon" : irCount === 6 ? "hexagon" : irCount === 7 ? "heptagon" : "octagon"} with a movable dot. IRs sit at vertices. The dot position determines ratios — moving toward a vertex increases that IR's weight. Not every ratio combination is achievable. Prefer ratios that can be approximated by a single dot position inside the shape. Avoid extreme splits like 60/5/5/30 where one IR is very low — these are hard to target on the mixer. Smoother, more balanced distributions (like 35/25/20/20) are easier to dial in. For the primary blend, you may use moderate asymmetry but avoid ratios below 10% for any IR.`
           },
           {
             role: "user",
