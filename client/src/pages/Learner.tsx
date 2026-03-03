@@ -2437,7 +2437,6 @@ export default function Learner() {
   const handleAllFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsLoadingAll(true);
-    resetPairingState();
     try {
       const analyzed: Array<{ filename: string; metrics: AudioMetrics }> = [];
       for (const file of files) {
@@ -2451,12 +2450,18 @@ export default function Learner() {
         const features = norm ? buildFeaturesFromServer(metrics, norm) : computeTonalFeatures(metrics);
         return { filename, metrics, rawEnergy: features.bandsRaw, bands: features.bandsPercent, features };
       });
-      setAllIRs(results);
+      setAllIRs(prev => {
+        const existingNames = new Set(prev.map(ir => ir.filename));
+        const newIRs = results.filter(ir => !existingNames.has(ir.filename));
+        if (newIRs.length === 0) return prev;
+        const merged = [...prev, ...newIRs];
+        return merged;
+      });
     } catch (e) {
       console.error("Failed to analyze IRs:", e);
     }
     setIsLoadingAll(false);
-  }, [resetPairingState, normalizeViaServer, buildFeaturesFromServer]);
+  }, [normalizeViaServer, buildFeaturesFromServer]);
 
 
   const pairingPool = useMemo(() => {
@@ -5089,11 +5094,11 @@ export default function Learner() {
             Load IRs
           </h3>
           <p className="text-xs text-muted-foreground mb-3">
-            Drop all your IRs from a speaker set to start taste learning and evaluation.
+            Drop IRs from one or more speaker sets — drop additional batches to add more.
           </p>
           <DropZone
-            label="Drop All IRs"
-            description="Analyze a full set to begin taste learning"
+            label={allIRs.length > 0 ? "Drop More IRs" : "Drop All IRs"}
+            description={allIRs.length > 0 ? `${allIRs.length} loaded — drop another set to add` : "Analyze a full set to begin taste learning"}
             onFilesAdded={handleAllFiles}
             isLoading={isLoadingAll}
           />
@@ -5104,7 +5109,7 @@ export default function Learner() {
                 <summary className="text-xs text-muted-foreground uppercase tracking-wider mb-2 cursor-pointer select-none">
                   Loaded IRs — Role Summary ({allIRs.length})
                 </summary>
-                <div className="flex justify-end mb-1">
+                <div className="flex justify-end gap-2 mb-1">
                   <Button
                     size="sm"
                     variant="outline"
@@ -5113,6 +5118,15 @@ export default function Learner() {
                   >
                     <Copy className="w-3 h-3 mr-1" />
                     Copy Summary
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setAllIRs([]); resetPairingState(); }}
+                    data-testid="button-clear-all-irs"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Clear All
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2 max-h-[300px] overflow-y-auto pr-1">
