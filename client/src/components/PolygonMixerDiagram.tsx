@@ -9,11 +9,11 @@ interface PolygonMixerDiagramProps {
   className?: string;
 }
 
-export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts = false, className }: PolygonMixerDiagramProps) {
+export function PolygonMixerDiagram({ ratios, labels, size = 200, isEqualParts = false, className }: PolygonMixerDiagramProps) {
   if (ratios.length < 3 || ratios.length > 8) return null;
 
   const mixer = computeMixerPosition(ratios, labels);
-  const padding = 28;
+  const padding = 44;
   const center = size / 2;
   const radius = (size - padding * 2) / 2;
 
@@ -29,19 +29,19 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
   const accentColor = isEqualParts ? "#67e8f9" : "#fbbf24";
   const accentDim = isEqualParts ? "rgba(103,232,249,0.15)" : "rgba(251,191,36,0.15)";
 
-  const truncateLabel = (label: string, maxLen: number = 8) => {
+  const truncateLabel = (label: string, maxLen: number = 12) => {
     if (label.length <= maxLen) return label;
     return label.slice(0, maxLen - 1) + "…";
   };
 
   return (
-    <div className={cn("flex flex-col items-center gap-1", className)} data-testid="polygon-mixer-diagram">
+    <div className={cn("flex flex-col items-center gap-1.5", className)} data-testid="polygon-mixer-diagram">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <polygon
           points={polygonPoints}
           fill={accentDim}
-          stroke="rgba(255,255,255,0.15)"
-          strokeWidth="1"
+          stroke="rgba(255,255,255,0.2)"
+          strokeWidth="1.5"
         />
 
         {svgVertices.map((v, i) => {
@@ -51,8 +51,8 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
               key={`edge-${i}`}
               x1={v.x} y1={v.y}
               x2={next.x} y2={next.y}
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="0.5"
+              stroke="rgba(255,255,255,0.12)"
+              strokeWidth="0.75"
             />
           );
         })}
@@ -61,21 +61,22 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
           const dx = v.x - center;
           const dy = v.y - center;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const offsetX = (dx / dist) * 16;
-          const offsetY = (dy / dist) * 16;
+          const offsetX = (dx / dist) * 22;
+          const offsetY = (dy / dist) * 22;
           const textX = v.x + offsetX;
           const textY = v.y + offsetY;
 
           return (
             <g key={`vertex-${i}`}>
-              <circle cx={v.x} cy={v.y} r="3" fill="rgba(255,255,255,0.4)" />
+              <circle cx={v.x} cy={v.y} r="3.5" fill="rgba(255,255,255,0.45)" />
               <text
                 x={textX}
                 y={textY}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fill="rgba(255,255,255,0.6)"
-                fontSize="7"
+                fill="rgba(255,255,255,0.85)"
+                fontSize="9"
+                fontWeight="500"
                 fontFamily="monospace"
               >
                 {truncateLabel(labels[i])}
@@ -84,20 +85,20 @@ export function PolygonMixerDiagram({ ratios, labels, size = 140, isEqualParts =
           );
         })}
 
-        <circle cx={center} cy={center} r="1.5" fill="rgba(255,255,255,0.15)" />
+        <circle cx={center} cy={center} r="2" fill="rgba(255,255,255,0.15)" />
 
         <circle
           cx={svgDot.x}
           cy={svgDot.y}
-          r="5"
+          r="6"
           fill={accentColor}
           stroke="white"
-          strokeWidth="1.5"
+          strokeWidth="2"
           opacity="0.9"
         />
       </svg>
 
-      <div className="text-[9px] text-muted-foreground/60 text-center" data-testid="text-mixer-shape">
+      <div className="text-[10px] text-muted-foreground/60 text-center" data-testid="text-mixer-shape">
         {getShapeName(ratios.length)} placement
       </div>
     </div>
