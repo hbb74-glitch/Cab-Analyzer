@@ -13,7 +13,7 @@ export function PolygonMixerDiagram({ ratios, labels, size = 200, isEqualParts =
   if (ratios.length < 3 || ratios.length > 8) return null;
 
   const mixer = computeMixerPosition(ratios, labels);
-  const padding = 44;
+  const padding = 24;
   const center = size / 2;
   const radius = (size - padding * 2) / 2;
 
@@ -28,11 +28,6 @@ export function PolygonMixerDiagram({ ratios, labels, size = 200, isEqualParts =
 
   const accentColor = isEqualParts ? "#67e8f9" : "#fbbf24";
   const accentDim = isEqualParts ? "rgba(103,232,249,0.15)" : "rgba(251,191,36,0.15)";
-
-  const truncateLabel = (label: string, maxLen: number = 12) => {
-    if (label.length <= maxLen) return label;
-    return label.slice(0, maxLen - 1) + "…";
-  };
 
   return (
     <div className={cn("flex flex-col items-center gap-1.5", className)} data-testid="polygon-mixer-diagram">
@@ -61,25 +56,25 @@ export function PolygonMixerDiagram({ ratios, labels, size = 200, isEqualParts =
           const dx = v.x - center;
           const dy = v.y - center;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          const offsetX = (dx / dist) * 22;
-          const offsetY = (dy / dist) * 22;
-          const textX = v.x + offsetX;
-          const textY = v.y + offsetY;
+          const offsetX = (dx / dist) * 16;
+          const offsetY = (dy / dist) * 16;
+          const cx = v.x + offsetX;
+          const cy = v.y + offsetY;
 
           return (
             <g key={`vertex-${i}`}>
-              <circle cx={v.x} cy={v.y} r="3.5" fill="rgba(255,255,255,0.45)" />
+              <circle cx={cx} cy={cy} r="9" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.3)" strokeWidth="1" />
               <text
-                x={textX}
-                y={textY}
+                x={cx}
+                y={cy}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fill="rgba(255,255,255,0.85)"
-                fontSize="9"
-                fontWeight="500"
+                fill="rgba(255,255,255,0.9)"
+                fontSize="10"
+                fontWeight="600"
                 fontFamily="monospace"
               >
-                {truncateLabel(labels[i])}
+                {i + 1}
               </text>
             </g>
           );
@@ -90,11 +85,11 @@ export function PolygonMixerDiagram({ ratios, labels, size = 200, isEqualParts =
         <circle
           cx={svgDot.x}
           cy={svgDot.y}
-          r="6"
+          r="5"
           fill={accentColor}
           stroke="white"
-          strokeWidth="2"
-          opacity="0.9"
+          strokeWidth="1.5"
+          opacity="0.85"
         />
       </svg>
 

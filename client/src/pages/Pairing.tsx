@@ -1656,7 +1656,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
       `Versatility: ${displayBlend.versatilityScore}/100`,
       "",
       "Layers:",
-      ...displayBlend.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
+      ...displayBlend.layers.map((l, i) => `  ${i + 1}. ${l.filename} — ${l.percentage}% (${l.role}): ${l.contribution}`),
     ];
     lines.push(
       "",
@@ -1935,7 +1935,8 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
                   <div className="flex-1 space-y-1.5" data-testid="superblend-layers-pairing">
                     {displayBlend.layers.map((layer, i) => (
                       <div key={i} className="flex items-center gap-3 text-sm" data-testid={`superblend-layer-pairing-${i}`}>
-                        <div className={cn("w-14 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
+                        <span className="w-6 h-6 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-xs font-mono font-semibold text-white/80 shrink-0">{i + 1}</span>
+                        <div className={cn("w-12 text-right font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-amber-300")}>{layer.percentage}%</div>
                         <div className="flex-1 h-6 bg-amber-500/10 rounded-full overflow-hidden relative">
                           <div className={cn("h-full rounded-full", isEqualParts ? "bg-cyan-500/30" : "bg-amber-500/30")} style={{ width: `${layer.percentage}%` }} />
                           <span className="absolute inset-0 flex items-center px-3 text-xs text-foreground truncate">{layer.filename}</span>
