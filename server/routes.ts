@@ -5794,6 +5794,245 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
     }
   });
 
+  // Superblend re-optimize endpoint — server-side ratio optimization with nudges + IR swapping
+  app.post(api.superblendReoptimize.reoptimize.path, async (req, res) => {
+    try {
+      const input = api.superblendReoptimize.reoptimize.input.parse(req.body);
+      const { layers, pool, nudges, intent, iterations: maxIter, irCount } = input;
+      const iters = maxIter || 800;
+      const targetCount = irCount || layers.length;
+
+      if (layers.length < 2) {
+        return res.status(400).json({ message: "Need at least 2 layers" });
+      }
+
+      const bandKeys6 = ["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const;
+      const energyKeys = ["subBassEnergy", "bassEnergy", "lowMidEnergy", "midEnergy6", "highMidEnergy", "presenceEnergy"] as const;
+
+      type IREntry = { filename: string; energies: number[]; ultraHigh: number; role: string; contribution?: string };
+
+      function getEnergies(ir: any): number[] {
+        return energyKeys.map(k => (ir as any)[k] as number || 0);
+      }
+
+      const currentIRs: IREntry[] = layers.map(l => ({
+        filename: l.filename,
+        energies: getEnergies(l),
+        ultraHigh: l.ultraHighEnergy || 0,
+        role: l.role,
+        contribution: l.contribution,
+      }));
+
+      const poolIRs: IREntry[] = (pool || [])
+        .filter(p => !currentIRs.some(c => c.filename === p.filename))
+        .map(p => ({ filename: p.filename, energies: getEnergies(p), ultraHigh: p.ultraHighEnergy || 0, role: "swap", contribution: undefined }));
+
+      function blendBands(irs: IREntry[], ratios: number[]): number[] {
+        const blended = new Array(6).fill(0);
+        for (let i = 0; i < irs.length; i++) {
+          for (let b = 0; b < 6; b++) {
+            blended[b] += ratios[i] * irs[i].energies[b];
+          }
+        }
+        return blended;
+      }
+
+      function toPercent(bands: number[]): number[] {
+        const total = bands.reduce((a, b) => a + b, 0) || 1;
+        return bands.map(b => Math.round((b / total) * 1000) / 10);
+      }
+
+      function computeTilt(bands: number[]): number {
+        const lowAvg = (bands[0] + bands[1] + bands[2]) / 3;
+        const highAvg = (bands[3] + bands[4] + bands[5]) / 3;
+        const dbLow = lowAvg > 0 ? 10 * Math.log10(lowAvg + 1e-12) : -60;
+        const dbHigh = highAvg > 0 ? 10 * Math.log10(highAvg + 1e-12) : -60;
+        return Math.round(((dbHigh - dbLow) / Math.log2(10000 / 80)) * 100) / 100;
+      }
+
+      function computeSmoothness(bands: number[]): number {
+        const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
+        let roughness = 0;
+        for (let i = 1; i < db.length; i++) roughness += Math.abs(db[i] - db[i - 1]);
+        return Math.round(Math.max(0, Math.min(100, 100 - (roughness / (db.length - 1)) * 8)) * 10) / 10;
+      }
+
+      function blendUltraHigh(irs: IREntry[], ratios: number[]): number {
+        let uh = 0;
+        for (let i = 0; i < irs.length; i++) uh += irs[i].ultraHigh * (ratios[i] || 0);
+        return uh;
+      }
+
+      function scoreBlend(irs: IREntry[], ratios: number[]): number {
+        const bands = blendBands(irs, ratios);
+        const pcts = toPercent(bands);
+        const tilt = computeTilt(bands);
+        const smooth = computeSmoothness(bands);
+        const uh = blendUltraHigh(irs, ratios);
+
+        let score = smooth * 0.01;
+
+        const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
+        for (let i = 1; i < db.length; i++) {
+          score -= Math.abs(db[i] - db[i - 1]) * 0.005;
+        }
+
+        if (nudges) {
+          for (let i = 0; i < bandKeys6.length; i++) {
+            const n = nudges[bandKeys6[i]];
+            if (n && isFinite(n)) {
+              score += pcts[i] * n * 0.15;
+            }
+          }
+          const airN = nudges["air"];
+          if (airN && isFinite(airN)) {
+            const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12);
+            score += airPct * airN * 0.15;
+          }
+          const fizzN = nudges["fizz"];
+          if (fizzN && isFinite(fizzN)) {
+            const fizzPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12);
+            score -= fizzPct * fizzN * 0.15;
+          }
+          const tiltN = nudges["tilt"];
+          if (tiltN && isFinite(tiltN)) {
+            score += tilt * tiltN * 2.0;
+          }
+          const smN = nudges["smoothness"];
+          if (smN && isFinite(smN)) {
+            score += smooth * smN * 0.05;
+          }
+        }
+
+        return score;
+      }
+
+      function normalizeRatios(r: number[]): number[] {
+        const sum = r.reduce((a, b) => a + b, 0);
+        if (sum <= 0) return r.map(() => 1 / r.length);
+        return r.map(v => v / sum);
+      }
+
+      // Phase 1: Optimize ratios for the current IR set
+      const n = currentIRs.length;
+      let bestIRs = [...currentIRs];
+      let bestRatios = normalizeRatios(layers.map(l => l.percentage / 100));
+      let bestScore = scoreBlend(bestIRs, bestRatios);
+      const baselineScore = bestScore;
+
+      const step = 0.06;
+      const minActive = 0.02;
+
+      for (let iter = 0; iter < iters; iter++) {
+        const candidate = [...bestRatios];
+        const ai = Math.floor(Math.random() * n);
+        const aj = Math.floor(Math.random() * n);
+        if (ai === aj) continue;
+
+        const delta = step * (0.3 + Math.random() * 1.4);
+        candidate[ai] = Math.max(minActive, candidate[ai] + delta);
+        candidate[aj] = Math.max(minActive, candidate[aj] - delta);
+
+        const norm = normalizeRatios(candidate);
+        if (norm.some(r => r < minActive)) continue;
+
+        const s = scoreBlend(bestIRs, norm);
+        if (s > bestScore) {
+          bestScore = s;
+          bestRatios = norm;
+        }
+      }
+
+      // Phase 2: Try swapping in pool IRs if it improves score
+      const swaps: { out: string; in: string; reason: string }[] = [];
+      if (poolIRs.length > 0 && nudges && Object.keys(nudges).length > 0) {
+        const swapAttempts = Math.min(poolIRs.length * n, 200);
+        for (let attempt = 0; attempt < swapAttempts; attempt++) {
+          const slotIdx = Math.floor(Math.random() * n);
+          const poolIdx = Math.floor(Math.random() * poolIRs.length);
+          const candidate = poolIRs[poolIdx];
+          if (bestIRs.some(ir => ir.filename === candidate.filename)) continue;
+
+          const testIRs = [...bestIRs];
+          testIRs[slotIdx] = { ...candidate, role: bestIRs[slotIdx].role };
+
+          const testRatios = normalizeRatios(bestRatios.map((r, i) =>
+            i === slotIdx ? Math.max(minActive, r) : r
+          ));
+
+          // Re-optimize ratios for the new IR set
+          let testScore = scoreBlend(testIRs, testRatios);
+          let testBest = [...testRatios];
+          for (let iter = 0; iter < 200; iter++) {
+            const c = [...testBest];
+            const ai = Math.floor(Math.random() * n);
+            const aj = Math.floor(Math.random() * n);
+            if (ai === aj) continue;
+            const d = step * (0.3 + Math.random() * 1.4);
+            c[ai] = Math.max(minActive, c[ai] + d);
+            c[aj] = Math.max(minActive, c[aj] - d);
+            const norm = normalizeRatios(c);
+            if (norm.some(r => r < minActive)) continue;
+            const s = scoreBlend(testIRs, norm);
+            if (s > testScore) { testScore = s; testBest = norm; }
+          }
+
+          if (testScore > bestScore + 0.5) {
+            const outName = bestIRs[slotIdx].filename;
+            swaps.push({
+              out: outName,
+              in: candidate.filename,
+              reason: `Better fit for nudge target (score +${(testScore - bestScore).toFixed(1)})`,
+            });
+            bestIRs = testIRs;
+            bestRatios = testBest;
+            bestScore = testScore;
+          }
+        }
+      }
+
+      const pctRatios = bestRatios.map(r => Math.round(r * 100));
+      const pctSum = pctRatios.reduce((a, b) => a + b, 0);
+      if (pctSum !== 100) {
+        const maxIdx = pctRatios.indexOf(Math.max(...pctRatios));
+        pctRatios[maxIdx] += 100 - pctSum;
+      }
+
+      const finalBands = blendBands(bestIRs, bestRatios);
+      const finalPcts = toPercent(finalBands);
+
+      const resultLayers = bestIRs.map((ir, i) => ({
+        filename: ir.filename,
+        percentage: pctRatios[i],
+        role: ir.role,
+        contribution: ir.contribution,
+      }));
+
+      res.json({
+        layers: resultLayers,
+        bandBreakdown: {
+          subBass: finalPcts[0],
+          bass: finalPcts[1],
+          lowMid: finalPcts[2],
+          mid: finalPcts[3],
+          highMid: finalPcts[4],
+          presence: finalPcts[5],
+        },
+        tilt: computeTilt(finalBands),
+        smoothness: computeSmoothness(finalBands),
+        score: Math.round(bestScore * 1000) / 1000,
+        improvement: Math.round((bestScore - baselineScore) * 1000) / 1000,
+        swaps: swaps.length > 0 ? swaps : undefined,
+      });
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
+      }
+      console.error("Superblend reoptimize error:", err);
+      res.status(500).json({ message: "Failed to reoptimize blend" });
+    }
+  });
+
   // Batch IR Analysis endpoint - uses shared single-IR scoring for consistency
   app.post(api.batchAnalysis.analyze.path, async (req, res) => {
     try {

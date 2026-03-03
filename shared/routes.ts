@@ -396,6 +396,61 @@ export type NormalizeBandsInput = z.infer<typeof normalizeBandsInputSchema>;
 export type NormalizedIR = z.infer<typeof normalizedIRSchema>;
 export type NormalizeBandsResponse = z.infer<typeof normalizeBandsResponseSchema>;
 
+const irEnergySchema = z.object({
+  filename: z.string(),
+  subBassEnergy: z.number(),
+  bassEnergy: z.number(),
+  lowMidEnergy: z.number(),
+  midEnergy6: z.number(),
+  highMidEnergy: z.number(),
+  presenceEnergy: z.number(),
+  ultraHighEnergy: z.number().optional(),
+});
+
+export const superblendReoptimizeInputSchema = z.object({
+  layers: z.array(z.object({
+    filename: z.string(),
+    percentage: z.number(),
+    role: z.string(),
+    contribution: z.string().optional(),
+  }).merge(irEnergySchema.omit({ filename: true }))),
+  pool: z.array(irEnergySchema).optional(),
+  nudges: z.record(z.number()).optional(),
+  speaker: z.string(),
+  intent: z.string(),
+  irCount: z.number().min(2).max(8).optional(),
+  iterations: z.number().min(100).max(2000).optional(),
+});
+
+export const superblendReoptimizeResponseSchema = z.object({
+  layers: z.array(z.object({
+    filename: z.string(),
+    percentage: z.number(),
+    role: z.string(),
+    contribution: z.string().optional(),
+  })),
+  bandBreakdown: z.object({
+    subBass: z.number(),
+    bass: z.number(),
+    lowMid: z.number(),
+    mid: z.number(),
+    highMid: z.number(),
+    presence: z.number(),
+  }),
+  tilt: z.number(),
+  smoothness: z.number(),
+  score: z.number(),
+  improvement: z.number(),
+  swaps: z.array(z.object({
+    out: z.string(),
+    in: z.string(),
+    reason: z.string(),
+  })).optional(),
+});
+
+export type SuperblendReoptimizeInput = z.infer<typeof superblendReoptimizeInputSchema>;
+export type SuperblendReoptimizeResponse = z.infer<typeof superblendReoptimizeResponseSchema>;
+
 export const api = {
   analyses: {
     create: {
@@ -501,6 +556,18 @@ export const api = {
       input: normalizeBandsInputSchema,
       responses: {
         200: normalizeBandsResponseSchema,
+        400: errorSchemas.validation,
+        500: errorSchemas.internal,
+      },
+    },
+  },
+  superblendReoptimize: {
+    reoptimize: {
+      method: 'POST' as const,
+      path: '/api/superblend/reoptimize',
+      input: superblendReoptimizeInputSchema,
+      responses: {
+        200: superblendReoptimizeResponseSchema,
         400: errorSchemas.validation,
         500: errorSchemas.internal,
       },

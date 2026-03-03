@@ -11,6 +11,7 @@ import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
 import { findBestPairForBands } from "@/lib/ir-count-advisor";
 import { snapToAchievable } from "@/lib/polygon-mixer";
 import { optimizeBlendRatios, type ToneNudges, NUDGE_LABELS, hasActiveNudges } from "@/lib/blend-optimizer";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResults } from "@/context/ResultsContext";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
@@ -1556,6 +1557,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
   const [showSaved, setShowSaved] = useState(false);
   const [showExperiment, setShowExperiment] = useState(false);
   const [toneNudges, setToneNudges] = useState<ToneNudges>({});
+  const [isReoptimizing, setIsReoptimizing] = useState(false);
   const { toast } = useToast();
 
   const speakers = useMemo(() => {
@@ -1970,27 +1972,100 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
               ))}
             </div>
             {hasActiveNudges(toneNudges) && Object.keys(allResults).length > 0 && (
-              <button
-                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 text-violet-300 hover:bg-violet-500/10 text-xs font-medium transition-colors"
-                onClick={() => {
-                  const irLookup = new Map<string, number[]>();
-                  for (const ir of speakerIRs) {
-                    const lbe = ir.metrics?.logBandEnergies;
-                    if (Array.isArray(lbe) && lbe.length >= 20) irLookup.set(ir.file.name, lbe);
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-3 w-full border-violet-500/30 text-violet-300"
+                disabled={isReoptimizing}
+                onClick={async () => {
+                  setIsReoptimizing(true);
+                  try {
+                    const metricsMap = new Map<string, AudioMetrics>();
+                    for (const ir of speakerIRs) {
+                      if (ir.metrics) metricsMap.set(ir.file.name, ir.metrics);
+                    }
+
+                    const poolData = speakerIRs.filter(ir => ir.metrics).map(ir => ({
+                      filename: ir.file.name,
+                      subBassEnergy: ir.metrics!.subBassEnergy,
+                      bassEnergy: ir.metrics!.bassEnergy,
+                      lowMidEnergy: ir.metrics!.lowMidEnergy,
+                      midEnergy6: ir.metrics!.midEnergy6,
+                      highMidEnergy: ir.metrics!.highMidEnergy,
+                      presenceEnergy: ir.metrics!.presenceEnergy,
+                      ultraHighEnergy: ir.metrics!.ultraHighEnergy,
+                    }));
+
+                    const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
+                    const reoptimized: Record<string, SuperblendResult> = {};
+                    let totalSwaps = 0;
+
+                    for (const [intent, res] of Object.entries(allResults)) {
+                      const layersWithEnergy = res.blend.layers.map(l => {
+                        const m = metricsMap.get(l.filename);
+                        return {
+                          filename: l.filename,
+                          percentage: l.percentage,
+                          role: l.role,
+                          contribution: l.contribution,
+                          subBassEnergy: m?.subBassEnergy || 0,
+                          bassEnergy: m?.bassEnergy || 0,
+                          lowMidEnergy: m?.lowMidEnergy || 0,
+                          midEnergy6: m?.midEnergy6 || 0,
+                          highMidEnergy: m?.highMidEnergy || 0,
+                          presenceEnergy: m?.presenceEnergy || 0,
+                          ultraHighEnergy: m?.ultraHighEnergy || 0,
+                        };
+                      });
+
+                      const response = await fetch(api.superblendReoptimize.reoptimize.path, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          layers: layersWithEnergy,
+                          pool: poolData,
+                          nudges: toneNudges,
+                          speaker: speakerLabel,
+                          intent,
+                          irCount,
+                        }),
+                      });
+
+                      if (!response.ok) throw new Error("Re-optimize failed");
+                      const data = await response.json();
+                      if (data.swaps) totalSwaps += data.swaps.length;
+
+                      const updatedLayers: SuperblendLayer[] = data.layers.map((l: any) => ({
+                        filename: l.filename,
+                        percentage: l.percentage,
+                        role: l.role,
+                        contribution: l.contribution || res.blend.layers.find((ol: any) => ol.filename === l.filename)?.contribution || "",
+                      }));
+
+                      reoptimized[intent] = {
+                        ...res,
+                        blend: { ...res.blend, layers: updatedLayers, bandBreakdown: data.bandBreakdown },
+                      };
+                    }
+
+                    setAllResults(reoptimized);
+                    const swapMsg = totalSwaps > 0 ? ` (${totalSwaps} IR swap${totalSwaps > 1 ? "s" : ""} made)` : "";
+                    toast({ title: "Re-optimized", description: `Server-side recalculation complete${swapMsg}. Band breakdowns updated.` });
+                  } catch (e) {
+                    console.error("Server reoptimize failed:", e);
+                    toast({ title: "Re-optimize failed", description: "Could not reach the server. Try again.", variant: "destructive" });
+                  } finally {
+                    setIsReoptimizing(false);
                   }
-                  if (irLookup.size < 2) return;
-                  const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
-                  const reoptimized: Record<string, SuperblendResult> = {};
-                  for (const [intent, res] of Object.entries(allResults)) {
-                    reoptimized[intent] = optimizeSuperblendResult(res, irLookup, speakerLabel, intent, toneNudges);
-                  }
-                  setAllResults(reoptimized);
-                  toast({ title: "Re-optimized", description: "Ratios adjusted for your tone experiment." });
                 }}
                 data-testid="button-reoptimize-nudges-pairing"
               >
-                <SlidersHorizontal className="w-3 h-3" /> Re-optimize with these adjustments
-              </button>
+                {isReoptimizing ? (
+                  <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Re-optimizing...</>
+                ) : (
+                  <><SlidersHorizontal className="w-3 h-3 mr-1.5" /> Re-optimize with these adjustments</>
+                )}
+              </Button>
             )}
           </div>
         )}
