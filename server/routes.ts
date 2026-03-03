@@ -6098,7 +6098,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         pctRatios[maxIdx] += 100 - pctSum;
       }
 
-      const finalBands = blendBands(bestIRs, bestRatios);
+      const finalBands = blendBands6(bestIRs, bestRatios);
       const finalPcts = toPercent(finalBands);
 
       const resultLayers = bestIRs.map((ir, i) => ({
