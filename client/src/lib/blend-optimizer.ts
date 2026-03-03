@@ -72,15 +72,13 @@ function bandsTo8Band(logBands: number[]): Record<string, number> {
   return result;
 }
 
-function scoreBlendedCurve(
-  blended: number[],
-  ctx: TasteContext,
-  nudges?: ToneNudges,
-): number {
+const NUDGE_STEP_DB = 0.15;
+const NUDGE_PENALTY_WEIGHT = 2.0;
+
+function computeVec(blended: number[]): number[] {
   const bands8 = bandsTo8Band(blended);
   const total = Object.values(bands8).reduce((a, b) => a + b, 0);
   const mean = total / BAND_KEYS.length;
-
   const vec: number[] = [];
   for (const k of BAND_KEYS) {
     const val = bands8[k];
@@ -89,6 +87,16 @@ function scoreBlendedCurve(
   }
   vec.push(computeTiltFrom24Bands(blended) / 10);
   vec.push(computeSmoothnessFrom24Bands(blended) / 100);
+  return vec;
+}
+
+function scoreBlendedCurve(
+  blended: number[],
+  ctx: TasteContext,
+  nudges?: ToneNudges,
+  baselineVec?: number[],
+): number {
+  const vec = computeVec(blended);
 
   const { bias } = getTasteBias(ctx, vec);
 
@@ -103,18 +111,25 @@ function scoreBlendedCurve(
   }
 
   let nudgeBonus = 0;
-  if (nudges) {
+  if (nudges && baselineVec) {
     for (let i = 0; i < BAND_KEYS.length; i++) {
       const n = nudges[BAND_KEYS[i]];
-      if (n && isFinite(n)) nudgeBonus += vec[i] * n * 0.5;
+      if (n && isFinite(n)) {
+        const target = baselineVec[i] + n * NUDGE_STEP_DB;
+        nudgeBonus -= Math.abs(vec[i] - target) * NUDGE_PENALTY_WEIGHT;
+      }
     }
     const tiltN = nudges.tilt;
     if (tiltN && isFinite(tiltN)) {
-      nudgeBonus += vec[BAND_KEYS.length] * tiltN * 0.5;
+      const tiltIdx = BAND_KEYS.length;
+      const target = baselineVec[tiltIdx] + tiltN * NUDGE_STEP_DB;
+      nudgeBonus -= Math.abs(vec[tiltIdx] - target) * NUDGE_PENALTY_WEIGHT;
     }
     const smN = nudges.smoothness;
     if (smN && isFinite(smN)) {
-      nudgeBonus += vec[BAND_KEYS.length + 1] * smN * 0.5;
+      const smIdx = BAND_KEYS.length + 1;
+      const target = baselineVec[smIdx] + smN * (0.05);
+      nudgeBonus -= Math.abs(vec[smIdx] - target) * NUDGE_PENALTY_WEIGHT;
     }
   }
 
@@ -154,7 +169,8 @@ export function optimizeBlendRatios(
   }
 
   const aiBlended = blendMagnitudes(irLogBands, aiNorm);
-  const aiScore = scoreBlendedCurve(aiBlended, ctx, nudges);
+  const baselineVec = computeVec(aiBlended);
+  const aiScore = scoreBlendedCurve(aiBlended, ctx, nudges, baselineVec);
 
   let bestRatios = [...aiNorm];
   let bestScore = aiScore;
@@ -183,7 +199,7 @@ export function optimizeBlendRatios(
     if (!valid) continue;
 
     const blended = blendMagnitudes(irLogBands, norm);
-    const score = scoreBlendedCurve(blended, ctx, nudges);
+    const score = scoreBlendedCurve(blended, ctx, nudges, baselineVec);
 
     if (score > bestScore) {
       bestScore = score;

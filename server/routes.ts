@@ -5919,14 +5919,34 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return Math.max(0, Math.min(100, 100 - avg * 8));
       }
 
-      function scoreBlend(irs: IREntry[], ratios: number[]): number {
-        if (use24Band && irs.every(ir => ir.logBands !== null)) {
-          return scoreBlend24(irs, ratios);
-        }
-        return scoreBlend6(irs, ratios);
+      function computeBaselineVec(irs: IREntry[], ratios: number[]): { vec6: number[]; vec24: number[] | null } {
+        const vec6 = computeVec6(irs, ratios);
+        const vec24 = (use24Band && irs.every(ir => ir.logBands !== null)) ? computeVec24(irs, ratios) : null;
+        return { vec6, vec24 };
       }
 
-      function scoreBlend6(irs: IREntry[], ratios: number[]): number {
+      function scoreBlend(irs: IREntry[], ratios: number[], baseVecs?: { vec6: number[]; vec24: number[] | null }): number {
+        if (use24Band && irs.every(ir => ir.logBands !== null)) {
+          return scoreBlend24(irs, ratios, baseVecs?.vec24 ?? undefined);
+        }
+        return scoreBlend6(irs, ratios, baseVecs?.vec6 ?? undefined);
+      }
+
+      const NUDGE_STEP_6 = 0.5;
+      const NUDGE_PENALTY_6 = 1.5;
+
+      function computeVec6(irs: IREntry[], ratios: number[]): number[] {
+        const bands = blendBands6(irs, ratios);
+        const pcts = toPercent(bands);
+        const tilt = computeTilt6(bands);
+        const smooth = computeSmoothness6(bands);
+        let uh = 0;
+        for (let i = 0; i < irs.length; i++) uh += irs[i].ultraHigh * (ratios[i] || 0);
+        const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
+        return [...pcts, airPct, tilt, smooth];
+      }
+
+      function scoreBlend6(irs: IREntry[], ratios: number[], baseVec6?: number[]): number {
         const bands = blendBands6(irs, ratios);
         const pcts = toPercent(bands);
         const tilt = computeTilt6(bands);
@@ -5941,30 +5961,59 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           score -= Math.abs(db[i] - db[i - 1]) * 0.005;
         }
 
-        if (nudges) {
+        if (nudges && baseVec6) {
           for (let i = 0; i < bandKeys6.length; i++) {
             const nv = nudges[bandKeys6[i]];
-            if (nv && isFinite(nv)) score += pcts[i] * nv * 0.15;
+            if (nv && isFinite(nv)) {
+              const target = baseVec6[i] + nv * NUDGE_STEP_6;
+              score -= Math.abs(pcts[i] - target) * NUDGE_PENALTY_6 * 0.01;
+            }
           }
           const airN = nudges["air"];
           if (airN && isFinite(airN)) {
-            const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12);
-            score += airPct * airN * 0.15;
+            const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
+            const target = baseVec6[6] + airN * NUDGE_STEP_6;
+            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.01;
           }
           const fizzN = nudges["fizz"];
           if (fizzN && isFinite(fizzN)) {
-            const fizzPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12);
-            score -= fizzPct * fizzN * 0.15;
+            const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
+            const target = baseVec6[6] - fizzN * NUDGE_STEP_6;
+            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.01;
           }
           const tiltN = nudges["tilt"];
-          if (tiltN && isFinite(tiltN)) score += tilt * tiltN * 2.0;
+          if (tiltN && isFinite(tiltN)) {
+            const target = baseVec6[7] + tiltN * 0.3;
+            score -= Math.abs(tilt - target) * NUDGE_PENALTY_6;
+          }
           const smN = nudges["smoothness"];
-          if (smN && isFinite(smN)) score += smooth * smN * 0.05;
+          if (smN && isFinite(smN)) {
+            const target = baseVec6[8] + smN * 2.0;
+            score -= Math.abs(smooth - target) * NUDGE_PENALTY_6 * 0.01;
+          }
         }
         return score;
       }
 
-      function scoreBlend24(irs: IREntry[], ratios: number[]): number {
+      const NUDGE_STEP_24 = 0.15;
+      const NUDGE_PENALTY_24 = 2.0;
+
+      function computeVec24(irs: IREntry[], ratios: number[]): number[] {
+        const blended = blendBands24(irs, ratios);
+        const bands8 = bands24To8(blended);
+        const total8 = bands8.reduce((a, b) => a + b, 0);
+        const mean8 = total8 / 8;
+        const vec: number[] = [];
+        for (const val of bands8) {
+          const db = val > 0 ? 10 * Math.log10(val / Math.max(mean8, 1e-12)) : -3;
+          vec.push(db / 10);
+        }
+        vec.push(computeTilt24(blended) / 10);
+        vec.push(computeSmoothness24(blended) / 100);
+        return vec;
+      }
+
+      function scoreBlend24(irs: IREntry[], ratios: number[], baseVec24?: number[]): number {
         const blended = blendBands24(irs, ratios);
         const bands8 = bands24To8(blended);
         const total8 = bands8.reduce((a, b) => a + b, 0);
@@ -5991,15 +6040,24 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         }
 
         let nudgeBonus = 0;
-        if (nudges) {
+        if (nudges && baseVec24) {
           for (let i = 0; i < bandKeys8.length; i++) {
             const nv = nudges[bandKeys8[i]];
-            if (nv && isFinite(nv)) nudgeBonus += vec[i] * nv * 0.5;
+            if (nv && isFinite(nv)) {
+              const target = baseVec24[i] + nv * NUDGE_STEP_24;
+              nudgeBonus -= Math.abs(vec[i] - target) * NUDGE_PENALTY_24;
+            }
           }
           const tiltN = nudges["tilt"];
-          if (tiltN && isFinite(tiltN)) nudgeBonus += vec[8] * tiltN * 0.5;
+          if (tiltN && isFinite(tiltN)) {
+            const target = baseVec24[8] + tiltN * NUDGE_STEP_24;
+            nudgeBonus -= Math.abs(vec[8] - target) * NUDGE_PENALTY_24;
+          }
           const smN = nudges["smoothness"];
-          if (smN && isFinite(smN)) nudgeBonus += vec[9] * smN * 0.5;
+          if (smN && isFinite(smN)) {
+            const target = baseVec24[9] + smN * 0.05;
+            nudgeBonus -= Math.abs(vec[9] - target) * NUDGE_PENALTY_24;
+          }
         }
 
         return smoothBonus + perceptualScore + nudgeBonus;
@@ -6013,11 +6071,11 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       const adaptiveIters = Math.min(2000, Math.max(iters, (pool?.length || 0) * layers.length * 40));
 
-      // Phase 1: Optimize ratios for the current IR set
       const n = currentIRs.length;
       let bestIRs = [...currentIRs];
       let bestRatios = normalizeRatios(layers.map(l => l.percentage / 100));
-      let bestScore = scoreBlend(bestIRs, bestRatios);
+      const baseVecs = computeBaselineVec(bestIRs, bestRatios);
+      let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
 
       const step = 0.06;
@@ -6036,14 +6094,13 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         const norm = normalizeRatios(candidate);
         if (norm.some(r => r < minActive)) continue;
 
-        const s = scoreBlend(bestIRs, norm);
+        const s = scoreBlend(bestIRs, norm, baseVecs);
         if (s > bestScore) {
           bestScore = s;
           bestRatios = norm;
         }
       }
 
-      // Phase 2: Try swapping in pool IRs if it improves score
       const swaps: { out: string; in: string; reason: string }[] = [];
       if (poolIRs.length > 0 && nudges && Object.keys(nudges).length > 0) {
         const swapAttempts = Math.min(poolIRs.length * n, 200);
@@ -6060,8 +6117,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             i === slotIdx ? Math.max(minActive, r) : r
           ));
 
-          // Re-optimize ratios for the new IR set
-          let testScore = scoreBlend(testIRs, testRatios);
+          let testScore = scoreBlend(testIRs, testRatios, baseVecs);
           let testBest = [...testRatios];
           for (let iter = 0; iter < 200; iter++) {
             const c = [...testBest];
@@ -6073,7 +6129,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             c[aj] = Math.max(minActive, c[aj] - d);
             const norm = normalizeRatios(c);
             if (norm.some(r => r < minActive)) continue;
-            const s = scoreBlend(testIRs, norm);
+            const s = scoreBlend(testIRs, norm, baseVecs);
             if (s > testScore) { testScore = s; testBest = norm; }
           }
 
