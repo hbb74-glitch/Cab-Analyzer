@@ -45,17 +45,26 @@ function blendMagnitudes(irBands: number[][], ratios: number[]): number[] {
   return blended;
 }
 
-function computeTiltFrom24Bands(bands: number[]): number {
-  const n = bands.length;
-  if (n < 4) return 0;
-  const low = bands.slice(0, Math.floor(n / 3));
-  const high = bands.slice(Math.floor(2 * n / 3));
-  const avgLow = low.reduce((a, b) => a + b, 0) / low.length;
-  const avgHigh = high.reduce((a, b) => a + b, 0) / high.length;
-  const dbLow = avgLow > 0 ? 10 * Math.log10(avgLow + 1e-12) : -60;
-  const dbHigh = avgHigh > 0 ? 10 * Math.log10(avgHigh + 1e-12) : -60;
-  const octaveSpan = Math.log2(10000 / 80);
-  return (dbHigh - dbLow) / octaveSpan;
+function canonicalTiltFrom24Bands(bands: number[]): number {
+  const bands8 = bandsTo8Band(bands);
+  const EPS = 1e-12;
+  const db: Record<string, number> = {};
+  for (const k of BAND_KEYS) {
+    db[k] = 10 * Math.log10(Math.max(EPS, bands8[k]));
+  }
+  const refCandidates = [db.mid, db.highMid, db.presence].filter(Number.isFinite);
+  const ref = refCandidates.length > 0
+    ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length
+    : 0;
+  const shape: Record<string, number> = {};
+  for (const k of BAND_KEYS) {
+    shape[k] = Number.isFinite(db[k]) ? db[k] - ref : -60;
+  }
+  const highSide = Number.isFinite(shape.air)
+    ? (shape.presence + shape.air) / 2
+    : shape.presence;
+  const lowSide = (shape.bass + shape.subBass) / 2;
+  return highSide - lowSide;
 }
 
 function computeSmoothnessFrom24Bands(bands: number[]): number {
@@ -94,7 +103,7 @@ function computeVec(blended: number[]): number[] {
     const db = val > 0 ? 10 * Math.log10(val / Math.max(mean, 1e-12)) : -3;
     vec.push(db / 10);
   }
-  vec.push(computeTiltFrom24Bands(blended) / 10);
+  vec.push(canonicalTiltFrom24Bands(blended) / 10);
   vec.push(computeSmoothnessFrom24Bands(blended) / 100);
   return vec;
 }

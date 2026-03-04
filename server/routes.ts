@@ -5896,23 +5896,34 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return bands.map(b => Math.round((b / total) * 1000) / 10);
       }
 
+      function canonicalTiltFromBands(bandValues: number[], bandNames: string[]): number {
+        const EPS = 1e-12;
+        const db: Record<string, number> = {};
+        for (let i = 0; i < bandNames.length; i++) {
+          db[bandNames[i]] = 10 * Math.log10(Math.max(EPS, bandValues[i]));
+        }
+        const refCandidates = [db["mid"], db["highMid"], db["presence"]].filter(Number.isFinite);
+        const ref = refCandidates.length > 0
+          ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length
+          : 0;
+        const shape: Record<string, number> = {};
+        for (const k of bandNames) {
+          shape[k] = Number.isFinite(db[k]) ? db[k] - ref : -60;
+        }
+        const highSide = Number.isFinite(shape["air"])
+          ? (shape["presence"] + shape["air"]) / 2
+          : shape["presence"];
+        const lowSide = (shape["bass"] + shape["subBass"]) / 2;
+        return Math.round((highSide - lowSide) * 100) / 100;
+      }
+
       function computeTilt6(bands: number[]): number {
-        const lowAvg = (bands[0] + bands[1] + bands[2]) / 3;
-        const highAvg = (bands[3] + bands[4] + bands[5]) / 3;
-        const dbLow = lowAvg > 0 ? 10 * Math.log10(lowAvg + 1e-12) : -60;
-        const dbHigh = highAvg > 0 ? 10 * Math.log10(highAvg + 1e-12) : -60;
-        return Math.round(((dbHigh - dbLow) / Math.log2(10000 / 80)) * 100) / 100;
+        return canonicalTiltFromBands(bands, ["subBass", "bass", "lowMid", "mid", "highMid", "presence"]);
       }
 
       function computeTilt24(bands: number[]): number {
-        const n24 = bands.length;
-        const low = bands.slice(0, Math.floor(n24 / 3));
-        const high = bands.slice(Math.floor(2 * n24 / 3));
-        const avgLow = low.reduce((a, b) => a + b, 0) / low.length;
-        const avgHigh = high.reduce((a, b) => a + b, 0) / high.length;
-        const dbLow = avgLow > 0 ? 10 * Math.log10(avgLow + 1e-12) : -60;
-        const dbHigh = avgHigh > 0 ? 10 * Math.log10(avgHigh + 1e-12) : -60;
-        return (dbHigh - dbLow) / Math.log2(10000 / 80);
+        const bands8 = bands24To8(bands);
+        return canonicalTiltFromBands(bands8, ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air", "fizz"]);
       }
 
       function computeSmoothness6(bands: number[]): number {
@@ -5994,7 +6005,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
           const tiltN = nudges["tilt"];
           if (tiltN && isFinite(tiltN)) {
-            const target = baseVec6[7] + tiltN * 0.3;
+            const target = baseVec6[7] + tiltN * 1.5;
             score -= Math.abs(tilt - target) * NUDGE_PENALTY_6;
           }
           const smN = nudges["smoothness"];

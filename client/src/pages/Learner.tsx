@@ -1606,17 +1606,17 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
 
                 {displayBlend.bandBreakdown && (() => {
                   const bb = displayBlend.bandBreakdown;
+                  const EPS = 1e-12;
                   const pcts = [bb.subBass, bb.bass, bb.lowMid, bb.mid, bb.highMid, bb.presence];
                   const total = pcts.reduce((a, b) => a + b, 0) || 1;
                   const energies = pcts.map(p => p / total);
-                  const lowAvg = (energies[0] + energies[1] + energies[2]) / 3;
-                  const highAvg = (energies[3] + energies[4] + energies[5]) / 3;
-                  const dbLow = lowAvg > 0 ? 10 * Math.log10(lowAvg + 1e-12) : -60;
-                  const dbHigh = highAvg > 0 ? 10 * Math.log10(highAvg + 1e-12) : -60;
-                  const octaveSpan = Math.log2(8000 / 80);
-                  const tiltVal = Math.round(((dbHigh - dbLow) / octaveSpan) * 100) / 100;
-                  const tiltLabel = tiltVal > 0.5 ? "Bright" : tiltVal > 0.15 ? "Sl. Bright" : tiltVal < -0.5 ? "Dark" : tiltVal < -0.15 ? "Sl. Dark" : "Neutral";
-                  const tiltColor = tiltVal > 0.15 ? "text-yellow-400" : tiltVal < -0.15 ? "text-blue-400" : "text-muted-foreground";
+                  const db = energies.map(e => 10 * Math.log10(Math.max(EPS, e)));
+                  const refCandidates = [db[3], db[4], db[5]].filter(Number.isFinite);
+                  const ref = refCandidates.length > 0 ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length : 0;
+                  const shape = db.map(d => Number.isFinite(d) ? d - ref : -60);
+                  const tiltVal = Math.round((shape[5] - (shape[0] + shape[1]) / 2) * 100) / 100;
+                  const tiltLabel = tiltVal >= 2.5 ? "Bright" : tiltVal > 0.5 ? "Bright lean" : tiltVal >= -0.5 ? "Neutral" : tiltVal > -2.5 ? "Dark lean" : "Dark";
+                  const tiltColor = tiltVal > 0.5 ? "text-yellow-400" : tiltVal < -0.5 ? "text-blue-400" : "text-muted-foreground";
                   return (
                     <div className="space-y-1">
                       <div className="grid grid-cols-6 gap-1 text-center" data-testid="superblend-bands">
@@ -1629,7 +1629,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                       </div>
                       <div className="flex items-center justify-center gap-2 text-[9px]" data-testid="superblend-tilt">
                         <span className="text-muted-foreground">Tilt:</span>
-                        <span className={cn("font-mono font-semibold", tiltColor)}>{tiltVal > 0 ? "+" : ""}{tiltVal} ({tiltLabel})</span>
+                        <span className={cn("font-mono font-semibold", tiltColor)}>{tiltVal > 0 ? "+" : ""}{tiltVal.toFixed(1)} dB ({tiltLabel})</span>
                       </div>
                     </div>
                   );

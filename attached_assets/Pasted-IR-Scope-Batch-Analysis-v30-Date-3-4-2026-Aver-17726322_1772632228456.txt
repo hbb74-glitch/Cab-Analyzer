@@ -1,0 +1,286 @@
+IR.Scope Batch Analysis: v30
+Date: 3/4/2026
+==================================================
+
+Average Score: 92/100
+Summary: The collection is comprehensive. It includes coverage for bright/aggressive tones (e.g., PR30, SM57, e906), warm/dark tones (e.g., R121, MD441, SM57_R121 blend), balanced/neutral tones (e.g., MD421, M201), and mic family diversity with dynamics, ribbons, and condensers. Essential mic characters are present, including SM57, MD421, R121, and Roswell Cab Mic. Position and distance variety are well-represented, allowing for versatile mixing options. Classic blend pairs such as SM57 + R121 and MD421 + R121 are achievable.
+
+INDIVIDUAL RESULTS
+------------------------------
+
+1. V30_PR30_CapEdge_3in.wav
+   Score: 94/100 (Perfect)
+   Role: Cut Layer
+   Detected: Mic: pr30, Pos: capedge, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent with no significant issues. It has a balanced spectral profile and smooth frequency response, making it a strong choice for professional use.
+   Highlights: Spectral centroid is well within the expected range, ensuring tonal accuracy., Exceptionally smooth frequency response, especially for a pr30 mic., Exceptionally smooth for pr30 (expected range: 64-80), Very clean recording (short IR)
+   Tonal Center: Expected 3425-4425Hz, Actual 3552Hz (On Target)
+
+2. V30_MD441_Flat_CapEdge_2in.wav
+   Score: 86/100 
+   Role: Computed: Dark Specialty | KB: Foundation
+   Detected: Mic: md441, Pos: capedge, Spk: v30, Dist: 2
+   Advice: This IR is technically very good, but the darker tonal balance might not suit all applications. Consider blending it with a brighter IR for more 'bite' if needed.
+   Highlights: Exceptionally smooth frequency response for an md441 mic, No clipping or significant notches detected, Exceptionally smooth for md441 (expected range: 64-78), Very clean recording (short IR)
+   Issues: Spectral centroid is significantly darker than expected, which may reduce clarity in some mixes
+   Tonal Center: Expected 2925-3825Hz, Actual 2073Hz (-852Hz, 95% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_MD441_Flat_CapEdge_2in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character.
+
+3. V30_R121_Cap_4in.wav
+   Score: 90/100 
+   Role: Computed: Mid Thickener | KB: Fizz Tamer
+   Detected: Mic: r121, Pos: cap, Spk: v30, Dist: 4
+   Advice: This IR is technically excellent, but the darker tone might not suit all applications. Consider blending with a brighter IR for more balance.
+   Highlights: Exceptionally smooth frequency response for an r121 mic, No clipping or significant notches detected, Exceptionally smooth for r121 (expected range: 66-80), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected, deviating by 183Hz below the target range
+   Tonal Center: Expected 2525-3225Hz, Actual 2342Hz (-183Hz, 26% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_R121_Cap_4in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character.
+
+4. V30_PR30_Cap_Cone_Tr_3in.wav
+   Score: 92/100 
+   Role: Computed: Foundation
+   Detected: Mic: pr30, Pos: cap_cone_tr, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent, but the slightly darker tone might benefit from blending with a brighter IR to add more 'bite' if needed.
+   Highlights: Exceptionally smooth frequency response (89/100 smoothness), No clipping or significant notches detected, Exceptionally smooth for pr30 (expected range: 64-80), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected (-173Hz below range)
+   Tonal Center: Expected 3175-4175Hz, Actual 3002Hz (-173Hz, 17% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_PR30_Cap_Cone_Tr_3in_Warm.wav
+   Reason: The spectral centroid is slightly darker than expected, suggesting a 'warm' tonal character.
+
+5. V30_Roswell_Cap_5in.wav
+   Score: 90/100 
+   Role: Computed: Dark Specialty | KB: Foundation
+   Detected: Mic: roswell, Pos: cap, Spk: v30, Dist: 5
+   Advice: This IR is technically excellent but leans darker than expected. Consider blending it with a brighter IR for more balance or using it for tones needing extra heft and warmth.
+   Highlights: Exceptionally smooth frequency response, No clipping or technical artifacts, Exceptionally smooth for roswell (expected range: 58-78), Very clean recording (short IR)
+   Issues: Spectral centroid is darker than expected, slightly below the target range
+   Tonal Center: Expected 2425-3425Hz, Actual 1946Hz (-479Hz, 48% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_Roswell_Cap_5in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a warmer tonal character.
+
+6. V30_MD441_Presence_Cap_Cone_Tr_3in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Cut Layer
+   Detected: Mic: md441_presence, Pos: cap_cone_tr, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed for tonal balance.
+   Highlights: Spectral centroid is well within the expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for the MD441 mic, exceeding expectations., Exceptionally smooth for md441_presence (expected range: 64-78), Very clean recording (short IR)
+   Tonal Center: Expected 2975-3875Hz, Actual 3069Hz (On Target)
+
+7. V30_PR30_CapEdge_Br_3in.wav
+   Score: 94/100 (Perfect)
+   Role: Cut Layer
+   Detected: Mic: pr30, Pos: capedge_br, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent with no significant issues. It has a tight and clear tonal balance, and the spectral centroid is well within the expected range.
+   Highlights: Spectral centroid is within the expected range, ensuring balanced tone., Exceptionally smooth frequency response for a PR30 mic, exceeding typical expectations., Exceptionally smooth for pr30 (expected range: 64-80), Very clean recording (short IR)
+   Tonal Center: Expected 3575-4575Hz, Actual 3702Hz (On Target)
+
+8. V30_R121_Cap_6in.wav
+   Score: 90/100 
+   Role: Computed: Mid Thickener | KB: Fizz Tamer
+   Detected: Mic: r121, Pos: cap, Spk: v30, Dist: 6
+   Advice: This IR is technically excellent, but the darker spectral balance might benefit from a tonal modifier to better match user preferences for clarity and aggression.
+   Highlights: Exceptionally smooth frequency response (88/100 smoothness), No clipping or technical artifacts detected, Exceptionally smooth for r121 (expected range: 66-80), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected, deviating by 291Hz below the target range
+   Tonal Center: Expected 2525-3225Hz, Actual 2234Hz (-291Hz, 42% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_R121_Cap_6in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character that aligns with user preferences for heft and bottom end.
+
+9. V30_SM57_Cap_Cone_Tr_2in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Foundation | KB: Mid Thickener
+   Detected: Mic: sm57, Pos: cap_cone_tr, Spk: v30, Dist: 2
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed unless you want to tweak tonal brightness or darkness for specific mix goals.
+   Highlights: Spectral centroid is within expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for an SM57 capture., Exceptionally smooth for sm57 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2575-3375Hz, Actual 2613Hz (On Target)
+
+10. V30_MD441_Presence_Cap_1in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Cut Layer | KB: Foundation
+   Detected: Mic: md441_presence, Pos: cap, Spk: v30, Dist: 1
+   Advice: This IR is technically excellent with no significant issues. It offers a tight and clear tone with a balanced spectral profile, making it highly usable in professional contexts.
+   Highlights: Spectral centroid is well within the expected range, ensuring tonal balance., Exceptionally smooth frequency response, exceeding expectations for this mic and position., Exceptionally smooth for md441_presence (expected range: 64-78), Very clean recording (short IR)
+   Tonal Center: Expected 3625-4525Hz, Actual 3724Hz (On Target)
+
+11. V30_SM57_Cap_OffCenter_2in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Foundation | KB: Cut Layer
+   Detected: Mic: sm57, Pos: cap_offcenter, Spk: v30, Dist: 2
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed unless you want to tweak tonal brightness or heft for specific blends.
+   Highlights: Spectral centroid is within expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for an SM57 capture., Exceptionally smooth for sm57 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 3075-3875Hz, Actual 3185Hz (On Target)
+
+12. V30_Roswell_Cap_6in.wav
+   Score: 88/100 
+   Role: Computed: Dark Specialty | KB: Foundation
+   Detected: Mic: roswell, Pos: cap, Spk: v30, Dist: 6
+   Advice: This IR is technically very good, but the darker spectral balance might benefit from a slight EQ boost in the upper mids for more 'bark' and clarity.
+   Highlights: Exceptionally smooth frequency response, No clipping or technical artifacts, Exceptionally smooth for roswell (expected range: 58-78), Very clean recording (short IR)
+   Issues: Spectral centroid is darker than expected, deviating moderately from the target range
+   Tonal Center: Expected 2425-3425Hz, Actual 1822Hz (-603Hz, 60% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_Roswell_Cap_6in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character that aligns with user preferences for heft and clarity.
+
+13. V30_e906_Presence_CapEdge_3in.wav
+   Score: 90/100 
+   Role: Foundation
+   Detected: Mic: e906_presence, Pos: capedge, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent, but the spectral centroid is slightly darker than expected. Consider blending with a brighter IR for more 'bite' if needed.
+   Highlights: Exceptionally smooth frequency response (88/100 smoothness), No clipping detected, peak level is perfect at 0.0dB, Exceptionally smooth for e906_presence (expected range: 60-76), Very clean recording (short IR)
+   Issues: Spectral centroid is 346Hz below expected range, making the tone slightly darker
+   Tonal Center: Expected 3225-4225Hz, Actual 2879Hz (-346Hz, 35% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_e906_Presence_CapEdge_3in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character.
+
+14. V30_SM57_CapEdge_Br_2in.wav
+   Score: 94/100 (Perfect)
+   Role: Foundation
+   Detected: Mic: sm57, Pos: capedge_br, Spk: v30, Dist: 2
+   Advice: This IR is technically excellent with no significant issues. It has a tight, clear tone and balances energy well across the spectrum.
+   Highlights: Spectral centroid is perfectly within the expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for an SM57, which enhances clarity and reduces harshness., Exceptionally smooth for sm57 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2975-3775Hz, Actual 3026Hz (On Target)
+
+15. V30_M201_Cap_Cone_Tr_3in.wav
+   Score: 92/100 
+   Role: Computed: Foundation
+   Detected: Mic: m201, Pos: cap_cone_tr, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent, with smooth frequency response and no clipping. The slightly darker spectral centroid suggests it could benefit from a tonal modifier for warmth.
+   Highlights: Exceptionally smooth frequency response (86/100), No clipping detected, Balanced energy distribution across low, mid, and high frequencies, Exceptionally smooth for m201 (expected range: 62-76), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected (-1 point)
+   Tonal Center: Expected 2475-3175Hz, Actual 2370Hz (-105Hz, 15% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_M201_Cap_Cone_Tr_3in_Warm.wav
+   Reason: The spectral centroid is slightly below the expected range, indicating a warmer tonal character. Adding '_Warm' helps describe this tonal quality.
+
+16. V30_M201_Cap_OffCenter_3in.wav
+   Score: 90/100 
+   Role: Computed: Foundation | KB: Cut Layer
+   Detected: Mic: m201, Pos: cap_offcenter, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent but leans darker than expected. Consider blending it with a brighter IR for more 'bark' and clarity in the upper mids.
+   Highlights: Exceptionally smooth frequency response (91/100 smoothness), No clipping or technical artifacts detected, Exceptionally smooth for m201 (expected range: 62-76), Very clean recording (short IR)
+   Issues: Spectral centroid is darker than expected, deviating by 336Hz below the target range
+   Tonal Center: Expected 2975-3675Hz, Actual 2639Hz (-336Hz, 48% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_M201_Cap_OffCenter_3in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a 'warm' tonal character.
+
+17. V30_M201_CapEdge_3in.wav
+   Score: 90/100 
+   Role: Foundation
+   Detected: Mic: m201, Pos: capedge, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent, but the spectral balance leans slightly darker than expected. Consider blending with a brighter IR for more 'bite' if needed.
+   Highlights: Exceptionally smooth frequency response (87/100 smoothness), No clipping or significant notches detected, Exceptionally smooth for m201 (expected range: 62-76), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected (-2 points)
+   Tonal Center: Expected 2725-3425Hz, Actual 2536Hz (-189Hz, 27% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_M201_CapEdge_3in_Warm.wav
+   Reason: The spectral centroid is below the expected range, giving the IR a slightly darker tonal character. Adding '_Warm' helps describe this tonal quality.
+
+18. V30_SM57_R121_Balanced_A_6in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Foundation | KB: Cut Layer
+   Detected: Mic: sm57_r121_blend, Pos: blend, Spk: v30, Dist: 6
+   Advice: This IR is technically excellent with no significant issues. It has a balanced spectral profile and smooth frequency response, making it a strong choice for professional use.
+   Highlights: Spectral centroid is well within the expected range, ensuring balanced tone., Exceptionally smooth frequency response for this mic blend, exceeding typical expectations., Exceptionally smooth for sm57_r121_blend (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2825-3625Hz, Actual 3018Hz (On Target)
+
+19. V30_MD421_Cap_3.5in.wav
+   Score: 94/100 (Perfect)
+   Role: Cut Layer
+   Detected: Mic: md421, Pos: cap, Spk: v30, Dist: 3.5
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed for tonal balance.
+   Highlights: Spectral centroid is within expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for the md421 mic., Exceptionally smooth for md421 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 3025-3825Hz, Actual 3674Hz (On Target)
+
+20. V30_SM57_CapEdge_2in.wav
+   Score: 94/100 (Perfect)
+   Role: Foundation
+   Detected: Mic: sm57, Pos: capedge, Spk: v30, Dist: 2
+   Advice: This IR is technically excellent and well-balanced. It has a tight, aggressive tone with clear mids and highs, and no clipping or energy imbalance detected.
+   Highlights: Spectral centroid is within expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for an SM57 capture., Exceptionally smooth for sm57 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2825-3625Hz, Actual 2943Hz (On Target)
+
+21. V30_M201_Cone_3in.wav
+   Score: 92/100 
+   Role: Computed: Dark Specialty
+   Detected: Mic: m201, Pos: cone, Spk: v30, Dist: 3
+   Advice: This IR is technically excellent, with smooth frequency response and no clipping. The slightly darker spectral centroid suggests it could benefit from a tonal modifier to better match expectations.
+   Highlights: Exceptionally smooth frequency response (88/100 smoothness), No clipping detected, ensuring clean audio quality, Exceptionally smooth for m201 (expected range: 62-76), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected (64Hz below range)
+   Tonal Center: Expected 2225-2925Hz, Actual 2161Hz (-64Hz, 9% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_M201_Cone_3in_Warm.wav
+   Reason: The spectral centroid is slightly darker than expected, which suggests a warmer tonal character. Adding '_Warm' helps describe this tonal quality.
+
+22. V30_SM57_R121_Thick_A_5in.wav
+   Score: 94/100 (Perfect)
+   Role: Cut Layer
+   Detected: Mic: sm57_r121_blend, Pos: blend, Spk: v30, Dist: 5
+   Advice: This IR is technically excellent with no significant issues. It offers a smooth and balanced tone, making it highly usable in professional contexts.
+   Highlights: Spectral centroid is well within the expected range, ensuring balanced tone., Exceptionally smooth frequency response for this mic blend, exceeding typical expectations., Exceptionally smooth for sm57_r121_blend (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2825-3625Hz, Actual 2882Hz (On Target)
+
+23. V30_SM57_Fredman_2in.wav
+   Score: 94/100 
+   Role: Computed: Foundation | KB: Cut Layer
+   Detected: Mic: sm57, Pos: capedge, Spk: v30, Dist: 2
+   Advice: This IR is technically excellent, but the spectral centroid is slightly darker than expected. Consider blending with a brighter IR to balance the tone if needed.
+   Highlights: Exceptionally smooth frequency response for an SM57 capture, No clipping or technical issues detected, Exceptionally smooth for sm57 (expected range: 62-78), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly darker than expected
+   Tonal Center: Expected 2825-3625Hz, Actual 2718Hz (-107Hz, 13% dark)
+   Tonal Character: _Warm
+   Suggested Name: V30_SM57_Fredman_2in_Warm.wav
+   Reason: The spectral centroid is darker than expected, suggesting a warmer tonal character.
+
+24. V30_SM57_R121_Tight_A_4.75in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Foundation | KB: Cut Layer
+   Detected: Mic: sm57_r121_blend, Pos: blend, Spk: v30, Dist: 4.75
+   Advice: This IR is technically excellent with no significant issues. It offers a tight, clear tone with a balanced spectral profile.
+   Highlights: Spectral centroid is well within the expected range, ensuring balanced tone., Exceptionally smooth frequency response for this mic blend, exceeding typical expectations., Exceptionally smooth for sm57_r121_blend (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2825-3625Hz, Actual 3037Hz (On Target)
+
+25. V30_MD421_Cap_Cone_Tr_4in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Cut Layer | KB: Mid Thickener
+   Detected: Mic: md421, Pos: cap_cone_tr, Spk: v30, Dist: 4
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed unless you want to tweak tonal brightness or darkness for specific mix goals.
+   Highlights: Spectral centroid is perfectly within expected range, ensuring balanced tonal clarity., Exceptionally smooth frequency response for an md421 mic, exceeding typical expectations., Exceptionally smooth for md421 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2375-3175Hz, Actual 2865Hz (On Target)
+
+26. V30_MD421_Cone_4in.wav
+   Score: 94/100 (Perfect)
+   Role: Mid Thickener
+   Detected: Mic: md421, Pos: cone, Spk: v30, Dist: 4
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed unless you want to tweak tonal brightness or darkness for specific mix goals.
+   Highlights: Spectral centroid is well within the expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for the md421 mic, exceeding typical expectations., Exceptionally smooth for md421 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2125-2925Hz, Actual 2201Hz (On Target)
+
+27. V30_MD421_CapEdge_3.5in.wav
+   Score: 92/100 
+   Role: Computed: Cut Layer | KB: Foundation
+   Detected: Mic: md421, Pos: capedge, Spk: v30, Dist: 3.5
+   Advice: This IR is technically excellent, but the spectral centroid is slightly brighter than expected. Consider blending with a darker IR for balance if needed.
+   Highlights: Exceptionally smooth frequency response for an md421 mic, No clipping detected and peak level is perfectly calibrated, Exceptionally smooth for md421 (expected range: 62-78), Very clean recording (short IR)
+   Issues: Spectral centroid is slightly above the expected range, making the tone brighter than anticipated
+   Tonal Center: Expected 2625-3425Hz, Actual 3562Hz (+137Hz, 17% bright)
+   Tonal Character: _Bright
+   Suggested Name: V30_MD421_CapEdge_3.5in_Bright.wav
+   Reason: The spectral centroid is brighter than expected, which may influence tonal perception. Adding '_Bright' helps clarify this characteristic.
+
+28. V30_MD421_CapEdge_Br_3.5in.wav
+   Score: 94/100 (Perfect)
+   Role: Computed: Cut Layer | KB: Foundation
+   Detected: Mic: md421, Pos: capedge_br, Spk: v30, Dist: 3.5
+   Advice: This IR is technically excellent with smooth frequency response and balanced energy distribution. No adjustments are needed for tonal balance.
+   Highlights: Spectral centroid is within expected range, ensuring tonal accuracy., Exceptionally smooth frequency response for the md421 mic., Exceptionally smooth for md421 (expected range: 62-78), Very clean recording (short IR)
+   Tonal Center: Expected 2775-3575Hz, Actual 3409Hz (On Target)
+
