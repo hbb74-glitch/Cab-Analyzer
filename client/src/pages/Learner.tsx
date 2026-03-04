@@ -916,10 +916,15 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   }, [allIRs]);
 
   useEffect(() => {
-    if (speakers.length > 0 && !selectedSpeaker) {
-      setSelectedSpeaker(speakers[0][0]);
+    if (speakers.length > 0) {
+      const currentValid = speakers.some(([s]) => s === selectedSpeaker);
+      if (!selectedSpeaker || !currentValid) {
+        setSelectedSpeaker(speakers[0][0]);
+      }
+    } else {
+      setSelectedSpeaker("");
     }
-  }, [speakers, selectedSpeaker]);
+  }, [speakers]);
 
   const speakerIRs = useMemo(() => {
     if (selectedSpeaker === "__mixed__") return allIRs;

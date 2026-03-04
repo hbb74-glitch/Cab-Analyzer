@@ -1582,10 +1582,15 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
   }, [allIRs]);
 
   useEffect(() => {
-    if (speakers.length > 0 && !selectedSpeaker) {
-      setSelectedSpeaker(speakers[0][0]);
+    if (speakers.length > 0) {
+      const currentValid = speakers.some(([s]) => s === selectedSpeaker);
+      if (!selectedSpeaker || !currentValid) {
+        setSelectedSpeaker(speakers[0][0]);
+      }
+    } else {
+      setSelectedSpeaker("");
     }
-  }, [speakers, selectedSpeaker]);
+  }, [speakers]);
 
   const speakerIRs = useMemo(() => {
     if (selectedSpeaker === "__mixed__") return allIRs;
@@ -1859,7 +1864,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
         </h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setAllResults({}); setBaselineResults({}); setActiveBlend("primary"); setAiAnswer(null); onClearAll(); setOpen(false); }}
+            onClick={() => { setAllResults({}); setBaselineResults({}); setActiveBlend("primary"); setAiAnswer(null); setSelectedSpeaker(""); setRefineText(""); onClearAll(); setOpen(false); }}
             className="px-2.5 py-1 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20 transition-all flex items-center gap-1.5"
             data-testid="button-new-irs-superblend"
           >
