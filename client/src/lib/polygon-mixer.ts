@@ -87,9 +87,16 @@ export function computeMixerPosition(
 ): MixerPosition {
   const n = ratios.length;
   const vertices = getPolygonVertices(n);
-  const normalizedRatios = ratios.map(r => r / 100);
+  const sum = ratios.reduce((a, b) => a + b, 0) || 1;
+  const normalizedRatios = ratios.map(r => r / sum);
 
-  const dot = findOptimalDot(normalizedRatios, vertices);
+  let dotX = 0, dotY = 0;
+  for (let i = 0; i < n; i++) {
+    dotX += normalizedRatios[i] * vertices[i].x;
+    dotY += normalizedRatios[i] * vertices[i].y;
+  }
+  const dot: PolygonPoint = { x: dotX, y: dotY };
+
   const recoveredWeights = idwWeights(dot, vertices);
   const achievableRatios = roundRatios(recoveredWeights);
   const maxDrift = Math.max(...ratios.map((r, i) => Math.abs(r - achievableRatios[i])));
