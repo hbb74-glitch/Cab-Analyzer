@@ -6108,33 +6108,86 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const adaptiveIters = Math.min(4000, Math.max(iters, (pool?.length || 0) * layers.length * 60));
 
       const n = currentIRs.length;
+      const usePolygon = n >= 3 && n <= 8;
+
+      function getPolygonVertices(count: number): { x: number; y: number }[] {
+        const verts: { x: number; y: number }[] = [];
+        for (let i = 0; i < count; i++) {
+          const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+          verts.push({ x: Math.cos(angle), y: Math.sin(angle) });
+        }
+        return verts;
+      }
+
+      function idwWeights(dot: { x: number; y: number }, vertices: { x: number; y: number }[], power = 2): number[] {
+        const dists = vertices.map(v => Math.sqrt((dot.x - v.x) ** 2 + (dot.y - v.y) ** 2));
+        const minD = Math.min(...dists);
+        if (minD < 0.0001) return dists.map(d => d < 0.0001 ? 1 : 0);
+        const w = dists.map(d => 1 / Math.pow(d, power));
+        const s = w.reduce((a, b) => a + b, 0);
+        return w.map(x => x / s);
+      }
+
+      const polyVerts = usePolygon ? getPolygonVertices(n) : [];
+
+      function dotToRatios(x: number, y: number): number[] {
+        return idwWeights({ x, y }, polyVerts);
+      }
+
+      function ratiosToDot(ratios: number[]): { x: number; y: number } {
+        const sum = ratios.reduce((a, b) => a + b, 0) || 1;
+        let x = 0, y = 0;
+        for (let i = 0; i < ratios.length; i++) {
+          x += (ratios[i] / sum) * polyVerts[i].x;
+          y += (ratios[i] / sum) * polyVerts[i].y;
+        }
+        return { x, y };
+      }
+
       let bestIRs = [...currentIRs];
-      let bestRatios = normalizeRatios(layers.map(l => l.percentage / 100));
+      const inputRatios = normalizeRatios(layers.map(l => l.percentage / 100));
+      let bestDot = usePolygon ? ratiosToDot(inputRatios) : { x: 0, y: 0 };
+      let bestRatios = usePolygon ? dotToRatios(bestDot.x, bestDot.y) : inputRatios;
       const baseVecs = computeBaselineVec(bestIRs, bestRatios);
       let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
 
-      const minActive = 0.02;
-
       for (let iter = 0; iter < adaptiveIters; iter++) {
-        const candidate = [...bestRatios];
-        const ai = Math.floor(Math.random() * n);
-        const aj = Math.floor(Math.random() * n);
-        if (ai === aj) continue;
-
-        const progress = iter / adaptiveIters;
-        const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
-        const delta = step * (0.3 + Math.random() * 1.4);
-        candidate[ai] = Math.max(minActive, candidate[ai] + delta);
-        candidate[aj] = Math.max(minActive, candidate[aj] - delta);
-
-        const norm = normalizeRatios(candidate);
-        if (norm.some(r => r < minActive)) continue;
-
-        const s = scoreBlend(bestIRs, norm, baseVecs);
-        if (s > bestScore) {
-          bestScore = s;
-          bestRatios = norm;
+        if (usePolygon) {
+          const progress = iter / adaptiveIters;
+          const step = progress < 0.4 ? 0.25 : progress < 0.7 ? 0.12 : 0.05;
+          const angle = Math.random() * 2 * Math.PI;
+          const mag = step * (0.3 + Math.random() * 1.4);
+          const cx = bestDot.x + Math.cos(angle) * mag;
+          const cy = bestDot.y + Math.sin(angle) * mag;
+          const dist = Math.sqrt(cx * cx + cy * cy);
+          const maxR = 0.95;
+          const dx = dist > maxR ? cx * maxR / dist : cx;
+          const dy = dist > maxR ? cy * maxR / dist : cy;
+          const candidateRatios = dotToRatios(dx, dy);
+          const s = scoreBlend(bestIRs, candidateRatios, baseVecs);
+          if (s > bestScore) {
+            bestScore = s;
+            bestRatios = candidateRatios;
+            bestDot = { x: dx, y: dy };
+          }
+        } else {
+          const candidate = [...bestRatios];
+          const ai = Math.floor(Math.random() * n);
+          const aj = Math.floor(Math.random() * n);
+          if (ai === aj) continue;
+          const progress = iter / adaptiveIters;
+          const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
+          const delta = step * (0.3 + Math.random() * 1.4);
+          candidate[ai] = Math.max(0.01, candidate[ai] + delta);
+          candidate[aj] = Math.max(0.01, candidate[aj] - delta);
+          const sum = candidate.reduce((a, b) => a + b, 0);
+          const norm = candidate.map(r => r / sum);
+          const s = scoreBlend(bestIRs, norm, baseVecs);
+          if (s > bestScore) {
+            bestScore = s;
+            bestRatios = norm;
+          }
         }
       }
 
@@ -6150,26 +6203,44 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           const testIRs = [...bestIRs];
           testIRs[slotIdx] = { ...candidate, role: bestIRs[slotIdx].role };
 
-          const testRatios = normalizeRatios(bestRatios.map((r, i) =>
-            i === slotIdx ? Math.max(minActive, r) : r
-          ));
-
-          let testScore = scoreBlend(testIRs, testRatios, baseVecs);
-          let testBest = [...testRatios];
-          for (let iter = 0; iter < 400; iter++) {
-            const c = [...testBest];
-            const ai = Math.floor(Math.random() * n);
-            const aj = Math.floor(Math.random() * n);
-            if (ai === aj) continue;
-            const sp = iter / 400;
-            const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
-            const d = swapStep * (0.3 + Math.random() * 1.4);
-            c[ai] = Math.max(minActive, c[ai] + d);
-            c[aj] = Math.max(minActive, c[aj] - d);
-            const norm = normalizeRatios(c);
-            if (norm.some(r => r < minActive)) continue;
-            const s = scoreBlend(testIRs, norm, baseVecs);
-            if (s > testScore) { testScore = s; testBest = norm; }
+          let testScore: number;
+          let testBest: number[];
+          if (usePolygon) {
+            let testDot = { ...bestDot };
+            testBest = dotToRatios(testDot.x, testDot.y);
+            testScore = scoreBlend(testIRs, testBest, baseVecs);
+            for (let iter = 0; iter < 400; iter++) {
+              const sp = iter / 400;
+              const swapStep = sp < 0.4 ? 0.2 : sp < 0.7 ? 0.1 : 0.04;
+              const a = Math.random() * 2 * Math.PI;
+              const m = swapStep * (0.3 + Math.random() * 1.4);
+              const cx = testDot.x + Math.cos(a) * m;
+              const cy = testDot.y + Math.sin(a) * m;
+              const dist = Math.sqrt(cx * cx + cy * cy);
+              const maxR = 0.95;
+              const dx = dist > maxR ? cx * maxR / dist : cx;
+              const dy = dist > maxR ? cy * maxR / dist : cy;
+              const cRatios = dotToRatios(dx, dy);
+              const s = scoreBlend(testIRs, cRatios, baseVecs);
+              if (s > testScore) { testScore = s; testBest = cRatios; testDot = { x: dx, y: dy }; }
+            }
+          } else {
+            testBest = normalizeRatios([...bestRatios]);
+            testScore = scoreBlend(testIRs, testBest, baseVecs);
+            for (let iter = 0; iter < 400; iter++) {
+              const c = [...testBest];
+              const ai = Math.floor(Math.random() * n);
+              const aj = Math.floor(Math.random() * n);
+              if (ai === aj) continue;
+              const sp = iter / 400;
+              const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
+              const d = swapStep * (0.3 + Math.random() * 1.4);
+              c[ai] = Math.max(0.01, c[ai] + d);
+              c[aj] = Math.max(0.01, c[aj] - d);
+              const norm = normalizeRatios(c);
+              const s = scoreBlend(testIRs, norm, baseVecs);
+              if (s > testScore) { testScore = s; testBest = norm; }
+            }
           }
 
           if (testScore > bestScore + 0.3) {
@@ -6182,6 +6253,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             bestIRs = testIRs;
             bestRatios = testBest;
             bestScore = testScore;
+            if (usePolygon) bestDot = ratiosToDot(testBest);
           }
         }
       }
@@ -7139,36 +7211,48 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
 
       const result = JSON.parse(content);
 
-      const clampBlendRatios = (layers: any[]) => {
-        if (!layers || layers.length < 3) return;
-        const n = layers.length;
-        const minPct = Math.max(5, Math.round(50 / n));
-        const maxPct = Math.round(100 - (n - 1) * minPct);
-        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
-        if (!needsRedistribution) return;
-        for (const l of layers) {
-          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
+      const snapBlendToPolygon = (layers: any[]) => {
+        if (!layers || layers.length < 3 || layers.length > 8) return;
+        const count = layers.length;
+        const verts: { x: number; y: number }[] = [];
+        for (let i = 0; i < count; i++) {
+          const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+          verts.push({ x: Math.cos(angle), y: Math.sin(angle) });
         }
-        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
-        if (sum !== 100) {
-          const diff = 100 - sum;
-          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
-          let remaining = diff;
-          for (const l of sorted) {
-            if (remaining === 0) break;
-            const canAdd = diff > 0
-              ? Math.min(remaining, maxPct - l.percentage)
-              : Math.max(remaining, minPct - l.percentage);
-            l.percentage += canAdd;
-            remaining -= canAdd;
-          }
+        const rawPcts = layers.map((l: any) => l.percentage);
+        const total = rawPcts.reduce((a: number, b: number) => a + b, 0) || 1;
+        const norm = rawPcts.map((p: number) => p / total);
+        let dotX = 0, dotY = 0;
+        for (let i = 0; i < count; i++) {
+          dotX += norm[i] * verts[i].x;
+          dotY += norm[i] * verts[i].y;
+        }
+        const dists = verts.map(v => Math.sqrt((dotX - v.x) ** 2 + (dotY - v.y) ** 2));
+        const minD = Math.min(...dists);
+        let weights: number[];
+        if (minD < 0.0001) {
+          weights = dists.map(d => d < 0.0001 ? 1 : 0);
+        } else {
+          const w = dists.map(d => 1 / (d * d));
+          const ws = w.reduce((a, b) => a + b, 0);
+          weights = w.map(x => x / ws);
+        }
+        const rounded = weights.map(r => Math.round(r * 100));
+        const rSum = rounded.reduce((a, b) => a + b, 0);
+        if (rSum !== 100 && rSum > 0) {
+          const diff = 100 - rSum;
+          const maxIdx = rounded.indexOf(Math.max(...rounded));
+          rounded[maxIdx] += diff;
+        }
+        for (let i = 0; i < count; i++) {
+          layers[i].percentage = rounded[i];
         }
       };
 
-      if (result.blend?.layers) clampBlendRatios(result.blend.layers);
+      if (result.blend?.layers) snapBlendToPolygon(result.blend.layers);
       if (result.alternatives) {
         for (const alt of result.alternatives) {
-          if (alt.layers) clampBlendRatios(alt.layers);
+          if (alt.layers) snapBlendToPolygon(alt.layers);
         }
       }
 

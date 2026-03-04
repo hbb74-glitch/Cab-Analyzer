@@ -1398,6 +1398,58 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                         contribution: l.contribution || res.blend.layers.find((ol: any) => ol.filename === l.filename)?.contribution || "",
                       }));
 
+                      let updatedEqualParts = currentRes.equalPartsBlend;
+                      if (currentRes.equalPartsBlend?.layers) {
+                        const eqSource = (Object.keys(baselineResults).length > 0 ? baselineResults[intent] : res)?.equalPartsBlend;
+                        if (eqSource?.layers) {
+                          const eqLayersWithEnergy = eqSource.layers.map((l: SuperblendLayer) => {
+                            const m = metricsMap.get(l.filename);
+                            return {
+                              filename: l.filename,
+                              percentage: l.percentage,
+                              role: l.role,
+                              contribution: l.contribution,
+                              subBassEnergy: m?.subBassEnergy || 0,
+                              bassEnergy: m?.bassEnergy || 0,
+                              lowMidEnergy: m?.lowMidEnergy || 0,
+                              midEnergy6: m?.midEnergy6 || 0,
+                              highMidEnergy: m?.highMidEnergy || 0,
+                              presenceEnergy: m?.presenceEnergy || 0,
+                              ultraHighEnergy: m?.ultraHighEnergy || 0,
+                              logBandEnergies: m?.logBandEnergies,
+                            };
+                          });
+                          const eqResponse = await fetch(api.superblendReoptimize.reoptimize.path, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              layers: eqLayersWithEnergy,
+                              pool: poolData,
+                              nudges: toneNudges,
+                              speaker: speakerLabel,
+                              intent,
+                              irCount,
+                            }),
+                          });
+                          if (eqResponse.ok) {
+                            const eqData = await eqResponse.json();
+                            if (eqData.swaps) totalSwaps += eqData.swaps.length;
+                            const eqUpdatedLayers: SuperblendLayer[] = eqData.layers.map((l: any) => ({
+                              filename: l.filename,
+                              percentage: l.percentage,
+                              role: l.role,
+                              contribution: l.contribution || eqSource.layers.find((ol: SuperblendLayer) => ol.filename === l.filename)?.contribution || "",
+                            }));
+                            updatedEqualParts = {
+                              ...currentRes.equalPartsBlend!,
+                              layers: eqUpdatedLayers,
+                              bandBreakdown: eqData.bandBreakdown,
+                              tilt: eqData.tilt,
+                            };
+                          }
+                        }
+                      }
+
                       reoptimized[intent] = {
                         ...currentRes,
                         blend: {
@@ -1406,6 +1458,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                           bandBreakdown: data.bandBreakdown,
                           tilt: data.tilt,
                         },
+                        equalPartsBlend: updatedEqualParts,
                       };
                     }
 
