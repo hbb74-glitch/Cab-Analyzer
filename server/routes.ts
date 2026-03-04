@@ -5932,8 +5932,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return scoreBlend6(irs, ratios, baseVecs?.vec6 ?? undefined);
       }
 
-      const NUDGE_STEP_6 = 0.5;
-      const NUDGE_PENALTY_6 = 1.5;
+      const NUDGE_STEP_6 = 0.8;
+      const NUDGE_PENALTY_6 = 2.5;
 
       function computeVec6(irs: IREntry[], ratios: number[]): number[] {
         const bands = blendBands6(irs, ratios);
@@ -5995,8 +5995,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return score;
       }
 
-      const NUDGE_STEP_24 = 0.15;
-      const NUDGE_PENALTY_24 = 2.0;
+      const NUDGE_STEP_24 = 0.25;
+      const NUDGE_PENALTY_24 = 3.0;
 
       function computeVec24(irs: IREntry[], ratios: number[]): number[] {
         const blended = blendBands24(irs, ratios);
@@ -6069,7 +6069,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return r.map(v => v / sum);
       }
 
-      const adaptiveIters = Math.min(2000, Math.max(iters, (pool?.length || 0) * layers.length * 40));
+      const adaptiveIters = Math.min(4000, Math.max(iters, (pool?.length || 0) * layers.length * 60));
 
       const n = currentIRs.length;
       let bestIRs = [...currentIRs];
@@ -6078,7 +6078,6 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
 
-      const step = 0.06;
       const minActive = 0.02;
 
       for (let iter = 0; iter < adaptiveIters; iter++) {
@@ -6087,6 +6086,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         const aj = Math.floor(Math.random() * n);
         if (ai === aj) continue;
 
+        const progress = iter / adaptiveIters;
+        const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
         const delta = step * (0.3 + Math.random() * 1.4);
         candidate[ai] = Math.max(minActive, candidate[ai] + delta);
         candidate[aj] = Math.max(minActive, candidate[aj] - delta);
@@ -6119,12 +6120,14 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
           let testScore = scoreBlend(testIRs, testRatios, baseVecs);
           let testBest = [...testRatios];
-          for (let iter = 0; iter < 200; iter++) {
+          for (let iter = 0; iter < 400; iter++) {
             const c = [...testBest];
             const ai = Math.floor(Math.random() * n);
             const aj = Math.floor(Math.random() * n);
             if (ai === aj) continue;
-            const d = step * (0.3 + Math.random() * 1.4);
+            const sp = iter / 400;
+            const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
+            const d = swapStep * (0.3 + Math.random() * 1.4);
             c[ai] = Math.max(minActive, c[ai] + d);
             c[aj] = Math.max(minActive, c[aj] - d);
             const norm = normalizeRatios(c);
@@ -6133,7 +6136,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             if (s > testScore) { testScore = s; testBest = norm; }
           }
 
-          if (testScore > bestScore + 0.5) {
+          if (testScore > bestScore + 0.3) {
             const outName = bestIRs[slotIdx].filename;
             swaps.push({
               out: outName,

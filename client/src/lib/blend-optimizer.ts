@@ -72,8 +72,8 @@ function bandsTo8Band(logBands: number[]): Record<string, number> {
   return result;
 }
 
-const NUDGE_STEP_DB = 0.15;
-const NUDGE_PENALTY_WEIGHT = 2.0;
+const NUDGE_STEP_DB = 0.25;
+const NUDGE_PENALTY_WEIGHT = 3.0;
 
 function computeVec(blended: number[]): number[] {
   const bands8 = bandsTo8Band(blended);
@@ -175,7 +175,6 @@ export function optimizeBlendRatios(
   let bestRatios = [...aiNorm];
   let bestScore = aiScore;
 
-  const step = 0.03;
   const minActive = 0.03;
 
   for (let iter = 0; iter < iterations; iter++) {
@@ -187,6 +186,8 @@ export function optimizeBlendRatios(
     const aj = activeIndices[Math.floor(Math.random() * activeIndices.length)];
     if (ai === aj) continue;
 
+    const progress = iter / iterations;
+    const step = progress < 0.4 ? 0.12 : progress < 0.7 ? 0.06 : 0.03;
     const delta = step * (0.5 + Math.random());
     candidate[ai] = Math.max(minActive, candidate[ai] + delta);
     candidate[aj] = Math.max(minActive, candidate[aj] - delta);
