@@ -14,6 +14,81 @@ import { getDriveControlLayout, getDriveIntelligence } from "@shared/knowledge/d
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
 import { buildExtrapolatedProfiles, formatExtrapolatedProfilesForPrompt } from "@shared/knowledge/tonal-extrapolation";
 
+function polygonSnapRatios(pcts: number[]): number[] {
+  const n = pcts.length;
+  if (n < 3 || n > 8) return pcts;
+  const minPct = Math.max(5, Math.round(50 / n));
+  const maxPct = Math.round(100 - (n - 1) * minPct);
+
+  const vertices: { x: number; y: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+    vertices.push({ x: Math.cos(angle), y: Math.sin(angle) });
+  }
+
+  const idwWeights = (dx: number, dy: number): number[] => {
+    const dists = vertices.map(v => Math.sqrt((dx - v.x) ** 2 + (dy - v.y) ** 2));
+    const minD = Math.min(...dists);
+    if (minD < 0.0001) return dists.map(d => d < 0.0001 ? 1 : 0);
+    const w = dists.map(d => 1 / (d * d));
+    const s = w.reduce((a, b) => a + b, 0);
+    return w.map(x => x / s);
+  };
+
+  const rawSum = pcts.reduce((a, b) => a + b, 0) || 1;
+  const target = pcts.map(p => p / rawSum);
+
+  let dotX = 0, dotY = 0;
+  for (let i = 0; i < n; i++) {
+    dotX += target[i] * vertices[i].x;
+    dotY += target[i] * vertices[i].y;
+  }
+  const lr = 0.005, eps = 0.0001;
+  for (let iter = 0; iter < 800; iter++) {
+    const w = idwWeights(dotX, dotY);
+    let cost = 0;
+    for (let i = 0; i < n; i++) cost += (w[i] - target[i]) ** 2;
+    if (cost < 0.000001) break;
+    const wPx = idwWeights(dotX + eps, dotY);
+    const wMx = idwWeights(dotX - eps, dotY);
+    const wPy = idwWeights(dotX, dotY + eps);
+    const wMy = idwWeights(dotX, dotY - eps);
+    let cPx = 0, cMx = 0, cPy = 0, cMy = 0;
+    for (let i = 0; i < n; i++) {
+      cPx += (wPx[i] - target[i]) ** 2;
+      cMx += (wMx[i] - target[i]) ** 2;
+      cPy += (wPy[i] - target[i]) ** 2;
+      cMy += (wMy[i] - target[i]) ** 2;
+    }
+    dotX -= lr * (cPx - cMx) / (2 * eps);
+    dotY -= lr * (cPy - cMy) / (2 * eps);
+  }
+
+  const achieved = idwWeights(dotX, dotY);
+  const rounded = achieved.map(r => Math.round(r * 100));
+  const rSum = rounded.reduce((a, b) => a + b, 0);
+  if (rSum !== 100 && rSum > 0) {
+    rounded[rounded.indexOf(Math.max(...rounded))] += 100 - rSum;
+  }
+
+  const clamped = rounded.map(p => Math.max(minPct, Math.min(maxPct, p)));
+  const clampSum = clamped.reduce((a, b) => a + b, 0);
+  if (clampSum !== 100) {
+    const diff = 100 - clampSum;
+    const sorted = clamped.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+    let remaining = diff;
+    for (const entry of sorted) {
+      if (remaining === 0) break;
+      const canAdd = diff > 0
+        ? Math.min(remaining, maxPct - entry.v)
+        : Math.max(remaining, minPct - entry.v);
+      clamped[entry.i] += canAdd;
+      remaining -= canAdd;
+    }
+  }
+  return clamped;
+}
+
 type IRBandData = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; [key: string]: any };
 function normalizeIRBands<T extends IRBandData>(ir: T): T {
   const sum = ir.subBass + ir.bass + ir.lowMid + ir.mid + ir.highMid + ir.presence;
@@ -6219,23 +6294,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       bestRatios = clampRatios(bestRatios);
 
-      const minPct = Math.round(minPctFrac * 100);
-      const maxPct = Math.round(maxPctFrac * 100);
-      const pctRatios = bestRatios.map(r => Math.max(minPct, Math.min(maxPct, Math.round(r * 100))));
-      const pctSum = pctRatios.reduce((a, b) => a + b, 0);
-      if (pctSum !== 100) {
-        const diff = 100 - pctSum;
-        const sorted = pctRatios.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
-        let remaining = diff;
-        for (const entry of sorted) {
-          if (remaining === 0) break;
-          const canAdd = diff > 0
-            ? Math.min(remaining, maxPct - entry.v)
-            : Math.max(remaining, minPct - entry.v);
-          pctRatios[entry.i] += canAdd;
-          remaining -= canAdd;
-        }
-      }
+      const pctRatios = polygonSnapRatios(bestRatios.map(r => Math.round(r * 100)));
 
       const finalBands = blendBands6(bestIRs, bestRatios);
       const finalPcts = toPercent(finalBands);
@@ -7185,36 +7244,16 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
 
       const result = JSON.parse(content);
 
-      const clampBlendRatios = (layers: any[]) => {
+      const applyPolygonSnap = (layers: any[]) => {
         if (!layers || layers.length < 3) return;
-        const count = layers.length;
-        const minPct = Math.max(5, Math.round(50 / count));
-        const maxPct = Math.round(100 - (count - 1) * minPct);
-        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
-        if (!needsRedistribution) return;
-        for (const l of layers) {
-          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
-        }
-        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
-        if (sum !== 100) {
-          const diff = 100 - sum;
-          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
-          let remaining = diff;
-          for (const l of sorted) {
-            if (remaining === 0) break;
-            const canAdd = diff > 0
-              ? Math.min(remaining, maxPct - l.percentage)
-              : Math.max(remaining, minPct - l.percentage);
-            l.percentage += canAdd;
-            remaining -= canAdd;
-          }
-        }
+        const snapped = polygonSnapRatios(layers.map((l: any) => l.percentage));
+        for (let i = 0; i < layers.length; i++) layers[i].percentage = snapped[i];
       };
 
-      if (result.blend?.layers) clampBlendRatios(result.blend.layers);
+      if (result.blend?.layers) applyPolygonSnap(result.blend.layers);
       if (result.alternatives) {
         for (const alt of result.alternatives) {
-          if (alt.layers) clampBlendRatios(alt.layers);
+          if (alt.layers) applyPolygonSnap(alt.layers);
         }
       }
 
