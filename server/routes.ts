@@ -6129,25 +6129,54 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       }
 
       const polyVerts = usePolygon ? getPolygonVertices(n) : [];
+      const minPctFrac = Math.max(0.05, 0.5 / n);
+      const maxPctFrac = 1.0 - (n - 1) * minPctFrac;
 
       function dotToRatios(x: number, y: number): number[] {
         return idwWeights({ x, y }, polyVerts);
       }
 
-      function ratiosToDot(ratios: number[]): { x: number; y: number } {
-        const sum = ratios.reduce((a, b) => a + b, 0) || 1;
-        let x = 0, y = 0;
-        for (let i = 0; i < ratios.length; i++) {
-          x += (ratios[i] / sum) * polyVerts[i].x;
-          y += (ratios[i] / sum) * polyVerts[i].y;
+      function clampRatios(ratios: number[]): number[] {
+        const clamped = ratios.map(r => Math.max(minPctFrac, Math.min(maxPctFrac, r)));
+        const sum = clamped.reduce((a, b) => a + b, 0);
+        return clamped.map(r => r / sum);
+      }
+
+      function ratiosValid(ratios: number[]): boolean {
+        return ratios.every(r => r >= minPctFrac - 0.001 && r <= maxPctFrac + 0.001);
+      }
+
+      function constrainDot(x: number, y: number): { x: number; y: number } {
+        const ratios = dotToRatios(x, y);
+        if (ratiosValid(ratios)) return { x, y };
+        const steps = 10;
+        for (let s = 1; s <= steps; s++) {
+          const t = s / steps;
+          const mx = x * (1 - t);
+          const my = y * (1 - t);
+          const mr = dotToRatios(mx, my);
+          if (ratiosValid(mr)) return { x: mx, y: my };
         }
-        return { x, y };
+        return { x: 0, y: 0 };
       }
 
       let bestIRs = [...currentIRs];
       const inputRatios = normalizeRatios(layers.map(l => l.percentage / 100));
-      let bestDot = usePolygon ? ratiosToDot(inputRatios) : { x: 0, y: 0 };
-      let bestRatios = usePolygon ? dotToRatios(bestDot.x, bestDot.y) : inputRatios;
+      let bestRatios: number[];
+      let bestDot: { x: number; y: number };
+      if (usePolygon) {
+        const clampedInput = clampRatios(inputRatios);
+        let dotX = 0, dotY = 0;
+        for (let i = 0; i < n; i++) {
+          dotX += clampedInput[i] * polyVerts[i].x;
+          dotY += clampedInput[i] * polyVerts[i].y;
+        }
+        bestDot = constrainDot(dotX, dotY);
+        bestRatios = clampRatios(dotToRatios(bestDot.x, bestDot.y));
+      } else {
+        bestDot = { x: 0, y: 0 };
+        bestRatios = inputRatios;
+      }
       const baseVecs = computeBaselineVec(bestIRs, bestRatios);
       let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
@@ -6158,18 +6187,20 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           const step = progress < 0.4 ? 0.25 : progress < 0.7 ? 0.12 : 0.05;
           const angle = Math.random() * 2 * Math.PI;
           const mag = step * (0.3 + Math.random() * 1.4);
-          const cx = bestDot.x + Math.cos(angle) * mag;
-          const cy = bestDot.y + Math.sin(angle) * mag;
-          const dist = Math.sqrt(cx * cx + cy * cy);
-          const maxR = 0.95;
-          const dx = dist > maxR ? cx * maxR / dist : cx;
-          const dy = dist > maxR ? cy * maxR / dist : cy;
-          const candidateRatios = dotToRatios(dx, dy);
-          const s = scoreBlend(bestIRs, candidateRatios, baseVecs);
+          let cx = bestDot.x + Math.cos(angle) * mag;
+          let cy = bestDot.y + Math.sin(angle) * mag;
+          const candidateRatios = dotToRatios(cx, cy);
+          if (!ratiosValid(candidateRatios)) {
+            const constrained = constrainDot(cx, cy);
+            cx = constrained.x;
+            cy = constrained.y;
+          }
+          const finalRatios = clampRatios(dotToRatios(cx, cy));
+          const s = scoreBlend(bestIRs, finalRatios, baseVecs);
           if (s > bestScore) {
             bestScore = s;
-            bestRatios = candidateRatios;
-            bestDot = { x: dx, y: dy };
+            bestRatios = finalRatios;
+            bestDot = { x: cx, y: cy };
           }
         } else {
           const candidate = [...bestRatios];
@@ -6179,10 +6210,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           const progress = iter / adaptiveIters;
           const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
           const delta = step * (0.3 + Math.random() * 1.4);
-          candidate[ai] = Math.max(0.01, candidate[ai] + delta);
-          candidate[aj] = Math.max(0.01, candidate[aj] - delta);
-          const sum = candidate.reduce((a, b) => a + b, 0);
-          const norm = candidate.map(r => r / sum);
+          candidate[ai] = Math.max(minPctFrac, candidate[ai] + delta);
+          candidate[aj] = Math.max(minPctFrac, candidate[aj] - delta);
+          const norm = clampRatios(normalizeRatios(candidate));
           const s = scoreBlend(bestIRs, norm, baseVecs);
           if (s > bestScore) {
             bestScore = s;
@@ -6206,26 +6236,27 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           let testScore: number;
           let testBest: number[];
           if (usePolygon) {
-            let testDot = { ...bestDot };
-            testBest = dotToRatios(testDot.x, testDot.y);
+            let testDot = constrainDot(bestDot.x, bestDot.y);
+            testBest = clampRatios(dotToRatios(testDot.x, testDot.y));
             testScore = scoreBlend(testIRs, testBest, baseVecs);
             for (let iter = 0; iter < 400; iter++) {
               const sp = iter / 400;
               const swapStep = sp < 0.4 ? 0.2 : sp < 0.7 ? 0.1 : 0.04;
               const a = Math.random() * 2 * Math.PI;
               const m = swapStep * (0.3 + Math.random() * 1.4);
-              const cx = testDot.x + Math.cos(a) * m;
-              const cy = testDot.y + Math.sin(a) * m;
-              const dist = Math.sqrt(cx * cx + cy * cy);
-              const maxR = 0.95;
-              const dx = dist > maxR ? cx * maxR / dist : cx;
-              const dy = dist > maxR ? cy * maxR / dist : cy;
-              const cRatios = dotToRatios(dx, dy);
-              const s = scoreBlend(testIRs, cRatios, baseVecs);
-              if (s > testScore) { testScore = s; testBest = cRatios; testDot = { x: dx, y: dy }; }
+              let cx = testDot.x + Math.cos(a) * m;
+              let cy = testDot.y + Math.sin(a) * m;
+              const cRatios = dotToRatios(cx, cy);
+              if (!ratiosValid(cRatios)) {
+                const con = constrainDot(cx, cy);
+                cx = con.x; cy = con.y;
+              }
+              const fr = clampRatios(dotToRatios(cx, cy));
+              const s = scoreBlend(testIRs, fr, baseVecs);
+              if (s > testScore) { testScore = s; testBest = fr; testDot = { x: cx, y: cy }; }
             }
           } else {
-            testBest = normalizeRatios([...bestRatios]);
+            testBest = clampRatios(normalizeRatios([...bestRatios]));
             testScore = scoreBlend(testIRs, testBest, baseVecs);
             for (let iter = 0; iter < 400; iter++) {
               const c = [...testBest];
@@ -6235,9 +6266,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
               const sp = iter / 400;
               const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
               const d = swapStep * (0.3 + Math.random() * 1.4);
-              c[ai] = Math.max(0.01, c[ai] + d);
-              c[aj] = Math.max(0.01, c[aj] - d);
-              const norm = normalizeRatios(c);
+              c[ai] = Math.max(minPctFrac, c[ai] + d);
+              c[aj] = Math.max(minPctFrac, c[aj] - d);
+              const norm = clampRatios(normalizeRatios(c));
               const s = scoreBlend(testIRs, norm, baseVecs);
               if (s > testScore) { testScore = s; testBest = norm; }
             }
