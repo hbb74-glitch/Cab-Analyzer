@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star, Send, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Loader2, Layers, FileAudio, Trash2, Zap, Music4, Copy, Check, Plus, Target, List, Heart, X, Star, Send, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw, FolderOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -1404,7 +1404,7 @@ export default function Pairing() {
           </p>
         )}
 
-        <SuperblendSection speaker1IRs={speaker1IRs} speaker2IRs={speaker2IRs} />
+        <SuperblendSection speaker1IRs={speaker1IRs} speaker2IRs={speaker2IRs} onClearAll={() => { setSpeaker1IRs([]); setSpeaker2IRs([]); setResult(null); setGenre(""); setCustomGenre(""); setTonePreferences(""); setIntent("versatile"); }} />
       </div>
     </div>
   );
@@ -1537,7 +1537,7 @@ interface SuperblendResult {
   changesSummary?: string;
 }
 
-function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: UploadedIR[]; speaker2IRs: UploadedIR[] }) {
+function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1IRs: UploadedIR[]; speaker2IRs: UploadedIR[]; onClearAll: () => void }) {
   const allIRs = useMemo(() => {
     return [...speaker1IRs, ...speaker2IRs]
       .filter(ir => ir.features && !ir.analyzing && !ir.error);
@@ -1857,9 +1857,18 @@ function SuperblendSection({ speaker1IRs, speaker2IRs }: { speaker1IRs: Uploaded
           Superblend
           <span className="text-xs font-normal text-muted-foreground ml-1">Multi-IR</span>
         </h2>
-        <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-close-superblend-pairing">
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setAllResults({}); setBaselineResults({}); setActiveBlend("primary"); setAiAnswer(null); onClearAll(); setOpen(false); }}
+            className="px-2.5 py-1 rounded-lg text-xs font-medium border border-white/10 text-muted-foreground hover:text-foreground hover:border-white/20 transition-all flex items-center gap-1.5"
+            data-testid="button-new-irs-superblend"
+          >
+            <FolderOpen className="w-3 h-3" /> New IRs
+          </button>
+          <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors" data-testid="button-close-superblend-pairing">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <p className="text-sm text-muted-foreground mb-4">
