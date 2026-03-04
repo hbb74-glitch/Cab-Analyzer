@@ -8,11 +8,10 @@ const PERCEPTUAL_WEIGHTS = [
   0.9,  0.85, 0.8,  0.7,  0.6,  0.5,  0.4,  0.3,
 ];
 
-export type ToneNudges = Partial<Record<BandKey | "tilt" | "smoothness", number>>;
+export type ToneNudges = Partial<Record<BandKey | "lowEnd" | "tilt" | "smoothness", number>>;
 
 export const NUDGE_LABELS: { key: keyof ToneNudges; label: string; description: string }[] = [
-  { key: "subBass", label: "Sub Bass", description: "Below 80 Hz" },
-  { key: "bass", label: "Bass", description: "80–200 Hz" },
+  { key: "lowEnd", label: "Low End", description: "Below 200 Hz (sub bass + bass)" },
   { key: "lowMid", label: "Low Mid", description: "200–500 Hz" },
   { key: "mid", label: "Mid", description: "500–1.5k Hz" },
   { key: "highMid", label: "High Mid", description: "1.5–4k Hz" },
@@ -22,6 +21,16 @@ export const NUDGE_LABELS: { key: keyof ToneNudges; label: string; description: 
   { key: "tilt", label: "Tilt", description: "Dark ← → Bright" },
   { key: "smoothness", label: "Smoothness", description: "Ragged ← → Smooth" },
 ];
+
+export function expandLowEndNudge(nudges: ToneNudges): ToneNudges {
+  const expanded = { ...nudges };
+  if (expanded.lowEnd !== undefined && expanded.lowEnd !== 0) {
+    expanded.subBass = (expanded.subBass || 0) + expanded.lowEnd;
+    expanded.bass = (expanded.bass || 0) + expanded.lowEnd;
+    delete expanded.lowEnd;
+  }
+  return expanded;
+}
 
 function blendMagnitudes(irBands: number[][], ratios: number[]): number[] {
   const nBins = irBands[0].length;
@@ -110,22 +119,23 @@ function scoreBlendedCurve(
     perceptualScore -= diff * weight * 0.01;
   }
 
+  const effectiveNudges = nudges ? expandLowEndNudge(nudges) : undefined;
   let nudgeBonus = 0;
-  if (nudges && baselineVec) {
+  if (effectiveNudges && baselineVec) {
     for (let i = 0; i < BAND_KEYS.length; i++) {
-      const n = nudges[BAND_KEYS[i]];
+      const n = effectiveNudges[BAND_KEYS[i]];
       if (n && isFinite(n)) {
         const target = baselineVec[i] + n * NUDGE_STEP_DB;
         nudgeBonus -= Math.abs(vec[i] - target) * NUDGE_PENALTY_WEIGHT;
       }
     }
-    const tiltN = nudges.tilt;
+    const tiltN = effectiveNudges.tilt;
     if (tiltN && isFinite(tiltN)) {
       const tiltIdx = BAND_KEYS.length;
       const target = baselineVec[tiltIdx] + tiltN * NUDGE_STEP_DB;
       nudgeBonus -= Math.abs(vec[tiltIdx] - target) * NUDGE_PENALTY_WEIGHT;
     }
-    const smN = nudges.smoothness;
+    const smN = effectiveNudges.smoothness;
     if (smN && isFinite(smN)) {
       const smIdx = BAND_KEYS.length + 1;
       const target = baselineVec[smIdx] + smN * (0.05);

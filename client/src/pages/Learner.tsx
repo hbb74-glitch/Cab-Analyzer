@@ -1604,16 +1604,30 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                   )}
                 </div>
 
-                {displayBlend.bandBreakdown && (
-                  <div className="grid grid-cols-6 gap-1 text-center" data-testid="superblend-bands">
-                    {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
-                      <div key={band} className="text-[9px]">
-                        <div className="text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
-                        <div className={cn("font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-foreground")}>{displayBlend.bandBreakdown[band]}%</div>
+                {displayBlend.bandBreakdown && (() => {
+                  const bb = displayBlend.bandBreakdown;
+                  const lowAvg = (bb.subBass + bb.bass + bb.lowMid) / 3;
+                  const highAvg = (bb.mid + bb.highMid + bb.presence) / 3;
+                  const tiltVal = Math.round((highAvg - lowAvg) * 10) / 10;
+                  const tiltLabel = tiltVal > 3 ? "Bright" : tiltVal > 1 ? "Sl. Bright" : tiltVal < -3 ? "Dark" : tiltVal < -1 ? "Sl. Dark" : "Neutral";
+                  const tiltColor = tiltVal > 1 ? "text-yellow-400" : tiltVal < -1 ? "text-blue-400" : "text-muted-foreground";
+                  return (
+                    <div className="space-y-1">
+                      <div className="grid grid-cols-6 gap-1 text-center" data-testid="superblend-bands">
+                        {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
+                          <div key={band} className="text-[9px]">
+                            <div className="text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
+                            <div className={cn("font-mono font-semibold", isEqualParts ? "text-cyan-300" : "text-foreground")}>{bb[band]}%</div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div className="flex items-center justify-center gap-2 text-[9px]" data-testid="superblend-tilt">
+                        <span className="text-muted-foreground">Tilt:</span>
+                        <span className={cn("font-mono font-semibold", tiltColor)}>{tiltVal > 0 ? "+" : ""}{tiltVal} ({tiltLabel})</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {isEqualParts && <p className="text-[9px] text-cyan-400/60">AI-optimized IR selection for equal parts — center dot on the geometric mixer</p>}
 
                 <p className="text-[10px] text-muted-foreground" data-testid="text-superblend-tone">{displayBlend.expectedTone}</p>

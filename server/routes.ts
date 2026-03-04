@@ -5798,7 +5798,18 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
   app.post(api.superblendReoptimize.reoptimize.path, async (req, res) => {
     try {
       const input = api.superblendReoptimize.reoptimize.input.parse(req.body);
-      const { layers, pool, nudges, intent, iterations: maxIter, irCount } = input;
+      const { layers, pool, intent, iterations: maxIter, irCount } = input;
+      const nudges = (() => {
+        const raw = input.nudges;
+        if (!raw) return raw;
+        const expanded = { ...raw } as Record<string, number>;
+        if (expanded.lowEnd) {
+          expanded.subBass = (expanded.subBass || 0) + expanded.lowEnd;
+          expanded.bass = (expanded.bass || 0) + expanded.lowEnd;
+          delete expanded.lowEnd;
+        }
+        return expanded;
+      })();
       const iters = maxIter || 800;
       const targetCount = irCount || layers.length;
 
