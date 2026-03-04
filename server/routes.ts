@@ -6021,7 +6021,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           const tiltN = nudges["tilt"];
           if (tiltN && isFinite(tiltN)) {
             const target = baseVec6[7] + tiltN * 1.5;
-            score -= Math.abs(tilt - target) * NUDGE_PENALTY_6;
+            score -= Math.abs(tilt - target) * NUDGE_PENALTY_6 * 1.5;
           }
           const smN = nudges["smoothness"];
           if (smN && isFinite(smN)) {
@@ -6087,8 +6087,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
           const tiltN = nudges["tilt"];
           if (tiltN && isFinite(tiltN)) {
-            const target = baseVec24[8] + tiltN * NUDGE_STEP_24;
-            nudgeBonus -= Math.abs(vec[8] - target) * NUDGE_PENALTY_24;
+            const target = baseVec24[8] + tiltN * 0.15;
+            nudgeBonus -= Math.abs(vec[8] - target) * NUDGE_PENALTY_24 * 2.0;
           }
           const smN = nudges["smoothness"];
           if (smN && isFinite(smN)) {
@@ -6124,13 +6124,15 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
 
+      const hasStrongNudge = nudges && Object.values(nudges).some(v => Math.abs(v as number) >= 1);
       for (let iter = 0; iter < adaptiveIters; iter++) {
         const candidate = [...bestRatios];
         const ai = Math.floor(Math.random() * n);
         const aj = Math.floor(Math.random() * n);
         if (ai === aj) continue;
         const progress = iter / adaptiveIters;
-        const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
+        const baseStep = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
+        const step = hasStrongNudge ? baseStep * 1.8 : baseStep;
         const delta = step * (0.3 + Math.random() * 1.4);
         candidate[ai] = Math.max(minPctFrac, candidate[ai] + delta);
         candidate[aj] = Math.max(minPctFrac, candidate[aj] - delta);
@@ -6178,9 +6180,12 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
               const testIRs = [...bestIRs];
               testIRs[slotIdx] = { ...candidate, role: bestIRs[slotIdx].role };
 
-              const result = optimizeRatiosForIRs(testIRs, bestRatios, 300);
+              const swapOptIters = (nudges && Object.values(nudges).some(v => Math.abs(v as number) >= 1.5)) ? 600 : 300;
+              const result = optimizeRatiosForIRs(testIRs, bestRatios, swapOptIters);
 
-              if (result.score > slotBestScore + 0.3) {
+              const hasActiveNudges = nudges && Object.values(nudges).some(v => typeof v === 'number' && Math.abs(v) > 0);
+              const swapThreshold = hasActiveNudges ? 0.05 : 0.3;
+              if (result.score > slotBestScore + swapThreshold) {
                 slotBestScore = result.score;
                 slotBestIR = candidate;
                 slotBestRatios = result.ratios;

@@ -1331,10 +1331,6 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                 className="mt-3 w-full border-violet-500/30 text-violet-300"
                 disabled={isReoptimizing}
                 onClick={async () => {
-                  console.log("[Reoptimize Client] Button clicked, toneNudges:", JSON.stringify(toneNudges));
-                  console.log("[Reoptimize Client] allResults keys:", Object.keys(allResults));
-                  console.log("[Reoptimize Client] baselineResults keys:", Object.keys(baselineResults));
-                  console.log("[Reoptimize Client] speakerIRs count:", speakerIRs.length);
                   setIsReoptimizing(true);
                   try {
                     const metricsMap = new Map<string, AudioMetrics>();

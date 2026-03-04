@@ -146,8 +146,8 @@ function scoreBlendedCurve(
     const tiltN = effectiveNudges.tilt;
     if (tiltN && isFinite(tiltN)) {
       const tiltIdx = BAND_KEYS.length;
-      const target = baselineVec[tiltIdx] + tiltN * NUDGE_STEP_DB;
-      nudgeBonus -= Math.abs(vec[tiltIdx] - target) * NUDGE_PENALTY_WEIGHT;
+      const target = baselineVec[tiltIdx] + tiltN * 0.15;
+      nudgeBonus -= Math.abs(vec[tiltIdx] - target) * NUDGE_PENALTY_WEIGHT * 2.0;
     }
     const smN = effectiveNudges.smoothness;
     if (smN && isFinite(smN)) {
@@ -211,7 +211,9 @@ export function optimizeBlendRatios(
     if (ai === aj) continue;
 
     const progress = iter / iterations;
-    const step = progress < 0.4 ? 0.12 : progress < 0.7 ? 0.06 : 0.03;
+    const baseStep = progress < 0.4 ? 0.12 : progress < 0.7 ? 0.06 : 0.03;
+    const hasStrongNudge = nudges && Object.values(nudges).some(v => typeof v === 'number' && Math.abs(v) >= 1);
+    const step = hasStrongNudge ? baseStep * 1.8 : baseStep;
     const delta = step * (0.5 + Math.random());
     candidate[ai] = Math.max(minActive, candidate[ai] + delta);
     candidate[aj] = Math.max(minActive, candidate[aj] - delta);
