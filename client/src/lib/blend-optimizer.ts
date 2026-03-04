@@ -45,26 +45,31 @@ function blendMagnitudes(irBands: number[][], ratios: number[]): number[] {
   return blended;
 }
 
-function canonicalTiltFrom24Bands(bands: number[]): number {
-  const bands8 = bandsTo8Band(bands);
-  const EPS = 1e-12;
-  const db: Record<string, number> = {};
-  for (const k of BAND_KEYS) {
-    db[k] = 10 * Math.log10(Math.max(EPS, bands8[k]));
+const LOG_MIN = Math.log(80);
+const LOG_MAX = Math.log(10000);
+
+function regressionTiltFrom24Bands(bands: number[]): number {
+  const nBands = bands.length;
+  const logStep = (LOG_MAX - LOG_MIN) / nBands;
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let b = 0; b < nBands; b++) {
+    const centerHz = Math.exp(LOG_MIN + (b + 0.5) * logStep);
+    if (centerHz < 200 || centerHz > 8000) continue;
+    if (bands[b] <= 0) continue;
+    xs.push(Math.log2(centerHz));
+    ys.push(10 * Math.log10(bands[b]));
   }
-  const refCandidates = [db.mid, db.highMid, db.presence].filter(Number.isFinite);
-  const ref = refCandidates.length > 0
-    ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length
-    : 0;
-  const shape: Record<string, number> = {};
-  for (const k of BAND_KEYS) {
-    shape[k] = Number.isFinite(db[k]) ? db[k] - ref : -60;
+  const n = xs.length;
+  if (n < 3) return 0;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i]; sumY += ys[i];
+    sumXY += xs[i] * ys[i]; sumXX += xs[i] * xs[i];
   }
-  const highSide = Number.isFinite(shape.air)
-    ? (shape.presence + shape.air) / 2
-    : shape.presence;
-  const lowSide = (shape.bass + shape.subBass) / 2;
-  return highSide - lowSide;
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return 0;
+  return (n * sumXY - sumX * sumY) / denom;
 }
 
 function computeSmoothnessFrom24Bands(bands: number[]): number {
@@ -103,7 +108,7 @@ function computeVec(blended: number[]): number[] {
     const db = val > 0 ? 10 * Math.log10(val / Math.max(mean, 1e-12)) : -3;
     vec.push(db / 10);
   }
-  vec.push(canonicalTiltFrom24Bands(blended) / 10);
+  vec.push(regressionTiltFrom24Bands(blended) / 10);
   vec.push(computeSmoothnessFrom24Bands(blended) / 100);
   return vec;
 }

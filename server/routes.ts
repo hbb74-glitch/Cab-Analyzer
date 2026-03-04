@@ -5896,34 +5896,48 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return bands.map(b => Math.round((b / total) * 1000) / 10);
       }
 
-      function canonicalTiltFromBands(bandValues: number[], bandNames: string[]): number {
-        const EPS = 1e-12;
-        const db: Record<string, number> = {};
-        for (let i = 0; i < bandNames.length; i++) {
-          db[bandNames[i]] = 10 * Math.log10(Math.max(EPS, bandValues[i]));
+      function regressionTilt(xs: number[], ys: number[]): number {
+        const n = xs.length;
+        if (n < 3) return 0;
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        for (let i = 0; i < n; i++) {
+          sumX += xs[i]; sumY += ys[i];
+          sumXY += xs[i] * ys[i]; sumXX += xs[i] * xs[i];
         }
-        const refCandidates = [db["mid"], db["highMid"], db["presence"]].filter(Number.isFinite);
-        const ref = refCandidates.length > 0
-          ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length
-          : 0;
-        const shape: Record<string, number> = {};
-        for (const k of bandNames) {
-          shape[k] = Number.isFinite(db[k]) ? db[k] - ref : -60;
+        const denom = n * sumXX - sumX * sumX;
+        if (denom === 0) return 0;
+        return (n * sumXY - sumX * sumY) / denom;
+      }
+
+      const LOG_MIN = Math.log(80);
+      const LOG_MAX = Math.log(10000);
+
+      function computeTilt24(bands: number[]): number {
+        const nBands = bands.length;
+        const logStep = (LOG_MAX - LOG_MIN) / nBands;
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (let b = 0; b < nBands; b++) {
+          const centerHz = Math.exp(LOG_MIN + (b + 0.5) * logStep);
+          if (centerHz < 200 || centerHz > 8000) continue;
+          if (bands[b] <= 0) continue;
+          xs.push(Math.log2(centerHz));
+          ys.push(10 * Math.log10(bands[b]));
         }
-        const highSide = Number.isFinite(shape["air"])
-          ? (shape["presence"] + shape["air"]) / 2
-          : shape["presence"];
-        const lowSide = (shape["bass"] + shape["subBass"]) / 2;
-        return Math.round((highSide - lowSide) * 100) / 100;
+        return Math.round(regressionTilt(xs, ys) * 10000) / 10000;
       }
 
       function computeTilt6(bands: number[]): number {
-        return canonicalTiltFromBands(bands, ["subBass", "bass", "lowMid", "mid", "highMid", "presence"]);
-      }
-
-      function computeTilt24(bands: number[]): number {
-        const bands8 = bands24To8(bands);
-        return canonicalTiltFromBands(bands8, ["subBass", "bass", "lowMid", "mid", "highMid", "presence", "air", "fizz"]);
+        const centers6 = [100, 175, 350, 1000, 2750, 6000];
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (let i = 0; i < 6; i++) {
+          if (centers6[i] < 200 || centers6[i] > 8000) continue;
+          if (bands[i] <= 0) continue;
+          xs.push(Math.log2(centers6[i]));
+          ys.push(10 * Math.log10(bands[i]));
+        }
+        return Math.round(regressionTilt(xs, ys) * 10000) / 10000;
       }
 
       function computeSmoothness6(bands: number[]): number {
@@ -6181,6 +6195,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       const finalBands = blendBands6(bestIRs, bestRatios);
       const finalPcts = toPercent(finalBands);
+      const finalTilt = use24Band
+        ? computeTilt24(blendBands24(bestIRs, bestRatios))
+        : computeTilt6(finalBands);
 
       const resultLayers = bestIRs.map((ir, i) => ({
         filename: ir.filename,
@@ -6199,7 +6216,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           highMid: finalPcts[4],
           presence: finalPcts[5],
         },
-        tilt: computeTilt6(finalBands),
+        tilt: finalTilt,
         smoothness: computeSmoothness6(finalBands),
         score: Math.round(bestScore * 1000) / 1000,
         improvement: Math.round((bestScore - baselineScore) * 1000) / 1000,
@@ -7117,6 +7134,75 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
       const result = JSON.parse(content);
 
       const irMap = new Map(irs.map(ir => [ir.filename, ir]));
+
+      const computeBlendTilt = (layers: { filename: string; percentage: number }[]) => {
+        const allHaveLogBands = layers.every(l => {
+          const ir = irMap.get(l.filename);
+          return ir && Array.isArray((ir as any).logBandEnergies) && (ir as any).logBandEnergies.length >= 20;
+        });
+        if (allHaveLogBands) {
+          const nBins = (irMap.get(layers[0].filename) as any).logBandEnergies.length;
+          const blended = new Array(nBins).fill(0);
+          for (const layer of layers) {
+            const ir = irMap.get(layer.filename);
+            if (!ir) continue;
+            const lbe = (ir as any).logBandEnergies;
+            const w = layer.percentage / 100;
+            for (let b = 0; b < nBins; b++) blended[b] += w * (lbe[b] || 0);
+          }
+          const logMin = Math.log(80);
+          const logMax = Math.log(10000);
+          const logStep = (logMax - logMin) / nBins;
+          const xs: number[] = [];
+          const ys: number[] = [];
+          for (let b = 0; b < nBins; b++) {
+            const centerHz = Math.exp(logMin + (b + 0.5) * logStep);
+            if (centerHz < 200 || centerHz > 8000) continue;
+            if (blended[b] <= 0) continue;
+            xs.push(Math.log2(centerHz));
+            ys.push(10 * Math.log10(blended[b]));
+          }
+          const n = xs.length;
+          if (n >= 3) {
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            for (let i = 0; i < n; i++) {
+              sumX += xs[i]; sumY += ys[i];
+              sumXY += xs[i] * ys[i]; sumXX += xs[i] * xs[i];
+            }
+            const denom = n * sumXX - sumX * sumX;
+            if (denom !== 0) return Math.round(((n * sumXY - sumX * sumY) / denom) * 10000) / 10000;
+          }
+        }
+        const bands6 = { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
+        for (const layer of layers) {
+          const ir = irMap.get(layer.filename);
+          if (!ir) continue;
+          const w = layer.percentage / 100;
+          bands6.subBass += (ir as any).subBass * w;
+          bands6.bass += (ir as any).bass * w;
+          bands6.lowMid += (ir as any).lowMid * w;
+          bands6.mid += (ir as any).mid * w;
+          bands6.highMid += (ir as any).highMid * w;
+          bands6.presence += (ir as any).presence * w;
+        }
+        const vals = [bands6.subBass, bands6.bass, bands6.lowMid, bands6.mid, bands6.highMid, bands6.presence];
+        const centers = [100, 175, 350, 1000, 2750, 6000];
+        const xs2: number[] = [];
+        const ys2: number[] = [];
+        for (let i = 0; i < 6; i++) {
+          if (centers[i] < 200 || centers[i] > 8000) continue;
+          if (vals[i] <= 0) continue;
+          xs2.push(Math.log2(centers[i]));
+          ys2.push(10 * Math.log10(vals[i]));
+        }
+        const n2 = xs2.length;
+        if (n2 < 3) return 0;
+        let sX = 0, sY = 0, sXY = 0, sXX = 0;
+        for (let i = 0; i < n2; i++) { sX += xs2[i]; sY += ys2[i]; sXY += xs2[i] * ys2[i]; sXX += xs2[i] * xs2[i]; }
+        const d = n2 * sXX - sX * sX;
+        return d !== 0 ? Math.round(((n2 * sXY - sX * sY) / d) * 10000) / 10000 : 0;
+      };
+
       const computeBandBreakdown = (layers: { filename: string; percentage: number }[]) => {
         const bands = { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0 };
         let totalPct = 0;
@@ -7147,6 +7233,7 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
 
       if (result.blend?.layers) {
         result.blend.bandBreakdown = computeBandBreakdown(result.blend.layers);
+        result.blend.tilt = computeBlendTilt(result.blend.layers);
       }
       if (result.equalPartsBlend?.layers) {
         const eqCount = result.equalPartsBlend.layers.length;
@@ -7155,11 +7242,13 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
           layer.percentage = eqPct;
         }
         result.equalPartsBlend.bandBreakdown = computeBandBreakdown(result.equalPartsBlend.layers);
+        result.equalPartsBlend.tilt = computeBlendTilt(result.equalPartsBlend.layers);
       }
       if (result.alternatives) {
         for (const alt of result.alternatives) {
           if (alt.layers) {
             alt.bandBreakdown = computeBandBreakdown(alt.layers);
+            alt.tilt = computeBlendTilt(alt.layers);
           }
         }
       }
@@ -7325,6 +7414,37 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
           bands.presence = Math.round(bands.presence * scale * 10) / 10;
         }
         result.blend.bandBreakdown = bands;
+
+        const allHaveLBE = result.blend.layers.every((l: any) => {
+          const ir = irMap.get(l.filename);
+          return ir && Array.isArray((ir as any).logBandEnergies) && (ir as any).logBandEnergies.length >= 20;
+        });
+        if (allHaveLBE) {
+          const nBins = (irMap.get(result.blend.layers[0].filename) as any).logBandEnergies.length;
+          const blended = new Array(nBins).fill(0);
+          for (const layer of result.blend.layers) {
+            const ir = irMap.get(layer.filename);
+            if (!ir) continue;
+            const lbe = (ir as any).logBandEnergies;
+            const w = layer.percentage / 100;
+            for (let b = 0; b < nBins; b++) blended[b] += w * (lbe[b] || 0);
+          }
+          const logMin2 = Math.log(80), logMax2 = Math.log(10000);
+          const logStep2 = (logMax2 - logMin2) / nBins;
+          const xs: number[] = [], ys: number[] = [];
+          for (let b = 0; b < nBins; b++) {
+            const cHz = Math.exp(logMin2 + (b + 0.5) * logStep2);
+            if (cHz < 200 || cHz > 8000 || blended[b] <= 0) continue;
+            xs.push(Math.log2(cHz)); ys.push(10 * Math.log10(blended[b]));
+          }
+          const nR = xs.length;
+          if (nR >= 3) {
+            let sX = 0, sY = 0, sXY = 0, sXX = 0;
+            for (let i = 0; i < nR; i++) { sX += xs[i]; sY += ys[i]; sXY += xs[i] * ys[i]; sXX += xs[i] * xs[i]; }
+            const d = nR * sXX - sX * sX;
+            if (d !== 0) result.blend.tilt = Math.round(((nR * sXY - sX * sY) / d) * 10000) / 10000;
+          }
+        }
       }
 
       console.log(`[Superblend Refine] "${currentBlend.speaker}" => refined`);

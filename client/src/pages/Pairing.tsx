@@ -2076,7 +2076,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
                       const currentRes = allResults[intent] || res;
                       reoptimized[intent] = {
                         ...currentRes,
-                        blend: { ...currentRes.blend, layers: updatedLayers, bandBreakdown: data.bandBreakdown },
+                        blend: { ...currentRes.blend, layers: updatedLayers, bandBreakdown: data.bandBreakdown, tilt: data.tilt },
                       };
                     }
 
@@ -2277,15 +2277,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
 
                 {displayBlend.bandBreakdown && (() => {
                   const bb = displayBlend.bandBreakdown;
-                  const EPS = 1e-12;
-                  const pcts = [bb.subBass, bb.bass, bb.lowMid, bb.mid, bb.highMid, bb.presence];
-                  const total = pcts.reduce((a, b) => a + b, 0) || 1;
-                  const energies = pcts.map(p => p / total);
-                  const db = energies.map(e => 10 * Math.log10(Math.max(EPS, e)));
-                  const refCandidates = [db[3], db[4], db[5]].filter(Number.isFinite);
-                  const ref = refCandidates.length > 0 ? refCandidates.reduce((a, b) => a + b, 0) / refCandidates.length : 0;
-                  const shape = db.map(d => Number.isFinite(d) ? d - ref : -60);
-                  const tiltVal = Math.round((shape[5] - (shape[0] + shape[1]) / 2) * 100) / 100;
+                  const tiltVal = Math.round(((displayBlend as any).tilt ?? 0) * 10) / 10;
                   const tiltLabel = tiltVal >= 2.5 ? "Bright" : tiltVal > 0.5 ? "Bright lean" : tiltVal >= -0.5 ? "Neutral" : tiltVal > -2.5 ? "Dark lean" : "Dark";
                   const tiltColor = tiltVal > 0.5 ? "text-yellow-400" : tiltVal < -0.5 ? "text-blue-400" : "text-muted-foreground";
                   return (
