@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -47,23 +46,12 @@ function Router() {
   );
 }
 
-function RedirectToHome() {
-  const [location, setLocation] = useLocation();
-  useEffect(() => {
-    if (location !== "/") {
-      setLocation("/");
-    }
-  }, []);
-  return null;
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ResultsProvider>
           <div className="min-h-screen bg-background text-foreground antialiased selection:bg-primary/30">
-            <RedirectToHome />
             <Navigation />
             <Router />
             <Toaster />
