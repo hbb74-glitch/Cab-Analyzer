@@ -5853,8 +5853,17 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         .filter(p => !currentIRs.some(c => c.filename === p.filename))
         .map(p => ({ filename: p.filename, energies: getEnergies(p), ultraHigh: p.ultraHighEnergy || 0, logBands: getLogBands(p), role: "swap", contribution: undefined }));
 
-      const allIRsHaveLogBands = currentIRs.every(ir => ir.logBands !== null) && poolIRs.every(ir => ir.logBands !== null);
-      const use24Band = allIRsHaveLogBands;
+      const currentIRsHaveLogBands = currentIRs.every(ir => ir.logBands !== null);
+      const use24Band = currentIRsHaveLogBands;
+      if (use24Band) {
+        const before = poolIRs.length;
+        const filtered = poolIRs.filter(ir => ir.logBands !== null);
+        if (filtered.length < poolIRs.length) {
+          poolIRs.length = 0;
+          poolIRs.push(...filtered);
+          console.log(`[Reoptimize] Filtered pool: ${before} → ${poolIRs.length} (removed IRs without logBandEnergies)`);
+        }
+      }
 
       function blendBands6(irs: IREntry[], ratios: number[]): number[] {
         const blended = new Array(6).fill(0);
@@ -6003,20 +6012,20 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             const nv = nudges[bandKeys6[i]];
             if (nv && isFinite(nv)) {
               const target = baseVec6[i] + nv * NUDGE_STEP_6;
-              score -= Math.abs(pcts[i] - target) * NUDGE_PENALTY_6 * 0.01;
+              score -= Math.abs(pcts[i] - target) * NUDGE_PENALTY_6 * 0.1;
             }
           }
           const airN = nudges["air"];
           if (airN && isFinite(airN)) {
             const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
             const target = baseVec6[6] + airN * NUDGE_STEP_6;
-            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.01;
+            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.1;
           }
           const fizzN = nudges["fizz"];
           if (fizzN && isFinite(fizzN)) {
             const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
             const target = baseVec6[6] - fizzN * NUDGE_STEP_6;
-            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.01;
+            score -= Math.abs(airPct - target) * NUDGE_PENALTY_6 * 0.1;
           }
           const tiltN = nudges["tilt"];
           if (tiltN && isFinite(tiltN)) {
@@ -6026,7 +6035,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           const smN = nudges["smoothness"];
           if (smN && isFinite(smN)) {
             const target = baseVec6[8] + smN * 2.0;
-            score -= Math.abs(smooth - target) * NUDGE_PENALTY_6 * 0.01;
+            score -= Math.abs(smooth - target) * NUDGE_PENALTY_6 * 0.05;
           }
         }
         return score;
@@ -6241,7 +6250,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         contribution: ir.contribution,
       }));
 
-      console.log(`[Reoptimize] DONE intent=${intent} baseline=${baselineScore.toFixed(3)} best=${bestScore.toFixed(3)} tilt=${finalTilt.toFixed(2)} ratios=[${pctRatios.join(',')}] swaps=${swaps.length} irs=[${bestIRs.map(ir => ir.filename).join(',')}]`);
+      console.log(`[Reoptimize] DONE intent=${intent} use24Band=${use24Band} baseline=${baselineScore.toFixed(3)} best=${bestScore.toFixed(3)} tilt=${finalTilt.toFixed(2)} ratios=[${pctRatios.join(',')}] swaps=${swaps.length} irs=[${bestIRs.map(ir => ir.filename).join(',')}]`);
 
       res.json({
         layers: resultLayers,
