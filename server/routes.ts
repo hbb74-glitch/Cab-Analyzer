@@ -7499,32 +7499,10 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
 
       const result = JSON.parse(content);
 
-      const clampRefineRatios = (layers: any[]) => {
-        if (!layers || layers.length < 3) return;
-        const count = layers.length;
-        const minPct = Math.max(5, Math.round(50 / count));
-        const maxPct = Math.round(100 - (count - 1) * minPct);
-        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
-        if (!needsRedistribution) return;
-        for (const l of layers) {
-          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
-        }
-        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
-        if (sum !== 100) {
-          const diff = 100 - sum;
-          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
-          let remaining = diff;
-          for (const l of sorted) {
-            if (remaining === 0) break;
-            const canAdd = diff > 0
-              ? Math.min(remaining, maxPct - l.percentage)
-              : Math.max(remaining, minPct - l.percentage);
-            l.percentage += canAdd;
-            remaining -= canAdd;
-          }
-        }
-      };
-      if (result.blend?.layers) clampRefineRatios(result.blend.layers);
+      if (result.blend?.layers && result.blend.layers.length >= 3) {
+        const snapped = polygonSnapRatios(result.blend.layers.map((l: any) => l.percentage));
+        for (let i = 0; i < result.blend.layers.length; i++) result.blend.layers[i].percentage = snapped[i];
+      }
 
       try {
         await storage.addPreferenceSignal({
