@@ -7107,7 +7107,13 @@ Provide 1 primary free-form blend, 1 equal-parts blend, and 1-2 alternatives wit
 Use exactly ${irCount} IRs for ALL blends — primary, equal-parts, AND alternatives. Every blend must use exactly ${irCount} IRs. Do not drop IRs from alternatives.
 The equal-parts blend MUST have all layers at exactly ${Math.round(10000 / irCount) / 100}% each.
 
-GEOMETRIC MIXER CONSTRAINT: Users mix IRs in plugins (Cabinetron, NadIR) using a ${irCount === 3 ? "triangle" : irCount === 4 ? "square" : irCount === 5 ? "pentagon" : irCount === 6 ? "hexagon" : irCount === 7 ? "heptagon" : "octagon"} with a movable dot. IRs sit at vertices. The dot position determines ratios — moving toward a vertex increases that IR's weight. Not every ratio combination is achievable. Prefer ratios that can be approximated by a single dot position inside the shape. Avoid extreme splits like 60/5/5/30 where one IR is very low — these are hard to target on the mixer. Smoother, more balanced distributions (like 35/25/20/20) are easier to dial in. For the primary blend, you may use moderate asymmetry but avoid ratios below 10% for any IR.`
+GEOMETRIC MIXER CONSTRAINT: Users mix IRs in plugins (Cabinetron, NadIR) using a ${irCount === 3 ? "triangle" : irCount === 4 ? "square" : irCount === 5 ? "pentagon" : irCount === 6 ? "hexagon" : irCount === 7 ? "heptagon" : "octagon"} with a movable dot. IRs sit at vertices. The dot position determines ratios — moving toward a vertex increases that IR's weight. Not every ratio combination is achievable. Prefer ratios that can be approximated by a single dot position inside the shape.
+HARD RULES for percentages:
+- MINIMUM per IR: ${Math.max(5, Math.round(50 / irCount))}% — no IR may be below this. If an IR isn't worth at least this much, don't include it.
+- MAXIMUM per IR: ${Math.round(100 - (irCount - 1) * Math.max(5, Math.round(50 / irCount)))}% — no single IR may exceed this.
+- BAD example (DO NOT do this): 71/11/8/3/3/2/2 — impossible on a geometric mixer
+- GOOD example for ${irCount} IRs: ${irCount <= 4 ? "35/30/20/15" : irCount <= 5 ? "30/25/20/15/10" : irCount <= 6 ? "25/20/18/15/12/10" : "22/18/16/14/12/10/8"}
+Smoother, more balanced distributions are easier to dial in.`
           },
           {
             role: "user",
@@ -7132,6 +7138,39 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
       }
 
       const result = JSON.parse(content);
+
+      const clampBlendRatios = (layers: any[]) => {
+        if (!layers || layers.length < 3) return;
+        const n = layers.length;
+        const minPct = Math.max(5, Math.round(50 / n));
+        const maxPct = Math.round(100 - (n - 1) * minPct);
+        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
+        if (!needsRedistribution) return;
+        for (const l of layers) {
+          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
+        }
+        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
+        if (sum !== 100) {
+          const diff = 100 - sum;
+          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
+          let remaining = diff;
+          for (const l of sorted) {
+            if (remaining === 0) break;
+            const canAdd = diff > 0
+              ? Math.min(remaining, maxPct - l.percentage)
+              : Math.max(remaining, minPct - l.percentage);
+            l.percentage += canAdd;
+            remaining -= canAdd;
+          }
+        }
+      };
+
+      if (result.blend?.layers) clampBlendRatios(result.blend.layers);
+      if (result.alternatives) {
+        for (const alt of result.alternatives) {
+          if (alt.layers) clampBlendRatios(alt.layers);
+        }
+      }
 
       const irMap = new Map(irs.map(ir => [ir.filename, ir]));
 
