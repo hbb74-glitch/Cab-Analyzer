@@ -93,7 +93,7 @@ export function computeMixerPosition(
   const dot = findOptimalDot(normalizedRatios, vertices);
 
   const recoveredWeights = idwWeights(dot, vertices);
-  const achievableRatios = roundRatios(recoveredWeights);
+  const achievableRatios = clampBlendPercentages(roundRatios(recoveredWeights));
   const maxDrift = Math.max(...ratios.map((r, i) => Math.abs(r - achievableRatios[i])));
 
   const distanceFromCenter = Math.sqrt(dot.x ** 2 + dot.y ** 2);
@@ -109,10 +109,33 @@ export function computeMixerPosition(
   };
 }
 
+export function clampBlendPercentages(pcts: number[]): number[] {
+  const n = pcts.length;
+  if (n < 3) return pcts;
+  const minPct = Math.max(5, Math.round(50 / n));
+  const maxPct = Math.round(100 - (n - 1) * minPct);
+  const clamped = pcts.map(p => Math.max(minPct, Math.min(maxPct, p)));
+  const sum = clamped.reduce((a, b) => a + b, 0);
+  if (sum !== 100) {
+    const diff = 100 - sum;
+    const sorted = clamped.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+    let remaining = diff;
+    for (const entry of sorted) {
+      if (remaining === 0) break;
+      const canAdd = diff > 0
+        ? Math.min(remaining, maxPct - entry.v)
+        : Math.max(remaining, minPct - entry.v);
+      clamped[entry.i] += canAdd;
+      remaining -= canAdd;
+    }
+  }
+  return clamped;
+}
+
 export function snapToAchievable(ratios: number[]): number[] {
   if (ratios.length < 3 || ratios.length > 8) return ratios;
   const pos = computeMixerPosition(ratios, ratios.map((_, i) => `IR${i}`));
-  return pos.achievableRatios;
+  return clampBlendPercentages(pos.achievableRatios);
 }
 
 export function getShapeName(n: number): string {

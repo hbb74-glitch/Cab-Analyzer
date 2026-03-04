@@ -7395,7 +7395,9 @@ You can:
 
 RULES:
 - All percentages must sum to exactly 100%
-- No IR below 5%
+- MINIMUM per IR: ${Math.max(5, Math.round(50 / currentBlend.layers.length))}% — no IR may be below this
+- MAXIMUM per IR: ${Math.round(100 - (currentBlend.layers.length - 1) * Math.max(5, Math.round(50 / currentBlend.layers.length)))}% — no single IR may exceed this
+- Prefer balanced, achievable distributions — extreme ratios like 80/10/5/5 are impossible on geometric mixers
 - Interpret the user's feedback carefully — they may use subjective terms
 - Explain what you changed and why
 
@@ -7440,6 +7442,33 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
       }
 
       const result = JSON.parse(content);
+
+      const clampRefineRatios = (layers: any[]) => {
+        if (!layers || layers.length < 3) return;
+        const count = layers.length;
+        const minPct = Math.max(5, Math.round(50 / count));
+        const maxPct = Math.round(100 - (count - 1) * minPct);
+        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
+        if (!needsRedistribution) return;
+        for (const l of layers) {
+          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
+        }
+        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
+        if (sum !== 100) {
+          const diff = 100 - sum;
+          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
+          let remaining = diff;
+          for (const l of sorted) {
+            if (remaining === 0) break;
+            const canAdd = diff > 0
+              ? Math.min(remaining, maxPct - l.percentage)
+              : Math.max(remaining, minPct - l.percentage);
+            l.percentage += canAdd;
+            remaining -= canAdd;
+          }
+        }
+      };
+      if (result.blend?.layers) clampRefineRatios(result.blend.layers);
 
       try {
         await storage.addPreferenceSignal({
