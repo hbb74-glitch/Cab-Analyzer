@@ -35,58 +35,68 @@ function polygonSnapRatios(pcts: number[]): number[] {
     return w.map(x => x / s);
   };
 
-  const rawSum = pcts.reduce((a, b) => a + b, 0) || 1;
-  const target = pcts.map(p => p / rawSum);
+  const findDotAndSnap = (input: number[]): number[] => {
+    const rawSum = input.reduce((a, b) => a + b, 0) || 1;
+    const target = input.map(p => p / rawSum);
 
-  let dotX = 0, dotY = 0;
-  for (let i = 0; i < n; i++) {
-    dotX += target[i] * vertices[i].x;
-    dotY += target[i] * vertices[i].y;
-  }
-  const lr = 0.005, eps = 0.0001;
-  for (let iter = 0; iter < 800; iter++) {
-    const w = idwWeights(dotX, dotY);
-    let cost = 0;
-    for (let i = 0; i < n; i++) cost += (w[i] - target[i]) ** 2;
-    if (cost < 0.000001) break;
-    const wPx = idwWeights(dotX + eps, dotY);
-    const wMx = idwWeights(dotX - eps, dotY);
-    const wPy = idwWeights(dotX, dotY + eps);
-    const wMy = idwWeights(dotX, dotY - eps);
-    let cPx = 0, cMx = 0, cPy = 0, cMy = 0;
+    let dotX = 0, dotY = 0;
     for (let i = 0; i < n; i++) {
-      cPx += (wPx[i] - target[i]) ** 2;
-      cMx += (wMx[i] - target[i]) ** 2;
-      cPy += (wPy[i] - target[i]) ** 2;
-      cMy += (wMy[i] - target[i]) ** 2;
+      dotX += target[i] * vertices[i].x;
+      dotY += target[i] * vertices[i].y;
     }
-    dotX -= lr * (cPx - cMx) / (2 * eps);
-    dotY -= lr * (cPy - cMy) / (2 * eps);
-  }
-
-  const achieved = idwWeights(dotX, dotY);
-  const rounded = achieved.map(r => Math.round(r * 100));
-  const rSum = rounded.reduce((a, b) => a + b, 0);
-  if (rSum !== 100 && rSum > 0) {
-    rounded[rounded.indexOf(Math.max(...rounded))] += 100 - rSum;
-  }
-
-  const clamped = rounded.map(p => Math.max(minPct, Math.min(maxPct, p)));
-  const clampSum = clamped.reduce((a, b) => a + b, 0);
-  if (clampSum !== 100) {
-    const diff = 100 - clampSum;
-    const sorted = clamped.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
-    let remaining = diff;
-    for (const entry of sorted) {
-      if (remaining === 0) break;
-      const canAdd = diff > 0
-        ? Math.min(remaining, maxPct - entry.v)
-        : Math.max(remaining, minPct - entry.v);
-      clamped[entry.i] += canAdd;
-      remaining -= canAdd;
+    const lr = 0.005, eps = 0.0001;
+    for (let iter = 0; iter < 800; iter++) {
+      const w = idwWeights(dotX, dotY);
+      let cost = 0;
+      for (let i = 0; i < n; i++) cost += (w[i] - target[i]) ** 2;
+      if (cost < 0.000001) break;
+      const wPx = idwWeights(dotX + eps, dotY);
+      const wMx = idwWeights(dotX - eps, dotY);
+      const wPy = idwWeights(dotX, dotY + eps);
+      const wMy = idwWeights(dotX, dotY - eps);
+      let cPx = 0, cMx = 0, cPy = 0, cMy = 0;
+      for (let i = 0; i < n; i++) {
+        cPx += (wPx[i] - target[i]) ** 2;
+        cMx += (wMx[i] - target[i]) ** 2;
+        cPy += (wPy[i] - target[i]) ** 2;
+        cMy += (wMy[i] - target[i]) ** 2;
+      }
+      dotX -= lr * (cPx - cMx) / (2 * eps);
+      dotY -= lr * (cPy - cMy) / (2 * eps);
     }
+
+    const achieved = idwWeights(dotX, dotY);
+    const rounded = achieved.map(r => Math.round(r * 100));
+    const rSum = rounded.reduce((a, b) => a + b, 0);
+    if (rSum !== 100 && rSum > 0) {
+      rounded[rounded.indexOf(Math.max(...rounded))] += 100 - rSum;
+    }
+
+    const clamped = rounded.map(p => Math.max(minPct, Math.min(maxPct, p)));
+    const clampSum = clamped.reduce((a, b) => a + b, 0);
+    if (clampSum !== 100) {
+      const diff = 100 - clampSum;
+      const sorted = clamped.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+      let remaining = diff;
+      for (const entry of sorted) {
+        if (remaining === 0) break;
+        const canAdd = diff > 0
+          ? Math.min(remaining, maxPct - entry.v)
+          : Math.max(remaining, minPct - entry.v);
+        clamped[entry.i] += canAdd;
+        remaining -= canAdd;
+      }
+    }
+    return clamped;
+  };
+
+  let current = pcts;
+  for (let pass = 0; pass < 5; pass++) {
+    const snapped = findDotAndSnap(current);
+    if (snapped.every((v, i) => v === current[i])) break;
+    current = snapped;
   }
-  return clamped;
+  return current;
 }
 
 type IRBandData = { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; [key: string]: any };

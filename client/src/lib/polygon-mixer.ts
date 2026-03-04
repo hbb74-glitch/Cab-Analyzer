@@ -81,21 +81,39 @@ function roundRatios(raw: number[]): number[] {
   return rounded;
 }
 
+function singlePassSnap(input: number[], vertices: PolygonPoint[]): number[] {
+  const n = input.length;
+  const rawSum = input.reduce((a, b) => a + b, 0) || 1;
+  const normalizedRatios = input.map(r => r / rawSum);
+  const dot = findOptimalDot(normalizedRatios, vertices);
+  const recoveredWeights = idwWeights(dot, vertices);
+  return clampBlendPercentages(roundRatios(recoveredWeights));
+}
+
+function iterativeSnap(ratios: number[], vertices: PolygonPoint[]): number[] {
+  let current = ratios;
+  for (let pass = 0; pass < 5; pass++) {
+    const snapped = singlePassSnap(current, vertices);
+    if (snapped.every((v, i) => v === current[i])) break;
+    current = snapped;
+  }
+  return current;
+}
+
 export function computeMixerPosition(
   ratios: number[],
   labels: string[]
 ): MixerPosition {
   const n = ratios.length;
   const vertices = getPolygonVertices(n);
-  const sum = ratios.reduce((a, b) => a + b, 0) || 1;
-  const normalizedRatios = ratios.map(r => r / sum);
 
-  const dot = findOptimalDot(normalizedRatios, vertices);
+  const achievableRatios = iterativeSnap(ratios, vertices);
 
-  const recoveredWeights = idwWeights(dot, vertices);
-  const achievableRatios = clampBlendPercentages(roundRatios(recoveredWeights));
+  const achSum = achievableRatios.reduce((a, b) => a + b, 0) || 1;
+  const achNorm = achievableRatios.map(r => r / achSum);
+  const dot = findOptimalDot(achNorm, vertices);
+
   const maxDrift = Math.max(...ratios.map((r, i) => Math.abs(r - achievableRatios[i])));
-
   const distanceFromCenter = Math.sqrt(dot.x ** 2 + dot.y ** 2);
 
   return {
@@ -134,8 +152,8 @@ export function clampBlendPercentages(pcts: number[]): number[] {
 
 export function snapToAchievable(ratios: number[]): number[] {
   if (ratios.length < 3 || ratios.length > 8) return ratios;
-  const pos = computeMixerPosition(ratios, ratios.map((_, i) => `IR${i}`));
-  return clampBlendPercentages(pos.achievableRatios);
+  const vertices = getPolygonVertices(ratios.length);
+  return iterativeSnap(ratios, vertices);
 }
 
 export function getShapeName(n: number): string {
