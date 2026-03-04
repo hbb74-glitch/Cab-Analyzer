@@ -1331,6 +1331,10 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                 className="mt-3 w-full border-violet-500/30 text-violet-300"
                 disabled={isReoptimizing}
                 onClick={async () => {
+                  console.log("[Reoptimize Client] Button clicked, toneNudges:", JSON.stringify(toneNudges));
+                  console.log("[Reoptimize Client] allResults keys:", Object.keys(allResults));
+                  console.log("[Reoptimize Client] baselineResults keys:", Object.keys(baselineResults));
+                  console.log("[Reoptimize Client] speakerIRs count:", speakerIRs.length);
                   setIsReoptimizing(true);
                   try {
                     const metricsMap = new Map<string, AudioMetrics>();
@@ -1353,9 +1357,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     let totalSwaps = 0;
 
                     const sourceResults = Object.keys(baselineResults).length > 0 ? baselineResults : allResults;
+                    console.log("[Reoptimize Client] sourceResults intents:", Object.keys(sourceResults));
                     for (const [intent, res] of Object.entries(sourceResults)) {
+                      console.log(`[Reoptimize Client] Processing intent=${intent} layers=${res.blend.layers.length}`);
                       const layersWithEnergy = res.blend.layers.map(l => {
                         const m = metricsMap.get(l.filename);
+                        if (!m) console.warn(`[Reoptimize Client] No metrics for ${l.filename}`);
                         return {
                           filename: l.filename,
                           percentage: l.percentage,
@@ -1372,6 +1379,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                         };
                       });
 
+                      console.log(`[Reoptimize Client] Sending fetch for intent=${intent}, layers=${layersWithEnergy.length}, pool=${poolData.length}, nudges=${JSON.stringify(toneNudges)}`);
                       const response = await fetch(api.superblendReoptimize.reoptimize.path, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },

@@ -5799,6 +5799,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
     try {
       const input = api.superblendReoptimize.reoptimize.input.parse(req.body);
       const { layers, pool, intent, iterations: maxIter, irCount } = input;
+      console.log(`[Reoptimize] intent=${intent} layers=${layers.length} pool=${pool?.length || 0} nudges=${JSON.stringify(input.nudges)}`);
       const nudges = (() => {
         const raw = input.nudges;
         if (!raw) return raw;
@@ -6234,6 +6235,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         role: ir.role,
         contribution: ir.contribution,
       }));
+
+      console.log(`[Reoptimize] DONE intent=${intent} baseline=${baselineScore.toFixed(3)} best=${bestScore.toFixed(3)} tilt=${finalTilt.toFixed(2)} ratios=[${pctRatios.join(',')}] swaps=${swaps.length} irs=[${bestIRs.map(ir => ir.filename).join(',')}]`);
 
       res.json({
         layers: resultLayers,
