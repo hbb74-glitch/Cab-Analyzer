@@ -6108,33 +6108,8 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const adaptiveIters = Math.min(4000, Math.max(iters, (pool?.length || 0) * layers.length * 60));
 
       const n = currentIRs.length;
-      const usePolygon = n >= 3 && n <= 8;
-
-      function getPolygonVertices(count: number): { x: number; y: number }[] {
-        const verts: { x: number; y: number }[] = [];
-        for (let i = 0; i < count; i++) {
-          const angle = (2 * Math.PI * i) / count - Math.PI / 2;
-          verts.push({ x: Math.cos(angle), y: Math.sin(angle) });
-        }
-        return verts;
-      }
-
-      function idwWeights(dot: { x: number; y: number }, vertices: { x: number; y: number }[], power = 2): number[] {
-        const dists = vertices.map(v => Math.sqrt((dot.x - v.x) ** 2 + (dot.y - v.y) ** 2));
-        const minD = Math.min(...dists);
-        if (minD < 0.0001) return dists.map(d => d < 0.0001 ? 1 : 0);
-        const w = dists.map(d => 1 / Math.pow(d, power));
-        const s = w.reduce((a, b) => a + b, 0);
-        return w.map(x => x / s);
-      }
-
-      const polyVerts = usePolygon ? getPolygonVertices(n) : [];
       const minPctFrac = Math.max(0.05, 0.5 / n);
       const maxPctFrac = 1.0 - (n - 1) * minPctFrac;
-
-      function dotToRatios(x: number, y: number): number[] {
-        return idwWeights({ x, y }, polyVerts);
-      }
 
       function clampRatios(ratios: number[]): number[] {
         const clamped = ratios.map(r => Math.max(minPctFrac, Math.min(maxPctFrac, r)));
@@ -6142,158 +6117,109 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return clamped.map(r => r / sum);
       }
 
-      function ratiosValid(ratios: number[]): boolean {
-        return ratios.every(r => r >= minPctFrac - 0.001 && r <= maxPctFrac + 0.001);
-      }
-
-      function constrainDot(x: number, y: number): { x: number; y: number } {
-        const ratios = dotToRatios(x, y);
-        if (ratiosValid(ratios)) return { x, y };
-        const steps = 10;
-        for (let s = 1; s <= steps; s++) {
-          const t = s / steps;
-          const mx = x * (1 - t);
-          const my = y * (1 - t);
-          const mr = dotToRatios(mx, my);
-          if (ratiosValid(mr)) return { x: mx, y: my };
-        }
-        return { x: 0, y: 0 };
-      }
-
       let bestIRs = [...currentIRs];
-      const inputRatios = normalizeRatios(layers.map(l => l.percentage / 100));
-      let bestRatios: number[];
-      let bestDot: { x: number; y: number };
-      if (usePolygon) {
-        const clampedInput = clampRatios(inputRatios);
-        let dotX = 0, dotY = 0;
-        for (let i = 0; i < n; i++) {
-          dotX += clampedInput[i] * polyVerts[i].x;
-          dotY += clampedInput[i] * polyVerts[i].y;
-        }
-        bestDot = constrainDot(dotX, dotY);
-        bestRatios = clampRatios(dotToRatios(bestDot.x, bestDot.y));
-      } else {
-        bestDot = { x: 0, y: 0 };
-        bestRatios = inputRatios;
-      }
+      let bestRatios = clampRatios(normalizeRatios(layers.map(l => l.percentage / 100)));
       const baseVecs = computeBaselineVec(bestIRs, bestRatios);
       let bestScore = scoreBlend(bestIRs, bestRatios, baseVecs);
       const baselineScore = bestScore;
 
       for (let iter = 0; iter < adaptiveIters; iter++) {
-        if (usePolygon) {
-          const progress = iter / adaptiveIters;
-          const step = progress < 0.4 ? 0.25 : progress < 0.7 ? 0.12 : 0.05;
-          const angle = Math.random() * 2 * Math.PI;
-          const mag = step * (0.3 + Math.random() * 1.4);
-          let cx = bestDot.x + Math.cos(angle) * mag;
-          let cy = bestDot.y + Math.sin(angle) * mag;
-          const candidateRatios = dotToRatios(cx, cy);
-          if (!ratiosValid(candidateRatios)) {
-            const constrained = constrainDot(cx, cy);
-            cx = constrained.x;
-            cy = constrained.y;
-          }
-          const finalRatios = clampRatios(dotToRatios(cx, cy));
-          const s = scoreBlend(bestIRs, finalRatios, baseVecs);
-          if (s > bestScore) {
-            bestScore = s;
-            bestRatios = finalRatios;
-            bestDot = { x: cx, y: cy };
-          }
-        } else {
-          const candidate = [...bestRatios];
-          const ai = Math.floor(Math.random() * n);
-          const aj = Math.floor(Math.random() * n);
-          if (ai === aj) continue;
-          const progress = iter / adaptiveIters;
-          const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
-          const delta = step * (0.3 + Math.random() * 1.4);
-          candidate[ai] = Math.max(minPctFrac, candidate[ai] + delta);
-          candidate[aj] = Math.max(minPctFrac, candidate[aj] - delta);
-          const norm = clampRatios(normalizeRatios(candidate));
-          const s = scoreBlend(bestIRs, norm, baseVecs);
-          if (s > bestScore) {
-            bestScore = s;
-            bestRatios = norm;
-          }
+        const candidate = [...bestRatios];
+        const ai = Math.floor(Math.random() * n);
+        const aj = Math.floor(Math.random() * n);
+        if (ai === aj) continue;
+        const progress = iter / adaptiveIters;
+        const step = progress < 0.4 ? 0.15 : progress < 0.7 ? 0.08 : 0.04;
+        const delta = step * (0.3 + Math.random() * 1.4);
+        candidate[ai] = Math.max(minPctFrac, candidate[ai] + delta);
+        candidate[aj] = Math.max(minPctFrac, candidate[aj] - delta);
+        const norm = clampRatios(normalizeRatios(candidate));
+        const s = scoreBlend(bestIRs, norm, baseVecs);
+        if (s > bestScore) {
+          bestScore = s;
+          bestRatios = norm;
         }
       }
 
       const swaps: { out: string; in: string; reason: string }[] = [];
       if (poolIRs.length > 0 && nudges && Object.keys(nudges).length > 0) {
-        const swapAttempts = Math.min(poolIRs.length * n, 200);
-        for (let attempt = 0; attempt < swapAttempts; attempt++) {
-          const slotIdx = Math.floor(Math.random() * n);
-          const poolIdx = Math.floor(Math.random() * poolIRs.length);
-          const candidate = poolIRs[poolIdx];
-          if (bestIRs.some(ir => ir.filename === candidate.filename)) continue;
-
-          const testIRs = [...bestIRs];
-          testIRs[slotIdx] = { ...candidate, role: bestIRs[slotIdx].role };
-
-          let testScore: number;
-          let testBest: number[];
-          if (usePolygon) {
-            let testDot = constrainDot(bestDot.x, bestDot.y);
-            testBest = clampRatios(dotToRatios(testDot.x, testDot.y));
-            testScore = scoreBlend(testIRs, testBest, baseVecs);
-            for (let iter = 0; iter < 400; iter++) {
-              const sp = iter / 400;
-              const swapStep = sp < 0.4 ? 0.2 : sp < 0.7 ? 0.1 : 0.04;
-              const a = Math.random() * 2 * Math.PI;
-              const m = swapStep * (0.3 + Math.random() * 1.4);
-              let cx = testDot.x + Math.cos(a) * m;
-              let cy = testDot.y + Math.sin(a) * m;
-              const cRatios = dotToRatios(cx, cy);
-              if (!ratiosValid(cRatios)) {
-                const con = constrainDot(cx, cy);
-                cx = con.x; cy = con.y;
-              }
-              const fr = clampRatios(dotToRatios(cx, cy));
-              const s = scoreBlend(testIRs, fr, baseVecs);
-              if (s > testScore) { testScore = s; testBest = fr; testDot = { x: cx, y: cy }; }
-            }
-          } else {
-            testBest = clampRatios(normalizeRatios([...bestRatios]));
-            testScore = scoreBlend(testIRs, testBest, baseVecs);
-            for (let iter = 0; iter < 400; iter++) {
-              const c = [...testBest];
-              const ai = Math.floor(Math.random() * n);
-              const aj = Math.floor(Math.random() * n);
-              if (ai === aj) continue;
-              const sp = iter / 400;
-              const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
-              const d = swapStep * (0.3 + Math.random() * 1.4);
-              c[ai] = Math.max(minPctFrac, c[ai] + d);
-              c[aj] = Math.max(minPctFrac, c[aj] - d);
-              const norm = clampRatios(normalizeRatios(c));
-              const s = scoreBlend(testIRs, norm, baseVecs);
-              if (s > testScore) { testScore = s; testBest = norm; }
-            }
+        function optimizeRatiosForIRs(irs: IREntry[], startRatios: number[], optimIters: number): { ratios: number[]; score: number } {
+          let bRatios = clampRatios([...startRatios]);
+          let bScore = scoreBlend(irs, bRatios, baseVecs);
+          for (let iter = 0; iter < optimIters; iter++) {
+            const c = [...bRatios];
+            const ai = Math.floor(Math.random() * n);
+            const aj = Math.floor(Math.random() * n);
+            if (ai === aj) continue;
+            const sp = iter / optimIters;
+            const swapStep = sp < 0.4 ? 0.15 : sp < 0.7 ? 0.08 : 0.04;
+            const d = swapStep * (0.3 + Math.random() * 1.4);
+            c[ai] = Math.max(minPctFrac, c[ai] + d);
+            c[aj] = Math.max(minPctFrac, c[aj] - d);
+            const norm = clampRatios(normalizeRatios(c));
+            const s = scoreBlend(irs, norm, baseVecs);
+            if (s > bScore) { bScore = s; bRatios = norm; }
           }
+          return { ratios: bRatios, score: bScore };
+        }
 
-          if (testScore > bestScore + 0.3) {
-            const outName = bestIRs[slotIdx].filename;
-            swaps.push({
-              out: outName,
-              in: candidate.filename,
-              reason: `Better fit for nudge target (score +${(testScore - bestScore).toFixed(1)})`,
-            });
-            bestIRs = testIRs;
-            bestRatios = testBest;
-            bestScore = testScore;
-            if (usePolygon) bestDot = ratiosToDot(testBest);
+        let improved = true;
+        while (improved) {
+          improved = false;
+          for (let slotIdx = 0; slotIdx < n; slotIdx++) {
+            let slotBestScore = bestScore;
+            let slotBestIR: IREntry | null = null;
+            let slotBestRatios: number[] | null = null;
+
+            for (const candidate of poolIRs) {
+              if (bestIRs.some(ir => ir.filename === candidate.filename)) continue;
+
+              const testIRs = [...bestIRs];
+              testIRs[slotIdx] = { ...candidate, role: bestIRs[slotIdx].role };
+
+              const result = optimizeRatiosForIRs(testIRs, bestRatios, 300);
+
+              if (result.score > slotBestScore + 0.3) {
+                slotBestScore = result.score;
+                slotBestIR = candidate;
+                slotBestRatios = result.ratios;
+              }
+            }
+
+            if (slotBestIR && slotBestRatios) {
+              const outName = bestIRs[slotIdx].filename;
+              swaps.push({
+                out: outName,
+                in: slotBestIR.filename,
+                reason: `Better fit for nudge target (score +${(slotBestScore - bestScore).toFixed(1)})`,
+              });
+              bestIRs[slotIdx] = { ...slotBestIR, role: bestIRs[slotIdx].role };
+              bestRatios = slotBestRatios;
+              bestScore = slotBestScore;
+              improved = true;
+            }
           }
         }
       }
 
-      const pctRatios = bestRatios.map(r => Math.round(r * 100));
+      bestRatios = clampRatios(bestRatios);
+
+      const minPct = Math.round(minPctFrac * 100);
+      const maxPct = Math.round(maxPctFrac * 100);
+      const pctRatios = bestRatios.map(r => Math.max(minPct, Math.min(maxPct, Math.round(r * 100))));
       const pctSum = pctRatios.reduce((a, b) => a + b, 0);
       if (pctSum !== 100) {
-        const maxIdx = pctRatios.indexOf(Math.max(...pctRatios));
-        pctRatios[maxIdx] += 100 - pctSum;
+        const diff = 100 - pctSum;
+        const sorted = pctRatios.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+        let remaining = diff;
+        for (const entry of sorted) {
+          if (remaining === 0) break;
+          const canAdd = diff > 0
+            ? Math.min(remaining, maxPct - entry.v)
+            : Math.max(remaining, minPct - entry.v);
+          pctRatios[entry.i] += canAdd;
+          remaining -= canAdd;
+        }
       }
 
       const finalBands = blendBands6(bestIRs, bestRatios);
@@ -7242,48 +7168,36 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
 
       const result = JSON.parse(content);
 
-      const snapBlendToPolygon = (layers: any[]) => {
-        if (!layers || layers.length < 3 || layers.length > 8) return;
+      const clampBlendRatios = (layers: any[]) => {
+        if (!layers || layers.length < 3) return;
         const count = layers.length;
-        const verts: { x: number; y: number }[] = [];
-        for (let i = 0; i < count; i++) {
-          const angle = (2 * Math.PI * i) / count - Math.PI / 2;
-          verts.push({ x: Math.cos(angle), y: Math.sin(angle) });
+        const minPct = Math.max(5, Math.round(50 / count));
+        const maxPct = Math.round(100 - (count - 1) * minPct);
+        let needsRedistribution = layers.some((l: any) => l.percentage < minPct || l.percentage > maxPct);
+        if (!needsRedistribution) return;
+        for (const l of layers) {
+          l.percentage = Math.max(minPct, Math.min(maxPct, l.percentage));
         }
-        const rawPcts = layers.map((l: any) => l.percentage);
-        const total = rawPcts.reduce((a: number, b: number) => a + b, 0) || 1;
-        const norm = rawPcts.map((p: number) => p / total);
-        let dotX = 0, dotY = 0;
-        for (let i = 0; i < count; i++) {
-          dotX += norm[i] * verts[i].x;
-          dotY += norm[i] * verts[i].y;
-        }
-        const dists = verts.map(v => Math.sqrt((dotX - v.x) ** 2 + (dotY - v.y) ** 2));
-        const minD = Math.min(...dists);
-        let weights: number[];
-        if (minD < 0.0001) {
-          weights = dists.map(d => d < 0.0001 ? 1 : 0);
-        } else {
-          const w = dists.map(d => 1 / (d * d));
-          const ws = w.reduce((a, b) => a + b, 0);
-          weights = w.map(x => x / ws);
-        }
-        const rounded = weights.map(r => Math.round(r * 100));
-        const rSum = rounded.reduce((a, b) => a + b, 0);
-        if (rSum !== 100 && rSum > 0) {
-          const diff = 100 - rSum;
-          const maxIdx = rounded.indexOf(Math.max(...rounded));
-          rounded[maxIdx] += diff;
-        }
-        for (let i = 0; i < count; i++) {
-          layers[i].percentage = rounded[i];
+        const sum = layers.reduce((s: number, l: any) => s + l.percentage, 0);
+        if (sum !== 100) {
+          const diff = 100 - sum;
+          const sorted = [...layers].sort((a: any, b: any) => b.percentage - a.percentage);
+          let remaining = diff;
+          for (const l of sorted) {
+            if (remaining === 0) break;
+            const canAdd = diff > 0
+              ? Math.min(remaining, maxPct - l.percentage)
+              : Math.max(remaining, minPct - l.percentage);
+            l.percentage += canAdd;
+            remaining -= canAdd;
+          }
         }
       };
 
-      if (result.blend?.layers) snapBlendToPolygon(result.blend.layers);
+      if (result.blend?.layers) clampBlendRatios(result.blend.layers);
       if (result.alternatives) {
         for (const alt of result.alternatives) {
-          if (alt.layers) snapBlendToPolygon(alt.layers);
+          if (alt.layers) clampBlendRatios(alt.layers);
         }
       }
 
