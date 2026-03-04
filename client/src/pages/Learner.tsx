@@ -1606,11 +1606,17 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
 
                 {displayBlend.bandBreakdown && (() => {
                   const bb = displayBlend.bandBreakdown;
-                  const lowAvg = (bb.subBass + bb.bass + bb.lowMid) / 3;
-                  const highAvg = (bb.mid + bb.highMid + bb.presence) / 3;
-                  const tiltVal = Math.round((highAvg - lowAvg) * 10) / 10;
-                  const tiltLabel = tiltVal > 3 ? "Bright" : tiltVal > 1 ? "Sl. Bright" : tiltVal < -3 ? "Dark" : tiltVal < -1 ? "Sl. Dark" : "Neutral";
-                  const tiltColor = tiltVal > 1 ? "text-yellow-400" : tiltVal < -1 ? "text-blue-400" : "text-muted-foreground";
+                  const pcts = [bb.subBass, bb.bass, bb.lowMid, bb.mid, bb.highMid, bb.presence];
+                  const total = pcts.reduce((a, b) => a + b, 0) || 1;
+                  const energies = pcts.map(p => p / total);
+                  const lowAvg = (energies[0] + energies[1] + energies[2]) / 3;
+                  const highAvg = (energies[3] + energies[4] + energies[5]) / 3;
+                  const dbLow = lowAvg > 0 ? 10 * Math.log10(lowAvg + 1e-12) : -60;
+                  const dbHigh = highAvg > 0 ? 10 * Math.log10(highAvg + 1e-12) : -60;
+                  const octaveSpan = Math.log2(8000 / 80);
+                  const tiltVal = Math.round(((dbHigh - dbLow) / octaveSpan) * 100) / 100;
+                  const tiltLabel = tiltVal > 0.5 ? "Bright" : tiltVal > 0.15 ? "Sl. Bright" : tiltVal < -0.5 ? "Dark" : tiltVal < -0.15 ? "Sl. Dark" : "Neutral";
+                  const tiltColor = tiltVal > 0.15 ? "text-yellow-400" : tiltVal < -0.15 ? "text-blue-400" : "text-muted-foreground";
                   return (
                     <div className="space-y-1">
                       <div className="grid grid-cols-6 gap-1 text-center" data-testid="superblend-bands">
