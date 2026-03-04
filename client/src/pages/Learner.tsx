@@ -1349,112 +1349,112 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                     }));
 
                     const speakerLabel = selectedSpeaker === "__mixed__" ? speakers.map(([s]) => s).join(" + ") : selectedSpeaker;
-                    const reoptimized: Record<string, SuperblendResult> = {};
                     let totalSwaps = 0;
 
                     const sourceResults = Object.keys(baselineResults).length > 0 ? baselineResults : allResults;
-                    console.log("[Reoptimize Client] sourceResults intents:", Object.keys(sourceResults));
-                    for (const [intent, res] of Object.entries(sourceResults)) {
-                      console.log(`[Reoptimize Client] Processing intent=${intent} layers=${res.blend.layers.length}`);
-                      const layersWithEnergy = res.blend.layers.map(l => {
-                        const m = metricsMap.get(l.filename);
-                        if (!m) console.warn(`[Reoptimize Client] No metrics for ${l.filename}`);
-                        return {
-                          filename: l.filename,
-                          percentage: l.percentage,
-                          role: l.role,
-                          contribution: l.contribution,
-                          subBassEnergy: m?.subBassEnergy || 0,
-                          bassEnergy: m?.bassEnergy || 0,
-                          lowMidEnergy: m?.lowMidEnergy || 0,
-                          midEnergy6: m?.midEnergy6 || 0,
-                          highMidEnergy: m?.highMidEnergy || 0,
-                          presenceEnergy: m?.presenceEnergy || 0,
-                          ultraHighEnergy: m?.ultraHighEnergy || 0,
-                          logBandEnergies: m?.logBandEnergies,
-                        };
-                      });
+                    const intent = selectedIntent;
+                    const res = sourceResults[intent];
+                    if (!res) throw new Error("No result for active intent");
 
-                      console.log(`[Reoptimize Client] Sending fetch for intent=${intent}, layers=${layersWithEnergy.length}, pool=${poolData.length}, nudges=${JSON.stringify(toneNudges)}`);
-                      const response = await fetch(api.superblendReoptimize.reoptimize.path, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          layers: layersWithEnergy,
-                          pool: poolData,
-                          nudges: toneNudges,
-                          speaker: speakerLabel,
-                          intent,
-                          irCount,
-                        }),
-                      });
-
-                      if (!response.ok) throw new Error("Re-optimize failed");
-                      const data = await response.json();
-
-                      if (data.swaps) totalSwaps += data.swaps.length;
-
-                      const currentRes = allResults[intent] || res;
-                      const updatedLayers: SuperblendLayer[] = data.layers.map((l: any) => ({
+                    const layersWithEnergy = res.blend.layers.map(l => {
+                      const m = metricsMap.get(l.filename);
+                      return {
                         filename: l.filename,
                         percentage: l.percentage,
                         role: l.role,
-                        contribution: l.contribution || res.blend.layers.find((ol: any) => ol.filename === l.filename)?.contribution || "",
-                      }));
+                        contribution: l.contribution,
+                        subBassEnergy: m?.subBassEnergy || 0,
+                        bassEnergy: m?.bassEnergy || 0,
+                        lowMidEnergy: m?.lowMidEnergy || 0,
+                        midEnergy6: m?.midEnergy6 || 0,
+                        highMidEnergy: m?.highMidEnergy || 0,
+                        presenceEnergy: m?.presenceEnergy || 0,
+                        ultraHighEnergy: m?.ultraHighEnergy || 0,
+                        logBandEnergies: m?.logBandEnergies,
+                      };
+                    });
 
-                      let updatedEqualParts = currentRes.equalPartsBlend;
-                      if (currentRes.equalPartsBlend?.layers) {
-                        const eqSource = (Object.keys(baselineResults).length > 0 ? baselineResults[intent] : res)?.equalPartsBlend;
-                        if (eqSource?.layers) {
-                          const eqLayersWithEnergy = eqSource.layers.map((l: SuperblendLayer) => {
-                            const m = metricsMap.get(l.filename);
-                            return {
-                              filename: l.filename,
-                              percentage: l.percentage,
-                              role: l.role,
-                              contribution: l.contribution,
-                              subBassEnergy: m?.subBassEnergy || 0,
-                              bassEnergy: m?.bassEnergy || 0,
-                              lowMidEnergy: m?.lowMidEnergy || 0,
-                              midEnergy6: m?.midEnergy6 || 0,
-                              highMidEnergy: m?.highMidEnergy || 0,
-                              presenceEnergy: m?.presenceEnergy || 0,
-                              ultraHighEnergy: m?.ultraHighEnergy || 0,
-                              logBandEnergies: m?.logBandEnergies,
-                            };
-                          });
-                          const eqResponse = await fetch(api.superblendReoptimize.reoptimize.path, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              layers: eqLayersWithEnergy,
-                              pool: poolData,
-                              nudges: toneNudges,
-                              speaker: speakerLabel,
-                              intent,
-                              irCount,
-                            }),
-                          });
-                          if (eqResponse.ok) {
-                            const eqData = await eqResponse.json();
-                            if (eqData.swaps) totalSwaps += eqData.swaps.length;
-                            const eqUpdatedLayers: SuperblendLayer[] = eqData.layers.map((l: any) => ({
-                              filename: l.filename,
-                              percentage: l.percentage,
-                              role: l.role,
-                              contribution: l.contribution || eqSource.layers.find((ol: SuperblendLayer) => ol.filename === l.filename)?.contribution || "",
-                            }));
-                            updatedEqualParts = {
-                              ...currentRes.equalPartsBlend!,
-                              layers: eqUpdatedLayers,
-                              bandBreakdown: eqData.bandBreakdown,
-                              tilt: eqData.tilt,
-                            };
-                          }
+                    const response = await fetch(api.superblendReoptimize.reoptimize.path, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        layers: layersWithEnergy,
+                        pool: poolData,
+                        nudges: toneNudges,
+                        speaker: speakerLabel,
+                        intent,
+                        irCount,
+                      }),
+                    });
+
+                    if (!response.ok) throw new Error("Re-optimize failed");
+                    const data = await response.json();
+
+                    if (data.swaps) totalSwaps += data.swaps.length;
+
+                    const currentRes = allResults[intent] || res;
+                    const updatedLayers: SuperblendLayer[] = data.layers.map((l: any) => ({
+                      filename: l.filename,
+                      percentage: l.percentage,
+                      role: l.role,
+                      contribution: l.contribution || res.blend.layers.find((ol: any) => ol.filename === l.filename)?.contribution || "",
+                    }));
+
+                    let updatedEqualParts = currentRes.equalPartsBlend;
+                    if (currentRes.equalPartsBlend?.layers) {
+                      const eqSource = (Object.keys(baselineResults).length > 0 ? baselineResults[intent] : res)?.equalPartsBlend;
+                      if (eqSource?.layers) {
+                        const eqLayersWithEnergy = eqSource.layers.map((l: SuperblendLayer) => {
+                          const m = metricsMap.get(l.filename);
+                          return {
+                            filename: l.filename,
+                            percentage: l.percentage,
+                            role: l.role,
+                            contribution: l.contribution,
+                            subBassEnergy: m?.subBassEnergy || 0,
+                            bassEnergy: m?.bassEnergy || 0,
+                            lowMidEnergy: m?.lowMidEnergy || 0,
+                            midEnergy6: m?.midEnergy6 || 0,
+                            highMidEnergy: m?.highMidEnergy || 0,
+                            presenceEnergy: m?.presenceEnergy || 0,
+                            ultraHighEnergy: m?.ultraHighEnergy || 0,
+                            logBandEnergies: m?.logBandEnergies,
+                          };
+                        });
+                        const eqResponse = await fetch(api.superblendReoptimize.reoptimize.path, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            layers: eqLayersWithEnergy,
+                            pool: poolData,
+                            nudges: toneNudges,
+                            speaker: speakerLabel,
+                            intent,
+                            irCount,
+                          }),
+                        });
+                        if (eqResponse.ok) {
+                          const eqData = await eqResponse.json();
+                          if (eqData.swaps) totalSwaps += eqData.swaps.length;
+                          const eqUpdatedLayers: SuperblendLayer[] = eqData.layers.map((l: any) => ({
+                            filename: l.filename,
+                            percentage: l.percentage,
+                            role: l.role,
+                            contribution: l.contribution || eqSource.layers.find((ol: SuperblendLayer) => ol.filename === l.filename)?.contribution || "",
+                          }));
+                          updatedEqualParts = {
+                            ...currentRes.equalPartsBlend!,
+                            layers: eqUpdatedLayers,
+                            bandBreakdown: eqData.bandBreakdown,
+                            tilt: eqData.tilt,
+                          };
                         }
                       }
+                    }
 
-                      reoptimized[intent] = {
+                    setAllResults(prev => ({
+                      ...prev,
+                      [intent]: {
                         ...currentRes,
                         blend: {
                           ...currentRes.blend,
@@ -1463,12 +1463,10 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                           tilt: data.tilt,
                         },
                         equalPartsBlend: updatedEqualParts,
-                      };
-                    }
-
-                    setAllResults(reoptimized);
-                    const swapMsg = totalSwaps > 0 ? ` (${totalSwaps} IR swap${totalSwaps > 1 ? "s" : ""} made)` : "";
-                    toast({ title: "Re-optimized", description: `Server-side recalculation complete${swapMsg}. Band breakdowns updated.` });
+                      },
+                    }));
+                    const swapMsg = totalSwaps > 0 ? ` (${totalSwaps} IR swap${totalSwaps > 1 ? "s" : ""})` : "";
+                    toast({ title: "Re-optimized", description: `${intent.charAt(0).toUpperCase() + intent.slice(1)} blend updated${swapMsg}.` });
                   } catch (e) {
                     console.error("Server reoptimize failed:", e);
                     toast({ title: "Re-optimize failed", description: "Could not reach the server. Try again.", variant: "destructive" });
