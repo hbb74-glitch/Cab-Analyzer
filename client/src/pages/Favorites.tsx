@@ -62,8 +62,10 @@ function loadBlendFavorites(): BlendFavorite[] {
 
 const strip = (f: string) => f.replace(/(_\d{13})?\.wav$/i, "");
 
+const SPEAKER_BRAND_PREFIXES = /^(celestion|eminence|jensen|weber|wgs|scumback|fane|electro[-\s]?voice|ev|beyma|tone\s*tubby)\s+/i;
+
 function normalizeSpeaker(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[-\s]+/g, " ");
+  return raw.trim().toLowerCase().replace(/[-\s]+/g, " ").replace(SPEAKER_BRAND_PREFIXES, "");
 }
 
 function getSpeaker(filename: string): string {
