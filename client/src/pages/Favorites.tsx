@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Star, Copy, X, Blend, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Heart, Star, Copy, X, Blend, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
   loadSuperblendFavorites,
   removeSuperblendFavorite,
+  restoreTasteFromServer,
   SUPERBLEND_INTENTS,
   type SavedSuperblend,
 } from "@/lib/tasteStore";
@@ -38,7 +39,21 @@ export default function Favorites() {
   const [superblendFavs, setSuperblendFavs] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [blendOpen, setBlendOpen] = useState(true);
   const [superblendOpen, setSuperblendOpen] = useState(true);
+  const [restoring, setRestoring] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const localBlend = loadBlendFavorites();
+    const localSuper = loadSuperblendFavorites();
+    if (localBlend.length === 0 && localSuper.length === 0) {
+      setRestoring(true);
+      restoreTasteFromServer().then(() => {
+        setBlendFavs(loadBlendFavorites());
+        setSuperblendFavs(loadSuperblendFavorites());
+        setRestoring(false);
+      }).catch(() => setRestoring(false));
+    }
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -346,11 +361,20 @@ export default function Favorites() {
 
       {totalCount === 0 && (
         <div className="text-center py-16 text-muted-foreground">
-          <Heart className="w-12 h-12 mx-auto mb-4 opacity-20" />
-          <p className="text-sm">Save your favorite blends and superblends to see them here.</p>
-          <p className="text-xs mt-2 opacity-60">
-            Use the heart icon on blend suggestions or save Superblend results from the Learner or Blend Builder.
-          </p>
+          {restoring ? (
+            <>
+              <Loader2 className="w-12 h-12 mx-auto mb-4 opacity-40 animate-spin" />
+              <p className="text-sm">Checking server for saved favorites...</p>
+            </>
+          ) : (
+            <>
+              <Heart className="w-12 h-12 mx-auto mb-4 opacity-20" />
+              <p className="text-sm">Save your favorite blends and superblends to see them here.</p>
+              <p className="text-xs mt-2 opacity-60">
+                Use the heart icon on blend suggestions or save Superblend results from the Learner or Blend Builder.
+              </p>
+            </>
+          )}
         </div>
       )}
     </div>

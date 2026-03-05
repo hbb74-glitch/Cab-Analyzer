@@ -1257,11 +1257,13 @@ export function saveSuperblendFavorite(blend: SavedSuperblend): void {
   const existing = loadSuperblendFavorites();
   existing.unshift(blend);
   localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+  scheduleAutoBackup(3000);
 }
 
 export function removeSuperblendFavorite(id: string): void {
   const existing = loadSuperblendFavorites().filter(b => b.id !== id);
   localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+  scheduleAutoBackup(3000);
 }
 
 const TONE_NUDGES_KEY = "irscope.toneNudges";

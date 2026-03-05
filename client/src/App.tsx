@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -5,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/Navigation";
 import { ResultsProvider } from "@/context/ResultsContext";
+import { restoreTasteFromServer, backupTasteToServer } from "@/lib/tasteStore";
 
 import Analyzer from "@/pages/Analyzer";
 import FractalSettings from "@/pages/FractalSettings";
@@ -49,6 +51,17 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    const blendFavs = JSON.parse(localStorage.getItem("irscope.blendFavorites") || "[]");
+    const superFavs = JSON.parse(localStorage.getItem("irscope.superblendFavorites") || "[]");
+    const hasLocalFavorites = blendFavs.length > 0 || superFavs.length > 0;
+    if (hasLocalFavorites) {
+      backupTasteToServer().catch(() => {});
+    } else {
+      restoreTasteFromServer().catch(() => {});
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
