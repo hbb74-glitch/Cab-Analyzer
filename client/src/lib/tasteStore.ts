@@ -263,6 +263,19 @@ export function featurizeSingleIR(ir: TonalFeatures): number[] {
   return vec;
 }
 
+export function featurizeSuperblendBands(bandBreakdown: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number }): number[] {
+  return [
+    safeNumber(bandBreakdown.subBass) / 10,
+    safeNumber(bandBreakdown.bass) / 10,
+    safeNumber(bandBreakdown.lowMid) / 10,
+    safeNumber(bandBreakdown.mid) / 10,
+    safeNumber(bandBreakdown.highMid) / 10,
+    safeNumber(bandBreakdown.presence) / 10,
+    0,
+    0.5,
+  ];
+}
+
 function dot(w: number[], x: number[]): number {
   let s = 0;
   const n = Math.min(w.length, x.length);
@@ -1103,6 +1116,7 @@ export function recordSuperblendInsight(
   ctx: TasteContext,
   bestPairFiles: [string, string],
   superblendVector: number[],
+  opts?: { isFavorite?: boolean }
 ): void {
   const state = loadState();
   const keyIntent = makeTasteKey(ctx);
@@ -1114,13 +1128,14 @@ export function recordSuperblendInsight(
 
   const dim = superblendVector.length;
   if (dim > 0) {
-    const lr = 0.03;
+    const lr = opts?.isFavorite ? 0.10 : 0.06;
+    const globalCrossFeed = opts?.isFavorite ? 0.5 : 0.4;
     const modelI = getOrCreateModel(state, keyIntent, dim);
     const modelG = getOrCreateModel(state, keyGlobal, dim);
     for (let i = 0; i < dim; i++) {
       const nudge = superblendVector[i] - modelI.w[i];
       modelI.w[i] += lr * nudge;
-      modelG.w[i] += lr * 0.35 * nudge;
+      modelG.w[i] += lr * globalCrossFeed * nudge;
     }
   }
 

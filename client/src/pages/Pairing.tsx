@@ -18,7 +18,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, saveToneNudges, loadToneNudges, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, featurizeSuperblendBands, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, saveToneNudges, loadToneNudges, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -1699,6 +1699,12 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
       baselineBandBreakdown: baselineRes.blend.bandBreakdown,
     };
     saveSuperblendFavorite(blend);
+    const vec = featurizeSuperblendBands(blend.bandBreakdown);
+    const topTwo = [...blend.layers].sort((a, b) => b.percentage - a.percentage).slice(0, 2);
+    if (topTwo.length >= 2) {
+      const ctx: TasteContext = { speakerPrefix: blend.speaker, mode: "blend", intent: (blend.intent === "versatile" ? "rhythm" : blend.intent) as "rhythm" | "lead" | "clean" };
+      recordSuperblendInsight(ctx, [topTwo[0].filename, topTwo[1].filename], vec, { isFavorite: true });
+    }
     setSavedBlends(loadSuperblendFavorites());
     toast({ title: "Superblend saved", description: `"${blend.name}" saved to your collection.` });
   };

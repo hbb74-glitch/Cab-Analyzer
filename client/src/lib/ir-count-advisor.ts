@@ -278,3 +278,44 @@ export function analyzeIRCount(irs: IREntry[], intent: IntentKey = "versatile", 
 
   return { loaded: n, minForTarget, maxUseful, bestScore, verdict, reasoning, intent, bestPair, curve: scoreHistory };
 }
+
+export interface PairWithRatio {
+  ir1: string;
+  ir2: string;
+  ratio: number;
+  score: number;
+  blendedBands: BandsPercent;
+}
+
+export function findBestPairWithOptimalRatio(
+  irs: { filename: string; bandsPercent: BandsPercent }[],
+  targetBands: BandsPercent,
+): PairWithRatio | null {
+  if (irs.length < 2) return null;
+  const normIRs = irs.map(ir => ({ ...ir, bandsPercent: toPercentScale(ir.bandsPercent) }));
+  const normTarget = toPercentScale(targetBands);
+
+  const ratios = [20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
+
+  let best: PairWithRatio | null = null;
+
+  for (let i = 0; i < normIRs.length; i++) {
+    for (let j = i + 1; j < normIRs.length; j++) {
+      for (const r of ratios) {
+        const w1 = r / 100;
+        const w2 = 1 - w1;
+        const blend = blendBands([normIRs[i].bandsPercent, normIRs[j].bandsPercent], [w1, w2]);
+        const score = scoreVsBands(blend, normTarget);
+        if (!best || score > best.score) {
+          best = { ir1: irs[i].filename, ir2: irs[j].filename, ratio: r, score, blendedBands: blend };
+        }
+        const blendFlip = blendBands([normIRs[j].bandsPercent, normIRs[i].bandsPercent], [w1, w2]);
+        const scoreFlip = scoreVsBands(blendFlip, normTarget);
+        if (scoreFlip > (best?.score ?? -1)) {
+          best = { ir1: irs[j].filename, ir2: irs[i].filename, ratio: r, score: scoreFlip, blendedBands: blendFlip };
+        }
+      }
+    }
+  }
+  return best;
+}

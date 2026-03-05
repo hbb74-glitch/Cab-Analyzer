@@ -9,7 +9,7 @@ import { MusicalRoleBadgeFromFeatures, computeSpeakerStats, type SpeakerStats } 
 import { classifyIR, inferSpeakerIdFromFilename, setClassifyDebugFilename } from "@/lib/musical-roles";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { featurizeBlend, featurizeSingleIR, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, recordSuperblendInsight, saveToneNudges, loadToneNudges, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
+import { featurizeBlend, featurizeSingleIR, featurizeSuperblendBands, getTasteBias, resetTaste, getTasteStatus, meanVector, centerVector, getComplementBoost, recordOutcome, recordIROutcome, getIRWinRecords, recordEloOutcome, recordEloQuadOutcome, getEloRatings, setSandboxMode, isSandboxMode, clearSandbox, getSandboxStatus, resetAllTaste, persistTrainingMode, loadPersistedTrainingMode, hasSandboxData, recordShownPairs, getShownPairs, recordTasteVote, getTasteVoteCount, getTonalPreferences, persistSoloRatings, loadSoloRatings, backupTasteToServer, restoreTasteFromServer, SUPERBLEND_INTENTS, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, recordSuperblendInsight, saveToneNudges, loadToneNudges, type SavedSuperblend, type SuperblendLayer, type TasteContext, type EloEntry } from "@/lib/tasteStore";
 import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { computeTonalFeatures, blendFeatures, BAND_KEYS } from "@/lib/tonal-engine";
 import { IRCountAdvisor } from "@/components/IRCountAdvisor";
 import { PolygonMixerDiagram } from "@/components/PolygonMixerDiagram";
-import { findBestPairForBands } from "@/lib/ir-count-advisor";
+import { findBestPairForBands, findBestPairWithOptimalRatio, type PairWithRatio } from "@/lib/ir-count-advisor";
 import { snapToAchievable } from "@/lib/polygon-mixer";
 import { optimizeBlendRatios, type ToneNudges, NUDGE_LABELS, hasActiveNudges } from "@/lib/blend-optimizer";
 import { api, type NormalizedIR } from "@shared/routes";
@@ -900,6 +900,10 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     });
   }, []);
   const [isReoptimizing, setIsReoptimizing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonComment, setComparisonComment] = useState("");
+  const [comparisonAiAnalysis, setComparisonAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzingComparison, setIsAnalyzingComparison] = useState(false);
   const { toast } = useToast();
 
   const speakers = useMemo(() => {
@@ -936,6 +940,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     setAllResults(prev => ({ ...prev, [selectedIntent]: data }));
   };
 
+  const twoIRComparison = useMemo((): PairWithRatio | null => {
+    if (!result?.blend?.bandBreakdown || speakerIRs.length < 2) return null;
+    const irEntries = speakerIRs.map(ir => ({ filename: ir.filename, bandsPercent: ir.features.bandsPercent }));
+    return findBestPairWithOptimalRatio(irEntries, result.blend.bandBreakdown);
+  }, [result, speakerIRs]);
+
   const [generatingCount, setGeneratingCount] = useState(0);
   const isGenerating = generatingCount > 0;
 
@@ -971,6 +981,9 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       setActiveBlend("primary");
       setRefineText("");
       setAiAnswer(null);
+      setShowComparison(false);
+      setComparisonComment("");
+      setComparisonAiAnalysis(null);
 
       const promises = SUPERBLEND_INTENTS.map(async (intent) => {
         const intentGoal = `${intent.label}: ${intent.description}`;
@@ -1033,6 +1046,12 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
       baselineBandBreakdown: baselineRes.blend.bandBreakdown,
     };
     saveSuperblendFavorite(blend);
+    const vec = featurizeSuperblendBands(blend.bandBreakdown);
+    const topTwo = [...blend.layers].sort((a, b) => b.percentage - a.percentage).slice(0, 2);
+    if (topTwo.length >= 2) {
+      const ctx: TasteContext = { speakerPrefix: blend.speaker, mode: "blend", intent: (blend.intent === "versatile" ? "rhythm" : blend.intent) as "rhythm" | "lead" | "clean" };
+      recordSuperblendInsight(ctx, [topTwo[0].filename, topTwo[1].filename], vec, { isFavorite: true });
+    }
     setSavedBlends(loadSuperblendFavorites());
     toast({ title: "Superblend saved", description: `"${blend.name}" saved to your collection.` });
   };
@@ -1042,6 +1061,38 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
     setSavedBlends(loadSuperblendFavorites());
     toast({ title: "Removed", description: "Superblend removed from collection." });
   };
+
+  const submitComparisonFeedback = useCallback((comment: string, blend: SuperblendBlendData, pair: PairWithRatio) => {
+    setIsAnalyzingComparison(true);
+    apiRequest("POST", "/api/preferences/superblend/refine", {
+      currentBlend: {
+        speaker: blend.speaker,
+        layers: blend.layers,
+        expectedTone: blend.expectedTone,
+      },
+      feedback: `[2-IR COMPARISON FEEDBACK] The user compared this Superblend to a 2-IR blend (${pair.ir1} + ${pair.ir2} at ${pair.ratio}/${100 - pair.ratio}). Spectral match score: ${pair.score}%. The 2-IR blend's band values: Sub=${Math.round(pair.blendedBands.subBass*10)/10}%, Bass=${Math.round(pair.blendedBands.bass*10)/10}%, LoMid=${Math.round(pair.blendedBands.lowMid*10)/10}%, Mid=${Math.round(pair.blendedBands.mid*10)/10}%, HiMid=${Math.round(pair.blendedBands.highMid*10)/10}%, Presence=${Math.round(pair.blendedBands.presence*10)/10}%. User's comment about the difference: "${comment}". Respond with your tonal analysis of what the Superblend adds over the simpler 2-IR version, acknowledge the user's observation, and explain what the additional IRs contribute. Do NOT change the blend — this is a comparison discussion.`,
+      irs: speakerIRs.map(ir => ({
+        filename: ir.filename,
+        subBass: ir.features.bandsPercent.subBass,
+        bass: ir.features.bandsPercent.bass,
+        lowMid: ir.features.bandsPercent.lowMid,
+        mid: ir.features.bandsPercent.mid,
+        highMid: ir.features.bandsPercent.highMid,
+        presence: ir.features.bandsPercent.presence,
+        ratio: ir.features.bandsPercent.highMid / Math.max(ir.features.bandsPercent.mid, 0.1),
+        centroid: ir.features.spectralCentroidHz || 0,
+        smoothness: ir.features.smoothScore || 0,
+      })),
+    }).then(r => r.json()).then((data: any) => {
+      setComparisonAiAnalysis(data.questionAnswer || data.answer || data.blend?.expectedTone || "Analysis complete.");
+      const vec = featurizeSuperblendBands(blend.bandBreakdown);
+      const ctx: TasteContext = { speakerPrefix: blend.speaker, mode: "blend", intent: (selectedIntent === "versatile" ? "rhythm" : selectedIntent) as "rhythm" | "lead" | "clean" };
+      recordSuperblendInsight(ctx, [pair.ir1, pair.ir2], vec);
+      toast({ title: "Comparison feedback recorded", description: "Your insight helps the AI understand what multi-IR blending adds tonally." });
+    }).catch(() => {
+      toast({ title: "Analysis failed", variant: "destructive", duration: 3000 });
+    }).finally(() => setIsAnalyzingComparison(false));
+  }, [speakerIRs, selectedIntent, toast]);
 
   const refineMutation = useMutation({
     mutationFn: async () => {
@@ -1211,7 +1262,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
           return (
             <button
               key={intent.value}
-              onClick={() => { setSelectedIntent(intent.value); setActiveBlend("primary"); setAiAnswer(null); }}
+              onClick={() => { setSelectedIntent(intent.value); setActiveBlend("primary"); setAiAnswer(null); setShowComparison(false); setComparisonAiAnalysis(null); }}
               className={cn("px-2.5 py-1 rounded text-[10px] font-medium border transition-all",
                 isActive ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                 : hasResult ? "bg-background text-foreground border-input/60 hover:border-amber-500/30"
@@ -1689,6 +1740,104 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
               </div>
             )}
 
+            {twoIRComparison && displayBlend && (
+              <div className="space-y-2" data-testid="superblend-comparison-section">
+                <button
+                  onClick={() => { setShowComparison(prev => !prev); setComparisonAiAnalysis(null); setComparisonComment(""); }}
+                  className={cn("flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded border", showComparison ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "bg-background text-muted-foreground border-input hover:border-emerald-500/30")}
+                  data-testid="button-toggle-comparison"
+                >
+                  <ArrowLeftRight className="w-3 h-3" />
+                  Compare to best 2-IR blend
+                </button>
+
+                <AnimatePresence>
+                  {showComparison && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3"
+                      data-testid="comparison-panel"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <h6 className="text-xs font-semibold text-emerald-300">Closest 2-IR approximation</h6>
+                        <Badge variant="secondary" className="text-[9px]">{twoIRComparison.score}% match</Badge>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono text-emerald-300 font-semibold" data-testid="text-comparison-ratio">{twoIRComparison.ratio}/{100 - twoIRComparison.ratio}</span>
+                        <span className="text-foreground truncate" data-testid="text-comparison-ir1">{twoIRComparison.ir1}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-foreground truncate" data-testid="text-comparison-ir2">{twoIRComparison.ir2}</span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="text-[9px] text-muted-foreground font-medium">Band comparison</div>
+                        <div className="grid grid-cols-6 gap-1 text-center">
+                          {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => {
+                            const sbVal = displayBlend.bandBreakdown?.[band] ?? 0;
+                            const twoVal = Math.round(twoIRComparison.blendedBands[band] * 10) / 10;
+                            const diff = Math.round((twoVal - sbVal) * 10) / 10;
+                            const diffColor = Math.abs(diff) < 1 ? "text-muted-foreground" : diff > 0 ? "text-yellow-400" : "text-blue-400";
+                            return (
+                              <div key={band} className="text-[9px] space-y-0.5" data-testid={`comparison-band-${band}`}>
+                                <div className="text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
+                                <div className="font-mono text-amber-300">{sbVal}%</div>
+                                <div className="font-mono text-emerald-300">{twoVal}%</div>
+                                <div className={cn("font-mono text-[8px]", diffColor)}>{diff > 0 ? "+" : ""}{diff}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-center gap-3 text-[8px] text-muted-foreground mt-0.5">
+                          <span><span className="text-amber-300 font-semibold">■</span> Superblend</span>
+                          <span><span className="text-emerald-300 font-semibold">■</span> 2-IR blend</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 border-t border-emerald-500/10">
+                        <label className="text-[9px] text-muted-foreground">What tonal differences do you notice? Your comments help train the AI.</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={comparisonComment}
+                            onChange={(e) => { setComparisonComment(e.target.value); if (comparisonAiAnalysis) setComparisonAiAnalysis(null); }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && comparisonComment.trim() && !isAnalyzingComparison && displayBlend) {
+                                submitComparisonFeedback(comparisonComment.trim(), displayBlend, twoIRComparison);
+                              }
+                            }}
+                            placeholder="e.g., the superblend has more depth / the 2-IR is close enough / missing the air..."
+                            className="flex-1 h-7 rounded-md border border-input bg-background px-2 text-[10px] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            disabled={isAnalyzingComparison}
+                            data-testid="input-comparison-comment"
+                          />
+                          <button
+                            onClick={() => {
+                              if (comparisonComment.trim() && !isAnalyzingComparison && displayBlend) {
+                                submitComparisonFeedback(comparisonComment.trim(), displayBlend, twoIRComparison);
+                              }
+                            }}
+                            disabled={!comparisonComment.trim() || isAnalyzingComparison}
+                            className="h-7 px-2 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] hover:bg-emerald-500/30 disabled:opacity-50"
+                            data-testid="button-comparison-submit"
+                          >
+                            {isAnalyzingComparison ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          </button>
+                        </div>
+                        {comparisonAiAnalysis && (
+                          <div className="p-2 rounded-md bg-emerald-500/10 border border-emerald-500/20" data-testid="text-comparison-analysis">
+                            <p className="text-[10px] text-emerald-200 leading-relaxed">{comparisonAiAnalysis}</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             <div className="pt-2 border-t border-amber-500/10">
               <label className="text-[10px] text-muted-foreground block mb-1.5">Ask a question, leave a comment, or request changes</label>
               <div className="flex gap-2">
@@ -1721,7 +1870,17 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
               )}
             </div>
 
-            <PreferenceChatPanel borderColor="purple" signalSummary={result ? `Superblend for ${result.blend.speaker}: ${result.blend.name} using ${result.blend.layers.length} IRs. Layers: ${result.blend.layers.map(l => `${l.filename} at ${l.percentage}% (${l.role})`).join(", ")}. Expected tone: ${result.blend.expectedTone}. Versatility: ${result.blend.versatilityScore}/100.` : undefined} />
+            <PreferenceChatPanel borderColor="purple" signalSummary={(() => {
+              const parts: string[] = [];
+              if (result) {
+                parts.push(`Current Superblend for ${result.blend.speaker}: ${result.blend.name} using ${result.blend.layers.length} IRs. Layers: ${result.blend.layers.map(l => `${l.filename} at ${l.percentage}% (${l.role})`).join(", ")}. Expected tone: ${result.blend.expectedTone}. Versatility: ${result.blend.versatilityScore}/100.`);
+              }
+              const favorites = loadSuperblendFavorites();
+              if (favorites.length > 0) {
+                parts.push(`Saved Superblend favorites (${favorites.length}): ${favorites.slice(0, 8).map(f => `"${f.name}" (${f.speaker}, ${f.intent}, ${f.layers.length} IRs: ${f.layers.map(l => `${l.filename} ${l.percentage}% ${l.role}`).join(", ")}, bands: sub=${f.bandBreakdown.subBass} bass=${f.bandBreakdown.bass} loMid=${f.bandBreakdown.lowMid} mid=${f.bandBreakdown.mid} hiMid=${f.bandBreakdown.highMid} pres=${f.bandBreakdown.presence})`).join("; ")}`);
+              }
+              return parts.length > 0 ? parts.join("\n") : undefined;
+            })()} />
           </motion.div>
         )}
       </AnimatePresence>
