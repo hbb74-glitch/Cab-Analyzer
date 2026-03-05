@@ -57,6 +57,7 @@ Preferred communication style: Simple, everyday language.
 - **Tonal Intelligence System**: Stores running averages of 6-band tonal data, ratio, centroid, and smoothness, keyed by mic+position+distance+speaker.
 - **Shot Designer**: Uses learned tonal profiles to design shot lists, prioritizing user preferences over knowledge base defaults.
 - **Usefulness Ranking**: Server-side scoring system that computes per-IR usefulness scores from solo ratings and blend performance, assigning client-side tiers.
+- **Favorites Page**: Dedicated `/favorites` tab showing all saved blend and Superblend favorites in one place, with copy/remove actions. Polls localStorage every 2 seconds for live sync. Favorites are included in server taste backups (via meta field) and restored from server if local storage is empty.
 - **Blend Favorites**: Persistent local storage-based system for saving favorite blends with IR names, ratio, roles, and source.
 - **Test AI Feedback**: Allows users to save (Heart) or refine (X) Test AI suggestions, with refinement options for mic-family IR swapping and ratio adjustment.
 - **Suggested Pairings Refinement**: Auto-opens a refinement panel after voting on a pairing card, offering mic-family IR swapping and ratio adjustment.

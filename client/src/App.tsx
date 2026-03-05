@@ -15,6 +15,7 @@ import AmpDialIn from "@/pages/AmpDialIn";
 import Pairing from "@/pages/Pairing";
 import AmpAndDriveDialer from "@/pages/AmpAndDriveDialer";
 import Recommendations from "@/pages/Recommendations";
+import Favorites from "@/pages/Favorites";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/amp-drive-dialer" component={AmpAndDriveDialer} />
       {/* Reference Manual = your mic/speaker reference content */}
       <Route path="/reference-manual" component={MikingGuide} />
+      <Route path="/favorites" component={Favorites} />
 
       {/* Back-compat routes */}
       <Route path="/mixer" component={Learner} />

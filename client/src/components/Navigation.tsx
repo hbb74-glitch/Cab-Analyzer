@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Activity, Radio, BookOpen, Zap, Wrench, Blend, Mic2, Brain } from "lucide-react";
+import { Activity, Radio, BookOpen, Zap, Wrench, Blend, Mic2, Brain, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function KnobNavIcon({ className }: { className?: string }) {
@@ -23,6 +23,7 @@ export function Navigation() {
     { href: "/sic-tool", label: "SIC Tool", icon: Zap },
     { href: "/amp-drive-dialer", label: "Amp And Drive Dialer", icon: Wrench },
     { href: "/reference-manual", label: "Reference Manual", icon: BookOpen },
+    { href: "/favorites", label: "Favorites", icon: Heart },
   ];
 
   return (

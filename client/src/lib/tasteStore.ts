@@ -1157,9 +1157,19 @@ export async function backupTasteToServer(): Promise<boolean> {
   try {
     const tasteData = loadStateFrom(STORAGE_KEY);
     const soloRatings = loadSoloRatings();
+    const blendFavorites = JSON.parse(localStorage.getItem("irscope.blendFavorites") || "[]");
+    const superblendFavorites = loadSuperblendFavorites();
     const totalVotes = Object.values(tasteData.models).reduce((sum, m) => sum + (m.nVotes ?? 0), 0);
-    if (totalVotes === 0 && Object.keys(soloRatings).length === 0) return false;
-    const meta = { totalVotes, soloCount: Object.keys(soloRatings).length, savedAt: new Date().toISOString() };
+    if (totalVotes === 0 && Object.keys(soloRatings).length === 0 && blendFavorites.length === 0 && superblendFavorites.length === 0) return false;
+    const meta = {
+      totalVotes,
+      soloCount: Object.keys(soloRatings).length,
+      blendFavCount: blendFavorites.length,
+      superblendFavCount: superblendFavorites.length,
+      blendFavorites,
+      superblendFavorites,
+      savedAt: new Date().toISOString(),
+    };
     const res = await fetch("/api/taste-backup/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1181,6 +1191,19 @@ export async function restoreTasteFromServer(): Promise<{ restored: boolean; tot
     }
     if (data.soloRatings) {
       localStorage.setItem(SOLO_RATINGS_KEY, JSON.stringify(data.soloRatings));
+    }
+    const meta = data.meta || {};
+    if (meta.blendFavorites && Array.isArray(meta.blendFavorites) && meta.blendFavorites.length > 0) {
+      const localBlend = JSON.parse(localStorage.getItem("irscope.blendFavorites") || "[]");
+      if (localBlend.length === 0) {
+        localStorage.setItem("irscope.blendFavorites", JSON.stringify(meta.blendFavorites));
+      }
+    }
+    if (meta.superblendFavorites && Array.isArray(meta.superblendFavorites) && meta.superblendFavorites.length > 0) {
+      const localSuper = loadSuperblendFavorites();
+      if (localSuper.length === 0) {
+        localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(meta.superblendFavorites));
+      }
     }
     const totalVotes = data.meta?.totalVotes ?? 0;
     const soloCount = data.meta?.soloCount ?? 0;
