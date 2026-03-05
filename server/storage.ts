@@ -1,6 +1,6 @@
 
 import { db } from "./db";
-import { analyses, preferenceSignals, tonalProfiles, customMods, tasteBackups, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile, type CustomMod, type InsertCustomMod, type TasteBackup } from "@shared/schema";
+import { analyses, preferenceSignals, tonalProfiles, customMods, tasteBackups, savedFavorites, type InsertAnalysis, type Analysis, type InsertPreferenceSignal, type PreferenceSignal, type TonalProfile, type CustomMod, type InsertCustomMod, type TasteBackup, type SavedFavorite } from "@shared/schema";
 import { desc, eq, and, sql } from "drizzle-orm";
 
 export interface IStorage {
@@ -27,6 +27,10 @@ export interface IStorage {
   saveTasteBackup(slotName: string, tasteData: any, soloRatings: any, meta: any): Promise<TasteBackup>;
   getTasteBackup(slotName: string): Promise<TasteBackup | null>;
   listTasteBackups(): Promise<TasteBackup[]>;
+
+  saveFavorites(favoriteType: string, data: any): Promise<SavedFavorite>;
+  getFavorites(favoriteType: string): Promise<SavedFavorite | null>;
+  getAllFavorites(): Promise<SavedFavorite[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -147,6 +151,25 @@ export class DatabaseStorage implements IStorage {
 
   async listTasteBackups(): Promise<TasteBackup[]> {
     return await db.select().from(tasteBackups).orderBy(desc(tasteBackups.createdAt));
+  }
+}
+
+  async saveFavorites(favoriteType: string, data: any): Promise<SavedFavorite> {
+    await db.delete(savedFavorites).where(eq(savedFavorites.favoriteType, favoriteType));
+    const [row] = await db.insert(savedFavorites).values({
+      favoriteType,
+      data,
+    }).returning();
+    return row;
+  }
+
+  async getFavorites(favoriteType: string): Promise<SavedFavorite | null> {
+    const rows = await db.select().from(savedFavorites).where(eq(savedFavorites.favoriteType, favoriteType)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async getAllFavorites(): Promise<SavedFavorite[]> {
+    return await db.select().from(savedFavorites).orderBy(desc(savedFavorites.createdAt));
   }
 }
 

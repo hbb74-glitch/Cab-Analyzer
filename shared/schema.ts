@@ -145,3 +145,12 @@ export const tasteBackups = pgTable("taste_backups", {
 });
 
 export type TasteBackup = typeof tasteBackups.$inferSelect;
+
+export const savedFavorites = pgTable("saved_favorites", {
+  id: serial("id").primaryKey(),
+  favoriteType: text("favorite_type").notNull(),
+  data: jsonb("data").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type SavedFavorite = typeof savedFavorites.$inferSelect;
