@@ -62,6 +62,10 @@ function loadBlendFavorites(): BlendFavorite[] {
 
 const strip = (f: string) => f.replace(/(_\d{13})?\.wav$/i, "");
 
+function normalizeSpeaker(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[-\s]+/g, " ");
+}
+
 function getSpeaker(filename: string): string {
   const name = filename.replace(/\.wav$/i, "");
   const parts = name.split("_");
@@ -69,20 +73,21 @@ function getSpeaker(filename: string): string {
 }
 
 function getSpeakerFromPair(ir1: string, ir2: string): string {
-  const s1 = getSpeaker(ir1);
-  const s2 = getSpeaker(ir2);
+  const s1 = normalizeSpeaker(getSpeaker(ir1));
+  const s2 = normalizeSpeaker(getSpeaker(ir2));
   if (s1 === s2) return s1;
   return `${s1} + ${s2}`;
 }
 
-function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
-  const map = new Map<string, T[]>();
+function groupBy<T>(items: T[], keyFn: (item: T) => string): [string, T[]][] {
+  const map = new Map<string, { display: string; items: T[] }>();
   for (const item of items) {
-    const key = keyFn(item);
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(item);
+    const raw = keyFn(item);
+    const key = normalizeSpeaker(raw);
+    if (!map.has(key)) map.set(key, { display: raw, items: [] });
+    map.get(key)!.items.push(item);
   }
-  return map;
+  return Array.from(map.entries()).map(([, v]) => [v.display, v.items]);
 }
 
 export default function Favorites() {
@@ -104,13 +109,13 @@ export default function Favorites() {
   };
 
   const blendsBySpeaker = useMemo(() => {
-    const grouped = groupBy(blendFavs, fav => getSpeakerFromPair(fav.ir1, fav.ir2));
-    return Array.from(grouped.entries()).sort((a, b) => b[1].length - a[1].length);
+    return groupBy(blendFavs, fav => getSpeakerFromPair(fav.ir1, fav.ir2))
+      .sort((a, b) => b[1].length - a[1].length);
   }, [blendFavs]);
 
   const superblendsBySpeaker = useMemo(() => {
-    const grouped = groupBy(superblendFavs, sb => sb.speaker);
-    return Array.from(grouped.entries()).sort((a, b) => b[1].length - a[1].length);
+    return groupBy(superblendFavs, sb => sb.speaker)
+      .sort((a, b) => b[1].length - a[1].length);
   }, [superblendFavs]);
 
   useEffect(() => {
@@ -269,7 +274,7 @@ export default function Favorites() {
                   </Button>
                 </div>
                 {blendsBySpeaker.map(([speaker, favs]) => {
-                  const speakerKey = `blend-${speaker}`;
+                  const speakerKey = `blend-${normalizeSpeaker(speaker)}`;
                   const isOpen = !collapsedSpeakers.has(speakerKey);
                   return (
                     <div key={speakerKey} className="rounded-lg border border-white/5 bg-white/[0.01] overflow-hidden">
@@ -396,7 +401,7 @@ export default function Favorites() {
                   </Button>
                 </div>
                 {superblendsBySpeaker.map(([speaker, sbs]) => {
-                  const speakerKey = `super-${speaker}`;
+                  const speakerKey = `super-${normalizeSpeaker(speaker)}`;
                   const isOpen = !collapsedSpeakers.has(speakerKey);
                   return (
                     <div key={speakerKey} className="rounded-lg border border-amber-500/10 bg-amber-500/[0.02] overflow-hidden">
