@@ -10,6 +10,7 @@ import {
   restoreTasteFromServer,
   loadFavoritesFromServer,
   syncFavoritesToServer,
+  recoverBlendFavoritesFromServer,
   SUPERBLEND_INTENTS,
   type SavedSuperblend,
 } from "@/lib/tasteStore";
@@ -79,7 +80,8 @@ export default function Favorites() {
         loadFavoritesFromServer("superblend"),
         loadFavoritesFromServer("pairing_blend"),
         loadFavoritesFromServer("learner_blend"),
-      ]).then(([_, serverSuper, serverPairingBlend, serverLearnerBlend]) => {
+        recoverBlendFavoritesFromServer(),
+      ]).then(([_, serverSuper, serverPairingBlend, serverLearnerBlend, recoveredBlends]) => {
         if (Array.isArray(serverSuper) && serverSuper.length > 0) {
           const localSb = loadSuperblendFavorites();
           if (localSb.length === 0) {
@@ -92,10 +94,16 @@ export default function Favorites() {
             localStorage.setItem(PAIRING_FAVORITES_KEY, JSON.stringify(serverPairingBlend));
           }
         }
-        if (Array.isArray(serverLearnerBlend) && serverLearnerBlend.length > 0) {
+        const learnerData = (Array.isArray(serverLearnerBlend) && serverLearnerBlend.length > 0)
+          ? serverLearnerBlend
+          : (Array.isArray(recoveredBlends) && recoveredBlends.length > 0)
+            ? recoveredBlends
+            : [];
+        if (learnerData.length > 0) {
           const localLb = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
           if (localLb.length === 0) {
-            localStorage.setItem(FAVORITES_KEY, JSON.stringify(serverLearnerBlend));
+            localStorage.setItem(FAVORITES_KEY, JSON.stringify(learnerData));
+            syncFavoritesToServer("learner_blend", learnerData);
           }
         }
         setBlendFavs(loadBlendFavorites());
@@ -244,7 +252,13 @@ export default function Favorites() {
                           {fav.ir2Role && <span className="text-cyan-300">{fav.ir2Role}</span>}
                         </div>
                       )}
-                      <span className="text-[9px] text-muted-foreground">{fav.source}</span>
+                      {fav.feedbackText && (
+                        <p className="text-[9px] text-muted-foreground/70 italic mt-0.5 line-clamp-1">{fav.feedbackText}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[9px] text-muted-foreground">{fav.source}</span>
+                        {fav.score && <span className="text-[9px] text-emerald-400 font-mono">{fav.score}pts</span>}
+                      </div>
                     </div>
                     <button
                       onClick={() => removeBlendFav(i)}
