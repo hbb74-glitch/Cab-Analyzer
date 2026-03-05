@@ -889,7 +889,6 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
-  const [showSaved, setShowSaved] = useState(false);
   const [showExperiment, setShowExperiment] = useState(false);
   const [toneNudges, setToneNudgesRaw] = useState<ToneNudges>(() => loadToneNudges("learner") as ToneNudges);
   const setToneNudges = useCallback((nudges: ToneNudges | ((prev: ToneNudges) => ToneNudges)) => {
@@ -1566,66 +1565,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
             <><Layers className="w-3.5 h-3.5 mr-1.5" /> Generate All Intents</>
           )}
         </Button>
-        {savedBlends.length > 0 && (
-          <button
-            onClick={() => setShowSaved(!showSaved)}
-            className="flex items-center gap-1.5 text-[10px] text-amber-400 hover:text-amber-300"
-            data-testid="button-toggle-saved-superblends"
-          >
-            <Star className="w-3 h-3" />
-            {savedBlends.length} saved
-          </button>
-        )}
       </div>
-
-      <AnimatePresence>
-        {showSaved && savedBlends.length > 0 && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-4 space-y-2" data-testid="saved-superblends">
-            <label className="text-[10px] font-medium text-muted-foreground flex items-center gap-1.5">
-              <Star className="w-3 h-3 text-amber-400" />
-              Saved Superblends ({savedBlends.length})
-            </label>
-            {savedBlends.map(sb => (
-              <div key={sb.id} className="rounded-lg border border-amber-500/10 bg-amber-500/5 p-2.5 space-y-1" data-testid={`saved-superblend-${sb.id}`}>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-xs font-semibold text-foreground">{sb.name}</span>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <Badge variant="outline" className="text-[9px]">{sb.speaker}</Badge>
-                      <Badge variant="secondary" className="text-[9px]">{SUPERBLEND_INTENTS.find(i => i.value === sb.intent)?.label || sb.intent}</Badge>
-                      <span className="text-[9px] text-muted-foreground">{sb.versatilityScore}/100</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        const lines = [`Superblend: ${sb.name}`, `Speaker: ${sb.speaker}`, `Intent: ${sb.intent}`, "", "Layers:", ...sb.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role})`), "", `Tone: ${sb.expectedTone}`];
-                        navigator.clipboard.writeText(lines.join("\n"));
-                        toast({ title: "Copied", description: "Superblend recipe copied." });
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                      data-testid={`button-copy-saved-${sb.id}`}
-                    >
-                      <Copy className="w-3 h-3" />
-                    </button>
-                    <button onClick={() => removeSaved(sb.id)} className="text-muted-foreground hover:text-destructive" data-testid={`button-remove-saved-${sb.id}`}>
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {sb.layers.map((l, i) => (
-                    <span key={i} className="text-[9px] text-muted-foreground font-mono">{l.percentage}% {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") || l.filename}</span>
-                  ))}
-                </div>
-                {sb.baselineLayers && (
-                  <div className="text-[9px] text-zinc-500 italic mt-0.5">Baseline saved — original AI ratios preserved</div>
-                )}
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {result && (
@@ -1881,6 +1821,99 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
               }
               return parts.length > 0 ? parts.join("\n") : undefined;
             })()} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function SuperblendFavoritesPanel() {
+  const [savedBlends, setSavedBlends] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
+  const [showSaved, setShowSaved] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = loadSuperblendFavorites();
+      setSavedBlends(prev => current.length !== prev.length ? current : prev);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const removeSaved = (id: string) => {
+    removeSuperblendFavorite(id);
+    setSavedBlends(loadSuperblendFavorites());
+    toast({ title: "Removed", description: "Superblend removed from collection." });
+  };
+
+  if (savedBlends.length === 0) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+      <button
+        onClick={() => setShowSaved(!showSaved)}
+        className="flex items-center gap-2 w-full"
+        data-testid="button-toggle-saved-superblends-standalone"
+      >
+        <Star className="w-4 h-4 text-amber-400" />
+        <h4 className="text-sm font-semibold text-foreground">Saved Superblends</h4>
+        <Badge variant="secondary" className="text-[9px]">{savedBlends.length}</Badge>
+        <div className="flex-1" />
+        {showSaved ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+      </button>
+      <AnimatePresence>
+        {showSaved && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-3 space-y-2" data-testid="saved-superblends-standalone">
+            {savedBlends.map(sb => (
+              <div key={sb.id} className="rounded-lg border border-amber-500/10 bg-amber-500/5 p-2.5 space-y-1" data-testid={`saved-superblend-standalone-${sb.id}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-semibold text-foreground">{sb.name}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <Badge variant="outline" className="text-[9px]">{sb.speaker}</Badge>
+                      <Badge variant="secondary" className="text-[9px]">{SUPERBLEND_INTENTS.find(i => i.value === sb.intent)?.label || sb.intent}</Badge>
+                      <span className="text-[9px] text-muted-foreground">{sb.versatilityScore}/100</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const lines = [`Superblend: ${sb.name}`, `Speaker: ${sb.speaker}`, `Intent: ${sb.intent}`, "", "Layers:", ...sb.layers.map(l => `  ${l.filename} — ${l.percentage}% (${l.role})`), "", `Tone: ${sb.expectedTone}`];
+                        navigator.clipboard.writeText(lines.join("\n"));
+                        toast({ title: "Copied", description: "Superblend recipe copied." });
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                      data-testid={`button-copy-saved-standalone-${sb.id}`}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); removeSaved(sb.id); }} className="text-muted-foreground hover:text-destructive" data-testid={`button-remove-saved-standalone-${sb.id}`}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {sb.layers.map((l, i) => (
+                    <span key={i} className="text-[9px] text-muted-foreground font-mono">{l.percentage}% {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") || l.filename}</span>
+                  ))}
+                </div>
+                {sb.bandBreakdown && (
+                  <div className="grid grid-cols-6 gap-1 text-center mt-1">
+                    {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map(band => (
+                      <div key={band} className="text-[8px]">
+                        <div className="text-muted-foreground">{band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}</div>
+                        <div className="font-mono text-foreground">{sb.bandBreakdown[band]}%</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {sb.baselineLayers && (
+                  <div className="text-[9px] text-zinc-500 italic mt-0.5">Baseline saved — original AI ratios preserved</div>
+                )}
+              </div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -5506,6 +5539,8 @@ export default function Learner() {
         {allIRs.length >= 2 && (
           <FindTonePanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />
         )}
+
+        <SuperblendFavoritesPanel />
 
         {allIRs.length >= 3 && (
           <SuperblendPanel allIRs={allIRs} speakerStatsMap={speakerStatsMap} />

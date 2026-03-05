@@ -7170,10 +7170,25 @@ CRITICAL for equalPartsBlend: The "expectedTone", "rationale", and "contribution
 
 Many IR blending plugins (Cabinetron, NadIR, etc.) use geometric interfaces (triangle for 3, square for 4, pentagon for 5) where placing the dot in the center gives equal parts. This is the easiest starting point for users.
 
+NAMING RULES (CRITICAL — the user saves these as preset names):
+Every Superblend name MUST be a vivid, memorable, personality-driven title — like a preset a guitarist would actually save and recognize. NEVER use generic names like "The Balanced Blend" or "Warm Mid Stack" or "Punchy Rock Mix".
+
+Draw from these vocabularies and ROTATE — never use the same pattern twice:
+• Guitar culture: amp/pedal vibes, playing techniques, stage energy ("Cranked to Eleven", "Fretboard Fire", "Power Chord Cathedral", "The Gigging Rig")
+• Texture/sensation: physical feelings the tone evokes ("Broken Glass", "Molten Core", "Razor Suede", "Burnt Sugar", "Concrete Pillow")
+• Attitude/character: personality the tone projects ("The Brawler", "Quiet Riot", "Mean Swagger", "Sunday Driver", "Velvet Chainsaw")
+• Musical imagery: scenes, moods, moments ("Neon Rainstorm", "Desert Highway", "Basement Demo", "Stadium Anthem", "3AM Overdub")
+• Playful/witty: tongue-in-cheek preset humor ("Who Needs Bass?", "The Un-Scooped", "Neighbor Complaint", "Dial Tone Deluxe")
+• Genre/era vibes: evoking a sound era or genre feel ("Brit Pop Machine", "Djent Blueprint", "Grunge Telegram", "Nashville Outlaw")
+
+BANNED name patterns: "[Adj] [Noun] Stack", "[Adj] [Adj] Blend", "The [Adj] Mix", "Warm X", "Smooth X", "Punchy X", "Balanced X", "Crystal X". If the name could describe a coffee order, it's too generic.
+
+Each name across blend, equalPartsBlend, and alternatives MUST be completely unique — different words, different naming pattern, different vibe.
+
 Return JSON:
 {
   "blend": {
-    "name": "Creative name for this superblend",
+    "name": "Vivid memorable preset name (see naming rules above)",
     "speaker": "speaker name",
     "layers": [
       {
@@ -7190,7 +7205,7 @@ Return JSON:
     "bestFor": "Genres/styles this blend excels at"
   },
   "equalPartsBlend": {
-    "name": "Creative name for equal-parts version",
+    "name": "Unique vivid preset name (different vibe from the blend name)",
     "speaker": "speaker name",
     "layers": [
       {
@@ -7208,7 +7223,7 @@ Return JSON:
   },
   "alternatives": [
     {
-      "name": "Alternative blend name",
+      "name": "Unique vivid preset name (different from all other names in this response)",
       "focus": "What this alternative prioritizes differently",
       "layers": [same format],
       "expectedTone": "How this sounds different",
@@ -7470,7 +7485,7 @@ RULES:
 Return JSON:
 {
   "blend": {
-    "name": "Updated blend name",
+    "name": "Vivid memorable preset name (never generic — see naming rules)",
     "speaker": "speaker",
     "layers": [{ "filename": "...", "percentage": number, "role": "...", "contribution": "..." }],
     "expectedTone": "Updated tone description",
