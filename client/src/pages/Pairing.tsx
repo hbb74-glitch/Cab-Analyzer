@@ -2031,7 +2031,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
 
                     const sourceResults = Object.keys(baselineResults).length > 0 ? baselineResults : allResults;
                     for (const [intent, res] of Object.entries(sourceResults)) {
-                      const layersWithEnergy = res.blend.layers.map(l => {
+                      const buildLayersWithEnergy = (layers: SuperblendLayer[]) => layers.map(l => {
                         const m = metricsMap.get(l.filename);
                         return {
                           filename: l.filename,
@@ -2048,6 +2048,8 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
                           logBandEnergies: m?.logBandEnergies,
                         };
                       });
+
+                      const layersWithEnergy = buildLayersWithEnergy(res.blend.layers);
 
                       const response = await fetch(api.superblendReoptimize.reoptimize.path, {
                         method: "POST",
@@ -2074,9 +2076,47 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
                       }));
 
                       const currentRes = allResults[intent] || res;
+                      let updatedEqualParts = currentRes.equalPartsBlend;
+                      const eqSource = res.equalPartsBlend;
+                      if (eqSource?.layers) {
+                        try {
+                          const eqResponse = await fetch(api.superblendReoptimize.reoptimize.path, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              layers: buildLayersWithEnergy(eqSource.layers),
+                              pool: poolData,
+                              nudges: toneNudges,
+                              speaker: speakerLabel,
+                              intent,
+                              irCount,
+                            }),
+                          });
+                          if (eqResponse.ok) {
+                            const eqData = await eqResponse.json();
+                            if (eqData.swaps) totalSwaps += eqData.swaps.length;
+                            const eqUpdatedLayers: SuperblendLayer[] = eqData.layers.map((l: any) => ({
+                              filename: l.filename,
+                              percentage: l.percentage,
+                              role: l.role,
+                              contribution: l.contribution || eqSource.layers.find((ol: any) => ol.filename === l.filename)?.contribution || "",
+                            }));
+                            updatedEqualParts = {
+                              ...currentRes.equalPartsBlend!,
+                              layers: eqUpdatedLayers,
+                              bandBreakdown: eqData.bandBreakdown,
+                              tilt: eqData.tilt,
+                            };
+                          }
+                        } catch (eqErr) {
+                          console.error("Equal parts reoptimize failed for", intent, eqErr);
+                        }
+                      }
+
                       reoptimized[intent] = {
                         ...currentRes,
                         blend: { ...currentRes.blend, layers: updatedLayers, bandBreakdown: data.bandBreakdown, tilt: data.tilt },
+                        equalPartsBlend: updatedEqualParts,
                       };
                     }
 
