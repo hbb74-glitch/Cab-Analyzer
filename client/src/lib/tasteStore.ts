@@ -1158,15 +1158,21 @@ export async function backupTasteToServer(): Promise<boolean> {
     const tasteData = loadStateFrom(STORAGE_KEY);
     const soloRatings = loadSoloRatings();
     const blendFavorites = JSON.parse(localStorage.getItem("irscope.blendFavorites") || "[]");
+    const pairingFavorites = JSON.parse(localStorage.getItem("irscope_blend_favorites") || "[]");
     const superblendFavorites = loadSuperblendFavorites();
     const totalVotes = Object.values(tasteData.models).reduce((sum, m) => sum + (m.nVotes ?? 0), 0);
-    if (totalVotes === 0 && Object.keys(soloRatings).length === 0 && blendFavorites.length === 0 && superblendFavorites.length === 0) return false;
+    if (totalVotes === 0 && Object.keys(soloRatings).length === 0 && blendFavorites.length === 0 && superblendFavorites.length === 0 && pairingFavorites.length === 0) return false;
+    if (superblendFavorites.length > 0) syncFavoritesToServer("superblend", superblendFavorites);
+    if (blendFavorites.length > 0) syncFavoritesToServer("learner_blend", blendFavorites);
+    if (pairingFavorites.length > 0) syncFavoritesToServer("pairing_blend", pairingFavorites);
     const meta = {
       totalVotes,
       soloCount: Object.keys(soloRatings).length,
       blendFavCount: blendFavorites.length,
+      pairingFavCount: pairingFavorites.length,
       superblendFavCount: superblendFavorites.length,
       blendFavorites,
+      pairingFavorites,
       superblendFavorites,
       savedAt: new Date().toISOString(),
     };
@@ -1197,6 +1203,12 @@ export async function restoreTasteFromServer(): Promise<{ restored: boolean; tot
       const localBlend = JSON.parse(localStorage.getItem("irscope.blendFavorites") || "[]");
       if (localBlend.length === 0) {
         localStorage.setItem("irscope.blendFavorites", JSON.stringify(meta.blendFavorites));
+      }
+    }
+    if (meta.pairingFavorites && Array.isArray(meta.pairingFavorites) && meta.pairingFavorites.length > 0) {
+      const localPairing = JSON.parse(localStorage.getItem("irscope_blend_favorites") || "[]");
+      if (localPairing.length === 0) {
+        localStorage.setItem("irscope_blend_favorites", JSON.stringify(meta.pairingFavorites));
       }
     }
     if (meta.superblendFavorites && Array.isArray(meta.superblendFavorites) && meta.superblendFavorites.length > 0) {
@@ -1257,13 +1269,43 @@ export function saveSuperblendFavorite(blend: SavedSuperblend): void {
   const existing = loadSuperblendFavorites();
   existing.unshift(blend);
   localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+  syncFavoritesToServer("superblend", existing);
   scheduleAutoBackup(3000);
 }
 
 export function removeSuperblendFavorite(id: string): void {
   const existing = loadSuperblendFavorites().filter(b => b.id !== id);
   localStorage.setItem(SUPERBLEND_FAVORITES_KEY, JSON.stringify(existing));
+  syncFavoritesToServer("superblend", existing);
   scheduleAutoBackup(3000);
+}
+
+export function syncFavoritesToServer(favoriteType: string, data: any): void {
+  fetch("/api/favorites/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ favoriteType, data }),
+  }).catch(() => {});
+}
+
+export async function loadFavoritesFromServer(favoriteType: string): Promise<any[]> {
+  try {
+    const res = await fetch(`/api/favorites/load?type=${favoriteType}`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function recoverBlendFavoritesFromServer(): Promise<any[]> {
+  try {
+    const res = await fetch("/api/favorites/recover-blends");
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
 }
 
 const TONE_NUDGES_KEY = "irscope.toneNudges";

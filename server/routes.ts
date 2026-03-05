@@ -7761,6 +7761,63 @@ The corrections array uses these tags to shift the tonal profile. Include multip
     }
   });
 
+  // ── Server-Side Favorites Persistence ────────────────────
+  const favSaveSchema = z.object({
+    favoriteType: z.enum(["superblend", "learner_blend", "pairing_blend"]),
+    data: z.any(),
+  });
+
+  app.post("/api/favorites/save", async (req, res) => {
+    try {
+      const { favoriteType, data } = favSaveSchema.parse(req.body);
+      const row = await storage.saveFavorites(favoriteType, data);
+      res.json({ ok: true, id: row.id });
+    } catch (err) {
+      console.error("Save favorites error:", err);
+      res.status(500).json({ message: "Failed to save favorites" });
+    }
+  });
+
+  app.get("/api/favorites/load", async (req, res) => {
+    try {
+      const favoriteType = req.query.type as string;
+      if (!favoriteType) {
+        const all = await storage.getAllFavorites();
+        return res.json(all);
+      }
+      const row = await storage.getFavorites(favoriteType);
+      res.json(row ? row.data : []);
+    } catch (err) {
+      console.error("Load favorites error:", err);
+      res.status(500).json({ message: "Failed to load favorites" });
+    }
+  });
+
+  app.get("/api/favorites/recover-blends", async (req, res) => {
+    try {
+      const signals = await storage.getPreferenceSignals();
+      const loveSignals = signals.filter(s => s.action === "love");
+      const recovered = loveSignals
+        .sort((a, b) => b.score - a.score)
+        .map(s => ({
+          ir1: s.baseFilename,
+          ir2: s.featureFilename,
+          ratio: s.blendRatio ? `${Math.round(s.blendRatio * 100)}:${Math.round((1 - s.blendRatio) * 100)}` : "50:50",
+          ir1Role: "Base",
+          ir2Role: "Feature",
+          source: "recovered",
+          score: s.score,
+          feedback: s.feedback,
+          feedbackText: s.feedbackText,
+          savedAt: s.createdAt?.toISOString() || new Date().toISOString(),
+        }));
+      res.json(recovered);
+    } catch (err) {
+      console.error("Recover blends error:", err);
+      res.status(500).json({ message: "Failed to recover blend favorites" });
+    }
+  });
+
   // ── Tonal Profiles (Intelligence) ────────────────────────
   app.get(api.tonalProfiles.list.path, async (_req, res) => {
     try {

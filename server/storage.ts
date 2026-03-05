@@ -152,7 +152,6 @@ export class DatabaseStorage implements IStorage {
   async listTasteBackups(): Promise<TasteBackup[]> {
     return await db.select().from(tasteBackups).orderBy(desc(tasteBackups.createdAt));
   }
-}
 
   async saveFavorites(favoriteType: string, data: any): Promise<SavedFavorite> {
     await db.delete(savedFavorites).where(eq(savedFavorites.favoriteType, favoriteType));

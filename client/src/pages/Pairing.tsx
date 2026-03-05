@@ -18,7 +18,7 @@ import { analyzeAudioFile, type AudioMetrics } from "@/hooks/use-analyses";
 import { computeTonalFeatures } from "@/lib/tonal-engine";
 import { PairingBlendPreview, type BlendPreviewIR } from "@/components/BlendPreview";
 import { DEFAULT_PROFILES, applyLearnedAdjustments, computeSpeakerRelativeProfiles, parseGearFromFilename, type TonalFeatures, type LearnedProfileData } from "@/lib/preference-profiles";
-import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, featurizeSuperblendBands, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, saveToneNudges, loadToneNudges, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
+import { getSoloCategoriesForPairing, getIRWinRecordsPlain, getEloRatingsPlain, getSettledCombos, featurizeBlend, featurizeSuperblendBands, recordOutcome, recordIROutcome, recordEloOutcome, recordSuperblendInsight, getTasteBias, type TasteContext, loadSuperblendFavorites, saveSuperblendFavorite, removeSuperblendFavorite, saveToneNudges, loadToneNudges, syncFavoritesToServer, SUPERBLEND_INTENTS, type SavedSuperblend, type SuperblendLayer } from "@/lib/tasteStore";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { api, type PairingResponse, type PairingResult, type IRMetrics } from "@shared/routes";
 
@@ -97,6 +97,7 @@ export default function Pairing() {
   useEffect(() => {
     try {
       localStorage.setItem("irscope_blend_favorites", JSON.stringify(savedFavorites));
+      syncFavoritesToServer("pairing_blend", savedFavorites);
     } catch {}
   }, [savedFavorites]);
 

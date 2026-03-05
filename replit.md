@@ -23,6 +23,7 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL via Drizzle ORM.
 - **Schema**: Stores IR analysis data, mic configurations, audio metrics, AI feedback, quality scores, and timestamps. Also stores server-side backups of client taste data (Elo ratings, solo evaluations, blend preferences) for persistence.
 - **Taste Persistence**: Client-side taste data automatically backs up to the server, with client-side restoration from server backup if local data is empty.
+- **Server-Side Favorites**: All favorites (Superblend, Learner blend, Pairing blend) are immediately synced to the `saved_favorites` DB table on every save/remove. Three favorite types: `superblend`, `learner_blend`, `pairing_blend`. Restore merges server data into localStorage if local is empty. Recovery endpoint reconstructs blend favorites from `preference_signals WHERE action='love'`.
 
 ### AI Integration
 - **Functionality**: Generates quality scores, classifies IRs, and provides actionable advice based on audio metrics and mic setup. Offers AI-generated optimal mic/position/distance combinations and suggests speaker pairings based on amplifier descriptions and genre.

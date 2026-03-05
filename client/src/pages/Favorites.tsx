@@ -8,11 +8,14 @@ import {
   loadSuperblendFavorites,
   removeSuperblendFavorite,
   restoreTasteFromServer,
+  loadFavoritesFromServer,
+  syncFavoritesToServer,
   SUPERBLEND_INTENTS,
   type SavedSuperblend,
 } from "@/lib/tasteStore";
 
 const FAVORITES_KEY = "irscope.blendFavorites";
+const PAIRING_FAVORITES_KEY = "irscope_blend_favorites";
 
 interface BlendFavorite {
   ir1: string;
@@ -21,12 +24,36 @@ interface BlendFavorite {
   ir1Role?: string;
   ir2Role?: string;
   source: string;
+  score?: number;
+  feedback?: string;
+  feedbackText?: string;
   savedAt: string;
 }
 
 function loadBlendFavorites(): BlendFavorite[] {
   try {
-    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    const learner = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    const pairing = JSON.parse(localStorage.getItem(PAIRING_FAVORITES_KEY) || "[]")
+      .map((p: any) => ({
+        ir1: p.ir1,
+        ir2: p.ir2,
+        ratio: p.mixRatio || "50:50",
+        ir1Role: p.ir1Role,
+        ir2Role: p.ir2Role,
+        source: "pairing",
+        score: p.score,
+        savedAt: p.savedAt || new Date().toISOString(),
+      }));
+    const seen = new Set<string>();
+    const merged: BlendFavorite[] = [];
+    for (const f of [...learner, ...pairing]) {
+      const key = `${f.ir1}|${f.ir2}|${f.ratio}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(f);
+      }
+    }
+    return merged;
   } catch {
     return [];
   }
@@ -47,7 +74,30 @@ export default function Favorites() {
     const localSuper = loadSuperblendFavorites();
     if (localBlend.length === 0 && localSuper.length === 0) {
       setRestoring(true);
-      restoreTasteFromServer().then(() => {
+      Promise.all([
+        restoreTasteFromServer(),
+        loadFavoritesFromServer("superblend"),
+        loadFavoritesFromServer("pairing_blend"),
+        loadFavoritesFromServer("learner_blend"),
+      ]).then(([_, serverSuper, serverPairingBlend, serverLearnerBlend]) => {
+        if (Array.isArray(serverSuper) && serverSuper.length > 0) {
+          const localSb = loadSuperblendFavorites();
+          if (localSb.length === 0) {
+            localStorage.setItem("irscope.superblendFavorites", JSON.stringify(serverSuper));
+          }
+        }
+        if (Array.isArray(serverPairingBlend) && serverPairingBlend.length > 0) {
+          const localPb = JSON.parse(localStorage.getItem(PAIRING_FAVORITES_KEY) || "[]");
+          if (localPb.length === 0) {
+            localStorage.setItem(PAIRING_FAVORITES_KEY, JSON.stringify(serverPairingBlend));
+          }
+        }
+        if (Array.isArray(serverLearnerBlend) && serverLearnerBlend.length > 0) {
+          const localLb = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+          if (localLb.length === 0) {
+            localStorage.setItem(FAVORITES_KEY, JSON.stringify(serverLearnerBlend));
+          }
+        }
         setBlendFavs(loadBlendFavorites());
         setSuperblendFavs(loadSuperblendFavorites());
         setRestoring(false);
@@ -66,9 +116,20 @@ export default function Favorites() {
   }, []);
 
   const removeBlendFav = (idx: number) => {
+    const removed = blendFavs[idx];
     const updated = [...blendFavs];
     updated.splice(idx, 1);
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(updated));
+    if (removed?.source === "pairing") {
+      const pairingFavs = JSON.parse(localStorage.getItem(PAIRING_FAVORITES_KEY) || "[]");
+      const filtered = pairingFavs.filter((p: any) => !(p.ir1 === removed.ir1 && p.ir2 === removed.ir2));
+      localStorage.setItem(PAIRING_FAVORITES_KEY, JSON.stringify(filtered));
+      syncFavoritesToServer("pairing_blend", filtered);
+    } else {
+      const learnerFavs = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+      const filtered = learnerFavs.filter((f: any) => !(f.ir1 === removed.ir1 && f.ir2 === removed.ir2 && f.ratio === removed.ratio));
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(filtered));
+      syncFavoritesToServer("learner_blend", filtered);
+    }
     setBlendFavs(updated);
     toast({ title: "Removed from favorites", duration: 1500 });
   };
