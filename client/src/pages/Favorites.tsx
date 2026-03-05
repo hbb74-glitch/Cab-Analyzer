@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, Star, Copy, X, Blend, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Heart, Star, Copy, X, Blend, ChevronDown, ChevronUp, Loader2, Speaker } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -62,13 +62,56 @@ function loadBlendFavorites(): BlendFavorite[] {
 
 const strip = (f: string) => f.replace(/(_\d{13})?\.wav$/i, "");
 
+function getSpeaker(filename: string): string {
+  const name = filename.replace(/\.wav$/i, "");
+  const parts = name.split("_");
+  return parts[0] || "Unknown";
+}
+
+function getSpeakerFromPair(ir1: string, ir2: string): string {
+  const s1 = getSpeaker(ir1);
+  const s2 = getSpeaker(ir2);
+  if (s1 === s2) return s1;
+  return `${s1} + ${s2}`;
+}
+
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyFn(item);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+  return map;
+}
+
 export default function Favorites() {
   const [blendFavs, setBlendFavs] = useState<BlendFavorite[]>(() => loadBlendFavorites());
   const [superblendFavs, setSuperblendFavs] = useState<SavedSuperblend[]>(() => loadSuperblendFavorites());
   const [blendOpen, setBlendOpen] = useState(true);
   const [superblendOpen, setSuperblendOpen] = useState(true);
   const [restoring, setRestoring] = useState(false);
+  const [collapsedSpeakers, setCollapsedSpeakers] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  const toggleSpeaker = (key: string) => {
+    setCollapsedSpeakers(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const blendsBySpeaker = useMemo(() => {
+    const grouped = groupBy(blendFavs, fav => getSpeakerFromPair(fav.ir1, fav.ir2));
+    return Array.from(grouped.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [blendFavs]);
+
+  const superblendsBySpeaker = useMemo(() => {
+    const grouped = groupBy(superblendFavs, sb => sb.speaker);
+    return Array.from(grouped.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [superblendFavs]);
 
   useEffect(() => {
     const localBlend = loadBlendFavorites();
@@ -123,18 +166,16 @@ export default function Favorites() {
     return () => clearInterval(interval);
   }, []);
 
-  const removeBlendFav = (idx: number) => {
-    const removed = blendFavs[idx];
-    const updated = [...blendFavs];
-    updated.splice(idx, 1);
-    if (removed?.source === "pairing") {
+  const removeBlendFav = (fav: BlendFavorite) => {
+    const updated = blendFavs.filter(f => !(f.ir1 === fav.ir1 && f.ir2 === fav.ir2 && f.ratio === fav.ratio));
+    if (fav.source === "pairing") {
       const pairingFavs = JSON.parse(localStorage.getItem(PAIRING_FAVORITES_KEY) || "[]");
-      const filtered = pairingFavs.filter((p: any) => !(p.ir1 === removed.ir1 && p.ir2 === removed.ir2));
+      const filtered = pairingFavs.filter((p: any) => !(p.ir1 === fav.ir1 && p.ir2 === fav.ir2));
       localStorage.setItem(PAIRING_FAVORITES_KEY, JSON.stringify(filtered));
       syncFavoritesToServer("pairing_blend", filtered);
     } else {
       const learnerFavs = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
-      const filtered = learnerFavs.filter((f: any) => !(f.ir1 === removed.ir1 && f.ir2 === removed.ir2 && f.ratio === removed.ratio));
+      const filtered = learnerFavs.filter((f: any) => !(f.ir1 === fav.ir1 && f.ir2 === fav.ir2 && f.ratio === fav.ratio));
       localStorage.setItem(FAVORITES_KEY, JSON.stringify(filtered));
       syncFavoritesToServer("learner_blend", filtered);
     }
@@ -214,7 +255,7 @@ export default function Favorites() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 space-y-2"
+                className="mt-3 space-y-3"
               >
                 <div className="flex justify-end">
                   <Button
@@ -227,49 +268,81 @@ export default function Favorites() {
                     <Copy className="w-3 h-3 mr-1" /> Copy List
                   </Button>
                 </div>
-                {blendFavs.map((fav, i) => (
-                  <div
-                    key={`blend-${i}`}
-                    className="flex items-center gap-2 p-3 rounded-lg bg-white/[0.02] border border-white/5"
-                    data-testid={`favorite-blend-${i}`}
-                  >
-                    <Blend className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs font-mono text-foreground">{strip(fav.ir1)}</span>
-                        <span className="text-[10px] text-muted-foreground">+</span>
-                        <span className="text-xs font-mono text-foreground">{strip(fav.ir2)}</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[9px] h-4 font-bold text-purple-300"
-                        >
-                          {fav.ratio}
-                        </Badge>
-                      </div>
-                      {(fav.ir1Role || fav.ir2Role) && (
-                        <div className="flex gap-3 text-[9px] text-muted-foreground mt-0.5">
-                          {fav.ir1Role && <span className="text-purple-300">{fav.ir1Role}</span>}
-                          {fav.ir2Role && <span className="text-cyan-300">{fav.ir2Role}</span>}
+                {blendsBySpeaker.map(([speaker, favs]) => {
+                  const speakerKey = `blend-${speaker}`;
+                  const isOpen = !collapsedSpeakers.has(speakerKey);
+                  return (
+                    <div key={speakerKey} className="rounded-lg border border-white/5 bg-white/[0.01] overflow-hidden">
+                      <button
+                        onClick={() => toggleSpeaker(speakerKey)}
+                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/[0.02] transition-colors"
+                        data-testid={`button-toggle-speaker-${speaker}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Speaker className="w-3.5 h-3.5 text-purple-400" />
+                          <span className="text-xs font-semibold text-foreground">{speaker}</span>
+                          <Badge variant="secondary" className="text-[9px] font-mono h-4">{favs.length}</Badge>
                         </div>
-                      )}
-                      {fav.feedbackText && (
-                        <p className="text-[9px] text-muted-foreground/70 italic mt-0.5 line-clamp-1">{fav.feedbackText}</p>
-                      )}
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] text-muted-foreground">{fav.source}</span>
-                        {fav.score && <span className="text-[9px] text-emerald-400 font-mono">{fav.score}pts</span>}
-                      </div>
+                        {isOpen ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                      </button>
+                      <AnimatePresence>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="px-3 pb-2 space-y-1.5"
+                          >
+                            {favs.map((fav, i) => (
+                              <div
+                                key={`${fav.ir1}-${fav.ir2}-${i}`}
+                                className="flex items-center gap-2 p-2.5 rounded-md bg-white/[0.02] border border-white/5"
+                                data-testid={`favorite-blend-${speaker}-${i}`}
+                              >
+                                <Blend className="w-3 h-3 text-purple-400/60 shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-[11px] font-mono text-foreground">{strip(fav.ir1)}</span>
+                                    <span className="text-[9px] text-muted-foreground">+</span>
+                                    <span className="text-[11px] font-mono text-foreground">{strip(fav.ir2)}</span>
+                                    <Badge variant="outline" className="text-[8px] h-3.5 font-bold text-purple-300">
+                                      {fav.ratio}
+                                    </Badge>
+                                  </div>
+                                  {(fav.ir1Role || fav.ir2Role) && (
+                                    <div className="flex gap-3 text-[9px] text-muted-foreground mt-0.5">
+                                      {fav.ir1Role && <span className="text-purple-300">{fav.ir1Role}</span>}
+                                      {fav.ir2Role && <span className="text-cyan-300">{fav.ir2Role}</span>}
+                                    </div>
+                                  )}
+                                  {fav.feedbackText && (
+                                    <p className="text-[9px] text-muted-foreground/70 italic mt-0.5 line-clamp-1">{fav.feedbackText}</p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-[9px] text-muted-foreground">{fav.source}</span>
+                                    {fav.score && <span className="text-[9px] text-emerald-400 font-mono">{fav.score}pts</span>}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => removeBlendFav(fav)}
+                                  className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
+                                  title="Remove"
+                                  data-testid={`button-remove-blend-fav-${speaker}-${i}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    <button
-                      onClick={() => removeBlendFav(i)}
-                      className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors shrink-0"
-                      title="Remove"
-                      data-testid={`button-remove-blend-fav-${i}`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </motion.div>
             )}
           </AnimatePresence>
@@ -322,112 +395,123 @@ export default function Favorites() {
                     <Copy className="w-3 h-3 mr-1" /> Copy List
                   </Button>
                 </div>
-                {superblendFavs.map((sb) => (
-                  <div
-                    key={sb.id}
-                    className="rounded-lg border border-amber-500/10 bg-amber-500/5 p-3 space-y-2"
-                    data-testid={`favorite-superblend-${sb.id}`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-sm font-semibold text-foreground">{sb.name}</span>
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <Badge variant="outline" className="text-[9px]">
-                            {sb.speaker}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[9px]">
-                            {SUPERBLEND_INTENTS.find((i) => i.value === sb.intent)?.label ||
-                              sb.intent}
-                          </Badge>
-                          <span className="text-[9px] text-muted-foreground">
-                            {sb.versatilityScore}/100
-                          </span>
+                {superblendsBySpeaker.map(([speaker, sbs]) => {
+                  const speakerKey = `super-${speaker}`;
+                  const isOpen = !collapsedSpeakers.has(speakerKey);
+                  return (
+                    <div key={speakerKey} className="rounded-lg border border-amber-500/10 bg-amber-500/[0.02] overflow-hidden">
+                      <button
+                        onClick={() => toggleSpeaker(speakerKey)}
+                        className="w-full flex items-center justify-between px-3 py-2 hover:bg-amber-500/[0.03] transition-colors"
+                        data-testid={`button-toggle-super-speaker-${speaker}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Speaker className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="text-xs font-semibold text-foreground">{speaker}</span>
+                          <Badge variant="secondary" className="text-[9px] font-mono h-4">{sbs.length}</Badge>
                         </div>
-                        {sb.bestFor && (
-                          <div className="text-[10px] text-muted-foreground mt-1 italic">
-                            {sb.bestFor}
-                          </div>
+                        {isOpen ? (
+                          <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                         )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            const lines = [
-                              `Superblend: ${sb.name}`,
-                              `Speaker: ${sb.speaker}`,
-                              `Intent: ${sb.intent}`,
-                              `Score: ${sb.versatilityScore}/100`,
-                              "",
-                              "Layers:",
-                              ...sb.layers.map(
-                                (l) => `  ${l.filename} — ${l.percentage}% (${l.role})`
-                              ),
-                              "",
-                              `Tone: ${sb.expectedTone}`,
-                            ];
-                            navigator.clipboard.writeText(lines.join("\n"));
-                            toast({ title: "Copied", description: "Superblend recipe copied." });
-                          }}
-                          className="text-muted-foreground hover:text-foreground"
-                          data-testid={`button-copy-superblend-fav-${sb.id}`}
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => removeSuperFav(sb.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          data-testid={`button-remove-superblend-fav-${sb.id}`}
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      </button>
+                      <AnimatePresence>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="px-3 pb-2 space-y-2"
+                          >
+                            {sbs.map((sb) => (
+                              <div
+                                key={sb.id}
+                                className="rounded-md border border-amber-500/10 bg-amber-500/5 p-3 space-y-2"
+                                data-testid={`favorite-superblend-${sb.id}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <span className="text-sm font-semibold text-foreground">{sb.name}</span>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      <Badge variant="secondary" className="text-[9px]">
+                                        {SUPERBLEND_INTENTS.find((i) => i.value === sb.intent)?.label || sb.intent}
+                                      </Badge>
+                                      <span className="text-[9px] text-muted-foreground">
+                                        {sb.versatilityScore}/100
+                                      </span>
+                                    </div>
+                                    {sb.bestFor && (
+                                      <div className="text-[10px] text-muted-foreground mt-1 italic">{sb.bestFor}</div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        const lines = [
+                                          `Superblend: ${sb.name}`,
+                                          `Speaker: ${sb.speaker}`,
+                                          `Intent: ${sb.intent}`,
+                                          `Score: ${sb.versatilityScore}/100`,
+                                          "",
+                                          "Layers:",
+                                          ...sb.layers.map((l) => `  ${l.filename} — ${l.percentage}% (${l.role})`),
+                                          "",
+                                          `Tone: ${sb.expectedTone}`,
+                                        ];
+                                        navigator.clipboard.writeText(lines.join("\n"));
+                                        toast({ title: "Copied", description: "Superblend recipe copied." });
+                                      }}
+                                      className="text-muted-foreground hover:text-foreground"
+                                      data-testid={`button-copy-superblend-fav-${sb.id}`}
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => removeSuperFav(sb.id)}
+                                      className="text-muted-foreground hover:text-destructive"
+                                      data-testid={`button-remove-superblend-fav-${sb.id}`}
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {sb.layers.map((l, li) => (
+                                    <span
+                                      key={li}
+                                      className="text-[10px] text-muted-foreground font-mono bg-white/[0.03] px-1.5 py-0.5 rounded"
+                                    >
+                                      {l.percentage}% {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") || l.filename}
+                                    </span>
+                                  ))}
+                                </div>
+                                {sb.bandBreakdown && (
+                                  <div className="grid grid-cols-6 gap-1.5 text-center">
+                                    {(["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const).map((band) => (
+                                      <div key={band} className="text-[9px]">
+                                        <div className="text-muted-foreground">
+                                          {band === "subBass" ? "Sub" : band === "lowMid" ? "LoMid" : band === "highMid" ? "HiMid" : band.charAt(0).toUpperCase() + band.slice(1)}
+                                        </div>
+                                        <div className="font-mono text-foreground">{sb.bandBreakdown[band]}%</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {sb.expectedTone && (
+                                  <div className="text-[10px] text-muted-foreground bg-white/[0.02] rounded p-2 mt-1">{sb.expectedTone}</div>
+                                )}
+                                {sb.baselineLayers && (
+                                  <div className="text-[9px] text-zinc-500 italic">Baseline saved — original AI ratios preserved</div>
+                                )}
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {sb.layers.map((l, i) => (
-                        <span
-                          key={i}
-                          className="text-[10px] text-muted-foreground font-mono bg-white/[0.03] px-1.5 py-0.5 rounded"
-                        >
-                          {l.percentage}%{" "}
-                          {l.filename.replace(/\.wav$/i, "").split("_").slice(1).join("_") ||
-                            l.filename}
-                        </span>
-                      ))}
-                    </div>
-                    {sb.bandBreakdown && (
-                      <div className="grid grid-cols-6 gap-1.5 text-center">
-                        {(
-                          ["subBass", "bass", "lowMid", "mid", "highMid", "presence"] as const
-                        ).map((band) => (
-                          <div key={band} className="text-[9px]">
-                            <div className="text-muted-foreground">
-                              {band === "subBass"
-                                ? "Sub"
-                                : band === "lowMid"
-                                  ? "LoMid"
-                                  : band === "highMid"
-                                    ? "HiMid"
-                                    : band.charAt(0).toUpperCase() + band.slice(1)}
-                            </div>
-                            <div className="font-mono text-foreground">
-                              {sb.bandBreakdown[band]}%
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {sb.expectedTone && (
-                      <div className="text-[10px] text-muted-foreground bg-white/[0.02] rounded p-2 mt-1">
-                        {sb.expectedTone}
-                      </div>
-                    )}
-                    {sb.baselineLayers && (
-                      <div className="text-[9px] text-zinc-500 italic">
-                        Baseline saved — original AI ratios preserved
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </motion.div>
             )}
           </AnimatePresence>
