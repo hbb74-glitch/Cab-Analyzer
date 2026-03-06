@@ -1,0 +1,37 @@
+Here is a clean, paste-ready instruction block you can give Replit. It enforces the safe order of fixes and prevents it from rewriting your DSP logic.
+
+:::writing{variant=“chat_message” id=“73941”}
+We will fix the TypeScript errors in a controlled order. Do NOT refactor large sections of code and do NOT change any algorithmic or DSP logic. The app currently works at runtime, so the goal is minimal targeted fixes only.
+
+Important rules:
+• Do NOT rewrite or refactor signal-processing code (FFT, spectral analysis, band energy analysis, tilt analysis, IR processing, blending logic).
+• Do NOT change the structure of existing functions unless required to satisfy TypeScript.
+• Make the smallest possible fix for each error.
+• After finishing each category, show a summary of files changed before continuing.
+
+Fix the errors in this exact order:
+
+STEP 1 — TS2345 (type argument mismatches)
+These are highest priority because they can cause runtime bugs.
+Fix by correcting types, narrowing types, or casting appropriately. Do NOT change algorithm logic.
+
+STEP 2 — TS2339 (property does not exist on type)
+Prefer improving interface/type definitions or narrowing types rather than casting everything to any.
+
+STEP 3 — TS1252 (async return type issues)
+Make async return types explicit using Promise. Do not change control flow.
+
+STEP 4 — TS7030 (not all code paths return a value)
+Ensure functions return a value or explicitly return undefined. Do not restructure functions.
+
+STEP 5 — TS2802 (iterator issues)
+Fix typing issues related to iterables or use Array.from where appropriate.
+
+STEP 6 — TS6133 (unused variables/imports)
+Do NOT remove variables that may be placeholders for logic.
+Instead prefix unused variables with _ to satisfy TypeScript.
+
+Work category by category and report progress after each category before moving to the next one.
+:::
+
+If you want, I can also show you one extra instruction you should add that prevents Replit from accidentally breaking your IR analysis math (this happens surprisingly often with automated fixes).
