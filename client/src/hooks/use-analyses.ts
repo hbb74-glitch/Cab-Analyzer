@@ -513,7 +513,7 @@ function computeTailLevel(channelData: Float32Array, sampleRate: number): {
 
 export async function analyzeAudioFile(file: File): Promise<AudioMetrics> {
   const arrayBuffer = await file.arrayBuffer();
-  const audioContext = new AudioContext();
+  const audioContext = new AudioContext({ sampleRate: 48000 });
   const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
   const durationSamples = audioBuffer.length;
