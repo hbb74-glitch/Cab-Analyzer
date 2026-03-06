@@ -6,20 +6,20 @@ import { openai, speechToText, voiceChatWithTextModel, convertWebmToWav } from "
 // Note: Use convertWebmToWav() to convert browser WebM to WAV before API calls.
 export function registerAudioRoutes(app: Express): void {
   // Get all conversations
-  app.get("/api/conversations", async (req: Request, res: Response) => {
+  app.get("/api/conversations", async (_req: Request, res: Response) => {
     try {
       const conversations = await chatStorage.getAllConversations();
       res.json(conversations);
     } catch (error) {
       console.error("Error fetching conversations:", error);
-      res.status(500).json({ error: "Failed to fetch conversations" });
+      return res.status(500).json({ error: "Failed to fetch conversations" });
     }
   });
 
   // Get single conversation with messages
   app.get("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       const conversation = await chatStorage.getConversation(id);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -28,7 +28,7 @@ export function registerAudioRoutes(app: Express): void {
       res.json({ ...conversation, messages });
     } catch (error) {
       console.error("Error fetching conversation:", error);
-      res.status(500).json({ error: "Failed to fetch conversation" });
+      return res.status(500).json({ error: "Failed to fetch conversation" });
     }
   });
 
@@ -40,19 +40,19 @@ export function registerAudioRoutes(app: Express): void {
       res.status(201).json(conversation);
     } catch (error) {
       console.error("Error creating conversation:", error);
-      res.status(500).json({ error: "Failed to create conversation" });
+      return res.status(500).json({ error: "Failed to create conversation" });
     }
   });
 
   // Delete conversation
   app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(req.params.id as string);
       await chatStorage.deleteConversation(id);
       res.status(204).send();
     } catch (error) {
       console.error("Error deleting conversation:", error);
-      res.status(500).json({ error: "Failed to delete conversation" });
+      return res.status(500).json({ error: "Failed to delete conversation" });
     }
   });
 
@@ -61,7 +61,7 @@ export function registerAudioRoutes(app: Express): void {
   // For text model control, chain: speechToText() -> text model -> textToSpeech()
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
-      const conversationId = parseInt(req.params.id);
+      const conversationId = parseInt(req.params.id as string);
       const { audio, voice = "alloy", inputFormat = "wav" } = req.body;
 
       if (!audio) {
@@ -125,7 +125,7 @@ export function registerAudioRoutes(app: Express): void {
         res.write(`data: ${JSON.stringify({ type: "error", error: "Failed to process voice message" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "Failed to process voice message" });
+        return res.status(500).json({ error: "Failed to process voice message" });
       }
     }
   });
@@ -135,7 +135,7 @@ export function registerAudioRoutes(app: Express): void {
   // Supports multilingual sentence detection via locale parameter
   app.post("/api/conversations/:id/voice-stream", async (req: Request, res: Response) => {
     try {
-      const conversationId = parseInt(req.params.id);
+      const conversationId = parseInt(req.params.id as string);
       const { audio, voice = "alloy", inputFormat = "wav", locale = "en" } = req.body;
 
       if (!audio) {
@@ -185,7 +185,7 @@ export function registerAudioRoutes(app: Express): void {
         res.write(`data: ${JSON.stringify({ type: "error", error: "Voice stream failed" })}\n\n`);
         res.end();
       } else {
-        res.status(500).json({ error: "Voice stream failed" });
+        return res.status(500).json({ error: "Voice stream failed" });
       }
     }
   });

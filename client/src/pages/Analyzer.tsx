@@ -668,7 +668,7 @@ function cullIRs(
   preferenceMap?: Map<string, IRPreferenceInfo>,
   gearSentimentMap?: Map<string, number>,
   blendThresholdOverride: number = 0.93,
-  roleBalanceMode: 'off' | 'protect' | 'favor' = 'off'
+  _roleBalanceMode: 'off' | 'protect' | 'favor' = 'off'
 ): { result: CullResult; closeCalls: CullCloseCall[]; roleStats?: { featureCount: number; bodyCount: number; totalClassified: number; featureKept: number; bodyKept: number } } {
   if (irs.length <= targetCount) {
     return {
@@ -1868,7 +1868,7 @@ export default function Analyzer() {
     return applyLearnedAdjustments(speakerRelativeProfiles, learnedProfile);
   }, [learnedProfile, speakerRelativeProfiles]);
 
-  interface PairingSuggestion {
+  interface _PairingSuggestion {
     filename: string;
     index: number;
     reason: string;

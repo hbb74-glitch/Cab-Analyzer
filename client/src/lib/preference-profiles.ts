@@ -1124,7 +1124,7 @@ function tasteFeedbackScore(features: TonalFeatures, signal: TasteSignal | null)
 const UCB_EXPLORATION = 1.5;
 const ELO_BASE_RATING = 1500;
 
-function ucbScore(elo: EloEntry | undefined, totalRounds: number): number {
+function ucbScore(elo: EloEntry | undefined, _totalRounds: number): number {
   if (!elo || elo.matchCount === 0) {
     return 0.5 + UCB_EXPLORATION * 1.0;
   }

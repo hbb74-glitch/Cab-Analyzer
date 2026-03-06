@@ -6,9 +6,9 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
-import { getRecipesForSpeaker, getRecipesForMicAndSpeaker, type IRRecipe } from "@shared/knowledge/ir-recipes";
-import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline, getDistancePositionPenalty } from "@shared/knowledge/spectral-centroid";
-import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getModsForModel, getDriveCircuitTopology, formatDriveCircuitContext } from "@shared/knowledge/amp-designer";
+import { getRecipesForSpeaker } from "@shared/knowledge/ir-recipes";
+import { getExpectedCentroidRange, calculateCentroidDeviation, getDeviationScoreAdjustment, getMicRelativeSmoothnessAdjustment, getMicSmoothnessBaseline } from "@shared/knowledge/spectral-centroid";
+import { FRACTAL_AMP_MODELS, FRACTAL_DRIVE_MODELS, KNOWN_MODS, formatParameterGlossary, formatKnownModContext, formatModelContext, getDriveCircuitTopology, formatDriveCircuitContext } from "@shared/knowledge/amp-designer";
 import { getControlLayout, getModelIntelligence } from "@shared/knowledge/amp-dial-in";
 import { getDriveControlLayout, getDriveIntelligence } from "@shared/knowledge/drive-dial-in";
 import { buildKnowledgeBasePromptSection, buildIntentBudgetPromptSection, computeRoleBudgets, lookupMicRole, MIC_ROLE_KB, type IntentAllocation } from "@shared/knowledge/mic-role-map";
@@ -781,7 +781,7 @@ interface AITextNudges {
   summary: string;
 }
 
-async function parseTextFeedbackWithAI(
+async function _parseTextFeedbackWithAI(
   texts: { text: string; action: string; blendBands: { subBass: number; bass: number; lowMid: number; mid: number; highMid: number; presence: number; ratio: number } }[]
 ): Promise<AITextNudges | null> {
   if (texts.length === 0) return null;
@@ -894,7 +894,7 @@ function generateBatchCacheKey(irs: Array<{
 }
 
 // Generate a stable hash for single analysis input
-function generateSingleCacheKey(input: {
+function _generateSingleCacheKey(input: {
   micType: string;
   micPosition: string;
   speakerModel: string;
@@ -1560,6 +1560,7 @@ interface GearTonalEntry {
   score: GearScore;
   tonal: TonalProfile | null;
   descriptors: TonalDescriptor[];
+  sentiment?: string;
 }
 interface GearComboEntry {
   combo: string;
@@ -1636,7 +1637,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
   const noped = signals.filter((s) => s.action === "nope");
 
   if (liked.length === 0) {
-    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", refinementRate: null, courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: "Still learning -- rate some blends as Love or Like so I can start understanding your tonal preferences." };
+    return { signalCount: signals.length, likedCount: 0, nopedCount: noped.length, learnedAdjustments: null, avoidZones: [], status: "learning", refinementRate: null, courseCorrections: [], gearInsights: null, ratioPreference: null, tonalSummary: "Still learning -- rate some blends as Love or Like so I can start understanding your tonal preferences.", standaloneWorthy: [], standaloneRecipes: [] };
   }
 
   const signalWeight = (action: string): number => {
@@ -1800,7 +1801,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
     no_low_end:        { bass: -2.5, lowMid: -1.5 },
     no_top_end:        { presence: -2, highMid: -1.5 },
   };
-  const textKeywordMap: Record<string, Partial<typeof feedbackNudges>> = {
+  const _textKeywordMap: Record<string, Partial<typeof feedbackNudges>> = {
     bright: { highMid: 1, presence: 0.5 },
     dark: { highMid: -1, presence: -0.5 },
     scooped: { mid: -1.5, highMid: 0.5, bass: 0.5 },
@@ -2013,7 +2014,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
 
   if (loves.length >= 3 || (likes.length >= 3 && mehs.length >= 2)) {
     const positives = [...loves, ...likes];
-    const posLowMidAvg = positives.reduce((s, p) => s + p.lowMid, 0) / positives.length;
+    const _posLowMidAvg = positives.reduce((s, p) => s + p.lowMid, 0) / positives.length;
     const posPresAvg = positives.reduce((s, p) => s + p.presence, 0) / positives.length;
     const posMidAvg = positives.reduce((s, p) => s + p.mid, 0) / positives.length;
 
@@ -2042,7 +2043,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
       else if (action === "nope") { entry.noped++; entry.net -= 2; }
     };
 
-    const addGearTonal = (category: string, name: string | undefined, sig: PreferenceSignal) => {
+    const _addGearTonal = (category: string, name: string | undefined, sig: PreferenceSignal) => {
       if (!name) return;
       if (!gearTonalAccum[category][name]) gearTonalAccum[category][name] = { sums: { subBass: 0, bass: 0, lowMid: 0, mid: 0, highMid: 0, presence: 0, ratio: 0 }, count: 0 };
       const entry = gearTonalAccum[category][name];
@@ -2257,7 +2258,7 @@ async function computeLearnedProfile(signals: PreferenceSignal[]): Promise<Learn
       if (lastRating.action === "love" || lastRating.action === "like") {
         const gear = parseGearFromFilename(filename);
         const dist = parseDistance(filename);
-        const allTags = ratings.flatMap(r => r.feedback ? r.feedback.split(",").map(t => t.trim()) : []).filter(Boolean);
+        const allTags = ratings.flatMap((r: { action: string; feedback: string | null }) => r.feedback ? r.feedback.split(",").map((t: string) => t.trim()) : []).filter(Boolean);
         const worthyMic = gear.mic2 ? `${gear.mic}+${gear.mic2}` : gear.mic;
         const worthyPos = gear.mic2 ? (gear.blendType || "Blend") : gear.position;
         standaloneWorthy.push({
@@ -2849,11 +2850,11 @@ export async function registerRoutes(
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to analyze IR" });
+      return res.status(500).json({ message: "Failed to analyze IR" });
     }
   });
 
-  app.get(api.analyses.list.path, async (req, res) => {
+  app.get(api.analyses.list.path, async (_req, res) => {
     const history = await storage.getAnalyses();
     res.json(history);
   });
@@ -3236,7 +3237,7 @@ CRITICAL INSTRUCTIONS FOR GAP-FILLING:
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to generate recommendations" });
+      return res.status(500).json({ message: "Failed to generate recommendations" });
     }
   });
 
@@ -4119,7 +4120,7 @@ Output JSON:
           console.log(`[By-Speaker API] Post-validation shortfall: ${shortfall} shots needed`);
           
           // Generate meaningful rationales for backfill shots based on mic and position knowledge
-          const generateBackfillRationale = (mic: string, micLabel: string, position: string, distance: string, genre: string) => {
+          const generateBackfillRationale = (mic: string, micLabel: string, position: string, distance: string, _genre: string) => {
             const micLower = mic.toLowerCase();
             
             // Mic characteristics
@@ -4837,7 +4838,7 @@ Output JSON:
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to generate speaker recommendations" });
+      return res.status(500).json({ message: "Failed to generate speaker recommendations" });
     }
   });
 
@@ -4848,9 +4849,9 @@ Output JSON:
       const { ampDescription, genre, targetShotCount, basicPositionsOnly } = input;
       
       // Build position restriction instruction (for when By Amp later leads to mic recommendations)
-      let positionInstruction = '';
+      let _positionInstruction = '';
       if (basicPositionsOnly) {
-        positionInstruction = `\n\nPOSITION RESTRICTION NOTE: When this speaker is used for IR production, the user wants to limit positions to: Cap, CapEdge, Cap_Cone_Tr, Cone only.`;
+        _positionInstruction = `\n\nPOSITION RESTRICTION NOTE: When this speaker is used for IR production, the user wants to limit positions to: Cap, CapEdge, Cap_Cone_Tr, Cone only.`;
       }
       
       // Build shot count instruction
@@ -4967,7 +4968,7 @@ Output JSON:
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to generate amp-based recommendations" });
+      return res.status(500).json({ message: "Failed to generate amp-based recommendations" });
     }
   });
 
@@ -5004,7 +5005,7 @@ Output JSON:
         const c = ir.spectralCentroid;
         const has6 = ir.subBassEnergy != null && ir.midEnergy6 != null && ir.highMidEnergy != null && ir.presenceEnergy != null;
         const hmRatio = has6 ? (ir.highMidEnergy! / Math.max(ir.midEnergy6!, 0.001)) : (ir.highEnergy / Math.max(ir.midEnergy, 0.001));
-        const smoothness = ir.frequencySmoothness ?? 50;
+        const _smoothness = ir.frequencySmoothness ?? 50;
 
         if (c < 1400) return 'Dark Specialty';
         if (c < 1700 && hmRatio < 0.8) return 'Fizz Tamer';
@@ -5578,7 +5579,7 @@ ${tonePreferences ? `\nUSER'S TONAL GOALS: "${tonePreferences.trim()}"` : ''}`;
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to analyze IR pairings" });
+      return res.status(500).json({ message: "Failed to analyze IR pairings" });
     }
   });
 
@@ -5843,7 +5844,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to analyze positions" });
+      return res.status(500).json({ message: "Failed to analyze positions" });
     }
   });
 
@@ -5875,7 +5876,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
-      res.status(500).json({ message: "Failed to normalize bands" });
+      return res.status(500).json({ message: "Failed to normalize bands" });
     }
   });
 
@@ -5897,7 +5898,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return expanded;
       })();
       const iters = maxIter || 800;
-      const targetCount = irCount || layers.length;
+      const _targetCount = irCount || layers.length;
 
       if (layers.length < 2) {
         return res.status(400).json({ message: "Need at least 2 layers" });
@@ -5915,15 +5916,15 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       type IREntry = { filename: string; energies: number[]; ultraHigh: number; logBands: number[] | null; role: string; contribution?: string };
 
-      function getEnergies(ir: any): number[] {
+      const getEnergies = (ir: any): number[] => {
         return energyKeys.map(k => (ir as any)[k] as number || 0);
-      }
+      };
 
-      function getLogBands(ir: any): number[] | null {
+      const getLogBands = (ir: any): number[] | null => {
         const lbe = ir.logBandEnergies;
         if (Array.isArray(lbe) && lbe.length >= 20) return lbe;
         return null;
-      }
+      };
 
       const currentIRs: IREntry[] = layers.map(l => ({
         filename: l.filename,
@@ -5950,7 +5951,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         }
       }
 
-      function blendBands6(irs: IREntry[], ratios: number[]): number[] {
+      const blendBands6 = (irs: IREntry[], ratios: number[]): number[] => {
         const blended = new Array(6).fill(0);
         for (let i = 0; i < irs.length; i++) {
           for (let b = 0; b < 6; b++) {
@@ -5958,9 +5959,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
         }
         return blended;
-      }
+      };
 
-      function blendBands24(irs: IREntry[], ratios: number[]): number[] {
+      const blendBands24 = (irs: IREntry[], ratios: number[]): number[] => {
         const nBins = irs[0].logBands!.length;
         const blended = new Array(nBins).fill(0);
         for (let i = 0; i < irs.length; i++) {
@@ -5971,9 +5972,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
         }
         return blended;
-      }
+      };
 
-      function bands24To8(logBands: number[]): number[] {
+      const bands24To8 = (logBands: number[]): number[] => {
         const edges = [0, 2, 4, 7, 10, 14, 18, 21, 24];
         const result: number[] = [];
         for (let i = 0; i < 8; i++) {
@@ -5984,14 +5985,14 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           result.push(sum / (edges[i + 1] - edges[i]));
         }
         return result;
-      }
+      };
 
-      function toPercent(bands: number[]): number[] {
+      const toPercent = (bands: number[]): number[] => {
         const total = bands.reduce((a, b) => a + b, 0) || 1;
         return bands.map(b => Math.round((b / total) * 1000) / 10);
-      }
+      };
 
-      function regressionTilt(xs: number[], ys: number[]): number {
+      const regressionTilt = (xs: number[], ys: number[]): number => {
         const n = xs.length;
         if (n < 3) return 0;
         let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
@@ -6002,12 +6003,12 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         const denom = n * sumXX - sumX * sumX;
         if (denom === 0) return 0;
         return (n * sumXY - sumX * sumY) / denom;
-      }
+      };
 
       const LOG_MIN = Math.log(80);
       const LOG_MAX = Math.log(10000);
 
-      function computeTilt24(bands: number[]): number {
+      const computeTilt24 = (bands: number[]): number => {
         const nBands = bands.length;
         const logStep = (LOG_MAX - LOG_MIN) / nBands;
         const xs: number[] = [];
@@ -6020,9 +6021,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           ys.push(10 * Math.log10(bands[b]));
         }
         return Math.round(regressionTilt(xs, ys) * 10000) / 10000;
-      }
+      };
 
-      function computeTilt6(bands: number[]): number {
+      const computeTilt6 = (bands: number[]): number => {
         const centers6 = [100, 175, 350, 1000, 2750, 6000];
         const xs: number[] = [];
         const ys: number[] = [];
@@ -6033,40 +6034,40 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           ys.push(10 * Math.log10(bands[i]));
         }
         return Math.round(regressionTilt(xs, ys) * 10000) / 10000;
-      }
+      };
 
-      function computeSmoothness6(bands: number[]): number {
+      const computeSmoothness6 = (bands: number[]): number => {
         const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
         let roughness = 0;
         for (let i = 1; i < db.length; i++) roughness += Math.abs(db[i] - db[i - 1]);
         return Math.round(Math.max(0, Math.min(100, 100 - (roughness / (db.length - 1)) * 8)) * 10) / 10;
-      }
+      };
 
-      function computeSmoothness24(bands: number[]): number {
+      const computeSmoothness24 = (bands: number[]): number => {
         const db = bands.map(e => e > 0 ? 10 * Math.log10(e + 1e-12) : -60);
         let roughness = 0;
         for (let i = 1; i < db.length; i++) roughness += Math.abs(db[i] - db[i - 1]);
         const avg = roughness / (db.length - 1);
         return Math.max(0, Math.min(100, 100 - avg * 8));
-      }
+      };
 
-      function computeBaselineVec(irs: IREntry[], ratios: number[]): { vec6: number[]; vec24: number[] | null } {
+      const computeBaselineVec = (irs: IREntry[], ratios: number[]): { vec6: number[]; vec24: number[] | null } => {
         const vec6 = computeVec6(irs, ratios);
         const vec24 = (use24Band && irs.every(ir => ir.logBands !== null)) ? computeVec24(irs, ratios) : null;
         return { vec6, vec24 };
-      }
+      };
 
-      function scoreBlend(irs: IREntry[], ratios: number[], baseVecs?: { vec6: number[]; vec24: number[] | null }): number {
+      const scoreBlend = (irs: IREntry[], ratios: number[], baseVecs?: { vec6: number[]; vec24: number[] | null }): number => {
         if (use24Band && irs.every(ir => ir.logBands !== null)) {
           return scoreBlend24(irs, ratios, baseVecs?.vec24 ?? undefined);
         }
         return scoreBlend6(irs, ratios, baseVecs?.vec6 ?? undefined);
-      }
+      };
 
       const NUDGE_STEP_6 = 0.8;
       const NUDGE_PENALTY_6 = 2.5;
 
-      function computeVec6(irs: IREntry[], ratios: number[]): number[] {
+      const computeVec6 = (irs: IREntry[], ratios: number[]): number[] => {
         const bands = blendBands6(irs, ratios);
         const pcts = toPercent(bands);
         const tilt = computeTilt6(bands);
@@ -6075,9 +6076,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         for (let i = 0; i < irs.length; i++) uh += irs[i].ultraHigh * (ratios[i] || 0);
         const airPct = uh / (bands.reduce((a, b) => a + b, 0) + uh + 1e-12) * 100;
         return [...pcts, airPct, tilt, smooth];
-      }
+      };
 
-      function scoreBlend6(irs: IREntry[], ratios: number[], baseVec6?: number[]): number {
+      const scoreBlend6 = (irs: IREntry[], ratios: number[], baseVec6?: number[]): number => {
         const bands = blendBands6(irs, ratios);
         const pcts = toPercent(bands);
         const tilt = computeTilt6(bands);
@@ -6124,12 +6125,12 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
           }
         }
         return score;
-      }
+      };
 
       const NUDGE_STEP_24 = 0.25;
       const NUDGE_PENALTY_24 = 3.0;
 
-      function computeVec24(irs: IREntry[], ratios: number[]): number[] {
+      const computeVec24 = (irs: IREntry[], ratios: number[]): number[] => {
         const blended = blendBands24(irs, ratios);
         const bands8 = bands24To8(blended);
         const total8 = bands8.reduce((a, b) => a + b, 0);
@@ -6142,9 +6143,9 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         vec.push(computeTilt24(blended) / 10);
         vec.push(computeSmoothness24(blended) / 100);
         return vec;
-      }
+      };
 
-      function scoreBlend24(irs: IREntry[], ratios: number[], baseVec24?: number[]): number {
+      const scoreBlend24 = (irs: IREntry[], ratios: number[], baseVec24?: number[]): number => {
         const blended = blendBands24(irs, ratios);
         const bands8 = bands24To8(blended);
         const total8 = bands8.reduce((a, b) => a + b, 0);
@@ -6192,13 +6193,13 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         }
 
         return smoothBonus + perceptualScore + nudgeBonus;
-      }
+      };
 
-      function normalizeRatios(r: number[]): number[] {
+      const normalizeRatios = (r: number[]): number[] => {
         const sum = r.reduce((a, b) => a + b, 0);
         if (sum <= 0) return r.map(() => 1 / r.length);
         return r.map(v => v / sum);
-      }
+      };
 
       const adaptiveIters = Math.min(4000, Math.max(iters, (pool?.length || 0) * layers.length * 60));
 
@@ -6206,11 +6207,11 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
       const minPctFrac = Math.max(0.05, 0.5 / n);
       const maxPctFrac = 1.0 - (n - 1) * minPctFrac;
 
-      function clampRatios(ratios: number[]): number[] {
+      const clampRatios = (ratios: number[]): number[] => {
         const clamped = ratios.map(r => Math.max(minPctFrac, Math.min(maxPctFrac, r)));
         const sum = clamped.reduce((a, b) => a + b, 0);
         return clamped.map(r => r / sum);
-      }
+      };
 
       let bestIRs = [...currentIRs];
       let bestRatios = clampRatios(normalizeRatios(layers.map(l => l.percentage / 100)));
@@ -6240,7 +6241,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
 
       const swaps: { out: string; in: string; reason: string }[] = [];
       if (poolIRs.length > 0 && nudges && Object.keys(nudges).length > 0) {
-        function optimizeRatiosForIRs(irs: IREntry[], startRatios: number[], optimIters: number): { ratios: number[]; score: number } {
+        const optimizeRatiosForIRs = (irs: IREntry[], startRatios: number[], optimIters: number): { ratios: number[]; score: number } => {
           let bRatios = clampRatios([...startRatios]);
           let bScore = scoreBlend(irs, bRatios, baseVecs);
           for (let iter = 0; iter < optimIters; iter++) {
@@ -6258,7 +6259,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
             if (s > bScore) { bScore = s; bRatios = norm; }
           }
           return { ratios: bRatios, score: bScore };
-        }
+        };
 
         let improved = true;
         while (improved) {
@@ -6342,7 +6343,7 @@ ${positionList}${speaker ? `\n\nI'm working with the ${speaker} speaker.` : ''}$
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
       console.error("Superblend reoptimize error:", err);
-      res.status(500).json({ message: "Failed to reoptimize blend" });
+      return res.status(500).json({ message: "Failed to reoptimize blend" });
     }
   });
 
@@ -6600,7 +6601,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
           field: err.errors[0].path.join('.'),
         });
       }
-      res.status(500).json({ message: "Failed to analyze IRs" });
+      return res.status(500).json({ message: "Failed to analyze IRs" });
     }
   });
 
@@ -6615,7 +6616,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
       console.error('Preference signal error:', err);
-      res.status(500).json({ message: "Failed to store preference signals" });
+      return res.status(500).json({ message: "Failed to store preference signals" });
     }
   });
 
@@ -6625,7 +6626,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
       res.json(signals);
     } catch (err) {
       console.error('Preference list error:', err);
-      res.status(500).json({ message: "Failed to retrieve preference signals" });
+      return res.status(500).json({ message: "Failed to retrieve preference signals" });
     }
   });
 
@@ -6657,7 +6658,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
       res.json(stats);
     } catch (err) {
       console.error('Solo stats error:', err);
-      res.status(500).json({});
+      return res.status(500).json({});
     }
   });
 
@@ -6675,12 +6676,12 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
         blendPartners: Set<string>;
       }> = {};
 
-      function ensureIR(name: string) {
+      const ensureIR = (name: string) => {
         if (!irData[name]) {
           irData[name] = { soloAction: null, soloTags: [], blendLoves: 0, blendLikes: 0, blendMehs: 0, blendNopes: 0, blendPartners: new Set() };
         }
         return irData[name];
-      }
+      };
 
       for (const s of signals) {
         const isSolo = s.baseFilename === s.featureFilename;
@@ -6746,7 +6747,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
       res.json(scores);
     } catch (err) {
       console.error('Usefulness scores error:', err);
-      res.status(500).json({ message: "Failed to compute usefulness scores" });
+      return res.status(500).json({ message: "Failed to compute usefulness scores" });
     }
   });
 
@@ -6760,7 +6761,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
       console.error('Clear speaker signals error:', err);
-      res.status(500).json({ message: "Failed to clear speaker signals" });
+      return res.status(500).json({ message: "Failed to clear speaker signals" });
     }
   });
 
@@ -6779,7 +6780,7 @@ IMPORTANT: If isComplete is true, gapsSuggestions MUST be an empty array [].`;
       res.json(learned);
     } catch (err) {
       console.error('Learned profile error:', err);
-      res.status(500).json({ message: "Failed to compute learned profile" });
+      return res.status(500).json({ message: "Failed to compute learned profile" });
     }
   });
 
@@ -6874,7 +6875,7 @@ Use larger values than normal -- corrections should have strong impact since the
       res.json({ applied: true, summary });
     } catch (err) {
       console.error('Correction error:', err);
-      res.status(500).json({ message: "Failed to apply correction" });
+      return res.status(500).json({ message: "Failed to apply correction" });
     }
   });
 
@@ -6978,7 +6979,7 @@ Suggest the best blend combinations to achieve this tone. Return as JSON.`
       res.json(result);
     } catch (err) {
       console.error('Tone request error:', err);
-      res.status(500).json({ message: "Failed to process tone request" });
+      return res.status(500).json({ message: "Failed to process tone request" });
     }
   });
 
@@ -7082,7 +7083,7 @@ Suggest the best IR blend combinations to achieve this tone. Return as JSON.`
       res.json(result);
     } catch (err) {
       console.error('Test AI error:', err);
-      res.status(500).json({ message: "Failed to process test query" });
+      return res.status(500).json({ message: "Failed to process test query" });
     }
   });
 
@@ -7406,7 +7407,7 @@ Select the best ${irCount} IRs and assign precise percentages that sum to 100%. 
       res.json(result);
     } catch (err) {
       console.error('Superblend error:', err);
-      res.status(500).json({ message: "Failed to create superblend" });
+      return res.status(500).json({ message: "Failed to create superblend" });
     }
   });
 
@@ -7530,7 +7531,7 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
       }
 
       try {
-        await storage.addPreferenceSignal({
+        await storage.createPreferenceSignal({
           action: result.questionAnswer && !result.blend ? "superblend_comment" : "superblend_refine",
           baseFilename: currentBlend.layers[0]?.filename || "superblend",
           featureFilename: currentBlend.speaker,
@@ -7607,7 +7608,7 @@ First classify the user's message: is it a QUESTION, COMMENT, or CHANGE REQUEST?
       res.json(result);
     } catch (err) {
       console.error('Superblend refine error:', err);
-      res.status(500).json({ message: "Failed to refine superblend" });
+      return res.status(500).json({ message: "Failed to refine superblend" });
     }
   });
 
@@ -7719,7 +7720,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       });
     } catch (err) {
       console.error('Preference chat error:', err);
-      res.status(500).json({ message: "Failed to process preference chat" });
+      return res.status(500).json({ message: "Failed to process preference chat" });
     }
   });
 
@@ -7732,7 +7733,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json({ success: true, id: backup.id, slot: backup.slotName, createdAt: backup.createdAt });
     } catch (err) {
       console.error('Taste backup save error:', err);
-      res.status(500).json({ message: "Failed to save taste backup" });
+      return res.status(500).json({ message: "Failed to save taste backup" });
     }
   });
 
@@ -7747,7 +7748,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json({ tasteData: backup.tasteData, soloRatings: backup.soloRatings, meta: backup.meta, createdAt: backup.createdAt });
     } catch (err) {
       console.error('Taste backup load error:', err);
-      res.status(500).json({ message: "Failed to load taste backup" });
+      return res.status(500).json({ message: "Failed to load taste backup" });
     }
   });
 
@@ -7757,7 +7758,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json(backups.map(b => ({ id: b.id, slot: b.slotName, createdAt: b.createdAt })));
     } catch (err) {
       console.error('Taste backup list error:', err);
-      res.status(500).json({ message: "Failed to list taste backups" });
+      return res.status(500).json({ message: "Failed to list taste backups" });
     }
   });
 
@@ -7774,7 +7775,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json({ ok: true, id: row.id });
     } catch (err) {
       console.error("Save favorites error:", err);
-      res.status(500).json({ message: "Failed to save favorites" });
+      return res.status(500).json({ message: "Failed to save favorites" });
     }
   });
 
@@ -7789,11 +7790,11 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json(row ? row.data : []);
     } catch (err) {
       console.error("Load favorites error:", err);
-      res.status(500).json({ message: "Failed to load favorites" });
+      return res.status(500).json({ message: "Failed to load favorites" });
     }
   });
 
-  app.get("/api/favorites/recover-blends", async (req, res) => {
+  app.get("/api/favorites/recover-blends", async (_req, res) => {
     try {
       const signals = await storage.getPreferenceSignals();
       const loveSignals = signals.filter(s => s.action === "love");
@@ -7814,7 +7815,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json(recovered);
     } catch (err) {
       console.error("Recover blends error:", err);
-      res.status(500).json({ message: "Failed to recover blend favorites" });
+      return res.status(500).json({ message: "Failed to recover blend favorites" });
     }
   });
 
@@ -7825,7 +7826,7 @@ The corrections array uses these tags to shift the tonal profile. Include multip
       res.json(profiles);
     } catch (err) {
       console.error('Tonal profiles error:', err);
-      res.status(500).json({ message: "Failed to retrieve tonal profiles" });
+      return res.status(500).json({ message: "Failed to retrieve tonal profiles" });
     }
   });
 
@@ -8338,7 +8339,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
-      res.status(500).json({ message: "Failed to design shots" });
+      return res.status(500).json({ message: "Failed to design shots" });
     }
   });
 
@@ -8455,7 +8456,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       });
     } catch (err) {
       console.error('Proven shots error:', err);
-      res.status(500).json({ message: "Failed to retrieve proven shots" });
+      return res.status(500).json({ message: "Failed to retrieve proven shots" });
     }
   });
 
@@ -8603,7 +8604,7 @@ Ratio (HiMid/Mid): >1.5 = bright/aggressive, <1.2 = warm/dark
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
-      res.status(500).json({ message: "Failed to analyze gaps" });
+      return res.status(500).json({ message: "Failed to analyze gaps" });
     }
   });
 
@@ -8741,7 +8742,7 @@ Respond in JSON format:
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
-      res.status(500).json({ message: "Failed to generate mod parameters" });
+      return res.status(500).json({ message: "Failed to generate mod parameters" });
     }
   });
 
@@ -8751,7 +8752,7 @@ Respond in JSON format:
       res.json(mods);
     } catch (err) {
       console.error('Get custom mods error:', err);
-      res.status(500).json({ message: "Failed to fetch saved mods" });
+      return res.status(500).json({ message: "Failed to fetch saved mods" });
     }
   });
 
@@ -8771,7 +8772,7 @@ Respond in JSON format:
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      res.status(500).json({ message: "Failed to save mod" });
+      return res.status(500).json({ message: "Failed to save mod" });
     }
   });
 
@@ -8783,7 +8784,7 @@ Respond in JSON format:
       res.json({ success: true });
     } catch (err) {
       console.error('Delete custom mod error:', err);
-      res.status(500).json({ message: "Failed to delete mod" });
+      return res.status(500).json({ message: "Failed to delete mod" });
     }
   });
 
@@ -9217,7 +9218,7 @@ Respond in JSON format:
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message, field: err.errors[0].path.join('.') });
       }
-      res.status(500).json({ message: "Failed to generate dial-in advice" });
+      return res.status(500).json({ message: "Failed to generate dial-in advice" });
     }
   });
 

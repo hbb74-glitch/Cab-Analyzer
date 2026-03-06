@@ -101,7 +101,7 @@ function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centr
   );
 }
 
-function ProfileScores({ features, profiles }: { features: TonalFeatures; profiles?: PreferenceProfile[] }) {
+function ProfileScores({ features: _features, profiles: _profiles }: { features: TonalFeatures; profiles?: PreferenceProfile[] }) {
   return null;
 }
 

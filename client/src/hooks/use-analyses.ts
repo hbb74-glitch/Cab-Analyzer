@@ -4,7 +4,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import type { AnalysisRequest } from "@shared/schema";
 
-type Analysis = z.infer<typeof api.analyses.list.responses[200]>[number];
+type _Analysis = z.infer<typeof api.analyses.list.responses[200]>[number];
 
 export function useHistory() {
   return useQuery({

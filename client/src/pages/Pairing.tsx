@@ -337,7 +337,8 @@ export default function Pairing() {
     const refFeat2 = lookupFeatures(ref.ir2);
     if (refFeat1 && refFeat2) {
       const blended = featurizeBlend(refFeat1, refFeat2, ratioVal);
-      recordOutcome(ctx, blended, refinedAction, undefined, ["pairing_refined", "pairing_improved"]);
+      const zeroVec = new Array(blended.length).fill(0);
+      recordOutcome(ctx, blended, zeroVec, "a", { lr: 0.06, source: "favorite", tagsA: ["pairing_refined", "pairing_improved"] });
     }
     const origFeat1 = lookupFeatures(originalPairing.ir1);
     const origFeat2 = lookupFeatures(originalPairing.ir2);
@@ -345,7 +346,8 @@ export default function Pairing() {
       const origRatio = originalPairing.mixRatio?.split("/").map(Number);
       const origRatioVal = origRatio ? origRatio[0] / 100 : 0.5;
       const origBlend = featurizeBlend(origFeat1, origFeat2, origRatioVal);
-      recordOutcome(ctx, origBlend, origAction, undefined, ["pairing_refined"]);
+      const zeroVec = new Array(origBlend.length).fill(0);
+      recordOutcome(ctx, zeroVec, origBlend, "a", { lr: 0.06, source: "pass", tagsB: ["pairing_refined"] });
     }
     const signals: any[] = [];
     const refIr2Bands = lookupBands(ref.ir2);
@@ -392,7 +394,8 @@ export default function Pairing() {
     const refFeat2 = lookupFeatures(ref.ir2);
     if (refFeat1 && refFeat2) {
       const blended = featurizeBlend(refFeat1, refFeat2, ratioVal);
-      recordOutcome(ctx, blended, "love", undefined, ["pairing_favorited"]);
+      const zeroVec = new Array(blended.length).fill(0);
+      recordOutcome(ctx, blended, zeroVec, "a", { lr: 0.12, source: "favorite", tagsA: ["pairing_favorited"] });
     }
     const refIr2Bands = lookupBands(ref.ir2);
     if (refIr2Bands) {
@@ -418,7 +421,8 @@ export default function Pairing() {
       const ratioParts = originalPairing.mixRatio?.split("/").map(Number);
       const ratioVal = ratioParts ? ratioParts[0] / 100 : 0.5;
       const blended = featurizeBlend(feat1, feat2, ratioVal);
-      recordOutcome(ctx, blended, "nope", undefined, ["pairing_unfixable"]);
+      const zeroVec = new Array(blended.length).fill(0);
+      recordOutcome(ctx, zeroVec, blended, "a", { lr: 0.08, source: "pass", tagsB: ["pairing_unfixable"] });
     }
     const origIr2Bands = lookupBands(originalPairing.ir2);
     if (origIr2Bands) {
@@ -2121,7 +2125,7 @@ function SuperblendSection({ speaker1IRs, speaker2IRs, onClearAll }: { speaker1I
                           layers: updatedLayers,
                           bandBreakdown: data.bandBreakdown,
                           tilt: data.tilt,
-                        };
+                        } as typeof updatedAlts[number];
                       }
                       setAllResults(prev => ({
                         ...prev,

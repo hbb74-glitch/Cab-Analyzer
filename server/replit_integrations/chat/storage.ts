@@ -1,6 +1,20 @@
 import { db } from "../../db";
-import { conversations, messages } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
+import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+
+const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: serial("conversation_id"),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 export interface IChatStorage {
   getConversation(id: number): Promise<typeof conversations.$inferSelect | undefined>;

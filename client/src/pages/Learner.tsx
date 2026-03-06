@@ -84,7 +84,7 @@ function TonalReadouts({ features, centroid }: { features?: TonalFeatures; centr
   );
 }
 
-interface IRData {
+interface _IRData {
   filename: string;
   bands: TonalBands;
 }
@@ -490,7 +490,7 @@ function TestAIPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speake
                 <span className="text-[10px] text-muted-foreground">{ratedCount}/{totalCount} rated</span>
               )}
             </div>
-            {sortedResults.map((r, i) => {
+            {sortedResults.map((r, _i) => {
               const origIdx = results!.results.indexOf(r);
               return (
                 <TestAIResultRow
@@ -812,6 +812,7 @@ interface SuperblendBlendData {
   rationale: string;
   versatilityScore: number;
   bestFor: string;
+  tilt?: number;
 }
 
 function snapBlendLayers(layers: SuperblendLayer[]): SuperblendLayer[] {
@@ -879,7 +880,7 @@ interface SuperblendResult {
   changesSummary?: string;
 }
 
-function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
+function SuperblendPanel({ allIRs, speakerStatsMap: _speakerStatsMap }: { allIRs: AnalyzedIR[]; speakerStatsMap: Map<string, import("@/lib/musical-roles").SpeakerStats> }) {
   const [open, setOpen] = useState(false);
   const [irCount, setIrCount] = useState(4);
   const [toneGoal, setToneGoal] = useState("");
@@ -1748,7 +1749,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                             onChange={(e) => { setComparisonComment(e.target.value); if (comparisonAiAnalysis) setComparisonAiAnalysis(null); }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && comparisonComment.trim() && !isAnalyzingComparison && displayBlend) {
-                                submitComparisonFeedback(comparisonComment.trim(), displayBlend, twoIRComparison);
+                                submitComparisonFeedback(comparisonComment.trim(), displayBlend as SuperblendBlendData, twoIRComparison);
                               }
                             }}
                             placeholder="e.g., the superblend has more depth / the 2-IR is close enough / missing the air..."
@@ -1759,7 +1760,7 @@ function SuperblendPanel({ allIRs, speakerStatsMap }: { allIRs: AnalyzedIR[]; sp
                           <button
                             onClick={() => {
                               if (comparisonComment.trim() && !isAnalyzingComparison && displayBlend) {
-                                submitComparisonFeedback(comparisonComment.trim(), displayBlend, twoIRComparison);
+                                submitComparisonFeedback(comparisonComment.trim(), displayBlend as SuperblendBlendData, twoIRComparison);
                               }
                             }}
                             disabled={!comparisonComment.trim() || isAnalyzingComparison}

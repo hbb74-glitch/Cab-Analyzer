@@ -4611,7 +4611,7 @@ export function getModelIntelligence(modelId: string): ModelIntelligence | undef
 // LOOKUP FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 
-export function getControlLayout(modelId: string, allModels: { id: string; label: string; basedOn: string; characteristics: string }[]): AmpControlLayout {
+export function getControlLayout(modelId: string, _allModels: { id: string; label: string; basedOn: string; characteristics: string }[]): AmpControlLayout {
   const override = MODEL_OVERRIDES.find(o => o.modelId === modelId);
   if (override?.controlLayout) {
     return override.controlLayout;

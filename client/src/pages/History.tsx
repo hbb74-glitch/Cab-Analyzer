@@ -85,7 +85,7 @@ export default function History() {
                             {item.peakAmplitudeDb} dB
                           </span>
                           <span className="text-muted-foreground/60 text-xs">
-                            {item.durationMs}ms
+                            {Math.round(item.durationSamples / 48)}ms
                           </span>
                         </div>
                       </td>
